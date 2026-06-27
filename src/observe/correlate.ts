@@ -175,7 +175,11 @@ function classifyInterval(
   }
 
   // 区間 [bornAt, endAt) に属する Operation_Log。最終区間のみ観測終了時刻 endAt を含む。
-  const opsInInterval = ops.filter((o) => o.at >= bornAt && (isLast ? o.at <= endAt : o.at < endAt));
+  // 区間境界（bornAt/endAt）は construct 継ぎ目＝サーバ時計なので、op 側もサーバ時計へ揃えて帰属を問う。
+  const opsInInterval = ops.filter((o) => {
+    const at = serverAlignedAt(o);
+    return at >= bornAt && (isLast ? at <= endAt : at < endAt);
+  });
   if (opsInInterval.length === 0) {
     return "unclassifiable";
   }
@@ -238,13 +242,15 @@ export function verifyAlarmFiredInIdle(
       continue;
     }
     const timerId = doneTimerId(entry);
-    if (timerId === null || !withinIdle(entry.at)) {
+    // done はサーバ確定の serverTime で idle 帰属・順序比較する（alarm 側は継ぎ目＝サーバ時計）。
+    const doneAt = serverAlignedAt(entry);
+    if (timerId === null || !withinIdle(doneAt)) {
       continue;
     }
 
     if (alarmTimes.length === 0) {
       results.push({ verdict: "fail", timerId, cause: "NoAlarm" });
-    } else if (alarmTimes.some((alarmAt) => alarmAt <= entry.at)) {
+    } else if (alarmTimes.some((alarmAt) => alarmAt <= doneAt)) {
       results.push({ verdict: "pass", timerId });
     } else {
       results.push({ verdict: "fail", timerId, cause: "AlarmAfterDone" });
@@ -441,7 +447,8 @@ function rehydrateFor(merged: readonly MergedRow[], interval: InstanceInterval):
 function activeCountBefore(ops: readonly OperationLogEntry[], boundary: number): number {
   const active = new Set<string>();
   for (const entry of ops) {
-    if (entry.at >= boundary) {
+    // 境界（boundary = 再 construct の bornAt＝サーバ時計）より厳密に前かを、op 側もサーバ時計で問う。
+    if (serverAlignedAt(entry) >= boundary) {
       continue;
     }
     const startedId = startedTimerId(entry);
@@ -498,4 +505,31 @@ function stringField(value: unknown, key: string): string | null {
   }
   const field = (value as Record<string, unknown>)[key];
   return typeof field === "string" ? field : null;
+}
+
+/** value がオブジェクトで key に有限数を持てばその値、そうでなければ null。 */
+function numberField(value: unknown, key: string): number | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "number" && Number.isFinite(field) ? field : null;
+}
+
+/**
+ * cross-source 比較のためにサーバ時計へ揃えた Operation_Log の時刻（時間の SSOT）。
+ *
+ * Operation_Log の at は Probe_Client（Node）の時計、Instrumentation_Log の at は Cloudflare の
+ * 時計であり、両者には実機でクロックスキューがある（ライブ観測で約 180ms の前後逆転を確認）。
+ * 素の at どうしを突き合わせると、同一事象（idle 中の alarm 発火 → done 配送など）の前後関係が
+ * スキュー幅で逆転し、観測が誤って fail に倒れる。ServerMessage（snapshot/started/cancelled/done/
+ * error）はすべて payload.serverTime（サーバが確定した単一の時計）を運ぶため、これを cross-source
+ * 比較における時間の真実とする。serverTime を持たない記録（client 送信の start/cancel・診断記録）は
+ * 自身の at へフォールバックする——これらは client 由来であり、サーバ時計上の対応点を持たないからである。
+ *
+ * 注: 二つのログを「素の at」で配列する mergeByTime（汎用の安定マージ）はこの整合を行わない。
+ * サーバ時計への整合は「意味的な前後関係を問う」検証（区間帰属・検証条件 a/b）に限って適用する。
+ */
+function serverAlignedAt(entry: OperationLogEntry): number {
+  return numberField(entry.payload, "serverTime") ?? entry.at;
 }

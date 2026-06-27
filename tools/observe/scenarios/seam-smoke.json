@@ -1,0 +1,17 @@
+{
+  "idleIntervalSeconds": 1,
+  "steps": [
+    {
+      "at": 0,
+      "op": "start",
+      "slotId": "kama-1",
+      "noodleType": "Thin",
+      "boilSeconds": 5
+    },
+    {
+      "at": 1000,
+      "op": "wait",
+      "durationMs": 8000
+    }
+  ]
+}

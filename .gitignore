@@ -9,3 +9,9 @@ worker-configuration.d.ts
 
 # Kiro ローカル設定（MCP の認証トークン等の機微情報を含むため追跡しない）
 .kiro/settings/
+
+# 観測ハーネスの実行時アーティファクト（Operation_Log / Instrumentation_Log の収集物）。
+# シナリオ定義（tools/observe/scenarios/）はフィクスチャとして追跡する。
+/operation-log.jsonl
+/instrumentation-log.txt
+/*.jsonl
