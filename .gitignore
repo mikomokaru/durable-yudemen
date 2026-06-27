@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.wrangler/
+*.log
+.DS_Store
+
+# wrangler types output (regenerate with `pnpm cf-typegen`)
+worker-configuration.d.ts
+
+# Kiro ローカル設定（MCP の認証トークン等の機微情報を含むため追跡しない）
+.kiro/settings/

@@ -1,0 +1,91 @@
+# CI/CD: main への push で CI（lint / typecheck / test）→ 通過後に本番 Cloudflare へデプロイ。
+# PR では CI のみ実行し、デプロイはしない。
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一 ref の古い実行はキャンセルし、無駄なデプロイ競合を避ける。
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Lint / Typecheck / Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm を先に用意してから setup-node のキャッシュ（cache: pnpm）を有効化する。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # worker-configuration.d.ts は gitignore のため、型検査前に再生成する（認証不要）。
+      - name: Generate Worker types
+        run: pnpm cf-typegen
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+  deploy:
+    name: Deploy to Cloudflare
+    # CI 通過後、かつ main への push のときだけデプロイする（PR ではデプロイしない）。
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Worker types
+        run: pnpm cf-typegen
+
+      # assets バインディング（dist）が必要なため、デプロイ前に本番ビルドする。
+      # build = tsc --noEmit && vite build。OBSERVE_DEBUG は wrangler.jsonc 既定の "0" のまま。
+      - name: Build
+        run: pnpm build
+
+      - name: Deploy with Wrangler
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          command: deploy

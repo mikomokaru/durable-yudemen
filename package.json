@@ -1,0 +1,35 @@
+{
+  "name": "yude-men-timer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "test": "vitest --run",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.42.3",
+    "@cloudflare/vitest-pool-workers": "^0.16.20",
+    "@types/node": "22.15.17",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^6.0.3",
+    "fast-check": "^4.8.0",
+    "oxlint": "^1.71.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.0",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.105.0",
+    "ws": "^8.21.0"
+  }
+}

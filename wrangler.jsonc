@@ -1,0 +1,33 @@
+{
+  "name": "yude-men-timer",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-06-26",
+  "observability": {
+    "enabled": true
+  },
+  // 観測ハーネスの debug flag。"1" で計装ログ出力が有効・既定は無効（"0"）。
+  // 本番での有効化はデプロイ時オーバーライドで行う（要件4.10/8.3/8.4）。
+  "vars": {
+    "OBSERVE_DEBUG": "0"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STORE_TIMER_DO",
+        "class_name": "StoreTimerDO"
+      }
+    ]
+  },
+  // SQLite ストレージバックエンド（非同期 KV API のみ使用。SQL API は使わない）
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["StoreTimerDO"]
+    }
+  ],
+  // React 静的アセットを同一オリジンで配信。SPA フォールバック。
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  }
+}
