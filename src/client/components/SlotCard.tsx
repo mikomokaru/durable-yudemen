@@ -23,7 +23,11 @@ export function SlotCard({ display, onStart, onCancel }: SlotCardProps) {
       {display.kind === "running" && (
         <>
           <p className="slot__time">{formatRemaining(display.remainingMs)}</p>
-          {display.remainingMs <= 0 && <p className="slot__badge">Boiled!</p>}
+          {display.remainingMs <= 0 ? (
+            <p className="slot__badge">Boiled!</p>
+          ) : (
+            <p className="slot__hint">Boiling — {display.timer.noodleType}</p>
+          )}
           <button type="button" className="btn btn--cancel" onClick={() => onCancel(display.timer.id)}>
             Cancel
           </button>
@@ -57,25 +61,25 @@ interface StartControlProps {
 /** 麺種プリセットを選んで開始する。開始操作の入力を検証済みの選択肢に閉じ込める。 */
 function StartControl({ slot, onStart }: StartControlProps) {
   const [presetIndex, setPresetIndex] = useState(0);
-  // presetIndex は select の有効な index のみが入るため実行時は常に定義済み。型上の保険として guard する。
+  // presetIndex はトグルが設定する有効な index のみが入るため実行時は常に定義済み。型上の保険として guard する。
   const preset = NOODLE_PRESETS[presetIndex];
   if (!preset) return null;
   return (
     <div className="start">
-      <label>
-        Noodle
-        <select
-          className="start__select"
-          value={presetIndex}
-          onChange={(event) => setPresetIndex(Number(event.target.value))}
-        >
-          {NOODLE_PRESETS.map((option, index) => (
-            <option key={option.noodleType} value={index}>
-              {`${option.noodleType} (${option.boilSeconds}s)`}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="noodle" role="group" aria-label="Noodle type">
+        {NOODLE_PRESETS.map((option, index) => (
+          <button
+            key={option.noodleType}
+            type="button"
+            className="noodle__opt"
+            aria-pressed={presetIndex === index}
+            onClick={() => setPresetIndex(index)}
+          >
+            {option.noodleType}
+            <small>{option.boilSeconds}s</small>
+          </button>
+        ))}
+      </div>
       <button
         type="button"
         className="btn btn--start"

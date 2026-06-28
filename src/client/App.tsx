@@ -59,7 +59,10 @@ export function App() {
   return (
     <main>
       <h1>Yude-men Timer</h1>
-      <UnitSelector units={units} totalUnits={totalUnits} onChange={setUnits} />
+      <details className="assignment">
+        <summary>Settings</summary>
+        <UnitSelector units={units} totalUnits={totalUnits} onChange={setUnits} />
+      </details>
       {degradationTestable ? (
         <button type="button" aria-pressed={simulatingOffline} onClick={toggleSimulatedOffline}>
           {simulatingOffline ? "Stop simulating offline" : "Simulate offline (dev)"}
