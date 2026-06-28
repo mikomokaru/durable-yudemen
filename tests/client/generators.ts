@@ -21,7 +21,8 @@
 
 import * as fc from "fast-check";
 import type { ServerMessage } from "../../src/domain/messages";
-import type { TimerFact } from "../../src/domain/timer";
+import type { TimerFact, NonEmptyArray } from "../../src/domain/timer";
+import { nonEmpty } from "../nonEmpty";
 
 // ── 確定命名に沿ったローカル型（2.1 / 3.1 の公開型が定義され次第 import へ差し替える） ──────────────
 
@@ -37,7 +38,7 @@ export type SyncPhase = "connecting" | "synced" | "syncFailed";
 /** クライアントが保持する Timer。TimerFact に起源タグ origin を足したもの（確定: ClientTimer）。 */
 export interface ClientTimer {
   readonly id: string;
-  readonly slotIds: readonly string[];
+  readonly slotIds: NonEmptyArray<string>;
   readonly noodleType: string;
   readonly endTime: number; // エポックミリ秒（事実）。残り秒は導出（clock.ts）。
   readonly origin: TimerOrigin; // "local" = Provisional_Timer（未確定）
@@ -58,7 +59,7 @@ export type ClientEvent =
   | { readonly kind: "Server"; readonly message: ServerMessage; readonly receivedAt: number }
   | {
       readonly kind: "LocalStart";
-      readonly slotIds: readonly string[];
+      readonly slotIds: NonEmptyArray<string>;
       readonly noodleType: string;
       readonly boilSeconds: number;
       readonly newTimerId: string;
@@ -92,6 +93,11 @@ const NEW_ID_POOL = ["t-new-1", "t-new-2", ...TIMER_ID_POOL] as const;
 const SLOT_ID_POOL = ["0", "1", "2", "3"] as const;
 /** 麺種プール。 */
 const NOODLE_POOL = ["thin", "thick", "curly", "ramen", "soba", "udon"] as const;
+
+/** 非空のスロット集合（NonEmptyArray<string>）。SLOT_ID_POOL の非空部分集合で多スロット・overlap を誘発する。 */
+const genSlotIds: fc.Arbitrary<NonEmptyArray<string>> = fc
+  .subarray([...SLOT_ID_POOL], { minLength: 1 })
+  .map((slots) => nonEmpty(slots));
 
 // ── スカラ生成器 ───────────────────────────────────────────────────────────────────────────────
 
@@ -136,7 +142,7 @@ export const genBoilSeconds: fc.Arbitrary<number> = fc.oneof(
 /** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。 */
 export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
-  slotIds: fc.subarray([...SLOT_ID_POOL], { minLength: 1 }),
+  slotIds: genSlotIds,
   noodleType: fc.constantFrom(...NOODLE_POOL),
   endTime: genEndTime,
   origin: genTimerOrigin,
@@ -194,7 +200,7 @@ export function genCorrectedNow(view: ClientView): fc.Arbitrary<number> {
 /** TimerFact。id はプールから引き、snapshot/Reconcile での server-confirmed 復活を誘発する。 */
 const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
-  slotIds: fc.subarray([...SLOT_ID_POOL], { minLength: 1 }),
+  slotIds: genSlotIds,
   noodleType: fc.constantFrom(...NOODLE_POOL),
   endTime: genEndTime,
 });
@@ -211,6 +217,7 @@ export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
   fc.record({ type: fc.constant("started" as const), serverTime: genReceivedAt, timer: genWireTimer }),
   fc.record({ type: fc.constant("cancelled" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
   fc.record({ type: fc.constant("done" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
+  fc.record({ type: fc.constant("config" as const), serverTime: genReceivedAt, unitCount: fc.integer({ min: 1, max: 4 }) }),
   fc.record({
     type: fc.constant("error" as const),
     serverTime: genReceivedAt,
@@ -237,7 +244,7 @@ export function genEvent(view: ClientView): fc.Arbitrary<ClientEvent> {
   const localStart = genCorrectedNow(view).chain((correctedNow) =>
     fc.record({
       kind: fc.constant("LocalStart" as const),
-      slotIds: fc.subarray([...SLOT_ID_POOL], { minLength: 1 }),
+      slotIds: genSlotIds,
       noodleType: fc.constantFrom(...NOODLE_POOL),
       boilSeconds: genBoilSeconds,
       newTimerId: fc.constantFrom(...NEW_ID_POOL),

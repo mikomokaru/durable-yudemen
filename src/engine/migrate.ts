@@ -13,6 +13,8 @@ import type { Timer } from "./timer";
 import type { ShellFailure } from "./rejection";
 import type { ActiveTimersSnapshot } from "./snapshot";
 import { toSnapshot } from "./snapshot";
+import type { NonEmptyArray } from "../domain/timer";
+import { isNonEmpty } from "../domain/timer";
 
 /**
  * migrate の結果。成功なら現行スキーマのスナップショット、失敗なら ShellFailure。
@@ -108,7 +110,7 @@ function reviveTimer(value: unknown): Timer | null {
   if (slotIds === null) return null;
   return createTimer({
     id: t.id as TimerId,
-    slotIds: slotIds as readonly SlotId[],
+    slotIds: slotIds as NonEmptyArray<SlotId>,
     noodleType: t.noodleType as NoodleType,
     endTime: t.endTime as EpochMillis,
     seq: t.seq,
@@ -121,11 +123,11 @@ function reviveTimer(value: unknown): Timer | null {
  * - v1: `slotIds` が無く `slotId` が非空文字列なら `[slotId]` に包む。
  * - いずれも満たさなければ移行失敗（null）。
  */
-function reviveSlotIds(slotIds: unknown, legacySlotId: unknown): readonly string[] | null {
+function reviveSlotIds(slotIds: unknown, legacySlotId: unknown): NonEmptyArray<string> | null {
   if (Array.isArray(slotIds)) {
-    if (slotIds.length === 0) return null;
     if (slotIds.some((s) => typeof s !== "string" || s.length === 0)) return null;
-    return slotIds as readonly string[];
+    const strings = slotIds as readonly string[];
+    return isNonEmpty(strings) ? strings : null;
   }
   if (typeof legacySlotId === "string" && legacySlotId.length > 0) {
     return [legacySlotId];

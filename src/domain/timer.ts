@@ -11,6 +11,23 @@
 // 詳細は yude-men-timer/design.md「Timer 表現の単一芯化（TimerFact）」を参照。
 
 /**
+ * NonEmptyArray — 1 要素以上を型で強制する非空配列（タプル＋rest）。
+ *
+ * 空配列リテラルは型として代入不能になり、`[0]` は常に定義済みとして扱える。
+ * 「不正な状態を表現可能にしない」（design-philosophy.md）を配列の基数に適用したもの。
+ * JSON を跨ぐと保証は失われるため、未検証入力の境界では isNonEmpty を通して再確立する。
+ */
+export type NonEmptyArray<T> = readonly [T, ...T[]];
+
+/**
+ * 配列が非空かを判定する型ガード。未検証入力（ワイヤ・永続）から NonEmptyArray を確立する唯一の関門。
+ * cast をこの一点へ封じ込め、境界の検証結果に非空の保証を載せる（ブランド型と同じ構図）。
+ */
+export function isNonEmpty<T>(values: readonly T[]): values is NonEmptyArray<T> {
+  return values.length > 0;
+}
+
+/**
  * TimerFact — タイマーという事実の形。
  *
  * 残り秒は含めず endTime（事実）を運ぶ。表現ごとにフィールド型を差し替える:
@@ -20,8 +37,8 @@
 export interface TimerFact<Id = string, Slot = string, Noodle = string, Time = number> {
   /** 安定した一意識別子。キャンセルとブロードキャストの宛先。 */
   readonly id: Id;
-  /** 駆動するスロット（釜）の集合。1 Timer は 1 つ以上のスロットを同時に駆動する（非空）。 */
-  readonly slotIds: readonly Slot[];
+  /** 駆動するスロット（釜）の集合。1 Timer は 1 つ以上のスロットを同時に駆動する（型で非空を強制）。 */
+  readonly slotIds: NonEmptyArray<Slot>;
   /** 麺の種類。 */
   readonly noodleType: Noodle;
   /** 絶対終了時刻（事実）。残り秒ではない。 */

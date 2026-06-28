@@ -13,6 +13,7 @@ import { EPSILON_MS, MAX_TIMERS } from "../../src/engine/types";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { Timer } from "../../src/engine/timer";
 import type { TimerState } from "../../src/engine/state";
+import { nonEmpty } from "../nonEmpty";
 
 /** 一件の Timer を組み立てるための素データ（id・seq はビルド時に決定的に付与する）。 */
 interface TimerSpec {
@@ -36,7 +37,7 @@ function buildState(specs: readonly TimerSpec[], extraSeq: number): TimerState {
   const timers: readonly Timer[] = specs.map((spec, index) =>
     createTimer({
       id: `timer-${index}` as TimerId,
-      slotIds: spec.slotIds as readonly SlotId[],
+      slotIds: nonEmpty(spec.slotIds.map((s) => s as SlotId)),
       noodleType: spec.noodleType as NoodleType,
       endTime: spec.endTime as EpochMillis,
       seq: index,

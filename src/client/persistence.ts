@@ -12,6 +12,8 @@
 
 import type { ClientTimer, ClientView, TimerOrigin } from "./connection";
 import { EMPTY_VIEW } from "./connection";
+import type { NonEmptyArray } from "../domain/timer";
+import { isNonEmpty } from "../domain/timer";
 
 /**
  * 永続ブロブの形（単一 JSON・version 付き・要件11.1）。
@@ -149,11 +151,11 @@ function toClientTimer(value: unknown): ClientTimer | null {
 }
 
 /** 永続スロット表現を現行形（非空文字列の非空配列）へ写す。v2 配列を優先し、無ければ v1 単一を包む。 */
-function toSlotIds(slotIds: unknown, legacySlotId: unknown): readonly string[] | null {
+function toSlotIds(slotIds: unknown, legacySlotId: unknown): NonEmptyArray<string> | null {
   if (Array.isArray(slotIds)) {
-    if (slotIds.length === 0) return null;
     if (slotIds.some((s) => typeof s !== "string" || s.length === 0)) return null;
-    return slotIds as readonly string[];
+    const strings = slotIds as readonly string[];
+    return isNonEmpty(strings) ? strings : null;
   }
   if (typeof legacySlotId === "string" && legacySlotId.length > 0) {
     return [legacySlotId];

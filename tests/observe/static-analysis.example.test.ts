@@ -60,6 +60,7 @@ const WIRE_MESSAGE_TYPES = new Set([
   "started",
   "cancelled",
   "done",
+  "config",
   "error",
 ]);
 

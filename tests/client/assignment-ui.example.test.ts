@@ -43,6 +43,7 @@ function syncedView(timers: readonly ClientTimer[]): ClientView {
     connectivity: "up",
     sync: "synced",
     error: null,
+    unitCount: 4,
   };
 }
 
@@ -118,13 +119,13 @@ describe("client 担当 UI と担当不変（要件12.3 / 12.4）", () => {
   // 担当範囲が変わる唯一の経路はユーザーの明示的再指定（UnitSelector → unitsFrom）であることを示す。
   // unitsFrom は (base, count) というユーザー入力のみの純関数であり、接続台数を入力に取らない。
   it("担当ユニット集合はユーザー明示指定（unitsFrom）のみで決まり、接続台数を入力に取らない", () => {
-    // ユーザーが unit 2 を 1 ユニット担当に再指定 → slot 12..17。
-    expect(slotsOfUnits(unitsFrom(2, 1))).toEqual(new Set([12, 13, 14, 15, 16, 17]));
+    // ユーザーが unit 2 を 1 ユニット担当に再指定 → slot 12..17（店舗総数 3）。
+    expect(slotsOfUnits(unitsFrom(2, 1, 3))).toEqual(new Set([12, 13, 14, 15, 16, 17]));
     // ユーザーが unit 0 から 2 ユニットへ再指定 → slot 0..11。
-    expect(slotsOfUnits(unitsFrom(0, 2))).toEqual(
+    expect(slotsOfUnits(unitsFrom(0, 2, 3))).toEqual(
       new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
     );
     // 同一のユーザー入力は、接続状況に関わらず同一の担当集合を返す（決定的・副作用なし）。
-    expect(unitsFrom(1, 1)).toEqual(unitsFrom(1, 1));
+    expect(unitsFrom(1, 1, 3)).toEqual(unitsFrom(1, 1, 3));
   });
 });

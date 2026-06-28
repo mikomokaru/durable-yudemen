@@ -60,7 +60,7 @@ Kiro はパッケージ追加に `pnpm add` / `pnpm add -D` を用い、`npm` / 
 ## ディレクトリ規約
 
 - `src/engine/` — サーバ側の純粋な状態遷移エンジン（`decide` ほか。`cloudflare:workers`・storage に依存しない）。他基盤へ運べる。
-- `src/domain/` — ドメイン契約（`TimerFact`・`WireTimer`・メッセージ型）。両端が共有する語彙の正本。基底インターフェイスの定義はここに集約する（steering/timer-model.md）。
+- `src/domain/` — ドメイン契約（`TimerFact`／`NonEmptyArray`・メッセージ型・`StoreConfig` 等）。両端が共有する語彙の正本。基底インターフェイスの定義はここに集約する（steering/timer-model.md）。
 - `src/transport/` — トランスポート機構（`heartbeat` の心拍フレーム）。ドメインではなく接続維持の関心事で、client と shell が共有する。
 - `src/shell/` — DO クラス・Effect インタプリタ（プラットフォーム作用の端）。
 - `src/client/` — React フロント。

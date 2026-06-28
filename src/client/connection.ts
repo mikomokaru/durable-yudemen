@@ -21,7 +21,8 @@
 
 import { BOIL_SECONDS_MAX, BOIL_SECONDS_MIN } from "../engine/types";
 import type { ServerMessage } from "../domain/messages";
-import type { TimerFact } from "../domain/timer";
+import type { TimerFact, NonEmptyArray } from "../domain/timer";
+import { DEFAULT_UNIT_COUNT } from "../domain/store";
 import { clockOffset } from "./clock";
 import {
   isPingBlackholeActive,
@@ -82,6 +83,8 @@ export interface ClientView {
   readonly sync: SyncPhase;
   /** 直近のサーバエラー（拒否・失敗）。snapshot 受信で解消する。 */
   readonly error: { readonly code: string; readonly message: string } | null;
+  /** 店舗のユニット総数（サーバ権威・受信した事実）。config 受信で確定する。担当範囲のクランプ元。 */
+  readonly unitCount: number;
 }
 
 /**
@@ -94,7 +97,7 @@ export type ClientEvent =
   | { readonly kind: "Server"; readonly message: ServerMessage; readonly receivedAt: number } // 既存 reduceView 相当
   | {
       readonly kind: "LocalStart";
-      readonly slotIds: readonly string[];
+      readonly slotIds: NonEmptyArray<string>;
       readonly noodleType: string;
       readonly boilSeconds: number;
       readonly newTimerId: string;
@@ -114,6 +117,7 @@ export const EMPTY_VIEW: ClientView = {
   connectivity: "down",
   sync: "connecting",
   error: null,
+  unitCount: DEFAULT_UNIT_COUNT,
 };
 
 /**
@@ -282,6 +286,11 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
     case "error": {
       return { ...view, offset, error: { code: message.code, message: message.message } };
     }
+
+    case "config": {
+      // 店舗設定の一方向受信（サーバ権威・クライアント不変）。ユニット総数を確定し offset も最新化する。
+      return { ...view, offset, unitCount: message.unitCount };
+    }
   }
 }
 
@@ -342,8 +351,8 @@ export interface TimerConnection {
   getView(): ClientView;
   /** ビュー更新（受信・接続状態変化・秒読みティック）を購読する。戻り値で解除する。 */
   subscribe(listener: () => void): () => void;
-  /** タイマー開始操作を送る（担当スコープの制限は UI の責務）。1 Timer は 1 つ以上のスロットを駆動する。 */
-  start(slotIds: readonly string[], noodleType: string, boilSeconds: number): void;
+  /** タイマー開始操作を送る（担当スコープの制限は UI の責務）。1 Timer は 1 つ以上のスロットを駆動する（非空）。 */
+  start(slotIds: NonEmptyArray<string>, noodleType: string, boilSeconds: number): void;
   /** タイマーキャンセル操作を送る。 */
   cancel(timerId: string): void;
   /** 接続を閉じ、再接続・ティックを停止する。 */

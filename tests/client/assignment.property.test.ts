@@ -5,6 +5,7 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { assignedTimers, isAssigned, slotOf, slotsOfUnits } from "../../src/client/assignment";
 import type { TimerFact } from "../../src/domain/timer";
+import { nonEmpty } from "../nonEmpty";
 
 // ユニット 1 つが担当する連続スロット数。unit u は slot 6u..6u+5（要件12.5）。
 const SLOTS_PER_UNIT = 6;
@@ -19,7 +20,7 @@ const genSlotId: fc.Arbitrary<string> = fc.oneof(
 // 一件の TimerFact。id は射影の同一性追跡用に index で決定的に付与する（buildTimers 内）。
 // slotIds は 1〜3 件の非空配列。複数スロット駆動（any-overlap）を誘発する。
 const genTimerSpec: fc.Arbitrary<Omit<TimerFact, "id">> = fc.record({
-  slotIds: fc.array(genSlotId, { minLength: 1, maxLength: 3 }),
+  slotIds: fc.array(genSlotId, { minLength: 1, maxLength: 3 }).map((s) => nonEmpty(s)),
   noodleType: fc.constantFrom("thin", "thick", "curly", "ramen", "soba", "udon"),
   endTime: fc.integer({ min: 0, max: 2000 }),
 });

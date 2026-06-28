@@ -7,8 +7,11 @@
   },
   // 観測ハーネスの debug flag。"1" で計装ログ出力が有効・既定は無効（"0"）。
   // 本番での有効化はデプロイ時オーバーライドで行う（要件4.10/8.3/8.4）。
+  // STORE_UNIT_COUNT: 店舗のユニット総数（1〜4）の初期シード。DO 初回構築時に検証して storeConfig へ永続する。
+  // 以後は永続値が正本（店舗ごとに固定・UI から変更不可）。デプロイ単位の既定として用いる。
   "vars": {
-    "OBSERVE_DEBUG": "0"
+    "OBSERVE_DEBUG": "0",
+    "STORE_UNIT_COUNT": "3"
   },
   "durable_objects": {
     "bindings": [

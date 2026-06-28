@@ -85,6 +85,7 @@ function parseServerMessage(data: string): ServerMessage | null {
     case "started":
     case "cancelled":
     case "done":
+    case "config":
     case "error":
       return parsed as ServerMessage;
     default:

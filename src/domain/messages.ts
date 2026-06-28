@@ -25,4 +25,5 @@ export type ServerMessage =
   | { readonly type: "started"; readonly serverTime: number; readonly timer: TimerFact } // 開始反映（要件1.3）
   | { readonly type: "cancelled"; readonly serverTime: number; readonly timerId: string } // 要件6.2
   | { readonly type: "done"; readonly serverTime: number; readonly timerId: string } // 茹で上がり（要件2.5）
+  | { readonly type: "config"; readonly serverTime: number; readonly unitCount: number } // 店舗設定の一方向配信（サーバ権威・クライアント不変）
   | { readonly type: "error"; readonly serverTime: number; readonly code: string; readonly message: string }; // 各拒否・失敗

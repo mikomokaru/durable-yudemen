@@ -10,9 +10,17 @@ import { buildSeamEntry, type InstrumentationLogEntry } from "../observe/log";
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
 import type { ClientMessage, ServerMessage } from "../domain/messages";
 import type { TimerFact } from "../domain/timer";
+import type { StoreConfig } from "../domain/store";
+import { toUnitCount, DEFAULT_UNIT_COUNT } from "../domain/store";
 
-/** 永続層の単一キー。状態は丸ごとこのキーへ put / get する（要件8.3・SQL 不使用）。 */
+/** タイマー SSOT の単一キー。状態は丸ごとこのキーへ put / get する（要件8.3・SQL 不使用）。 */
 const SNAPSHOT_KEY = "activeTimers";
+
+/**
+ * 店舗設定（StoreConfig）の単一キー。Timer SSOT とは別概念ゆえ別キーに持つ（activeTimers には混ぜない）。
+ * 初回構築時に env シードを検証して書き込み、以後は永続値が正本（店舗ごとに固定・UI 不変）。
+ */
+const STORE_CONFIG_KEY = "storeConfig";
 
 /** Cloudflare Alarm の自動リトライ上限（公式: 初回2秒・指数バックオフ・最大6回）。 */
 const ALARM_MAX_RETRIES = 6;
@@ -113,6 +121,17 @@ export class StoreTimerDO extends DurableObject<Env> {
   private loaded = false;
 
   /**
+   * 店舗のユニット総数（StoreConfig.unitCount）。サーバ権威・クライアント不変の店舗設定。
+   *
+   * ensureConfigLoaded で storage キー storeConfig から読み込む（不在なら env シードを検証して永続）。
+   * 接続時に config ServerMessage として各クライアントへ一方向配信する。既定は接続前/不在の安全網。
+   */
+  private unitCount: number = DEFAULT_UNIT_COUNT;
+
+  /** storeConfig ロード済みフラグ。ensureConfigLoaded を冪等にする（hibernate 復帰ごとに false へ戻る）。 */
+  private configLoaded = false;
+
+  /**
    * instanceId — この in-memory 生存期間を一意に識別する観測キー（要件4.8 / 5.1）。
    *
    * 採番は crypto.randomUUID() という shell の作用であり、フィールド初期化子により construct 時に
@@ -167,6 +186,7 @@ export class StoreTimerDO extends DurableObject<Env> {
     this.emitSeam(buildSeamEntry({ seam: "construct", at: this.instanceBornAt, instanceId: this.instanceId }));
     void ctx.blockConcurrencyWhile(async () => {
       await this.ensureLoaded();
+      await this.ensureConfigLoaded();
       // ロード後の整合（要件7.6 / 7.2 / 7.7）。now は shell が採取して core へ渡す（core は時計を持たない）。
       const now = Date.now() as EpochMillis;
       const outcome = decide(this.workingCopy, { type: "Reconcile", now });
@@ -213,8 +233,31 @@ export class StoreTimerDO extends DurableObject<Env> {
     this.loaded = true;
   }
 
+  /**
+   * 店舗設定（StoreConfig.unitCount）のロードを保証する（サーバ権威・クライアント不変・店舗ごとに固定）。
+   *
+   * storage キー storeConfig を読み、不在なら env シード（STORE_UNIT_COUNT）を toUnitCount で検証して
+   * 永続する（初回構築時の一度きり）。存在すれば永続値が正本で、防御的に toUnitCount で範囲内へ畳む。
+   * Timer の SSOT フローとは独立した別概念であり、decide/Effect には乗らない。configLoaded で冪等に保つ。
+   */
+  private async ensureConfigLoaded(): Promise<void> {
+    if (this.configLoaded) return;
+    const raw = await this.ctx.storage.get(STORE_CONFIG_KEY);
+    if (raw === undefined || raw === null) {
+      // 初回: env シードを検証して永続する（以後この店舗の固定値となる）。
+      const seeded = toUnitCount(this.env.STORE_UNIT_COUNT);
+      await this.ctx.storage.put(STORE_CONFIG_KEY, { unitCount: seeded } satisfies StoreConfig);
+      this.unitCount = seeded;
+    } else {
+      // 永続値が正本。壊れた値は toUnitCount が既定へ畳む（不正値を表現させない）。
+      this.unitCount = toUnitCount((raw as Record<string, unknown>).unitCount);
+    }
+    this.configLoaded = true;
+  }
+
   override async fetch(request: Request): Promise<Response> {
     await this.ensureLoaded();
+    await this.ensureConfigLoaded();
 
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket", { status: 426 });
@@ -231,6 +274,11 @@ export class StoreTimerDO extends DurableObject<Env> {
     // 応答するため webSocketMessage ハンドラを起動せず、hibernate からの wake を伴わない。心拍は
     // 接続を生かすだけで Working_Copy も Effect 実行順序も一切変えない（client と同一の確定値を共有）。
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING_REQUEST, PONG_RESPONSE));
+
+    // 店舗設定の一方向配信（サーバ権威・クライアント不変）。snapshot より先に送り、クライアントが
+    // ユニット総数（担当範囲のクランプ元）を先に確定できるようにする。クライアントは変更できない。
+    const config: ServerMessage = { type: "config", serverTime: Date.now(), unitCount: this.unitCount };
+    server.send(JSON.stringify(config));
 
     // Hydration（要件4.1 / 9.2）。接続確立の一環として、収容直後にこの WS だけへ
     // 現在のアクティブ Timer 全量を snapshot として送る（差分ではなく全量）。

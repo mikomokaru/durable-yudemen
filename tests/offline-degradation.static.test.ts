@@ -64,7 +64,7 @@ const EXPECTED_CORE_FILES = [
 ] as const;
 
 /** 既存ワイヤ形式（messages.ts）が定める全メッセージ種別。これ以外を導入しない（要件12.2）。 */
-const WIRE_MESSAGE_TYPES = new Set(["start", "cancel", "snapshot", "started", "cancelled", "done", "error"]);
+const WIRE_MESSAGE_TYPES = new Set(["start", "cancel", "snapshot", "started", "cancelled", "done", "config", "error"]);
 
 /** 日本語（ひらがな・カタカナ・漢字・CJK 記号・半角カナ）の検出。 */
 const JAPANESE = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff66-\uff9f]/;

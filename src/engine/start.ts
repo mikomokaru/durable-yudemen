@@ -15,7 +15,8 @@ import type { Rejection } from "./rejection";
 import { toSnapshot } from "./snapshot";
 import { nextAlarmEffect } from "./alarm";
 import type { ServerMessage } from "../domain/messages";
-import type { TimerFact } from "../domain/timer";
+import type { TimerFact, NonEmptyArray } from "../domain/timer";
+import { isNonEmpty } from "../domain/timer";
 
 /** Start イベントの本体。startTimer はこの形だけを受け取る（event.ts の唯一の出所を再利用）。 */
 type StartEvent = Extract<Event, { type: "Start" }>;
@@ -32,7 +33,7 @@ export function validateStart(input: {
   readonly noodleType: string;
   readonly boilSeconds: number;
 }):
-  | { readonly ok: true; readonly slotIds: readonly SlotId[]; readonly noodleType: NoodleType; readonly boilSeconds: number }
+  | { readonly ok: true; readonly slotIds: NonEmptyArray<SlotId>; readonly noodleType: NoodleType; readonly boilSeconds: number }
   | { readonly ok: false; readonly rejection: Rejection } {
   // NaN / Infinity は比較が常に false で範囲検査をすり抜けるため、有限値であることを先に要求する。
   if (
@@ -48,10 +49,10 @@ export function validateStart(input: {
       },
     };
   }
-  // 1 Timer は最低 1 スロットを駆動する（空配列は構築不能）。各スロットも空文字は未定義とみなす。
-  // noodleType も同様に空文字を未定義とみなす。slotIds / noodleType を欠いた Timer は構築させない。
+  // 1 Timer は最低 1 スロットを駆動する（非空）。各スロット・noodleType の空文字も未定義とみなす。
+  // isNonEmpty を通すことで、以降 input.slotIds は NonEmptyArray<string> として扱える（非空を型へ確立）。
   if (
-    input.slotIds.length === 0 ||
+    !isNonEmpty(input.slotIds) ||
     input.slotIds.some((slotId) => slotId.length === 0) ||
     input.noodleType.length === 0
   ) {
@@ -65,7 +66,7 @@ export function validateStart(input: {
   }
   return {
     ok: true,
-    slotIds: input.slotIds as readonly SlotId[],
+    slotIds: input.slotIds as NonEmptyArray<SlotId>,
     noodleType: input.noodleType as NoodleType,
     boilSeconds: input.boilSeconds,
   };

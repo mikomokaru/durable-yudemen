@@ -2,7 +2,7 @@
 // cloudflare:workers にも storage にも触れない純粋モジュール。
 
 import type { EpochMillis, SlotId, NoodleType, TimerId } from "./types";
-import type { TimerFact } from "../domain/timer";
+import type { TimerFact, NonEmptyArray } from "../domain/timer";
 
 /**
  * Sequenced — engine だけが持つ登録順の事実（ワイヤには出ない）。
@@ -34,7 +34,7 @@ export interface Timer extends TimerFact<TimerId, SlotId, NoodleType, EpochMilli
  */
 export function createTimer(input: {
   id: TimerId;
-  slotIds: readonly SlotId[];
+  slotIds: NonEmptyArray<SlotId>;
   noodleType: NoodleType;
   endTime: EpochMillis;
   seq: number;

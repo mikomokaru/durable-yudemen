@@ -15,6 +15,7 @@ import {
 import type { TimerConnection } from "./connection";
 import { SlotBoard } from "./components/SlotBoard";
 import { UnitSelector } from "./components/UnitSelector";
+import { DEFAULT_UNIT_COUNT } from "../domain/store";
 
 /** 同一オリジンの WS エンドポイント。https なら wss、それ以外は ws。 */
 function timerSocketUrl(): string {
@@ -25,6 +26,8 @@ function timerSocketUrl(): string {
 export function App() {
   // 担当ユニット集合。既定は 1 ユニット（unit 0 = slot 0..5）。ユーザー再指定でのみ更新（要件12.1 / 12.4）。
   const [units, setUnits] = useState<readonly number[]>([0]);
+  // 店舗のユニット総数（サーバ権威・config 受信で確定）。接続前は既定値。担当 UI の範囲はこれに従う。
+  const [totalUnits, setTotalUnits] = useState<number>(DEFAULT_UNIT_COUNT);
   // 接続はマウント中のみ生存する作用。effect で開閉を対応させる。
   const [connection, setConnection] = useState<TimerConnection | null>(null);
 
@@ -37,7 +40,13 @@ export function App() {
   useEffect(() => {
     const conn = openTimerConnection({ url: timerSocketUrl() });
     setConnection(conn);
-    return () => conn.close();
+    // 店舗のユニット総数（サーバ権威）をビューから追従する。config 受信のたびに反映される。
+    const unsubscribe = conn.subscribe(() => setTotalUnits(conn.getView().unitCount));
+    setTotalUnits(conn.getView().unitCount);
+    return () => {
+      unsubscribe();
+      conn.close();
+    };
   }, []);
 
   // 縮退テストの擬似切断を可逆に切り替える。Mode は書き換えず、本物の silent-loss 検知経路を通す（要件14.2/14.3/14.5）。
@@ -50,7 +59,7 @@ export function App() {
   return (
     <main>
       <h1>Yude-men Timer</h1>
-      <UnitSelector units={units} onChange={setUnits} />
+      <UnitSelector units={units} totalUnits={totalUnits} onChange={setUnits} />
       {degradationTestable ? (
         <button type="button" aria-pressed={simulatingOffline} onClick={toggleSimulatedOffline}>
           {simulatingOffline ? "Stop simulating offline" : "Simulate offline (dev)"}

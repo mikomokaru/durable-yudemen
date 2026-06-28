@@ -275,8 +275,13 @@ export const CURRENT_SCHEMA_VERSION = 2 as const;
 
 ```ts
 // domain/timer.ts — 共有契約の芯（両者で真に共有される事実だけ）
+/** 1 要素以上を型で強制する非空配列（空配列は構築不能）。 */
+export type NonEmptyArray<T> = readonly [T, ...T[]];
+/** 未検証入力から NonEmptyArray を確立する唯一の関門（境界で使う型ガード）。 */
+export function isNonEmpty<T>(values: readonly T[]): values is NonEmptyArray<T>;
+
 export interface TimerFact<Id = string, Slot = string, Noodle = string, Time = number> {
-  readonly id: Id; readonly slotIds: readonly Slot[]; readonly noodleType: Noodle; readonly endTime: Time;
+  readonly id: Id; readonly slotIds: NonEmptyArray<Slot>; readonly noodleType: Noodle; readonly endTime: Time;
 }
 
 // engine/timer.ts — 共有の芯を合成し、engine 専用の連番を足す
@@ -312,13 +317,23 @@ export function createTimer(input: {
 
 確定した判断（すべてデフォルト）:
 
-- **フィールド名・非空不変条件** — `slotIds: readonly Slot[]`。空配列・空文字要素は `validateStart` が `InvalidSlotOrNoodle` で拒否（不正状態を構築不能に保つ・要件1.5 を拡張）。
+- **フィールド名・非空不変条件（型で強制）** — `slotIds: NonEmptyArray<Slot>`（`readonly [Slot, ...Slot[]]`）。空配列は**型として構築不能**にし、「不正な状態を表現可能にしない」を配列の基数へ適用する。未検証入力（ワイヤ `ClientMessage.start`・永続）は `readonly string[]` のままにして、境界（`validateStart` / `migrate` / `persistence`）で `isNonEmpty` を通して非空を確立する（空・空文字要素は `InvalidSlotOrNoodle`／移行失敗で弾く）。検証済みの事実（`TimerFact` / `Timer` / `ClientTimer`）とクライアント intent（`start` / `LocalStart`）が非空保証を型で担う。
 - **ワイヤ形式の進化** — `ClientMessage.start` と `TimerFact`（＝`ServerMessage` の Timer 表現）の `slotId` を `slotIds` に変えた。これは意図的なワイヤ形式の進化であり、offline-degradation の要件12.2「ワイヤ形式不変」は当該機能の制約であって本進化を妨げない。
 - **永続スキーマ v2** — `CURRENT_SCHEMA_VERSION` を 1→2 に上げた。`migrate` は旧 v1（単一 `slotId` 文字列）を `slotIds: [slotId]` に写して受理する（移行はこの一点に集約・要件11）。クライアント側 localStorage コーデック（`persistence.ts`）も同様に両形を受理し、保存キー据え置きで走行中タイマーを失わない優雅な移行とする。
 - **担当絞り込み（any-overlap）** — Timer はその `slotIds` の**いずれか**が担当ユニット範囲に入れば表示対象（`assignedTimers` の `some` 判定）。
 - **表示（multi-cell）** — 複数スロットを駆動する Timer は、担当範囲内の**各スロットセル**に running として現れる（`assignedSlotDisplays` が slotIds ごとに束ねる）。任意のセルからのキャンセルは timerId 宛てで Timer 全体に効く（同一性は従来どおり `timerId`）。
 
 > 上記により `started`/`snapshot` の Timer 表現・`startTimer` の検証・`reconcile`/`fireDueTimers`/`cancelTimer`（endTime・timerId ベースで slotIds に非依存）はそのまま成立する。endTime のタイブレーク（`seq`）と容量上限（`MAX_TIMERS`）も不変。
+
+### 店舗設定の配信（StoreConfig）
+
+**決定:** 店舗のユニット総数を、Timer の SSOT フローとは**別概念** `StoreConfig`（`domain/store.ts`・`{ unitCount }`、範囲 1〜4）として切り出し、**サーバ権威・クライアント不変・店舗ごとに固定**の設定とする。担当ユニット集合（端末ローカル・要件12.4）は不変で、**総数だけを店舗共有**にする。
+
+- **置き場所** — DO storage の**別キー `storeConfig`**（`activeTimers` には混ぜない）。Timer SSOT スナップショット（v2）は**無変更**（別概念ゆえ migrate v3 不要）。
+- **値の源（案2）** — DO 初回構築（`ensureConfigLoaded`）で `storeConfig` を読み、不在なら env `STORE_UNIT_COUNT` を `toUnitCount`（1〜4へ検証・既定 3）で確定して**永続**する。以後は永続値が正本＝店舗ごとに固定。**UI からは変更不可**（クライアント発の変更メッセージは設けない）。
+- **配信機構（一方向 push）** — `ServerMessage` に `config`（`{ type:"config"; serverTime; unitCount }`）を追加。接続時に snapshot より先に各クライアントへ送る。クライアントは制御できず、`decideView` の `config` 分岐で `ClientView.unitCount` を確定するのみ。これは「クライアントから制御されないサーバ権威の概念を配る」機構で、Timer のクライアントコマンド駆動フロー（`decide`/Effect）とは別系統。
+- **クライアント** — `TOTAL_UNITS` 定数を撤去し、`UnitSelector` は受信した `unitCount`（`App` がビューから供給）に従って担当の選択肢・上限を出す。
+- **今回の対象外（決定 6/7）** — 総数縮小時の担当クランプ・範囲外スロットの走行中 Timer の扱いは後続。
 
 ### TimerState — engine が扱う状態（残り秒を持たない）
 
