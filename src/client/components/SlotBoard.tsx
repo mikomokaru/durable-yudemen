@@ -36,10 +36,10 @@ export function SlotBoard({ connection, units }: SlotBoardProps) {
   };
 
   return (
-    <section aria-label="Slots">
-      <p role="status">{SYNC_LABEL[view.sync]}</p>
-      {view.error && <p role="alert">{view.error.message}</p>}
-      <div>
+    <section className="board" aria-label="Slots">
+      <p className="board__status" role="status">{SYNC_LABEL[view.sync]}</p>
+      {view.error && <p className="board__error" role="alert">{view.error.message}</p>}
+      <div className="slot-grid">
         {displays.map((display) => (
           <SlotCard
             key={display.slot}

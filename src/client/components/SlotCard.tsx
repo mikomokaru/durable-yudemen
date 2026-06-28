@@ -18,31 +18,33 @@ interface SlotCardProps {
 export function SlotCard({ display, onStart, onCancel }: SlotCardProps) {
   const { slot } = display;
   return (
-    <article aria-label={`Slot ${slot}`}>
-      <header>Slot {slot}</header>
+    <article className={`slot slot--${display.kind}`} aria-label={`Slot ${slot}`}>
+      <header className="slot__name">Slot {slot}</header>
       {display.kind === "running" && (
         <>
-          <p>{formatRemaining(display.remainingMs)}</p>
-          {display.remainingMs <= 0 && <p>Boiled!</p>}
-          <button type="button" onClick={() => onCancel(display.timer.id)}>
+          <p className="slot__time">{formatRemaining(display.remainingMs)}</p>
+          {display.remainingMs <= 0 && <p className="slot__badge">Boiled!</p>}
+          <button type="button" className="btn btn--cancel" onClick={() => onCancel(display.timer.id)}>
             Cancel
           </button>
         </>
       )}
       {display.kind === "boiled" && (
         <>
-          <p>00:00</p>
-          <p>Boiled!</p>
+          <p className="slot__time">00:00</p>
+          <p className="slot__badge">Boiled!</p>
           <StartControl slot={slot} onStart={onStart} />
         </>
       )}
       {display.kind === "idle" && (
         <>
-          <p>Ready</p>
+          <p className="slot__hint">Ready</p>
           <StartControl slot={slot} onStart={onStart} />
         </>
       )}
-      {display.kind === "unreceived" && <p>Remaining time not received</p>}
+      {display.kind === "unreceived" && (
+        <p className="slot__hint slot__hint--muted">Remaining time not received</p>
+      )}
     </article>
   );
 }
@@ -59,10 +61,11 @@ function StartControl({ slot, onStart }: StartControlProps) {
   const preset = NOODLE_PRESETS[presetIndex];
   if (!preset) return null;
   return (
-    <div>
+    <div className="start">
       <label>
         Noodle
         <select
+          className="start__select"
           value={presetIndex}
           onChange={(event) => setPresetIndex(Number(event.target.value))}
         >
@@ -75,6 +78,7 @@ function StartControl({ slot, onStart }: StartControlProps) {
       </label>
       <button
         type="button"
+        className="btn btn--start"
         onClick={() => onStart(slot, preset.noodleType, preset.boilSeconds)}
       >
         Start
