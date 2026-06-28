@@ -5,7 +5,7 @@
 // すべてがこの一関数（nextAlarmEffect）を通る。最早算出を二度書かないことで、
 // 「同じ概念は一箇所」を守り、Alarm の正しさを単一の不変条件へ畳み込む。
 
-import type { EpochMillis } from "./types";
+import type { EpochMillis } from "../engine/types";
 import type { Timer } from "./timer";
 import type { Effect } from "./effect";
 

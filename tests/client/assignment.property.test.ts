@@ -4,7 +4,7 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { assignedTimers, isAssigned, slotOf, slotsOfUnits } from "../../src/client/assignment";
-import type { WireTimer } from "../../src/shared/messages";
+import type { TimerFact } from "../../src/domain/timer";
 
 // ユニット 1 つが担当する連続スロット数。unit u は slot 6u..6u+5（要件12.5）。
 const SLOTS_PER_UNIT = 6;
@@ -16,15 +16,15 @@ const genSlotId: fc.Arbitrary<string> = fc.oneof(
   fc.string({ minLength: 1, maxLength: 6 }),
 );
 
-// 一件の WireTimer。id は射影の同一性追跡用に index で決定的に付与する（buildTimers 内）。
-const genTimerSpec: fc.Arbitrary<Omit<WireTimer, "id">> = fc.record({
+// 一件の TimerFact。id は射影の同一性追跡用に index で決定的に付与する（buildTimers 内）。
+const genTimerSpec: fc.Arbitrary<Omit<TimerFact, "id">> = fc.record({
   slotId: genSlotId,
   noodleType: fc.constantFrom("thin", "thick", "curly", "ramen", "soba", "udon"),
   endTime: fc.integer({ min: 0, max: 2000 }),
 });
 
-// 0〜30 件の WireTimer 集合（空・単一・多数を境界として含む）。id は一意。
-const genTimers: fc.Arbitrary<readonly WireTimer[]> = fc
+// 0〜30 件の TimerFact 集合（空・単一・多数を境界として含む）。id は一意。
+const genTimers: fc.Arbitrary<readonly TimerFact[]> = fc
   .array(genTimerSpec, { maxLength: 30 })
   .map((specs) => specs.map((spec, index) => ({ id: `timer-${index}`, ...spec })));
 
@@ -33,7 +33,7 @@ const genUnits: fc.Arbitrary<readonly number[]> = fc.array(fc.integer({ min: 0, 
 
 describe("client/assignment", () => {
   // Feature: yude-men-timer, Property 15: 担当絞り込みは健全かつ完全（クライアント表示スコープ）
-  // 任意の WireTimer 集合と担当ユニット集合について、assignedTimers が部分集合性・担当性・完全性を
+  // 任意の TimerFact 集合と担当ユニット集合について、assignedTimers が部分集合性・担当性・完全性を
   // 同時に満たし、slotsOfUnits([u]) == {6u..6u+5}・isAssigned(slot, units) == (slot ∈ slotsOfUnits(units))
   // が成り立つことを単一テストで検証する（要件12.2・12.5）。
   it("Property 15: 担当絞り込みは健全かつ完全（部分集合性・担当性・完全性＋スロット写像の一致）", () => {

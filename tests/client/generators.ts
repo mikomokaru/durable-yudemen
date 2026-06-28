@@ -8,8 +8,8 @@
 // tests 側のローカル型を置く。2.1 / 3.1 が公開型を定義した時点で、本ファイルの型定義は当該公開型の
 // import へ差し替える（生成器の出力形は確定命名で固定済みのため差し替えは機械的）。
 //
-// ワイヤ型（WireTimer / ServerMessage）は src/shared/messages.ts の既存定義をそのまま用いる
-// （要件12.2: ワイヤ形式は不変）。core（src/core/）には一切依存しない。
+// ワイヤ型（TimerFact / ServerMessage）は src/domain/messages.ts の既存定義をそのまま用いる
+// （要件12.2: ワイヤ形式は不変）。core（src/engine/）には一切依存しない。
 //
 // 入力空間の方針（design.md「生成器の前提」・要件13.3）— 次を構造的にサンプリングできること:
 //   - server / local 混在の Timer（起源タグ TimerOrigin = "server" | "local" 両方）
@@ -20,7 +20,8 @@
 //   - 不正 / 不在の永続ブロブ（壊れた JSON・未知 version・型不一致・空文字・null）
 
 import * as fc from "fast-check";
-import type { ServerMessage, WireTimer } from "../../src/shared/messages";
+import type { ServerMessage } from "../../src/domain/messages";
+import type { TimerFact } from "../../src/domain/timer";
 
 // ── 確定命名に沿ったローカル型（2.1 / 3.1 の公開型が定義され次第 import へ差し替える） ──────────────
 
@@ -33,7 +34,7 @@ export type TimerOrigin = "server" | "local";
 /** 同期フェーズ（既存 connection.ts の SyncPhase に同じ）。 */
 export type SyncPhase = "connecting" | "synced" | "syncFailed";
 
-/** クライアントが保持する Timer。WireTimer に起源タグ origin を足したもの（確定: ClientTimer）。 */
+/** クライアントが保持する Timer。TimerFact に起源タグ origin を足したもの（確定: ClientTimer）。 */
 export interface ClientTimer {
   readonly id: string;
   readonly slotId: string;
@@ -67,7 +68,7 @@ export type ClientEvent =
   | { readonly kind: "Connectivity"; readonly status: Connectivity }
   | { readonly kind: "LocalDone"; readonly timerId: string }
   | { readonly kind: "Tick" }
-  | { readonly kind: "Reconcile"; readonly timers: readonly WireTimer[]; readonly receivedAt: number };
+  | { readonly kind: "Reconcile"; readonly timers: readonly TimerFact[]; readonly receivedAt: number };
 
 /** 永続ブロブの形（version 付き）。Set は配列へ、Connectivity / sync / error は永続しない（確定: ViewStore の codec 形）。 */
 export interface PersistedView {
@@ -190,16 +191,16 @@ export function genCorrectedNow(view: ClientView): fc.Arbitrary<number> {
 
 // ── ワイヤ / サーバメッセージ生成器（既存ワイヤ型のみ・要件12.2） ────────────────────────────────────
 
-/** WireTimer。id はプールから引き、snapshot/Reconcile での server-confirmed 復活を誘発する。 */
-const genWireTimer: fc.Arbitrary<WireTimer> = fc.record({
+/** TimerFact。id はプールから引き、snapshot/Reconcile での server-confirmed 復活を誘発する。 */
+const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
   slotId: fc.constantFrom(...SLOT_ID_POOL),
   noodleType: fc.constantFrom(...NOODLE_POOL),
   endTime: genEndTime,
 });
 
-/** WireTimer 集合（id 一意・全置換 snapshot / Reconcile の入力）。空集合も含む。 */
-const genWireTimers: fc.Arbitrary<readonly WireTimer[]> = fc.uniqueArray(genWireTimer, {
+/** TimerFact 集合（id 一意・全置換 snapshot / Reconcile の入力）。空集合も含む。 */
+const genWireTimers: fc.Arbitrary<readonly TimerFact[]> = fc.uniqueArray(genWireTimer, {
   selector: (t) => t.id,
   maxLength: TIMER_ID_POOL.length,
 });

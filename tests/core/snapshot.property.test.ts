@@ -2,8 +2,8 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { fromSnapshot, toSnapshot } from "../../src/core/snapshot";
-import { CURRENT_SCHEMA_VERSION } from "../../src/core/types";
+import { fromSnapshot, toSnapshot } from "../../src/engine/snapshot";
+import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
 import { genState } from "./generators";
 
 describe("core/snapshot", () => {

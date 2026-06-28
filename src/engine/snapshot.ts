@@ -1,7 +1,7 @@
 // core/snapshot.ts — 永続層の形（単一キー・version 付きスナップショット）と、状態との純粋変換。
 // cloudflare:workers にも storage にも触れない純粋モジュール。
 
-import { CURRENT_SCHEMA_VERSION } from "./types";
+import { CURRENT_SCHEMA_VERSION } from "../engine/types";
 import type { TimerState } from "./state";
 import type { Timer } from "./timer";
 

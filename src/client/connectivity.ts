@@ -15,12 +15,12 @@
 //   - 明示的切断: WS の close / error（要件2.1）
 // いずれか一方の成立で down を確定する。
 
-import { PING_REQUEST, PONG_RESPONSE } from "../shared/heartbeat";
-import type { ClientMessage, ServerMessage } from "../shared/messages";
+import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
+import type { ClientMessage, ServerMessage } from "../domain/messages";
 import type { Connectivity, Socket, SocketOpener } from "./connection";
 
 // 心拍フレーム（PING_REQUEST / PONG_RESPONSE）は client と shell で同一の確定値を共有するため
-// src/shared/heartbeat.ts に一箇所だけ定義する（二重定義の根絶・要件1.1）。ここでは取り込んで
+// src/transport/heartbeat.ts に一箇所だけ定義する（二重定義の根絶・要件1.1）。ここでは取り込んで
 // 内部で使い、従来この経路から参照していた利用者のため公開も保つ。
 export { PING_REQUEST, PONG_RESPONSE };
 
@@ -281,6 +281,28 @@ export function watchConnectivity(
 export function pingBlackholeDebugEnabled(): boolean {
   if (!import.meta.env.DEV) return false;
   return import.meta.env.VITE_PING_BLACKHOLE_DEBUG === "1";
+}
+
+/**
+ * ping blackhole のランタイム可逆スイッチ（dev/test 限定・要件14.3）。
+ *
+ * フォルトインジェクションの有効 / 無効を実行時に切り替える唯一の可変点。dev のトグル UI が
+ * setPingBlackholeActive を呼び、Socket オープナ側の判定（withPingBlackhole の isEnabled）が
+ * isPingBlackholeActive を読む——両者が同じ値を見ることで「一つのスイッチ」を成立させる。
+ * Mode はあくまで mode(view) の導出値であり、このスイッチは Mode を書き換えない。送信 ping を
+ * 落とすことで本物の silent-loss 検知経路（要件1.4）を通して degraded に入る（要件14.2 / 14.5）。
+ * 本番では pingBlackholeDebugEnabled() が false ゆえ配線されず、この状態も参照されない（要件14.4）。
+ */
+let pingBlackholeActive = false;
+
+/** ping blackhole が作動中か（withPingBlackhole の isEnabled として渡す・要件14.3）。 */
+export function isPingBlackholeActive(): boolean {
+  return pingBlackholeActive;
+}
+
+/** ping blackhole の作動を切り替える（dev トグルから呼ぶ・ランタイム可逆・要件14.3）。 */
+export function setPingBlackholeActive(active: boolean): void {
+  pingBlackholeActive = active;
 }
 
 /**

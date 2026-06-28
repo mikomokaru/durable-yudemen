@@ -14,7 +14,7 @@
 import { orderedSteps, shouldStopAwaiting } from "../../src/observe/scenario";
 import type { Scenario, ScenarioStep } from "../../src/observe/scenario";
 import type { UnsequencedOperationEntry } from "../../src/observe/log";
-import type { ClientMessage, ServerMessage } from "../../src/shared/messages";
+import type { ClientMessage, ServerMessage } from "../../src/domain/messages";
 
 import { buildSentEntry, recordReceivedMessages } from "./probe";
 import type { OperationLogSink, ProbeConnection } from "./probe";

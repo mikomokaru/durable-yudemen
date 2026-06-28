@@ -7,7 +7,7 @@
 実装の順序は次のとおり。
 
 1. **純粋層（`src/observe/`）を先に** — log codec（Operation_Log / Instrumentation_Log の直列化・解析）→ 引数検証（`validateProbeArgs`）→ シナリオモデルと検証（`validateScenario` / `orderedSteps` / `shouldStopAwaiting`）→ Correlator（`mergeByTime` / `classifyInstances` / `verifyAlarmFiredInIdle` / `verifyRehydrateCount` / `determineVerdict`）。いずれも時計も storage も WS も持たない決定的純粋関数なので、各 Correctness Property（P1〜P13）を fast-check の単一 property テストで検証する。
-2. **shell 計装（`src/shell/store-timer-do.ts` を編集）** — 4継ぎ目（construct / rehydrate / alarm / broadcast）に `emitSeam` を差し込み、instanceId を採番し、debug flag でゲートする。**core（`src/core/`）は一文字も変更しない。** 計装の統合検証は `@cloudflare/vitest-pool-workers` で行う。
+2. **shell 計装（`src/shell/store-timer-do.ts` を編集）** — 4継ぎ目（construct / rehydrate / alarm / broadcast）に `emitSeam` を差し込み、instanceId を採番し、debug flag でゲートする。**core（`src/engine/`）は一文字も変更しない。** 計装の統合検証は `@cloudflare/vitest-pool-workers` で行う。
 3. **CLI 端（`tools/observe/`）** — Probe_Client（`connectProbe` / `ProbeConnection` / `send`）・Scenario_Runner（`runScenario`）・突き合わせ CLI。WS 接続・JSONL ファイル IO・実時間スケジューリング・終了コードはここに閉じる。
 4. **静的検査** — core 無変更・4継ぎ目限定（`emitSeam` 4点）・`setInterval` 不在／`acceptWebSocket` 維持・既存ワイヤ形式のみ・CLI 出力英語のみ。
 5. **Deploy_Procedure** — `tools/observe/` の README に手順を整備し、ライブ観測まで検証する。
@@ -15,10 +15,10 @@
 設計哲学と規律をタスクの不変点として貫く。
 
 - **計算と作用の分離** — Correlator・log codec・scenario 検証・引数検証は `src/observe/`（純粋・I/O 非依存）に置き、WS・ファイル・実時間・`console.log`・`wrangler` 実行は端（`tools/observe/`・shell）へ寄せる。
-- **core/shell 分離を壊さない** — 計装は `src/shell/` と `tools/observe/`・`src/observe/` のみ。`src/core/` を追加・変更・削除しない（要件4.5 / 9.5）。
+- **core/shell 分離を壊さない** — 計装は `src/shell/` と `tools/observe/`・`src/observe/` のみ。`src/engine/` を追加・変更・削除しない（要件4.5 / 9.5）。
 - **SSOT 規律を計装でも崩さない** — 計装は継ぎ目で既に得られている値を読むだけで、Working_Copy・永続スナップショット・Effect 実行順序（Persist 先頭）を変えない（要件4.6）。
 - **「待つなら寝かせる、抱えると漏れる」** — 計装に `setInterval` も終わらない `setTimeout` も持ち込まない。`ctx.acceptWebSocket` による hibernate 可能構成を維持する（要件4.7）。
-- **既存ワイヤ形式のみ** — Probe_Client は `src/shared/messages.ts` の `ClientMessage` / `ServerMessage` のみで送受信し、新種別・新フィールドを足さない（要件9.6）。
+- **既存ワイヤ形式のみ** — Probe_Client は `src/domain/messages.ts` の `ClientMessage` / `ServerMessage` のみで送受信し、新種別・新フィールドを足さない（要件9.6）。
 
 ツールは確定スタックに従う（pnpm / TypeScript strict / Vitest + `@cloudflare/vitest-pool-workers` / fast-check / oxlint / Wrangler）。CLI のユーザー向け出力は英語のみ、コードコメントは日本語。Property-Based Testing は fast-check を採用し、各 Correctness Property（P1〜P13）を**単一の** property テストとして最低 100 回反復で実装し、各テストに `// Feature: hibernation-observability, Property {番号}: {本文}` のタグコメントを付す。
 
@@ -140,7 +140,7 @@
 - [x] 6. shell 計装（src/shell/store-timer-do.ts への最小の差し込み・core 不変）
   - [x] 6.1 instanceId 採番・debug flag ゲート・emitSeam を実装する
     - `src/shell/store-timer-do.ts`: `instanceId`（`crypto.randomUUID()` で constructor 一度のみ採番・存続期間中不変）・`instanceBornAt`、debug flag ゲート（env キーで有効/無効・無効時は即 return）、`emitSeam`（`src/observe/log.ts` の `buildSeamEntry` で組み立てた entry を `console.log(JSON.stringify(...))` で吐くだけ）。debug ゲートは `emitSeam` の一点に集約する
-    - **core（`src/core/`）を一切呼ばず変えない。** Working_Copy・永続スナップショット・Effect 実行順序（Persist 先頭）を不変に保ち、`setInterval`／終わらない `setTimeout` を導入せず `ctx.acceptWebSocket` 構成を維持する
+    - **core（`src/engine/`）を一切呼ばず変えない。** Working_Copy・永続スナップショット・Effect 実行順序（Persist 先頭）を不変に保ち、`setInterval`／終わらない `setTimeout` を導入せず `ctx.acceptWebSocket` 構成を維持する
     - _Requirements: 4.5, 4.6, 4.7, 4.8, 4.10, 5.1_
 
   - [x] 6.2 4継ぎ目に emitSeam を差し込む
@@ -185,7 +185,7 @@
 
 - [x] 9. 静的検査と Deploy_Procedure
   - [x] 9.1 静的検査（core 無変更・4継ぎ目限定・hibernation 規律・ワイヤ形式・英語）を実装する
-    - `tests/observe/`（または `tests/`）に静的検査を実装。(a) `src/core/` 配下に差分が無く計装が `src/shell`・`tools/observe`・`src/observe` のみに存在、(b) `emitSeam`（確定名）の呼び出しが4点のみ、(c) shell ソースに秒読み目的の `setInterval`／終端のない `setTimeout` が無く `ctx.acceptWebSocket` を使う、(d) Probe_Client が `src/shared/messages.ts` の既存型のみを用い新種別/フィールドを定義しない、(e) CLI のユーザー向け文字列に日本語を含めない、を検証
+    - `tests/observe/`（または `tests/`）に静的検査を実装。(a) `src/engine/` 配下に差分が無く計装が `src/shell`・`tools/observe`・`src/observe` のみに存在、(b) `emitSeam`（確定名）の呼び出しが4点のみ、(c) shell ソースに秒読み目的の `setInterval`／終端のない `setTimeout` が無く `ctx.acceptWebSocket` を使う、(d) Probe_Client が `src/domain/messages.ts` の既存型のみを用い新種別/フィールドを定義しない、(e) CLI のユーザー向け文字列に日本語を含めない、を検証
     - _Requirements: 4.5, 4.7, 4.9, 9.4, 9.5, 9.6_
 
   - [x] 9.2 Deploy_Procedure を tools/observe/ の README に整備する
@@ -202,7 +202,7 @@
 - 各タスクは特定の要件（granular な受け入れ基準）を `_Requirements: x.y_` 形式で参照し、各 Property テストタスクは `Validates: Requirements x.y` を明記する。
 - 各 Correctness Property（P1〜P13）は単一の property テストとして実装し、最低 100 回反復、`Feature: hibernation-observability, Property N: ...` のタグコメントを付す（PBT は fast-check を用い自前実装しない）。
 - 純粋層（`src/observe/`）を先に完成・検証してから shell 計装・CLI 端へ進む。純粋層テストは `Date.now()` のスタブや `vi.useFakeTimers()` を用いない（時刻は引数で渡す。暗黙時計への漏れは境界の引き直しサイン）。
-- **core（`src/core/`）は追加・変更・削除しない。** 計装は `src/shell` と `tools/observe`・`src/observe` のみ。SSOT 規律（Persist 先頭・`put` 成功が確定の起点）と hibernation 規律（`setInterval` 不使用・`acceptWebSocket` 維持）を計装でも崩さない。
+- **core（`src/engine/`）は追加・変更・削除しない。** 計装は `src/shell` と `tools/observe`・`src/observe` のみ。SSOT 規律（Persist 先頭・`put` 成功が確定の起点）と hibernation 規律（`setInterval` 不使用・`acceptWebSocket` 維持）を計装でも崩さない。
 - 公開シンボル名は 1.1 で確定してからコードに用いる。本計画中の名前はすべて暫定候補。
 - 実時間タイミング（250ms 窓・await-done 待機・接続タイムアウト）・プラットフォーム挙動（hibernation の発生・4継ぎ目出力）・運用手順は Integration / Example / Smoke（静的検査・実デプロイ観測）で検証する。
 

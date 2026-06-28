@@ -4,8 +4,8 @@
 // crypto.randomUUID() という非決定を core に持ち込まない。新しい TimerId は Start イベントの
 // 入力（newTimerId）として shell から渡され、core はそれをそのまま用いる。
 
-import { BOIL_SECONDS_MIN, BOIL_SECONDS_MAX, MAX_TIMERS } from "./types";
-import type { SlotId, NoodleType, EpochMillis } from "./types";
+import { BOIL_SECONDS_MIN, BOIL_SECONDS_MAX, MAX_TIMERS } from "../engine/types";
+import type { SlotId, NoodleType, EpochMillis } from "../engine/types";
 import type { TimerState } from "./state";
 import type { Timer } from "./timer";
 import { createTimer } from "./timer";
@@ -14,7 +14,8 @@ import type { Outcome, Effect } from "./effect";
 import type { Rejection } from "./rejection";
 import { toSnapshot } from "./snapshot";
 import { nextAlarmEffect } from "./alarm";
-import type { ServerMessage, WireTimer } from "../shared/messages";
+import type { ServerMessage } from "../domain/messages";
+import type { TimerFact } from "../domain/timer";
 
 /** Start イベントの本体。startTimer はこの形だけを受け取る（event.ts の唯一の出所を再利用）。 */
 type StartEvent = Extract<Event, { type: "Start" }>;
@@ -66,7 +67,7 @@ export function validateStart(input: {
 }
 
 /** Timer を WS のワイヤ表現へ射影する。残り秒は含めず endTime（事実）を運ぶ（要件10.2）。 */
-function toWireTimer(timer: Timer): WireTimer {
+function toWireTimer(timer: Timer): TimerFact {
   return {
     id: timer.id,
     slotId: timer.slotId,

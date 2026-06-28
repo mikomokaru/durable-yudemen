@@ -6,7 +6,7 @@
 // （250ms 窓・await-done の実待機・接続・終了コード）は端（tools/observe/runner.ts）の責務で、
 // ここには持ち込まない。端は orderedSteps で整列した列と shouldStopAwaiting の判定を使うだけ。
 
-import type { ServerMessage } from "../shared/messages";
+import type { ServerMessage } from "../domain/messages";
 
 // ── 許容範囲（要件3.1 / 3.3 / 3.4 / 7.2 / 7.3 の事実。一箇所でのみ定義する） ──────
 

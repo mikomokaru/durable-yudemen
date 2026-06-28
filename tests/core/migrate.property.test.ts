@@ -2,7 +2,7 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { migrate } from "../../src/core/migrate";
+import { migrate } from "../../src/engine/migrate";
 
 /** version > 1 の永続データ。timers/nextSeq の妥当性に関わらず UnsupportedSchemaVersion になる。 */
 const genUnsupported = fc.integer({ min: 2, max: 100_000 }).map((version) => ({

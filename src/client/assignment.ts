@@ -4,7 +4,7 @@
 // 保持は全量・表示は導出とする（要件12.2）。これは core の思想「導出値を状態に昇格させない」を
 // クライアントへそのまま延長したものである。
 
-import type { WireTimer } from "../shared/messages";
+import type { TimerFact } from "../domain/timer";
 
 // ユニット 1 つが担当する連続スロット数。unit u は slot 6u..6u+5（要件12.5）。
 const SLOTS_PER_UNIT = 6;
@@ -39,10 +39,10 @@ export function isAssigned(slot: number, units: readonly number[]): boolean {
 /**
  * 受信した全量 Timer から担当スロットに属するものだけを射影する（表示用導出）。
  *
- * WireTimer を芯に持つ要素型 T を保ったまま絞り込む。ClientTimer（= WireTimer & { origin }）を
+ * TimerFact を芯に持つ要素型 T を保ったまま絞り込む。ClientTimer（= TimerFact & { origin }）を
  * 渡せば origin タグを失わずに射影でき、呼び出し側が起源（未確定か否か）を導出できる。
  */
-export function assignedTimers<T extends WireTimer>(
+export function assignedTimers<T extends TimerFact>(
   allTimers: readonly T[],
   units: readonly number[],
 ): readonly T[] {

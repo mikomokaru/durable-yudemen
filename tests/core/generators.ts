@@ -8,11 +8,11 @@
 // - now は状態中の endTime 群に対し、過去/未来/ε 近傍（endTime == now + ε 境界）をまたぐ。
 
 import * as fc from "fast-check";
-import { createTimer } from "../../src/core/timer";
-import { EPSILON_MS, MAX_TIMERS } from "../../src/core/types";
-import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/core/types";
-import type { Timer } from "../../src/core/timer";
-import type { TimerState } from "../../src/core/state";
+import { createTimer } from "../../src/engine/timer";
+import { EPSILON_MS, MAX_TIMERS } from "../../src/engine/types";
+import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
+import type { Timer } from "../../src/engine/timer";
+import type { TimerState } from "../../src/engine/state";
 
 /** 一件の Timer を組み立てるための素データ（id・seq はビルド時に決定的に付与する）。 */
 interface TimerSpec {

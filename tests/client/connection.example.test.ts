@@ -17,7 +17,7 @@ import {
   type Socket,
   type SocketListeners,
 } from "../../src/client/connection";
-import type { WireTimer } from "../../src/shared/messages";
+import type { TimerFact } from "../../src/domain/timer";
 
 /** 1 回の接続試行で生成された偽 Socket（送信・切断のモック）とそのリスナの組。 */
 interface OpenedSocket {
@@ -66,8 +66,8 @@ function setup(overrides: Partial<ConnectionOptions> = {}) {
   };
 }
 
-/** テスト用 WireTimer 生成。endTime は START_NOW から十分先に置く。 */
-function makeTimer(id: string, endTime = START_NOW + 180_000): WireTimer {
+/** テスト用 TimerFact 生成。endTime は START_NOW から十分先に置く。 */
+function makeTimer(id: string, endTime = START_NOW + 180_000): TimerFact {
   return { id, slotId: `slot-${id}`, noodleType: "ramen", endTime };
 }
 

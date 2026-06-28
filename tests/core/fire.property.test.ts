@@ -2,9 +2,9 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { fireDueTimers, reconcile } from "../../src/core/fire";
-import { EPSILON_MS } from "../../src/core/types";
-import type { Timer } from "../../src/core/timer";
+import { fireDueTimers, reconcile } from "../../src/engine/fire";
+import { EPSILON_MS } from "../../src/engine/types";
+import type { Timer } from "../../src/engine/timer";
 import { genStateAndNow } from "./generators";
 
 describe("core/fire", () => {

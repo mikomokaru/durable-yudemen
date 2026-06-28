@@ -6,14 +6,14 @@
 // 複数 Timer に対して再発火が連鎖し無限スルーの恐れがある。一括ドレインにより残存最早は
 // 必ず now + ε より未来となり、連鎖が構造的に断たれる（要件2.10 / 3.3 を不変条件の帰結として満たす）。
 
-import { EPSILON_MS } from "./types";
-import type { EpochMillis } from "./types";
+import { EPSILON_MS } from "../engine/types";
+import type { EpochMillis } from "../engine/types";
 import type { TimerState } from "./state";
 import type { Timer } from "./timer";
 import type { Outcome, Effect } from "./effect";
 import { toSnapshot } from "./snapshot";
 import { nextAlarmEffect } from "./alarm";
-import type { ServerMessage } from "../shared/messages";
+import type { ServerMessage } from "../domain/messages";
 
 /** 処理順の比較。endTime 昇順、同一 endTime は seq 昇順（要件3.6）。 */
 function byEndTimeThenSeq(a: Timer, b: Timer): number {

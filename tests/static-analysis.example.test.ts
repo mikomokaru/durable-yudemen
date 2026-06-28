@@ -26,19 +26,19 @@ const repoRoot = resolve(here, "..");
 
 /** core の純粋変換群（cloudflare:workers・storage 非依存）。 */
 const CORE_FILES = [
-  "src/core/alarm.ts",
-  "src/core/cancel.ts",
-  "src/core/decide.ts",
-  "src/core/effect.ts",
-  "src/core/event.ts",
-  "src/core/fire.ts",
-  "src/core/migrate.ts",
-  "src/core/rejection.ts",
-  "src/core/snapshot.ts",
-  "src/core/start.ts",
-  "src/core/state.ts",
-  "src/core/timer.ts",
-  "src/core/types.ts",
+  "src/engine/alarm.ts",
+  "src/engine/cancel.ts",
+  "src/engine/decide.ts",
+  "src/engine/effect.ts",
+  "src/engine/event.ts",
+  "src/engine/fire.ts",
+  "src/engine/migrate.ts",
+  "src/engine/rejection.ts",
+  "src/engine/snapshot.ts",
+  "src/engine/start.ts",
+  "src/engine/state.ts",
+  "src/engine/timer.ts",
+  "src/engine/types.ts",
 ] as const;
 
 /** DO シェル。プラットフォーム作用の端。 */

@@ -1,4 +1,4 @@
-// shared/heartbeat.ts — 到達性検出の心拍フレーム（client と shell が共有する単一の確定値）。
+// transport/heartbeat.ts — 到達性検出の心拍フレーム（client と shell が共有する単一の確定値）。
 //
 // client（Connectivity_Watch）が送る ping 要求文字列と、shell（StoreTimerDO.fetch の
 // setWebSocketAutoResponse）が登録する auto-response の request / response は、同一の確定値で

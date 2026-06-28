@@ -16,7 +16,7 @@
 
 - **再整合（reconciliation）／DO への耐久的な書き戻し（durable write-back）**：オフライン中に発生したローカル操作（start / cancel）を回線復帰時に Store_Timer_DO へ反映して正本へ確定させる処理は、本 spec のスコープ外とし、**将来フェーズ**に委ねる。本 spec のローカル操作は耐久化されず、最善努力にとどまる。
 - **クロスデバイスのダブルブッキング防止**：オフライン中は共有された真実が存在しないため、別デバイスとの二重起動はオフラインでは防止不能であり、受容される限界とする（本 spec で新たなサーバ側ルールを追加しない）。
-- **サーバ core（`src/core/`）の変更**：本 spec は core を一切変更しない。
+- **サーバ core（`src/engine/`）の変更**：本 spec は core を一切変更しない。
 - 認証認可の作り込み、マルチテナント。
 
 ## Glossary
@@ -180,8 +180,8 @@
 
 #### 受け入れ基準
 
-1. THE 本機能 SHALL `src/core/` 配下の既存ファイルを追加・変更・削除せず、変更を `src/client/` 配下と `src/shell/` への最小追加（auto-response 設定）に限定する。
-2. THE 本機能 SHALL `src/shared/messages.ts` に定義された既存の ClientMessage / ServerMessage のワイヤ形式のみに従い、新たなメッセージ種別やフィールドを導入しない。
+1. THE 本機能 SHALL `src/engine/` 配下の既存ファイルを追加・変更・削除せず、変更を `src/client/` 配下と `src/shell/` への最小追加（auto-response 設定）に限定する。
+2. THE 本機能 SHALL `src/domain/messages.ts` に定義された既存の ClientMessage / ServerMessage のワイヤ形式のみに従い、新たなメッセージ種別やフィールドを導入しない。
 3. THE Store_Timer_DO SHALL auto-response の追加後も WebSocket Hibernation 互換を保ち、heartbeats による wake を発生させない。
 4. THE iPad_Client SHALL Store_Timer_DO の全量スナップショットを正本として扱い、Provisional_Timer を起源タグ付きの未確定なローカル意図として保持し、正本の競合源にしない。
 5. THE 本機能 SHALL オフライン中のローカル操作（start / cancel）の Store_Timer_DO への耐久的な書き戻し（write-back / reconciliation）を行わず、当該処理を将来フェーズのスコープ外として扱う。
@@ -225,7 +225,7 @@
 
 ## 制約と前提（Constraints and Assumptions）
 
-- **設計哲学の不変点**: core/shell/client 分離を壊さない。core（`src/core/`）は不変。変更は client（`src/client/`）と shell（`src/shell/`）への最小追加（`setWebSocketAutoResponse`）に限る。SSOT 規律（サーバ snapshot が正本・Provisional_Timer は起源タグ付きの未確定意図）を崩さない。hibernation 規律（heartbeats は auto-response 経路に限り DO を wake させない）を保持する。導出値（残り秒・Mode）は状態に昇格させない。
+- **設計哲学の不変点**: core/shell/client 分離を壊さない。core（`src/engine/`）は不変。変更は client（`src/client/`）と shell（`src/shell/`）への最小追加（`setWebSocketAutoResponse`）に限る。SSOT 規律（サーバ snapshot が正本・Provisional_Timer は起源タグ付きの未確定意図）を崩さない。hibernation 規律（heartbeats は auto-response 経路に限り DO を wake させない）を保持する。導出値（残り秒・Mode）は状態に昇格させない。
 - **命名規律（暫定・要確認の公開シンボル）**: 次は概念境界の表明であり実装前にユーザー確認を要する。本書での使用名はすべて暫定であり、ドメイン語彙（decide / reconcile / Snapshot / Effect）の踏襲を優先する。
   - クライアント純粋遷移関数名（暫定 `Client_Decide`）
   - モード名（暫定 `live` / `degraded`）

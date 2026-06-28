@@ -11,7 +11,7 @@
 | ビルド/Dev | **Vite**（v8 系）＋ **@cloudflare/vite-plugin**（v1 系） | dev サーバ・本番ビルド | コードは dev でも workerd 上で実行 |
 | UI | **React**（v19）＋ **@vitejs/plugin-react** | iPad フロント | 新 JSX transform（`jsx: react-jsx`） |
 | Workers 構成/型/デプロイ | **Wrangler**（v4 系） | `wrangler.jsonc`・`wrangler types`・デプロイ | **確定採用。Workers 設定の正本** |
-| テスト | **Vitest**（v4 系）＋ **@cloudflare/vitest-pool-workers** | 単体・PBT・DO 統合テスト | core は workerd 不要、shell/DO は Workers pool |
+| テスト | **Vitest**（v4 系）＋ **@cloudflare/vitest-pool-workers** | 単体・PBT・DO 統合テスト | engine/domain は workerd 不要、shell/DO は Workers pool |
 | Property-Based Testing | **fast-check**（v4 系） | Correctness Property 検証 | PBT は自前実装しない |
 | Lint | **Oxc / oxlint**（v1 系） | 静的解析 | ESLint は使わない |
 
@@ -59,11 +59,14 @@ Kiro はパッケージ追加に `pnpm add` / `pnpm add -D` を用い、`npm` / 
 
 ## ディレクトリ規約
 
-- `src/core/` — 純粋変換（`cloudflare:workers`・storage に依存しない）。他基盤へ運べる。
+- `src/engine/` — サーバ側の純粋な状態遷移エンジン（`decide` ほか。`cloudflare:workers`・storage に依存しない）。他基盤へ運べる。
+- `src/domain/` — ドメイン契約（`TimerFact`・`WireTimer`・メッセージ型）。両端が共有する語彙の正本。基底インターフェイスの定義はここに集約する（steering/timer-model.md）。
+- `src/transport/` — トランスポート機構（`heartbeat` の心拍フレーム）。ドメインではなく接続維持の関心事で、client と shell が共有する。
 - `src/shell/` — DO クラス・Effect インタプリタ（プラットフォーム作用の端）。
-- `src/shared/` — ワイヤ表現・メッセージ型（core と client が共有）。
 - `src/client/` — React フロント。
 - `src/worker.ts` — 極薄の Worker エントリ。
 - `tests/` — PBT・example・統合テスト・静的検査。
 
-設計哲学（`design-philosophy.md`）の「構造の主権」に従い、Cloudflare 固有依存は `src/shell` と `src/worker.ts` に隔離し、`src/core` は純粋に保つ。
+依存方向は `engine` → `domain`、`client` → `domain`、`shell` → `engine`/`domain`/`transport`。`domain` は何にも依存しない中立の契約ハブ。`engine` という名は「サーバ側の決定機構」であって中核を僭称しない（中核はドメイン契約）。
+
+設計哲学（`design-philosophy.md`）の「構造の主権」に従い、Cloudflare 固有依存は `src/shell` と `src/worker.ts` に隔離し、`src/engine` は純粋に保つ。

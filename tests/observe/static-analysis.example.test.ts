@@ -13,7 +13,7 @@
 //       broadcast）であり、それ以外の箇所から出力しない（要件4.9）。
 //   (c) hibernation 規律 — shell に秒読み目的の setInterval／終端のない setTimeout を持たず、
 //       ctx.acceptWebSocket による hibernate 可能構成を維持する（要件4.7）。
-//   (d) 既存ワイヤ形式のみ — Probe_Client は src/shared/messages.ts の既存型を用い、新しい
+//   (d) 既存ワイヤ形式のみ — Probe_Client は src/domain/messages.ts の既存型を用い、新しい
 //       メッセージ種別やフィールドを定義しない（要件9.6）。
 //   (e) 英語のみ — CLI（tools/observe）のユーザー向け文字列に日本語を含めない（要件9.4）。
 //
@@ -52,7 +52,7 @@ const INSTRUMENTATION_MARKERS = [
   "InstrumentationLogEntry",
 ] as const;
 
-/** 既存ワイヤ形式（src/shared/messages.ts）が定める全メッセージ種別。これ以外を導入しない（要件9.6）。 */
+/** 既存ワイヤ形式（src/domain/messages.ts）が定める全メッセージ種別。これ以外を導入しない（要件9.6）。 */
 const WIRE_MESSAGE_TYPES = new Set([
   "start",
   "cancel",
@@ -257,7 +257,7 @@ function isWithinInstrumentationDirs(relativePath: string): boolean {
 // ── (a) core 無変更・計装は許可ディレクトリのみ（要件4.5 / 9.5） ───────────────
 
 describe("(a) core 無変更・計装は src/shell・src/observe・tools/observe に限定（要件4.5 / 9.5）", () => {
-  const coreFiles = collectTsFiles("src/core");
+  const coreFiles = collectTsFiles("src/engine");
 
   it("src/core に計装由来のトークン（emitSeam / buildSeamEntry / OBSERVE_DEBUG / InstrumentationLogEntry）が無い", () => {
     expect(coreFiles.length).toBeGreaterThan(0); // core が空でないこと（探索の健全性）
@@ -332,22 +332,22 @@ describe("(c) shell の hibernation 規律（要件4.7）", () => {
 
 // ── (d) Probe_Client は既存ワイヤ形式のみ（要件9.6） ──────────────────────────
 
-describe("(d) Probe_Client は src/shared/messages の既存型のみを用いる（要件9.6）", () => {
-  it("Probe_Client は src/shared/messages から ClientMessage を import する", () => {
+describe("(d) Probe_Client は src/domain/messages の既存型のみを用いる（要件9.6）", () => {
+  it("Probe_Client は src/domain/messages から ClientMessage を import する", () => {
     const code = readCodeWithStrings(PROBE_FILE);
     expect(code, `${PROBE_FILE} が共有メッセージ型を import していない`).toMatch(
-      /import[^;]*\bClientMessage\b[^;]*from\s+["'][^"']*shared\/messages["']/,
+      /import[^;]*\bClientMessage\b[^;]*from\s+["'][^"']*domain\/messages["']/,
     );
   });
 
-  it("ハーネス（tools/observe・src/observe）はワイヤ型（ClientMessage / ServerMessage / WireTimer）を再定義しない", () => {
+  it("ハーネス（tools/observe・src/observe）はワイヤ型（ClientMessage / ServerMessage / TimerFact）を再定義しない", () => {
     const harnessFiles = [...collectTsFiles("tools/observe"), ...collectTsFiles("src/observe")];
     for (const file of harnessFiles) {
       const code = readBareCode(file);
       expect(
         code,
         `${file} がワイヤ型を再定義している`,
-      ).not.toMatch(/\b(?:type|interface)\s+(?:ClientMessage|ServerMessage|WireTimer)\b/);
+      ).not.toMatch(/\b(?:type|interface)\s+(?:ClientMessage|ServerMessage|TimerFact)\b/);
     }
   });
 

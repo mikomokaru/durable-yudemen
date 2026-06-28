@@ -16,7 +16,7 @@ import { WebSocket, type RawData } from "ws";
 
 import { serializeOperationEntry } from "../../src/observe/log";
 import type { OperationLogEntry, UnsequencedOperationEntry } from "../../src/observe/log";
-import type { ClientMessage } from "../../src/shared/messages";
+import type { ClientMessage } from "../../src/domain/messages";
 
 // ── 接続確立 ─────────────────────────────────────────────────────────────────
 

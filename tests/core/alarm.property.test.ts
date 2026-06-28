@@ -2,7 +2,7 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { nextAlarmEffect } from "../../src/core/alarm";
+import { nextAlarmEffect } from "../../src/engine/alarm";
 import { genTimers } from "./generators";
 
 describe("core/alarm", () => {

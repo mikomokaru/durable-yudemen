@@ -2,10 +2,10 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { startTimer } from "../../src/core/start";
-import type { Event } from "../../src/core/event";
-import type { EpochMillis, TimerId } from "../../src/core/types";
-import type { TimerState } from "../../src/core/state";
+import { startTimer } from "../../src/engine/start";
+import type { Event } from "../../src/engine/event";
+import type { EpochMillis, TimerId } from "../../src/engine/types";
+import type { TimerState } from "../../src/engine/state";
 import { genState, genStateExact } from "./generators";
 
 /** Start イベントを組み立てる（startTimer は Start 種別だけを受け取る）。 */

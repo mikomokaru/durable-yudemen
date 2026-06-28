@@ -5,8 +5,8 @@
 // version を検査したうえで現行スキーマの ActiveTimersSnapshot へ写す。失敗は例外ではなく
 // 戻り値（ShellFailure）で表し、いずれの失敗時も入力 raw を一切変更しない（移行を確定しない）。
 
-import { CURRENT_SCHEMA_VERSION } from "./types";
-import type { EpochMillis, SlotId, NoodleType, TimerId } from "./types";
+import { CURRENT_SCHEMA_VERSION } from "../engine/types";
+import type { EpochMillis, SlotId, NoodleType, TimerId } from "../engine/types";
 import { EMPTY_STATE } from "./state";
 import { createTimer } from "./timer";
 import type { Timer } from "./timer";

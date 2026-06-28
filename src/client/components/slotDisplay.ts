@@ -3,7 +3,7 @@
 // 表示集合を毎描画導出する（保持は全量・表示は導出／要件12.2）。残り秒は状態に昇格させず、
 // clock.ts の remainingMs に now を渡して描画のたびに算出する（要件10.1 の思想をクライアントへ延長）。
 
-import type { WireTimer } from "../../shared/messages";
+import type { TimerFact } from "../../domain/timer";
 import type { ClientTimer, ClientView } from "../connection";
 import { remainingMs } from "../clock";
 import { assignedTimers, slotOf, slotsOfUnits } from "../assignment";
@@ -23,7 +23,7 @@ export type SlotDisplay =
   | {
       readonly kind: "running";
       readonly slot: number;
-      readonly timer: WireTimer;
+      readonly timer: TimerFact;
       readonly remainingMs: number;
       readonly unconfirmed: boolean;
     }

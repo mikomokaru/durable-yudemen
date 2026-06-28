@@ -6,7 +6,12 @@
 // マウント中だけ開いて閉じる（StrictMode の再マウントでも開閉が対応するよう effect で扱う）。
 
 import { useEffect, useState } from "react";
-import { openTimerConnection } from "./connection";
+import {
+  isPingBlackholeActive,
+  openTimerConnection,
+  pingBlackholeDebugEnabled,
+  setPingBlackholeActive,
+} from "./connection";
 import type { TimerConnection } from "./connection";
 import { SlotBoard } from "./components/SlotBoard";
 import { UnitSelector } from "./components/UnitSelector";
@@ -23,16 +28,34 @@ export function App() {
   // 接続はマウント中のみ生存する作用。effect で開閉を対応させる。
   const [connection, setConnection] = useState<TimerConnection | null>(null);
 
+  // dev/test 限定の縮退テストトグルを表示するか。本番では pingBlackholeDebugEnabled() が false を返し、
+  // import.meta.env.DEV を先頭ガードに置くことで以下のトグル配線ごと本番バンドルから除外される（要件14.4）。
+  const degradationTestable = import.meta.env.DEV && pingBlackholeDebugEnabled();
+  // 送信 ping を破棄して擬似的な静かな喪失（half-open）を起こしているか。スイッチの可視ミラー（要件14.3）。
+  const [simulatingOffline, setSimulatingOffline] = useState(isPingBlackholeActive());
+
   useEffect(() => {
     const conn = openTimerConnection({ url: timerSocketUrl() });
     setConnection(conn);
     return () => conn.close();
   }, []);
 
+  // 縮退テストの擬似切断を可逆に切り替える。Mode は書き換えず、本物の silent-loss 検知経路を通す（要件14.2/14.3/14.5）。
+  function toggleSimulatedOffline(): void {
+    const next = !simulatingOffline;
+    setPingBlackholeActive(next);
+    setSimulatingOffline(next);
+  }
+
   return (
     <main>
       <h1>Yude-men Timer</h1>
       <UnitSelector units={units} onChange={setUnits} />
+      {degradationTestable ? (
+        <button type="button" aria-pressed={simulatingOffline} onClick={toggleSimulatedOffline}>
+          {simulatingOffline ? "Stop simulating offline" : "Simulate offline (dev)"}
+        </button>
+      ) : null}
       {connection ? (
         <SlotBoard connection={connection} units={units} />
       ) : (

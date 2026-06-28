@@ -2,10 +2,10 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { decide } from "../../src/core/decide";
-import type { Event } from "../../src/core/event";
-import type { TimerId } from "../../src/core/types";
-import type { TimerState } from "../../src/core/state";
+import { decide } from "../../src/engine/decide";
+import type { Event } from "../../src/engine/event";
+import type { TimerId } from "../../src/engine/types";
+import type { TimerState } from "../../src/engine/state";
 import { genNow, genState } from "./generators";
 
 /** 妥当寄りの Start イベント（ok:true を多く踏ませ、Effect 列の構造を検証可能にする）。 */

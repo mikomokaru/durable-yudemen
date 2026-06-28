@@ -1,14 +1,15 @@
 import { DurableObject } from "cloudflare:workers";
-import { decide } from "../core/decide";
-import type { Effect } from "../core/effect";
-import { migrate } from "../core/migrate";
-import type { ShellFailure } from "../core/rejection";
-import { fromSnapshot } from "../core/snapshot";
-import { EMPTY_STATE, type TimerState } from "../core/state";
-import type { EpochMillis, TimerId } from "../core/types";
+import { decide } from "../engine/decide";
+import type { Effect } from "../engine/effect";
+import { migrate } from "../engine/migrate";
+import type { ShellFailure } from "../engine/rejection";
+import { fromSnapshot } from "../engine/snapshot";
+import { EMPTY_STATE, type TimerState } from "../engine/state";
+import type { EpochMillis, TimerId } from "../engine/types";
 import { buildSeamEntry, type InstrumentationLogEntry } from "../observe/log";
-import { PING_REQUEST, PONG_RESPONSE } from "../shared/heartbeat";
-import type { ClientMessage, ServerMessage, WireTimer } from "../shared/messages";
+import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
+import type { ClientMessage, ServerMessage } from "../domain/messages";
+import type { TimerFact } from "../domain/timer";
 
 /** 永続層の単一キー。状態は丸ごとこのキーへ put / get する（要件8.3・SQL 不使用）。 */
 const SNAPSHOT_KEY = "activeTimers";
@@ -236,7 +237,7 @@ export class StoreTimerDO extends DurableObject<Env> {
       type: "snapshot",
       serverTime: Date.now(),
       timers: this.workingCopy.timers.map(
-        (timer): WireTimer => ({
+        (timer): TimerFact => ({
           id: timer.id,
           slotId: timer.slotId,
           noodleType: timer.noodleType,

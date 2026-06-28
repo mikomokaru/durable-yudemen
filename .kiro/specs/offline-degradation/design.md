@@ -12,7 +12,7 @@
 
 3. **SSOT 規律を崩さない** — サーバ（Store_Timer_DO）の全量スナップショットが正本である。degraded 中のローカル操作で生まれる **Provisional_Timer は起源タグ付きの「未確定（unconfirmed）なローカル意図」**であって、正本の競合源にしない（要件12.4）。回線復帰時の Reconcile は server-confirmed のみを置き換え、provisional は保持する（決定 B・要件11.5）。
 
-4. **core 不変・ワイヤ形式不変・shell は最小追加のみ** — `src/core/` は一文字も変更しない。変更は `src/client/` 配下と、shell（`src/shell/store-timer-do.ts`）への**一点の追加 `setWebSocketAutoResponse`** に限る（要件12.1）。既存 `src/shared/messages.ts` の `ClientMessage` / `ServerMessage` のワイヤ形式のみを使い、新しいメッセージ種別やフィールドを足さない（要件12.2）。
+4. **core 不変・ワイヤ形式不変・shell は最小追加のみ** — `src/engine/` は一文字も変更しない。変更は `src/client/` 配下と、shell（`src/shell/store-timer-do.ts`）への**一点の追加 `setWebSocketAutoResponse`** に限る（要件12.1）。既存 `src/domain/messages.ts` の `ClientMessage` / `ServerMessage` のワイヤ形式のみを使い、新しいメッセージ種別やフィールドを足さない（要件12.2）。
 
 5. **「待つなら寝かせる、抱えると漏れる」を heartbeats でも守る** — 到達性検出の ping/pong は **DO の auto-response 経路に限定**し、`webSocketMessage` ハンドラの起動や hibernate からの wake を伴わせない（要件1.5 / 12.3）。クライアント側に秒読み常駐ループを置く場合も、それが DO を wake させる通常メッセージを送らないことを保つ（要件1.6）。
 
@@ -36,7 +36,7 @@
 
 - **再整合／DO への耐久的な書き戻し（write-back / reconciliation）** — オフライン中のローカル操作（start / cancel）を回線復帰時に正本へ確定させる処理は将来フェーズ。本 spec のローカル操作は耐久化されず最善努力にとどまる（要件12.5）。
 - **クロスデバイスのダブルブッキング防止** — オフライン中は共有された真実が存在しないため防止不能であり、受容される限界とする。新たなサーバ側ルールを追加しない（要件9.3）。
-- **サーバ core（`src/core/`）の変更** — 一切行わない（要件12.1）。
+- **サーバ core（`src/engine/`）の変更** — 一切行わない（要件12.1）。
 - 認証認可の作り込み・マルチテナント・IndexedDB・Background Sync。
 
 ### 対象デバイスと制約（正直な限界）
@@ -604,7 +604,7 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 - **Property テスト（純粋層）** — 上記 Correctness Properties をそれぞれ**単一の** property-based テストで実装する。`Client_Decide` も `mode` も `dueLocalTimers` も `remainingMs` も `serializeView` / `parsePersistedView` も決定的純粋関数なので、`Date` モックも faketime も実 WS も localStorage も不要。生成器がビュー・イベント列・時刻・ブロブを吐くだけで、`endTime == correctedNow` 境界・空ビュー・provisional のみ・範囲外 boilSeconds・処理済み id 重複・cancel 済み server の復活といった edge を網羅的に踏む。
 - **Integration テスト（端・配線）** — Connectivity_Watch の二段階検出（pong タイムアウト 2 連続で down・close/error で down・open+snapshot で up：要件1.3 / 1.4 / 2.1 / 2.2）、Sync_Mediator の経路選択（degraded で start が WS 送信されず provisional 注入・live で送信：要件4.5 / 6.3 / 7.3）、down→up での Reconcile 契機づけ（要件2.4）は、モック WS（既存 `SocketOpener` 注入）と faketime で 1〜3 例ずつ確認する。shell の auto-response（要件1.1 / 1.5 / 12.3）は `@cloudflare/vitest-pool-workers` の Workers pool ＋ `hibernation-observability` ハーネスで、ping に対し `webSocketMessage` 継ぎ目が発火せず wake しないことを観測する。**dev 限定の ping blackhole フォルトインジェクション（要件14）** は、`withPingBlackhole` デコレータが送信 ping のみ捨て通常メッセージ・受信を素通しすること、blackhole 有効化で silent-loss 検知（要件1.4）を通じて degraded に入り Mode を直接書き換えないこと（要件14.1 / 14.2 / 14.5）、無効化でランタイム可逆に `up` 復帰し Reconcile を契機づけること（要件14.3）を、モック WS ＋ faketime の 1〜2 例で確認する。本番バンドルからの除外（要件14.4）は静的検査（`import.meta.env.DEV` ゲート・UI 非露出）と、degraded → ローカル権限 → 再接続 → provisional 保持の手動 E2E ライフサイクルを実機で確認する。
 - **Example テスト（具体シナリオ）** — Mode 変化の視認可能な提示（要件3.4）、走行中 Slot に Start の口が現れない（要件9.1 / 9.2）、Provisional_Timer の未確定表示（要件6.4）、degraded 中に serverTime 問い合わせが発生しない（要件5.2）、再水和ビューからのローカル発火（要件11.3 の boot 配線）など、property では捉えにくい具体例を最小限で固める。
-- **Smoke テスト／静的検査（構造制約と PWA / ツール）** — `src/core/` 無変更・shell 追加が `setWebSocketAutoResponse` 一点のみ（要件12.1）、既存ワイヤ形式のみ使用（要件12.2）、UI が Socket を直接持たず Sync_Mediator のみ経由（要件4.4）、永続が Persistence_Port 経由で IndexedDB / Background Sync 不使用（要件4.7 / 11.4）、PWA の manifest（`display: standalone`）＋ `overscroll-behavior` ＋ 追加抑止層なし（要件10.3 / 10.4 / 10.5）、App Shell precache 設定（要件10.1）、`tsc --noEmit` / `oxlint` 0/0 / `vitest --run` 失敗 0（要件13.1〜13.3）、property テストに faketime / Date スタブ不在（要件13.4）、vite-plugin-pwa / Workbox 採用・pnpm のみ（要件13.5）、ユーザー向けコンテンツ英語・コメント日本語（要件13.6）。
+- **Smoke テスト／静的検査（構造制約と PWA / ツール）** — `src/engine/` 無変更・shell 追加が `setWebSocketAutoResponse` 一点のみ（要件12.1）、既存ワイヤ形式のみ使用（要件12.2）、UI が Socket を直接持たず Sync_Mediator のみ経由（要件4.4）、永続が Persistence_Port 経由で IndexedDB / Background Sync 不使用（要件4.7 / 11.4）、PWA の manifest（`display: standalone`）＋ `overscroll-behavior` ＋ 追加抑止層なし（要件10.3 / 10.4 / 10.5）、App Shell precache 設定（要件10.1）、`tsc --noEmit` / `oxlint` 0/0 / `vitest --run` 失敗 0（要件13.1〜13.3）、property テストに faketime / Date スタブ不在（要件13.4）、vite-plugin-pwa / Workbox 採用・pnpm のみ（要件13.5）、ユーザー向けコンテンツ英語・コメント日本語（要件13.6）。
 
 ### PBT の構成（要件13.3 / 13.4）
 
@@ -735,7 +735,7 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 
 1. **`Sync_Mediator` の「Mediator」** — 命名規律はパターン名を先に持ち込むことを禁じる。既存 `TimerConnection`（`getView`/`subscribe`/`start`/`cancel`/`close`）の自然な拡張として捉えれば、新しい窓口型を発明せず**既存名の据え置き**が最も規律に適う。ユーザーの判断を仰ぐ。
 2. **`Reconcile` を独立イベントにするか `snapshot` に畳むか** — 両者の view 変換は同一規律 `reconcileServerConfirmed` であり、振る舞いに差はなく契機だけが異なる（重複の根絶）。独立イベントとして残すか、`snapshot` 受信に一本化して「Reconcile はその契機の名」とするか、ユーザー確認を要する。
-3. **ping/pong 文字列と localStorage キー** — client（`Connectivity_Watch`）と shell（`setWebSocketAutoResponse`）で ping 文字列が一致することが前提。両者が参照する公開定数の置き場所（`src/shared/` への定数追加か、各層での定義か）も確認対象。なお `src/shared/messages.ts` のワイヤ**型**は変えない（要件12.2）が、ping 文字列定数は型ではないため shared 配置は要件に抵触しない——この配置方針も確認する。
+3. **ping/pong 文字列と localStorage キー** — client（`Connectivity_Watch`）と shell（`setWebSocketAutoResponse`）で ping 文字列が一致することが前提。両者が参照する公開定数の置き場所（`src/transport/` への定数追加か、各層での定義か）も確認対象。なお `src/domain/messages.ts` のワイヤ**型**は変えない（要件12.2）が、ping 文字列定数は型ではないため shared 配置は要件に抵触しない——この配置方針も確認する。
 
 これらは概念境界の宣言であるため、実装着手前にユーザーの判断を仰ぐ。ローカル変数（`now` / `correctedNow` / `due` / ループ変数等）は確認を要しない。
 
@@ -756,7 +756,7 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 | クライアント Timer | `ClientTimer` / 起源タグ `TimerOrigin` |
 | 起源タグ値 | `server` / `local`（`confirmed` / `provisional` は採らない） |
 | 未確定 Timer | 概念語 `Provisional_Timer`、実体は `origin === "local"` |
-| ping/pong 文字列 | `PING_REQUEST = "ping"` / `PONG_RESPONSE = "pong"`、**置き場所は `src/shared/`**（client と shell で同一定数を共有。ワイヤ型は不変ゆえ要件12.2 に抵触しない） |
+| ping/pong 文字列 | `PING_REQUEST = "ping"` / `PONG_RESPONSE = "pong"`、**置き場所は `src/transport/`**（client と shell で同一定数を共有。ワイヤ型は不変ゆえ要件12.2 に抵触しない） |
 | localStorage キー | `STORAGE_KEY = "yudemen.offline.view.v1"` |
 | フォルト注入 | デコレータ `withPingBlackhole`、有効化フラグは `OBSERVE_DEBUG` 規律に揃える（dev/test 限定・本番バンドル除外） |
 

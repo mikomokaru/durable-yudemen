@@ -4,12 +4,12 @@
 // 除去後の Timer 集合は元集合の部分集合であり、キャンセルされた Timer は二度と発火対象に
 // 現れない（要件6.5）。残存からの Alarm 導出は必ず nextAlarmEffect を通す（最早算出の重複を根絶）。
 
-import type { EpochMillis } from "./types";
+import type { EpochMillis } from "../engine/types";
 import type { TimerState } from "./state";
 import type { Outcome, Effect } from "./effect";
 import { toSnapshot } from "./snapshot";
 import { nextAlarmEffect } from "./alarm";
-import type { ServerMessage } from "../shared/messages";
+import type { ServerMessage } from "../domain/messages";
 
 /**
  * タイマーキャンセルの状態遷移。対象 Timer を除去し、残存から Alarm を張り直す（要件6.1 / 6.3 / 6.4 / 6.5）。

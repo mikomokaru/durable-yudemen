@@ -8,7 +8,7 @@
 
 1. **純粋層を先に（PURE LAYER FIRST）** — 既存の純粋畳み込み `reduceView`（`src/client/connection.ts`）を、タグ付きイベント列（Server / LocalStart / LocalCancel / Connectivity / LocalDone / Tick / Reconcile）を畳み込む単一の純粋遷移 `decideView(view, event)` へ一般化し、あわせて `mode(view)` と `dueLocalTimers(view, correctedNow)` を実装する。残り導出（`clock.ts` の `remainingMs` / `correctedNow`）と通知冪等性（`notification.ts` の `shouldHandleDone` / `markProcessed`）は既存純粋関数を**そのまま再利用し二重定義しない**。永続コーデック（`serializeView` / `parsePersistedView`）も純粋関数として `src/client/persistence.ts` に置く。Correctness Property P1〜P9 を fast-check の単一 property テスト（最低 100 回反復）として、いずれも `*` 省略可サブタスクで実装する。**純粋層テストは `Date.now` のスタブも `vi.useFakeTimers()` も用いない**（時刻は引数で渡す）。
 2. **端の配線（THEN EFFECT EDGES）** — Persistence_Port の localStorage 裏側実装と boot 再水和 → Connectivity_Watch（WS ライフサイクル・ping/pong 生存検出・二段階 down 検出）→ Sync_Mediator（既存 `openTimerConnection` / `TimerConnection` の拡張・Mode 経路選択・down→up での Reconcile 契機づけ・ティック + ローカル発火ループ・ビュー変化での永続化）→ `slotDisplay.ts` への未確定フラグ追加とダブルブッキングゲートの確認。
-3. **shell への唯一の追加** — `src/shell/store-timer-do.ts` の `fetch()` で `acceptWebSocket` 直後に `setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING_REQUEST, PONG_RESPONSE))` を一点だけ加える。**core（`src/core/`）は一文字も変更しない。**
+3. **shell への唯一の追加** — `src/shell/store-timer-do.ts` の `fetch()` で `acceptWebSocket` 直後に `setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING_REQUEST, PONG_RESPONSE))` を一点だけ加える。**core（`src/engine/`）は一文字も変更しない。**
 4. **PWA 基盤** — vite-plugin-pwa / Workbox を追加（`pnpm add -D`）し、manifest（`display: standalone`）・App Shell precache・`overscroll-behavior` を構成する。iOS 制約（Background Sync 不可・`beforeunload` 不可信）を前提に追加抑止層を設けない。
 5. **dev 限定フォルトインジェクション（要件14）** — `withPingBlackhole` デコレータを `SocketOpener` / `ConnectivityWatchFactory` の継ぎ目に被せ、**送信 ping のみ破棄**する。デバッグフラグ（`OBSERVE_DEBUG` と同じ規律）でゲートし `import.meta.env.DEV` で本番バンドルから tree-shaking 除外、ランタイム可逆。
 6. **静的検査と最終チェックポイント** — core 無変更・shell 一点・ワイヤ形式不変・UI は Sync_Mediator のみ経由・IndexedDB / Background Sync 不使用・英語 UI / 日本語コメント、`tsc` / `oxlint` / `vitest` ゲートを通す。
@@ -18,7 +18,7 @@
 - **計算と作用の分離をクライアントへ徹底** — `decideView` / `mode` / `dueLocalTimers` / 永続コーデックは純粋（WS / DOM / 時計 / 乱数 / localStorage 非依存・時刻と生成 id と受信時刻は引数）に置き、WS・localStorage IO・実時間ティック・アラート音・PWA / SW は端へ寄せる（要件4.1〜4.3）。
 - **導出値を状態に昇格させない** — Mode は `mode(view)` で Connectivity から関数導出し、残り秒は `remainingMs` で描画のたびに導出する。どちらも `ClientView` のフィールドにしない（要件3.3 / 5.1）。
 - **SSOT 規律を崩さない** — サーバ全量スナップショットが正本。Provisional_Timer は起源タグ付きの未確定意図であり、degraded 中も WS へ送らず、Reconcile でも消さない（決定 B・要件11.5 / 12.4）。書き戻し（reconciliation）はスコープ外（要件12.5）。
-- **core 不変・ワイヤ形式不変・shell 最小追加** — 変更は `src/client/` 配下と `src/shell/store-timer-do.ts` への `setWebSocketAutoResponse` 一点のみ。`src/shared/messages.ts` の既存 `ClientMessage` / `ServerMessage` のワイヤ形式のみを使う（要件12.1 / 12.2）。
+- **core 不変・ワイヤ形式不変・shell 最小追加** — 変更は `src/client/` 配下と `src/shell/store-timer-do.ts` への `setWebSocketAutoResponse` 一点のみ。`src/domain/messages.ts` の既存 `ClientMessage` / `ServerMessage` のワイヤ形式のみを使う（要件12.1 / 12.2）。
 - **「待つなら寝かせる、抱えると漏れる」を heartbeats でも守る** — ping/pong は auto-response 経路に限定し、`webSocketMessage` 起動や hibernate からの wake を伴わせない。クライアントのティック常駐ループは DO を wake させる通常メッセージを送らない（要件1.5 / 1.6 / 12.3）。
 - **既存資産の延長・二重定義の根絶** — `clock.ts`（残り導出・補正後現在時刻）・`notification.ts`（processedIds 冪等性）・`assignment.ts`（担当射影）・`slotDisplay.ts`（表示導出）・`connection.ts` の `reduceView` をそのまま延長し、同じ概念を二度定義しない。
 
@@ -31,7 +31,7 @@
 - [x] 1. プロジェクト基盤と公開シンボル名の確定
   - [x] 1.1 公開シンボル名をユーザーと確認・確定する
     - design.md「公開シンボル命名の確認」節の候補表と「特に確認を要する論点」を提示し、候補名・概念境界・既存ドメイン語彙（サーバ側 `decide` / `reconcile` / `Snapshot` / `Effect` / `Persist`）との対応とともにユーザーの判断を仰ぐ
-    - 確定対象: 純粋遷移名（暫定 `decideView` / `Client_Decide`・既存 `reduceView` 据え置きの是非）、モード名（`live` / `degraded`）、Connectivity の値（`up` / `down`）、イベント種別名（`Server` / `LocalStart` / `LocalCancel` / `Connectivity` / `LocalDone` / `Tick` / `Reconcile`・`Reconcile` を独立イベントにするか `snapshot` に畳むか）、**UI の唯一の窓口（`Sync_Mediator` か既存 `TimerConnection` 据え置きか。「Mediator」はパターン名であり命名規律で忌避対象）**、`Persistence_Port`（`Persist` 語彙との一致可否・「Port」を残すか）、`Connectivity_Watch` / `watchConnectivity`、`ClientTimer` / `TimerOrigin`（`server` / `local` か `confirmed` / `provisional` か）、`PING_REQUEST` / `PONG_RESPONSE` の具体文字列とその置き場所（`src/shared/` の定数追加か各層定義か。ワイヤ**型**は変えない）、`STORAGE_KEY`、`withPingBlackhole` とデバッグフラグ / トークン名
+    - 確定対象: 純粋遷移名（暫定 `decideView` / `Client_Decide`・既存 `reduceView` 据え置きの是非）、モード名（`live` / `degraded`）、Connectivity の値（`up` / `down`）、イベント種別名（`Server` / `LocalStart` / `LocalCancel` / `Connectivity` / `LocalDone` / `Tick` / `Reconcile`・`Reconcile` を独立イベントにするか `snapshot` に畳むか）、**UI の唯一の窓口（`Sync_Mediator` か既存 `TimerConnection` 据え置きか。「Mediator」はパターン名であり命名規律で忌避対象）**、`Persistence_Port`（`Persist` 語彙との一致可否・「Port」を残すか）、`Connectivity_Watch` / `watchConnectivity`、`ClientTimer` / `TimerOrigin`（`server` / `local` か `confirmed` / `provisional` か）、`PING_REQUEST` / `PONG_RESPONSE` の具体文字列とその置き場所（`src/transport/` の定数追加か各層定義か。ワイヤ**型**は変えない）、`STORAGE_KEY`、`withPingBlackhole` とデバッグフラグ / トークン名
     - 確定した名前を後続の全タスクで一貫して用いる（本計画の暫定名はすべて差し替え対象）
     - _Requirements: 12.2_
 
@@ -192,7 +192,7 @@
 
 - [x] 13. 静的検査と規律の不変点
   - [x] 13.1 構造制約の静的検査を実装する
-    - `tests/client/`（または `tests/`）に静的検査を実装。(a) `src/core/` 配下に差分が無く変更が `src/client/` と `src/shell/store-timer-do.ts` の `setWebSocketAutoResponse` 一点のみ（要件12.1）、(b) `src/shared/messages.ts` の既存ワイヤ形式のみ使用・新種別 / フィールド不導入（要件12.2）、(c) UI が `Socket` を直接持たず Sync_Mediator（窓口）のみ経由（要件4.4）、(d) 永続が Persistence_Port 経由で IndexedDB / Background Sync 不使用（要件4.7 / 11.4）、(e) `decideView` が WS / DOM / 時計 / 乱数 / localStorage を import / 参照しない（要件4.3）、(f) ユーザー向け画面コンテンツが英語・コードコメントが日本語（要件13.6）を検証する
+    - `tests/client/`（または `tests/`）に静的検査を実装。(a) `src/engine/` 配下に差分が無く変更が `src/client/` と `src/shell/store-timer-do.ts` の `setWebSocketAutoResponse` 一点のみ（要件12.1）、(b) `src/domain/messages.ts` の既存ワイヤ形式のみ使用・新種別 / フィールド不導入（要件12.2）、(c) UI が `Socket` を直接持たず Sync_Mediator（窓口）のみ経由（要件4.4）、(d) 永続が Persistence_Port 経由で IndexedDB / Background Sync 不使用（要件4.7 / 11.4）、(e) `decideView` が WS / DOM / 時計 / 乱数 / localStorage を import / 参照しない（要件4.3）、(f) ユーザー向け画面コンテンツが英語・コードコメントが日本語（要件13.6）を検証する
     - _Requirements: 4.3, 4.4, 4.7, 11.4, 12.1, 12.2, 13.6_
 
 - [x] 14. 最終チェックポイント — 全テストとゲートが通ることを確認
@@ -206,7 +206,7 @@
 - 各 Correctness Property（P1〜P9）は単一の property テストとして実装し、最低 100 回反復、`Feature: offline-degradation, Property N: ...` のタグコメントを付す（PBT は fast-check を用い自前実装しない）。
 - **純粋層（`decideView` / `mode` / `dueLocalTimers` / 永続コーデック）を先に完成・検証してから端・shell・PWA・フォルトインジェクションへ進む。** 純粋層テストは `Date.now()` のスタブや `vi.useFakeTimers()` を用いない（時刻・生成 id・受信時刻は引数で渡す。暗黙時計への漏れは境界の引き直しサイン・要件4.3 / 13.4）。
 - **既存純粋関数を再利用し二重定義しない** — 残り導出 / 補正後現在時刻は `clock.ts`、通知冪等性は `notification.ts`、担当射影は `assignment.ts`、表示導出は `slotDisplay.ts`、サーバ受信畳み込みは `connection.ts` の `reduceView` をそのまま延長する。
-- **core（`src/core/`）は追加・変更・削除しない。** 変更は `src/client/` 配下と `src/shell/store-timer-do.ts` への `setWebSocketAutoResponse` 一点のみ。既存ワイヤ形式（`ClientMessage` / `ServerMessage`）のみを使う。SSOT 規律（サーバ snapshot が正本・Provisional_Timer は起源タグ付き未確定意図・競合源にしない）と hibernation 規律（heartbeats は auto-response 経路限定・常駐ループは wake させない）を崩さない。書き戻し（reconciliation）はスコープ外。
+- **core（`src/engine/`）は追加・変更・削除しない。** 変更は `src/client/` 配下と `src/shell/store-timer-do.ts` への `setWebSocketAutoResponse` 一点のみ。既存ワイヤ形式（`ClientMessage` / `ServerMessage`）のみを使う。SSOT 規律（サーバ snapshot が正本・Provisional_Timer は起源タグ付き未確定意図・競合源にしない）と hibernation 規律（heartbeats は auto-response 経路限定・常駐ループは wake させない）を崩さない。書き戻し（reconciliation）はスコープ外。
 - 公開シンボル名は 1.1 で確定してからコードに用いる。本計画中の名前はすべて暫定候補。特に `Sync_Mediator` のパターン名忌避（既存 `TimerConnection` 据え置きが規律に適う）・`Reconcile` の独立性・ping/pong 文字列 / `STORAGE_KEY` の置き場所は実装前に確定する。
 - WS 生存検出の実時間タイミング（ping 間隔・pong タイムアウト・二段階検出）・Mode による経路選択・localStorage の同期 IO・PWA / Service Worker のプラットフォーム挙動・shell の auto-response（wake 抑止）・dev 限定フォルトインジェクションは、入力で振る舞いが変わらない／外部依存／実時間依存の**端**であり、Integration / Example / Smoke（静的検査・実機 E2E）で検証する。degraded → ローカル権限 → 再接続 → provisional 保持の手動 E2E ライフサイクルと「茹で上がりが各 timerId につきちょうど一度鳴る」安全要は iPad 実機で確認する（要件8）。
 

@@ -19,11 +19,22 @@
 // 描画のたびに clock.ts の純粋導出で算出する（要件10.1 の思想をクライアントへ延長）。
 // ティックはビューを変えない。再描画を促して remaining を導出し直させるためだけにある（要件10.5）。
 
-import { BOIL_SECONDS_MAX, BOIL_SECONDS_MIN } from "../core/types";
-import type { ServerMessage, WireTimer } from "../shared/messages";
+import { BOIL_SECONDS_MAX, BOIL_SECONDS_MIN } from "../engine/types";
+import type { ServerMessage } from "../domain/messages";
+import type { TimerFact } from "../domain/timer";
 import { clockOffset } from "./clock";
-import { watchConnectivity } from "./connectivity";
+import {
+  isPingBlackholeActive,
+  pingBlackholeDebugEnabled,
+  watchConnectivity,
+  withPingBlackhole,
+} from "./connectivity";
 import type { ConnectivityWatchFactory } from "./connectivity";
+
+// dev/test 限定の縮退テストトグル。UI（窓口の利用者）は connectivity 層を直接 import せず、
+// 唯一の窓口である本モジュール経由でのみ blackhole の有効状態を読み書きする（静的検査 c・要件4.4）。
+// 本番では pingBlackholeDebugEnabled() が false を返し、これらは参照されず tree-shaking 対象になる（要件14.4）。
+export { pingBlackholeDebugEnabled, isPingBlackholeActive, setPingBlackholeActive } from "./connectivity";
 import { markProcessed, shouldHandleDone } from "./notification";
 import { localStorageViewStore } from "./persistence";
 import type { ViewStore } from "./persistence";
@@ -41,14 +52,14 @@ export type Mode = "live" | "degraded";
 export type TimerOrigin = "server" | "local";
 
 /**
- * クライアントが保持する Timer。WireTimer に起源タグを足したもの（ワイヤ形式は不変・要件12.2）。
+ * クライアントが保持する Timer。TimerFact に起源タグを足したもの（ワイヤ形式は不変・要件12.2）。
  *
- * 共有芯の WireTimer を交差型で延長して導出する（id / slotId / noodleType / endTime を再宣言しない）。
- * これにより WireTimer のフィールド増減が ClientTimer へ自動追従し、二重定義によるドリフトを型で防ぐ。
+ * 共有芯の TimerFact を交差型で延長して導出する（id / slotId / noodleType / endTime を再宣言しない）。
+ * これにより TimerFact のフィールド増減が ClientTimer へ自動追従し、二重定義によるドリフトを型で防ぐ。
  * origin === "server" は server-confirmed（正本由来）、"local" は degraded 中に生まれた
  * Provisional_Timer（未確定なローカル意図）。残り秒は持たず endTime（事実）から導出する。
  */
-export type ClientTimer = WireTimer & {
+export type ClientTimer = TimerFact & {
   readonly origin: TimerOrigin; // "local" = Provisional_Timer（未確定）
 };
 
@@ -93,7 +104,7 @@ export type ClientEvent =
   | { readonly kind: "Connectivity"; readonly status: Connectivity } // 要件2/3
   | { readonly kind: "LocalDone"; readonly timerId: string } // 要件8
   | { readonly kind: "Tick" } // 要件5（ビュー不変）
-  | { readonly kind: "Reconcile"; readonly timers: readonly WireTimer[]; readonly receivedAt: number }; // 要件11（決定 B）
+  | { readonly kind: "Reconcile"; readonly timers: readonly TimerFact[]; readonly receivedAt: number }; // 要件11（決定 B）
 
 /** 初期ビュー。まだ何も受信しておらず接続中。boot 時は接続未確立 = degraded 起点（要件3）。 */
 export const EMPTY_VIEW: ClientView = {
@@ -285,7 +296,7 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
  *   - processedIds は「serverTimers の id ∪ 保持 provisional の id」に属するものだけ残す（記録を有界に保ちつつ、
  *     復活した server-confirmed のローカル発火抑止を維持する・要件11.7）。
  */
-export function reconcileServerConfirmed(view: ClientView, serverTimers: readonly WireTimer[]): ClientView {
+export function reconcileServerConfirmed(view: ClientView, serverTimers: readonly TimerFact[]): ClientView {
   // Provisional_Timer は未確定なローカル意図として保持する（決定 B・要件11.6）。
   const provisional = view.timers.filter((timer) => timer.origin === "local");
   // server-confirmed は snapshot で全置換する。すべて起源タグを "server" 化する（要件11.5）。
@@ -399,7 +410,13 @@ function browserSocketOpener(url: string, listeners: SocketListeners): Socket {
 export function openTimerConnection(options: ConnectionOptions): TimerConnection {
   const now = options.now ?? (() => Date.now());
   const newId = options.newId ?? (() => crypto.randomUUID());
-  const openSocket = options.openSocket ?? browserSocketOpener;
+  let openSocket = options.openSocket ?? browserSocketOpener;
+  // dev/test 限定: 縮退テスト用 ping blackhole を既定オープナに被せる（送信 ping のみ破棄・要件14.1）。
+  // import.meta.env.DEV を先頭ガードに置くことで、本番ビルドではこの分岐ごと dead-code 除去される（要件14.4）。
+  // 有効状態はランタイム可逆なスイッチ（isPingBlackholeActive）から読む（要件14.3）。
+  if (import.meta.env.DEV && pingBlackholeDebugEnabled()) {
+    openSocket = withPingBlackhole(openSocket, isPingBlackholeActive);
+  }
   const persistence = options.persistence ?? localStorageViewStore();
   const connectivityFactory = options.connectivity ?? watchConnectivity;
   const onBoilAlert = options.onBoilAlert ?? (() => {});

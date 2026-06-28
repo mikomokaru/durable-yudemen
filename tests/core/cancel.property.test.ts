@@ -2,10 +2,10 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { cancelTimer } from "../../src/core/cancel";
-import { fireDueTimers } from "../../src/core/fire";
-import type { Timer } from "../../src/core/timer";
-import type { EpochMillis } from "../../src/core/types";
+import { cancelTimer } from "../../src/engine/cancel";
+import { fireDueTimers } from "../../src/engine/fire";
+import type { Timer } from "../../src/engine/timer";
+import type { EpochMillis } from "../../src/engine/types";
 import { genState, nowArbFor } from "./generators";
 
 /** 結果 timers が元集合の部分集合か（id で対応づけ、各残存が元集合に同一内容で存在する）。 */
