@@ -113,7 +113,7 @@ async function run(url: string): Promise<number> {
     // 2. （best-effort）live で start を 1 件送り、server-confirmed が乗るのを観測する。
     //    サーバが受理しない構成でも縮退→復帰の本筋は検証できるため、失敗は致命としない。
     log("live start on slot kama-1 (server-confirmed, best-effort) ...");
-    connection.start("kama-1", "Thin", 1800);
+    connection.start(["kama-1"], "Thin", 1800);
     try {
       await waitFor(connection, (view) => serverTimers(view).length >= 1, 8_000, "server-confirmed timer");
       log(`server-confirmed timer observed (count = ${serverTimers(connection.getView()).length}).`);
@@ -129,7 +129,7 @@ async function run(url: string): Promise<number> {
 
     // 4. degraded 中のローカル start → Provisional_Timer 注入（要件6）。
     log("degraded local start on slot kama-2 (provisional) ...");
-    connection.start("kama-2", "Thick", 1800);
+    connection.start(["kama-2"], "Thick", 1800);
     await waitFor(connection, (view) => provisionalTimers(view).length >= 1, 5_000, "provisional timer injected");
     const provisionalBefore = provisionalTimers(connection.getView());
     log(`provisional timers injected = ${provisionalBefore.length} (ids: ${provisionalBefore.map((t) => t.id).join(", ")}).`);

@@ -41,11 +41,12 @@ export function isAssigned(slot: number, units: readonly number[]): boolean {
  *
  * TimerFact を芯に持つ要素型 T を保ったまま絞り込む。ClientTimer（= TimerFact & { origin }）を
  * 渡せば origin タグを失わずに射影でき、呼び出し側が起源（未確定か否か）を導出できる。
+ * 1 Timer は複数スロットを駆動しうるため、いずれか 1 つでも担当範囲に入れば担当対象とする（any-overlap）。
  */
 export function assignedTimers<T extends TimerFact>(
   allTimers: readonly T[],
   units: readonly number[],
 ): readonly T[] {
   const assigned = slotsOfUnits(units);
-  return allTimers.filter((timer) => assigned.has(slotOf(timer.slotId)));
+  return allTimers.filter((timer) => timer.slotIds.some((slotId) => assigned.has(slotOf(slotId))));
 }

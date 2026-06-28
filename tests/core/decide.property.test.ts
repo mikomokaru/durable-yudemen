@@ -11,7 +11,7 @@ import { genNow, genState } from "./generators";
 /** 妥当寄りの Start イベント（ok:true を多く踏ませ、Effect 列の構造を検証可能にする）。 */
 const genStartEvent: fc.Arbitrary<Event> = fc
   .record({
-    slotId: fc.string({ minLength: 1, maxLength: 6 }),
+    slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 3 }),
     noodleType: fc.string({ minLength: 1, maxLength: 6 }),
     boilSeconds: fc.integer({ min: 1, max: 1800 }),
     newTimerId: fc.string({ minLength: 1, maxLength: 8 }),
@@ -19,7 +19,7 @@ const genStartEvent: fc.Arbitrary<Event> = fc
   })
   .map((r) => ({
     type: "Start",
-    slotId: r.slotId,
+    slotIds: r.slotIds,
     noodleType: r.noodleType,
     boilSeconds: r.boilSeconds,
     newTimerId: `nid-${r.newTimerId}` as TimerId,
@@ -73,8 +73,8 @@ describe("core/decide", () => {
           if (outcome.ok) state = outcome.state;
         }
         for (const timer of state.timers) {
-          // 状態が保持する事実は id/slotId/noodleType/endTime/seq のみ。remaining は存在しない（要件10.1）。
-          expect(Object.keys(timer).sort()).toEqual(["endTime", "id", "noodleType", "seq", "slotId"]);
+          // 状態が保持する事実は id/slotIds/noodleType/endTime/seq のみ。remaining は存在しない（要件10.1）。
+          expect(Object.keys(timer).sort()).toEqual(["endTime", "id", "noodleType", "seq", "slotIds"]);
           expect("remaining" in timer).toBe(false);
           expect(typeof timer.endTime).toBe("number");
           expect(Number.isInteger(timer.endTime as number)).toBe(true);

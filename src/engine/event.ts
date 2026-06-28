@@ -11,7 +11,7 @@ import type { EpochMillis, TimerId } from "../engine/types";
 export type Event =
   | {
       readonly type: "Start";
-      readonly slotId: string;
+      readonly slotIds: readonly string[];
       readonly noodleType: string;
       readonly boilSeconds: number;
       readonly newTimerId: TimerId;

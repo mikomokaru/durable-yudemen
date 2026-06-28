@@ -264,7 +264,7 @@ export const BOIL_SECONDS_MIN = 1;
 export const BOIL_SECONDS_MAX = 1800;
 export const MAX_TIMERS = 100;
 export const EPSILON_MS = 500 as const;
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+export const CURRENT_SCHEMA_VERSION = 2 as const;
 ```
 
 ### Timer — 不正状態を構築不能にする（事実の芯＋engine 専用の連番）
@@ -276,7 +276,7 @@ export const CURRENT_SCHEMA_VERSION = 1 as const;
 ```ts
 // domain/timer.ts — 共有契約の芯（両者で真に共有される事実だけ）
 export interface TimerFact<Id = string, Slot = string, Noodle = string, Time = number> {
-  readonly id: Id; readonly slotId: Slot; readonly noodleType: Noodle; readonly endTime: Time;
+  readonly id: Id; readonly slotIds: readonly Slot[]; readonly noodleType: Noodle; readonly endTime: Time;
 }
 
 // engine/timer.ts — 共有の芯を合成し、engine 専用の連番を足す
@@ -290,7 +290,7 @@ export interface Timer extends TimerFact<TimerId, SlotId, NoodleType, EpochMilli
 
 /** Timer を構築できる唯一の経路。検証に通った入力からのみ Timer が生まれる。 */
 export function createTimer(input: {
-  id: TimerId; slotId: SlotId; noodleType: NoodleType; endTime: EpochMillis; seq: number;
+  id: TimerId; slotIds: readonly SlotId[]; noodleType: NoodleType; endTime: EpochMillis; seq: number;
 }): Timer;
 ```
 
@@ -305,6 +305,20 @@ export function createTimer(input: {
 **限界（B は名前の単一化であって射影の消去ではない）:** ブランド型はワイヤに乗らず（JSON 化で剥がれる）、`seq` は engine 専用でワイヤに出さない。したがって engine の `Timer → TimerFact` の射影（`engine/start.ts` の `toWireTimer`・shell の snapshot map）は **`seq` をシリアライズ前に削ぐ目的で引き続き必要**である。B が除去するのは「フィールド名の二重宣言」だけで、信頼境界（未検証↔検証済み）と内部事実（`seq`）の隔離は射影に残る。`Sequenced` を独立インターフェイスに切り出すのは、`seq` が「engine から外へ出ない登録順」であることを名前で明示するための判断である（合成するのは現状 engine の `Timer` のみ）。なお基底の**定義の場所は audience に従う**——共有契約の芯 `TimerFact` は `domain/timer.ts`、engine 専用の `Sequenced` は `engine/timer.ts` に置く（共有契約 `domain` に片側専用を混ぜない＝`steering/timer-model.md`）。
 
 > 既存の offline-degradation design における「決定 B」（Provisional_Timer 保持規律）とは無関係。本決定は Timer 型の表現分離に関するもの。
+
+### スロット複数化（slotIds・スキーマ v2）
+
+**決定:** Timer のスロットを単一 `slotId: Slot` から **`slotIds: readonly Slot[]`（非空配列）** へ変えた。1 Timer は 1 つ以上のスロット（釜）を同時に駆動する。これは timer-model.md が「SlotId 複数化＝事実の基数変化」として予期していた脱皮機能で、共有の芯 `TimerFact` を変えて両側（engine / client / wire / 永続）が同一基数に追従する。
+
+確定した判断（すべてデフォルト）:
+
+- **フィールド名・非空不変条件** — `slotIds: readonly Slot[]`。空配列・空文字要素は `validateStart` が `InvalidSlotOrNoodle` で拒否（不正状態を構築不能に保つ・要件1.5 を拡張）。
+- **ワイヤ形式の進化** — `ClientMessage.start` と `TimerFact`（＝`ServerMessage` の Timer 表現）の `slotId` を `slotIds` に変えた。これは意図的なワイヤ形式の進化であり、offline-degradation の要件12.2「ワイヤ形式不変」は当該機能の制約であって本進化を妨げない。
+- **永続スキーマ v2** — `CURRENT_SCHEMA_VERSION` を 1→2 に上げた。`migrate` は旧 v1（単一 `slotId` 文字列）を `slotIds: [slotId]` に写して受理する（移行はこの一点に集約・要件11）。クライアント側 localStorage コーデック（`persistence.ts`）も同様に両形を受理し、保存キー据え置きで走行中タイマーを失わない優雅な移行とする。
+- **担当絞り込み（any-overlap）** — Timer はその `slotIds` の**いずれか**が担当ユニット範囲に入れば表示対象（`assignedTimers` の `some` 判定）。
+- **表示（multi-cell）** — 複数スロットを駆動する Timer は、担当範囲内の**各スロットセル**に running として現れる（`assignedSlotDisplays` が slotIds ごとに束ねる）。任意のセルからのキャンセルは timerId 宛てで Timer 全体に効く（同一性は従来どおり `timerId`）。
+
+> 上記により `started`/`snapshot` の Timer 表現・`startTimer` の検証・`reconcile`/`fireDueTimers`/`cancelTimer`（endTime・timerId ベースで slotIds に非依存）はそのまま成立する。endTime のタイブレーク（`seq`）と容量上限（`MAX_TIMERS`）も不変。
 
 ### TimerState — engine が扱う状態（残り秒を持たない）
 
@@ -347,7 +361,7 @@ engine への入力。コマンド（外部由来）と内部イベント（Alar
 ```ts
 // engine/event.ts
 export type Event =
-  | { readonly type: "Start"; readonly slotId: string; readonly noodleType: string;
+  | { readonly type: "Start"; readonly slotIds: readonly string[]; readonly noodleType: string;
       readonly boilSeconds: number; readonly newTimerId: TimerId; readonly now: EpochMillis }
   | { readonly type: "Cancel"; readonly timerId: string; readonly now: EpochMillis }
   | { readonly type: "AlarmFired"; readonly now: EpochMillis }
@@ -390,7 +404,7 @@ import type { TimerFact } from "./timer"; // domain/timer.ts
 
 // client → server
 export type ClientMessage =
-  | { readonly type: "start"; readonly slotId: string; readonly noodleType: string; readonly boilSeconds: number }
+  | { readonly type: "start"; readonly slotIds: readonly string[]; readonly noodleType: string; readonly boilSeconds: number }
   | { readonly type: "cancel"; readonly timerId: string };
 
 // server → client（すべて serverTime を付与）

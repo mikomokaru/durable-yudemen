@@ -10,14 +10,14 @@ import { genState, genStateExact } from "./generators";
 
 /** Start イベントを組み立てる（startTimer は Start 種別だけを受け取る）。 */
 function startEvent(input: {
-  slotId: string;
+  slotIds: readonly string[];
   noodleType: string;
   boilSeconds: number;
   now: number;
 }): Extract<Event, { type: "Start" }> {
   return {
     type: "Start",
-    slotId: input.slotId,
+    slotIds: input.slotIds,
     noodleType: input.noodleType,
     boilSeconds: input.boilSeconds,
     newTimerId: "new-timer-id" as TimerId,
@@ -42,7 +42,7 @@ describe("core/start", () => {
         fc.string({ minLength: 1, maxLength: 6 }),
         fc.integer({ min: 0, max: 5_000_000 }),
         (state, boilSeconds, slotId, noodleType, now) => {
-          const outcome = startTimer(state, startEvent({ slotId, noodleType, boilSeconds, now }));
+          const outcome = startTimer(state, startEvent({ slotIds: [slotId], noodleType, boilSeconds, now }));
           expect(outcome.ok).toBe(true);
           if (outcome.ok) {
             expect(outcome.state.timers.length).toBe(state.timers.length + 1);
@@ -63,18 +63,22 @@ describe("core/start", () => {
       fc
         .record({
           boilSeconds: fc.oneof(fc.integer({ max: 0 }), fc.integer({ min: 1801 }), fc.constantFrom(Number.NaN, Infinity, -Infinity)),
-          slotId: fc.string({ minLength: 1, maxLength: 6 }),
+          slotIds: fc.constant<readonly string[]>(["0"]),
           noodleType: fc.string({ minLength: 1, maxLength: 6 }),
         })
         .map((input) => ({ input, expected: "InvalidBoilSeconds" as const })),
-      // slot/noodle が未定義（空文字。boilSeconds は妥当）→ InvalidSlotOrNoodle。
+      // slotIds が空集合・空文字要素、または noodle が空（boilSeconds は妥当）→ InvalidSlotOrNoodle。
       fc
         .record({
           boilSeconds: fc.integer({ min: 1, max: 1800 }),
-          slotId: fc.oneof(fc.constant(""), fc.string({ minLength: 1, maxLength: 6 })),
+          slotIds: fc.oneof(
+            fc.constant<readonly string[]>([]), // 空集合（スロットなし）
+            fc.constant<readonly string[]>([""]), // 空文字要素
+            fc.constant<readonly string[]>(["0"]), // 妥当
+          ),
           noodleType: fc.oneof(fc.constant(""), fc.string({ minLength: 1, maxLength: 6 })),
         })
-        .filter((r) => r.slotId === "" || r.noodleType === "")
+        .filter((r) => r.slotIds.length === 0 || r.slotIds.some((s) => s === "") || r.noodleType === "")
         .map((input) => ({ input, expected: "InvalidSlotOrNoodle" as const })),
     );
 
@@ -99,7 +103,7 @@ describe("core/start", () => {
       fc.property(
         genStateExact(100),
         fc.record({
-          slotId: fc.string({ minLength: 1, maxLength: 6 }),
+          slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 3 }),
           noodleType: fc.string({ minLength: 1, maxLength: 6 }),
           boilSeconds: fc.integer({ min: 1, max: 1800 }),
         }),

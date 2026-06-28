@@ -31,7 +31,7 @@ function operationsOf(display: SlotDisplay): readonly Operation[] {
 
 // 指定スロットにアクティブ Timer を 1 件持つ ClientTimer を組み立てる（server-confirmed）。
 function timerOnSlot(slot: number, id: string): ClientTimer {
-  return { id, slotId: String(slot), noodleType: "ramen", endTime: 60_000, origin: "server" };
+  return { id, slotIds: [String(slot)], noodleType: "ramen", endTime: 60_000, origin: "server" };
 }
 
 // synced 済みのビューを、与えた Timer 集合から組み立てる。

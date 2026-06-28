@@ -30,4 +30,4 @@ export const MAX_TIMERS = 100;
 export const EPSILON_MS = 500 as const;
 
 /** 永続スナップショットの現行スキーマバージョン。要件11。 */
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+export const CURRENT_SCHEMA_VERSION = 2 as const;

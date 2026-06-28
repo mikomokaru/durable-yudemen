@@ -94,7 +94,7 @@ export type ClientEvent =
   | { readonly kind: "Server"; readonly message: ServerMessage; readonly receivedAt: number } // 既存 reduceView 相当
   | {
       readonly kind: "LocalStart";
-      readonly slotId: string;
+      readonly slotIds: readonly string[];
       readonly noodleType: string;
       readonly boilSeconds: number;
       readonly newTimerId: string;
@@ -192,7 +192,7 @@ function decideLocalStart(
   // endTime は補正後現在時刻 + 茹で時間の絶対エポックミリ秒（事実）。残り秒は持たない（要件6.1）。
   const provisional: ClientTimer = {
     id: event.newTimerId,
-    slotId: event.slotId,
+    slotIds: event.slotIds,
     noodleType: event.noodleType,
     endTime: event.correctedNow + event.boilSeconds * 1000,
     origin: "local",
@@ -342,8 +342,8 @@ export interface TimerConnection {
   getView(): ClientView;
   /** ビュー更新（受信・接続状態変化・秒読みティック）を購読する。戻り値で解除する。 */
   subscribe(listener: () => void): () => void;
-  /** タイマー開始操作を送る（担当スコープの制限は UI の責務）。 */
-  start(slotId: string, noodleType: string, boilSeconds: number): void;
+  /** タイマー開始操作を送る（担当スコープの制限は UI の責務）。1 Timer は 1 つ以上のスロットを駆動する。 */
+  start(slotIds: readonly string[], noodleType: string, boilSeconds: number): void;
   /** タイマーキャンセル操作を送る。 */
   cancel(timerId: string): void;
   /** 接続を閉じ、再接続・ティックを停止する。 */
@@ -528,17 +528,17 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    start: (slotId, noodleType, boilSeconds) => {
+    start: (slotIds, noodleType, boilSeconds) => {
       if (mode(view) === "live") {
         // live: 既存どおり ClientMessage を WS へ送る。
-        watch.send({ type: "start", slotId, noodleType, boilSeconds });
+        watch.send({ type: "start", slotIds, noodleType, boilSeconds });
         return;
       }
       // degraded: 補正後現在時刻と生成 id を端で採取し、LocalStart を畳む。WS へは送らない（要件6.3）。
       update(
         decideView(view, {
           kind: "LocalStart",
-          slotId,
+          slotIds,
           noodleType,
           boilSeconds,
           newTimerId: newId(),

@@ -68,7 +68,7 @@ function setup(overrides: Partial<ConnectionOptions> = {}) {
 
 /** テスト用 TimerFact 生成。endTime は START_NOW から十分先に置く。 */
 function makeTimer(id: string, endTime = START_NOW + 180_000): TimerFact {
-  return { id, slotId: `slot-${id}`, noodleType: "ramen", endTime };
+  return { id, slotIds: [`slot-${id}`], noodleType: "ramen", endTime };
 }
 
 /** JSON 文字列としてサーバメッセージを受信させる。 */
@@ -152,7 +152,7 @@ describe("client/connection — 状態同期と切断継続", () => {
     receive(latest(), {
       type: "snapshot",
       serverTime: START_NOW + 5_000, // サーバはローカルより 5 秒進んでいる
-      timers: [{ id: "A", slotId: "slot-A", noodleType: "ramen", endTime }],
+      timers: [{ id: "A", slotIds: ["slot-A"], noodleType: "ramen", endTime }],
     });
     const fixedOffset = connection.getView().offset;
     expect(fixedOffset).toBe(5_000);
@@ -181,7 +181,7 @@ describe("client/connection — 状態同期と切断継続", () => {
     expect(remainingMs(endTime, fixedOffset, START_NOW + 10_000)).toBe(45_000);
 
     // 切断中の操作はサーバへ送られない（送信は connected を満たす時だけ）。
-    connection.start("slot-X", "udon", 120);
+    connection.start(["slot-X"], "udon", 120);
     connection.cancel("A");
     expect(disconnected.send).not.toHaveBeenCalled();
 

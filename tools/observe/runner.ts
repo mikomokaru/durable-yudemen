@@ -120,7 +120,7 @@ async function runStep(
     case "start":
       return sendStep(connection, log, {
         type: "start",
-        slotId: step.slotId,
+        slotIds: [step.slotId],
         noodleType: step.noodleType,
         boilSeconds: step.boilSeconds,
       });

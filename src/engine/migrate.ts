@@ -89,26 +89,48 @@ function reviveTimers(value: unknown): readonly Timer[] | null {
  * 一件の raw を Timer へ写す。形（各フィールドの存在と素の型）を検査し、
  * 検証済みの素値をブランド型へ昇格して唯一の構築経路 createTimer に通す。
  * ここが永続層の素値とブランド型の境界（cast はこの一点に閉じ込める）。
+ *
+ * slotIds は v1（単一 `slotId` 文字列）と v2（`slotIds` 配列）の双方を受け、現行 v2 形へ写す:
+ * v2 形（`slotIds` が非空文字列の非空配列）を優先し、無ければ v1 の `slotId`（文字列）を `[slotId]` に包む。
  */
 function reviveTimer(value: unknown): Timer | null {
   if (typeof value !== "object" || value === null) return null;
   const t = value as Record<string, unknown>;
   if (
     typeof t.id !== "string" ||
-    typeof t.slotId !== "string" ||
     typeof t.noodleType !== "string" ||
     typeof t.endTime !== "number" ||
     typeof t.seq !== "number"
   ) {
     return null;
   }
+  const slotIds = reviveSlotIds(t.slotIds, t.slotId);
+  if (slotIds === null) return null;
   return createTimer({
     id: t.id as TimerId,
-    slotId: t.slotId as SlotId,
+    slotIds: slotIds as readonly SlotId[],
     noodleType: t.noodleType as NoodleType,
     endTime: t.endTime as EpochMillis,
     seq: t.seq,
   });
+}
+
+/**
+ * 永続スロット表現を現行 v2 形（非空文字列の非空配列）へ写す。移行をここに集約する。
+ * - v2: `slotIds` が「1 件以上・全要素が非空文字列」の配列ならそのまま採る。
+ * - v1: `slotIds` が無く `slotId` が非空文字列なら `[slotId]` に包む。
+ * - いずれも満たさなければ移行失敗（null）。
+ */
+function reviveSlotIds(slotIds: unknown, legacySlotId: unknown): readonly string[] | null {
+  if (Array.isArray(slotIds)) {
+    if (slotIds.length === 0) return null;
+    if (slotIds.some((s) => typeof s !== "string" || s.length === 0)) return null;
+    return slotIds as readonly string[];
+  }
+  if (typeof legacySlotId === "string" && legacySlotId.length > 0) {
+    return [legacySlotId];
+  }
+  return null;
 }
 
 /** 0 以上の整数か。nextSeq は登録順の採番で、負や小数はありえない。 */

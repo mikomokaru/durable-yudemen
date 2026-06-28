@@ -43,15 +43,20 @@ export function assignedSlotDisplays(
   units: readonly number[],
   now: number,
 ): readonly SlotDisplay[] {
-  const slots = [...slotsOfUnits(units)].sort((a, b) => a - b);
+  const assignedSet = slotsOfUnits(units);
+  const slots = [...assignedSet].sort((a, b) => a - b);
   // 担当分の Timer をスロット番号で引けるよう束ねる。表示はスロット単位の事象である。
   // ClientTimer のまま束ね、origin（未確定タグ）を失わない（unconfirmed の導出元・要件6.4）。
+  // 1 Timer は複数スロットを駆動しうるため、その駆動スロットそれぞれ（担当範囲内のもの）へ束ねる。
   const timersBySlot = new Map<number, ClientTimer[]>();
   for (const timer of assignedTimers(view.timers, units)) {
-    const slot = slotOf(timer.slotId);
-    const bucket = timersBySlot.get(slot);
-    if (bucket) bucket.push(timer);
-    else timersBySlot.set(slot, [timer]);
+    for (const slotId of timer.slotIds) {
+      const slot = slotOf(slotId);
+      if (!assignedSet.has(slot)) continue; // 担当外スロットには出さない（多スロット Timer の範囲外スロット）
+      const bucket = timersBySlot.get(slot);
+      if (bucket) bucket.push(timer);
+      else timersBySlot.set(slot, [timer]);
+    }
   }
 
   return slots.map((slot) => {

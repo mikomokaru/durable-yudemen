@@ -28,11 +28,11 @@ type StartEvent = Extract<Event, { type: "Start" }>;
  * 拒否は例外ではなく戻り値で表し、握り潰された失敗を残さない。
  */
 export function validateStart(input: {
-  readonly slotId: string;
+  readonly slotIds: readonly string[];
   readonly noodleType: string;
   readonly boilSeconds: number;
 }):
-  | { readonly ok: true; readonly slotId: SlotId; readonly noodleType: NoodleType; readonly boilSeconds: number }
+  | { readonly ok: true; readonly slotIds: readonly SlotId[]; readonly noodleType: NoodleType; readonly boilSeconds: number }
   | { readonly ok: false; readonly rejection: Rejection } {
   // NaN / Infinity は比較が常に false で範囲検査をすり抜けるため、有限値であることを先に要求する。
   if (
@@ -48,19 +48,24 @@ export function validateStart(input: {
       },
     };
   }
-  // 空文字を「未定義の値」とみなす。slotId / noodleType を欠いた Timer は構築させない。
-  if (input.slotId.length === 0 || input.noodleType.length === 0) {
+  // 1 Timer は最低 1 スロットを駆動する（空配列は構築不能）。各スロットも空文字は未定義とみなす。
+  // noodleType も同様に空文字を未定義とみなす。slotIds / noodleType を欠いた Timer は構築させない。
+  if (
+    input.slotIds.length === 0 ||
+    input.slotIds.some((slotId) => slotId.length === 0) ||
+    input.noodleType.length === 0
+  ) {
     return {
       ok: false,
       rejection: {
         code: "InvalidSlotOrNoodle",
-        message: "slotId と noodleType は未定義にできない",
+        message: "slotIds は 1 件以上の非空スロットを要し、noodleType は未定義にできない",
       },
     };
   }
   return {
     ok: true,
-    slotId: input.slotId as SlotId,
+    slotIds: input.slotIds as readonly SlotId[],
     noodleType: input.noodleType as NoodleType,
     boilSeconds: input.boilSeconds,
   };
@@ -70,7 +75,7 @@ export function validateStart(input: {
 function toWireTimer(timer: Timer): TimerFact {
   return {
     id: timer.id,
-    slotId: timer.slotId,
+    slotIds: timer.slotIds,
     noodleType: timer.noodleType,
     endTime: timer.endTime,
   };
@@ -102,7 +107,7 @@ export function startTimer(state: TimerState, args: StartEvent): Outcome {
   const endTime = (args.now + validated.boilSeconds * 1000) as EpochMillis;
   const timer = createTimer({
     id: args.newTimerId,
-    slotId: validated.slotId,
+    slotIds: validated.slotIds,
     noodleType: validated.noodleType,
     endTime,
     seq: state.nextSeq,

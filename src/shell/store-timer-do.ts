@@ -62,13 +62,15 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
   switch (candidate.type) {
     case "start":
       if (
-        typeof candidate.slotId === "string" &&
+        Array.isArray(candidate.slotIds) &&
+        candidate.slotIds.length > 0 &&
+        candidate.slotIds.every((slotId) => typeof slotId === "string") &&
         typeof candidate.noodleType === "string" &&
         typeof candidate.boilSeconds === "number"
       ) {
         return {
           type: "start",
-          slotId: candidate.slotId,
+          slotIds: candidate.slotIds as readonly string[],
           noodleType: candidate.noodleType,
           boilSeconds: candidate.boilSeconds,
         };
@@ -239,7 +241,7 @@ export class StoreTimerDO extends DurableObject<Env> {
       timers: this.workingCopy.timers.map(
         (timer): TimerFact => ({
           id: timer.id,
-          slotId: timer.slotId,
+          slotIds: timer.slotIds,
           noodleType: timer.noodleType,
           endTime: timer.endTime,
         }),
@@ -266,7 +268,7 @@ export class StoreTimerDO extends DurableObject<Env> {
       command.type === "start"
         ? {
             type: "Start" as const,
-            slotId: command.slotId,
+            slotIds: command.slotIds,
             noodleType: command.noodleType,
             boilSeconds: command.boilSeconds,
             newTimerId: crypto.randomUUID() as TimerId,

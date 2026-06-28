@@ -3,9 +3,10 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { migrate } from "../../src/engine/migrate";
+import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
 
-/** version > 1 の永続データ。timers/nextSeq の妥当性に関わらず UnsupportedSchemaVersion になる。 */
-const genUnsupported = fc.integer({ min: 2, max: 100_000 }).map((version) => ({
+/** version > 現行スキーマの永続データ。timers/nextSeq の妥当性に関わらず UnsupportedSchemaVersion になる。 */
+const genUnsupported = fc.integer({ min: CURRENT_SCHEMA_VERSION + 1, max: 100_000 }).map((version) => ({
   raw: { version, timers: [], nextSeq: 0 } as unknown,
   expected: "UnsupportedSchemaVersion" as const,
 }));

@@ -37,7 +37,7 @@ export type SyncPhase = "connecting" | "synced" | "syncFailed";
 /** クライアントが保持する Timer。TimerFact に起源タグ origin を足したもの（確定: ClientTimer）。 */
 export interface ClientTimer {
   readonly id: string;
-  readonly slotId: string;
+  readonly slotIds: readonly string[];
   readonly noodleType: string;
   readonly endTime: number; // エポックミリ秒（事実）。残り秒は導出（clock.ts）。
   readonly origin: TimerOrigin; // "local" = Provisional_Timer（未確定）
@@ -58,7 +58,7 @@ export type ClientEvent =
   | { readonly kind: "Server"; readonly message: ServerMessage; readonly receivedAt: number }
   | {
       readonly kind: "LocalStart";
-      readonly slotId: string;
+      readonly slotIds: readonly string[];
       readonly noodleType: string;
       readonly boilSeconds: number;
       readonly newTimerId: string;
@@ -136,7 +136,7 @@ export const genBoilSeconds: fc.Arbitrary<number> = fc.oneof(
 /** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。 */
 export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
-  slotId: fc.constantFrom(...SLOT_ID_POOL),
+  slotIds: fc.subarray([...SLOT_ID_POOL], { minLength: 1 }),
   noodleType: fc.constantFrom(...NOODLE_POOL),
   endTime: genEndTime,
   origin: genTimerOrigin,
@@ -194,7 +194,7 @@ export function genCorrectedNow(view: ClientView): fc.Arbitrary<number> {
 /** TimerFact。id はプールから引き、snapshot/Reconcile での server-confirmed 復活を誘発する。 */
 const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
-  slotId: fc.constantFrom(...SLOT_ID_POOL),
+  slotIds: fc.subarray([...SLOT_ID_POOL], { minLength: 1 }),
   noodleType: fc.constantFrom(...NOODLE_POOL),
   endTime: genEndTime,
 });
@@ -237,7 +237,7 @@ export function genEvent(view: ClientView): fc.Arbitrary<ClientEvent> {
   const localStart = genCorrectedNow(view).chain((correctedNow) =>
     fc.record({
       kind: fc.constant("LocalStart" as const),
-      slotId: fc.constantFrom(...SLOT_ID_POOL),
+      slotIds: fc.subarray([...SLOT_ID_POOL], { minLength: 1 }),
       noodleType: fc.constantFrom(...NOODLE_POOL),
       boilSeconds: genBoilSeconds,
       newTimerId: fc.constantFrom(...NEW_ID_POOL),

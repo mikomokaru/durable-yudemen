@@ -119,8 +119,9 @@ function isTimerOrigin(value: unknown): value is TimerOrigin {
 /**
  * 任意値を ClientTimer へ構造検証する。形が一つでも崩れていれば null を返す。
  *
- * id / slotId / noodleType は string、endTime は number、origin は "server" | "local"。
- * 余剰フィールドは無視し、検証済みフィールドのみで正規化した ClientTimer を構築する。
+ * id / noodleType は string、endTime は number、origin は "server" | "local"。slotIds は
+ * 現行 v2 形（非空文字列の非空配列）を優先し、旧 v1 形（単一 `slotId` 文字列）は `[slotId]` に包んで
+ * 受理する（保存キー据え置きで走行中タイマーを失わない優雅な移行）。余剰フィールドは無視する。
  */
 function toClientTimer(value: unknown): ClientTimer | null {
   if (!isRecord(value)) {
@@ -128,20 +129,36 @@ function toClientTimer(value: unknown): ClientTimer | null {
   }
   if (
     typeof value.id !== "string" ||
-    typeof value.slotId !== "string" ||
     typeof value.noodleType !== "string" ||
     typeof value.endTime !== "number" ||
     !isTimerOrigin(value.origin)
   ) {
     return null;
   }
+  const slotIds = toSlotIds(value.slotIds, value.slotId);
+  if (slotIds === null) {
+    return null;
+  }
   return {
     id: value.id,
-    slotId: value.slotId,
+    slotIds,
     noodleType: value.noodleType,
     endTime: value.endTime,
     origin: value.origin,
   };
+}
+
+/** 永続スロット表現を現行形（非空文字列の非空配列）へ写す。v2 配列を優先し、無ければ v1 単一を包む。 */
+function toSlotIds(slotIds: unknown, legacySlotId: unknown): readonly string[] | null {
+  if (Array.isArray(slotIds)) {
+    if (slotIds.length === 0) return null;
+    if (slotIds.some((s) => typeof s !== "string" || s.length === 0)) return null;
+    return slotIds as readonly string[];
+  }
+  if (typeof legacySlotId === "string" && legacySlotId.length > 0) {
+    return [legacySlotId];
+  }
+  return null;
 }
 
 // ───────────────────────────────────────────────────────────────────────────

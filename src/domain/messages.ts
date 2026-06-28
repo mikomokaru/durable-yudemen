@@ -13,7 +13,7 @@ import type { TimerFact } from "./timer";
 export type ClientMessage =
   | {
       readonly type: "start";
-      readonly slotId: string;
+      readonly slotIds: readonly string[];
       readonly noodleType: string;
       readonly boilSeconds: number;
     }

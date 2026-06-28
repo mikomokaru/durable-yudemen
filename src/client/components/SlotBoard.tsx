@@ -30,8 +30,9 @@ export function SlotBoard({ connection, units }: SlotBoardProps) {
   const displays = assignedSlotDisplays(view, units, now);
 
   // slotId はスロット番号の文字列表現（slotOf = Number(slotId) の逆／要件12.5）。
+  // UI はスロット単位なので 1 スロットを駆動する Timer として開始する（slotIds は 1 件）。
   const startOnSlot = (slot: number, noodleType: string, boilSeconds: number) => {
-    connection.start(String(slot), noodleType, boilSeconds);
+    connection.start([String(slot)], noodleType, boilSeconds);
   };
 
   return (

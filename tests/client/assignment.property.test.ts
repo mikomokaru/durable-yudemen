@@ -9,7 +9,7 @@ import type { TimerFact } from "../../src/domain/timer";
 // ユニット 1 つが担当する連続スロット数。unit u は slot 6u..6u+5（要件12.5）。
 const SLOTS_PER_UNIT = 6;
 
-// slotId は担当範囲（ユニット 0..5 → スロット 0..35）に着地する数値文字列と、
+// 一件のスロット番号文字列。担当範囲（ユニット 0..5 → スロット 0..35）に着地する数値文字列と、
 // 範囲外・非数値の任意文字列を混ぜ、被担当・非担当の双方を誘発する。
 const genSlotId: fc.Arbitrary<string> = fc.oneof(
   fc.integer({ min: 0, max: 35 }).map(String),
@@ -17,8 +17,9 @@ const genSlotId: fc.Arbitrary<string> = fc.oneof(
 );
 
 // 一件の TimerFact。id は射影の同一性追跡用に index で決定的に付与する（buildTimers 内）。
+// slotIds は 1〜3 件の非空配列。複数スロット駆動（any-overlap）を誘発する。
 const genTimerSpec: fc.Arbitrary<Omit<TimerFact, "id">> = fc.record({
-  slotId: genSlotId,
+  slotIds: fc.array(genSlotId, { minLength: 1, maxLength: 3 }),
   noodleType: fc.constantFrom("thin", "thick", "curly", "ramen", "soba", "udon"),
   endTime: fc.integer({ min: 0, max: 2000 }),
 });
@@ -47,14 +48,14 @@ describe("client/assignment", () => {
           expect(all.includes(timer)).toBe(true);
         }
 
-        // (b) 担当性: 出力の各 Timer のスロットは必ず担当スロット集合に属する。
+        // (b) 担当性: 出力の各 Timer は、駆動スロットのいずれかが担当スロット集合に属する（any-overlap）。
         for (const timer of assigned) {
-          expect(assignedSlots.has(slotOf(timer.slotId))).toBe(true);
+          expect(timer.slotIds.some((slotId) => assignedSlots.has(slotOf(slotId)))).toBe(true);
         }
 
-        // (c) 完全性（漏れなし）: 入力のうちスロットが担当スロット集合に属する Timer は、すべて出力に含まれる。
+        // (c) 完全性（漏れなし）: 入力のうち駆動スロットのいずれかが担当集合に属する Timer は、すべて出力に含まれる。
         for (const timer of all) {
-          if (assignedSlots.has(slotOf(timer.slotId))) {
+          if (timer.slotIds.some((slotId) => assignedSlots.has(slotOf(slotId)))) {
             expect(assigned.includes(timer)).toBe(true);
           }
         }

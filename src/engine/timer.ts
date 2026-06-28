@@ -34,14 +34,14 @@ export interface Timer extends TimerFact<TimerId, SlotId, NoodleType, EpochMilli
  */
 export function createTimer(input: {
   id: TimerId;
-  slotId: SlotId;
+  slotIds: readonly SlotId[];
   noodleType: NoodleType;
   endTime: EpochMillis;
   seq: number;
 }): Timer {
   return {
     id: input.id,
-    slotId: input.slotId,
+    slotIds: input.slotIds,
     noodleType: input.noodleType,
     endTime: input.endTime,
     seq: input.seq,

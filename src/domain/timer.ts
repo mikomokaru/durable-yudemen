@@ -20,8 +20,8 @@
 export interface TimerFact<Id = string, Slot = string, Noodle = string, Time = number> {
   /** 安定した一意識別子。キャンセルとブロードキャストの宛先。 */
   readonly id: Id;
-  /** 所属するスロット（釜）。 */
-  readonly slotId: Slot;
+  /** 駆動するスロット（釜）の集合。1 Timer は 1 つ以上のスロットを同時に駆動する（非空）。 */
+  readonly slotIds: readonly Slot[];
   /** 麺の種類。 */
   readonly noodleType: Noodle;
   /** 絶対終了時刻（事実）。残り秒ではない。 */

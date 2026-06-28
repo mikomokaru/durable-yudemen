@@ -17,14 +17,17 @@ import type { TimerState } from "../../src/engine/state";
 /** 一件の Timer を組み立てるための素データ（id・seq はビルド時に決定的に付与する）。 */
 interface TimerSpec {
   readonly endTime: number;
-  readonly slotId: string;
+  readonly slotIds: readonly string[];
   readonly noodleType: string;
 }
 
-/** endTime は衝突を誘発する小さめ範囲。slotId は 0 始まりスロット番号と任意文字列を混ぜる。 */
+/** endTime は衝突を誘発する小さめ範囲。slotIds は 0 始まりスロット番号と任意文字列を混ぜた 1〜3 件の非空配列。 */
 const genTimerSpec: fc.Arbitrary<TimerSpec> = fc.record({
   endTime: fc.integer({ min: 0, max: 2000 }),
-  slotId: fc.oneof(fc.integer({ min: 0, max: 17 }).map(String), fc.string({ minLength: 1, maxLength: 6 })),
+  slotIds: fc.array(
+    fc.oneof(fc.integer({ min: 0, max: 17 }).map(String), fc.string({ minLength: 1, maxLength: 6 })),
+    { minLength: 1, maxLength: 3 },
+  ),
   noodleType: fc.constantFrom("thin", "thick", "curly", "ramen", "soba", "udon"),
 });
 
@@ -33,7 +36,7 @@ function buildState(specs: readonly TimerSpec[], extraSeq: number): TimerState {
   const timers: readonly Timer[] = specs.map((spec, index) =>
     createTimer({
       id: `timer-${index}` as TimerId,
-      slotId: spec.slotId as SlotId,
+      slotIds: spec.slotIds as readonly SlotId[],
       noodleType: spec.noodleType as NoodleType,
       endTime: spec.endTime as EpochMillis,
       seq: index,
