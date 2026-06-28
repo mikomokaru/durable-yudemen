@@ -7,6 +7,7 @@ import { fromSnapshot } from "../core/snapshot";
 import { EMPTY_STATE, type TimerState } from "../core/state";
 import type { EpochMillis, TimerId } from "../core/types";
 import { buildSeamEntry, type InstrumentationLogEntry } from "../observe/log";
+import { PING_REQUEST, PONG_RESPONSE } from "../shared/heartbeat";
 import type { ClientMessage, ServerMessage, WireTimer } from "../shared/messages";
 
 /** 永続層の単一キー。状態は丸ごとこのキーへ put / get する（要件8.3・SQL 不使用）。 */
@@ -222,6 +223,11 @@ export class StoreTimerDO extends DurableObject<Env> {
 
     // Hibernation 互換の収容（server.accept() は使わない）
     this.ctx.acceptWebSocket(server);
+
+    // auto-response（要件1.1 / 12.3）: 所定の ping 要求に所定の pong を登録する。ランタイムが直接
+    // 応答するため webSocketMessage ハンドラを起動せず、hibernate からの wake を伴わない。心拍は
+    // 接続を生かすだけで Working_Copy も Effect 実行順序も一切変えない（client と同一の確定値を共有）。
+    this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING_REQUEST, PONG_RESPONSE));
 
     // Hydration（要件4.1 / 9.2）。接続確立の一環として、収容直後にこの WS だけへ
     // 現在のアクティブ Timer 全量を snapshot として送る（差分ではなく全量）。

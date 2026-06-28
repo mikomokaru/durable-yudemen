@@ -4,7 +4,7 @@
 // clock.ts の remainingMs に now を渡して描画のたびに算出する（要件10.1 の思想をクライアントへ延長）。
 
 import type { WireTimer } from "../../shared/messages";
-import type { TimerView } from "../connection";
+import type { ClientTimer, ClientView } from "../connection";
 import { remainingMs } from "../clock";
 import { assignedTimers, slotOf, slotsOfUnits } from "../assignment";
 
@@ -13,12 +13,20 @@ import { assignedTimers, slotOf, slotsOfUnits } from "../assignment";
  *
  * - running   : 担当スロットにアクティブ Timer があり、残りを導出して秒読み表示する。
  *               remaining は 0 以上にクランプ済み（負を出さない／要件5.6）。
+ *               unconfirmed は最早アクティブ Timer の origin === "local"（Provisional_Timer）からの
+ *               導出値。degraded 中に生まれた未確定な走行を表示上で区別するためにあり、状態ではない（要件6.4）。
  * - boiled    : 当該スロットの Timer がすべて茹で上がり処理済み（done）。00:00 相当の茹で上がり表示。
  * - idle      : 同期済みだが担当スロットに Timer が無い。開始操作を提示できる。
  * - unreceived: 未同期で当該スロットの endTime を未受信。「残り時間未受信」表示（要件5.5）。
  */
 export type SlotDisplay =
-  | { readonly kind: "running"; readonly slot: number; readonly timer: WireTimer; readonly remainingMs: number }
+  | {
+      readonly kind: "running";
+      readonly slot: number;
+      readonly timer: WireTimer;
+      readonly remainingMs: number;
+      readonly unconfirmed: boolean;
+    }
   | { readonly kind: "boiled"; readonly slot: number }
   | { readonly kind: "idle"; readonly slot: number }
   | { readonly kind: "unreceived"; readonly slot: number };
@@ -31,13 +39,14 @@ export type SlotDisplay =
  * done 済みの Timer だけが残るスロットは茹で上がり表示（次の snapshot 全置換で除去される）。
  */
 export function assignedSlotDisplays(
-  view: TimerView,
+  view: ClientView,
   units: readonly number[],
   now: number,
 ): readonly SlotDisplay[] {
   const slots = [...slotsOfUnits(units)].sort((a, b) => a - b);
   // 担当分の Timer をスロット番号で引けるよう束ねる。表示はスロット単位の事象である。
-  const timersBySlot = new Map<number, WireTimer[]>();
+  // ClientTimer のまま束ね、origin（未確定タグ）を失わない（unconfirmed の導出元・要件6.4）。
+  const timersBySlot = new Map<number, ClientTimer[]>();
   for (const timer of assignedTimers(view.timers, units)) {
     const slot = slotOf(timer.slotId);
     const bucket = timersBySlot.get(slot);
@@ -53,7 +62,14 @@ export function assignedSlotDisplays(
       const earliest = active.reduce((a, b) => (b.endTime < a.endTime ? b : a));
       // 残りは導出。0 以下でも 00:00 相当として running 表示し、負を出さない（要件5.6）。
       const remaining = remainingMs(earliest.endTime, view.offset, now);
-      return { kind: "running", slot, timer: earliest, remainingMs: remaining };
+      // unconfirmed は origin === "local"（Provisional_Timer）からの導出値。状態には昇格させない（要件6.4）。
+      return {
+        kind: "running",
+        slot,
+        timer: earliest,
+        remainingMs: remaining,
+        unconfirmed: earliest.origin === "local",
+      };
     }
     if (bucket.length > 0) {
       // アクティブが無く done 済みのみ → 茹で上がり表示（要件2.11 の表示切替の結果）。

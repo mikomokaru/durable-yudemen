@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Yude-men Timer</title>
+    <style>
+      /* プルトゥリフレッシュ（pull-to-refresh）による意図しない再読み込みを抑止する。
+         リロード抑止の手段は manifest の standalone 表示と overscroll-behavior の二点に限定し、
+         beforeunload や JS によるリロード傍受などの追加抑止層は設けない（決定 A・要件10.5）。 */
+      html,
+      body {
+        overscroll-behavior: none;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

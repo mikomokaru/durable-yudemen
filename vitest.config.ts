@@ -22,7 +22,10 @@ export default defineConfig({
         test: {
           name: "static",
           environment: "node",
-          include: ["tests/static-analysis.example.test.ts"],
+          include: [
+            "tests/static-analysis.example.test.ts",
+            "tests/offline-degradation.static.test.ts",
+          ],
         },
       },
       {
@@ -47,6 +50,7 @@ export default defineConfig({
           // observe の統合テスト（*.integration.test.ts）はここに残し Workers pool で実行する。
           exclude: [
             "tests/static-analysis.example.test.ts",
+            "tests/offline-degradation.static.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
           ],

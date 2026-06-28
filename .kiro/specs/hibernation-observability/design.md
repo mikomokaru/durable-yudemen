@@ -104,7 +104,7 @@ sequenceDiagram
   Note over SR: await-done が当該 timerId の done を確認 → 待機終了
 ```
 
-突き合わせ後、Correlator は「idle 区間内で `alarm`（Instrumentation_Log）の epoch ms が当該タイマーの `done`（Operation_Log）の epoch ms 以下」という順序が観測されれば**検証条件 a を合格**として記録する（要件6.2）。
+突き合わせ後、Correlator は「idle 区間内で `alarm`（Instrumentation_Log）が当該タイマーの `done`（Operation_Log）以下の時刻で先行する」という順序が観測されれば**検証条件 a を合格**として記録する（要件6.2）。この cross-source の順序比較はサーバ時計（`payload.serverTime`、無ければ自身の `at`）へ揃えて行い、クライアントとサーバのクロックスキューによる順序逆転を避ける（要件6.7・「cross-source 時刻整合」節参照）。
 
 ### データフロー（idle 後の rehydrate 復元件数の一致＝検証条件 b）
 
@@ -362,10 +362,10 @@ interface IdleInterval {
 }
 
 type ConditionA =
-  | { readonly verdict: "pass"; readonly timerId: string }                       // alarm ms ≤ done ms（要件6.2）
+  | { readonly verdict: "pass"; readonly timerId: string }                       // alarm ≤ done（サーバ時計整合軸・要件6.2 / 6.7）
   | { readonly verdict: "fail"; readonly timerId: string; readonly cause: "NoAlarm" | "AlarmAfterDone" }; // 要件6.3
 
-/** idle 区間内で、当該タイマーの done に対し alarm が「done 以下の epoch ms」で先行するかを判定（要件6.2 / 6.3）。 */
+/** idle 区間内で、当該タイマーの done に対し alarm が「done 以下の時刻」で先行するかを、サーバ時計整合軸（serverTime・無ければ at）で判定（要件6.2 / 6.3 / 6.7）。 */
 function verifyAlarmFiredInIdle(merged: readonly MergedRow[], idle: IdleInterval): readonly ConditionA[];
 
 type ConditionB =
@@ -375,7 +375,8 @@ type ConditionB =
 /**
  * idle 後の最初のイベントで、新しい instanceId の construct に続く rehydrate の復元件数が、
  * 当該イベント直前に active（start 済み・done/cancel 未到達）だったタイマー数と一致するかを判定（要件6.4 / 6.5）。
- * 直前 active 数は Operation_Log から導出する。
+ * 直前 active 数は Operation_Log から導出する。「直前」の境界は再 construct の bornAt（サーバ時計）に対し、
+ * 各 Operation_Log をサーバ時計整合軸（serverTime・無ければ at）で突き合わせて判定する（要件6.7）。
  */
 function verifyRehydrateCount(merged: readonly MergedRow[], instances: readonly InstanceInterval[]): readonly ConditionB[];
 
@@ -399,6 +400,22 @@ function determineVerdict(
 /** 観測ウィンドウ満了点 = idle 経過時点 + 最大 60 秒（要件7.4）。 */
 const OBSERVATION_TAIL_MS = 60_000;
 ```
+
+#### cross-source 時刻整合（サーバ時計への整合・要件6.7）
+
+二つのログは**別々の時計**で `at` を打刻する。Operation_Log は Probe_Client（Node）のクロック、Instrumentation_Log は Cloudflare サーバのクロックであり、両者は同期していない（ライブパイロットで約 180ms のスキューを実測した）。素の `at` どうしを跨いで比較すると、同一の因果連鎖（idle 中の `alarm` 発火 → broadcast → `done` 受信）の前後関係がスキュー幅で逆転し、検証条件 a が誤って `fail` に倒れる——実際にライブパイロットで偽 `fail` を観測した。
+
+これを避けるため、**二つのログをまたぐ意味的比較は単一のサーバクロックへ揃える**。既存ワイヤ形式上、すべての `ServerMessage`（`snapshot` / `started` / `cancelled` / `done` / `error`）は `payload.serverTime`（サーバが確定した単一の時計）を運ぶ。これを cross-source 比較における**時間の真実（SSOT）**とする。`serverTime` を持たない記録（client 送信の `start` / `cancel`・診断記録）に限り、自身の `at` へフォールバックする——これらは client 由来でサーバ時計上の対応点を持たないからである。純粋層では `serverAlignedAt(entry)` というヘルパが `payload.serverTime`（有限数）を、無ければ `entry.at` を返す形でこの整合を一点に閉じ込める。
+
+サーバ時計への整合を適用するのは、**前後関係を意味として問う比較**に限る。具体的には次の三点である。
+
+| 適用箇所 | 何を揃えるか | 要件 |
+| --- | --- | --- |
+| `classifyInstances` / `classifyInterval`（区間帰属の op フィルタ） | 区間境界（construct=サーバ時計）に op を帰属させる比較 | 5.2 / 5.3 / 6.7 |
+| `verifyAlarmFiredInIdle`（`done` 時刻 + idle 帰属） | idle 区間内での `alarm`（サーバ時計）と `done` の順序比較 | 6.2 / 6.3 / 6.7 |
+| `activeCountBefore`（境界比較・検証条件 b） | 再 construct の `bornAt`（サーバ時計）より前の active 数導出 | 6.4 / 6.5 / 6.7 |
+
+> **汎用統合 `mergeByTime` はこの整合を行わない（要件6.7 の但し書き）。** `mergeByTime` は二つのログを**記録された素の `at`**（epoch ms）で安定整列する汎用マージであり、源の前後関係を意味づけしない（同一 `at` のタイブレークも source 優先で固定するだけ）。サーバ時計への整合は「意味的な前後関係を問う」上記三点の検証にのみ適用し、`mergeByTime` と `MergedRow.at` は素の `at` のまま不変に保つ。これにより「保存的・安定・決定的なマージ」（Property 8）と「因果として正しい意味判定」（Property 9 / 10）を、別々の関心事として分離する。
 
 ### Deploy_Procedure（手順・端）
 
@@ -563,19 +580,21 @@ function parseInstrumentationLine(line: string): { ok: true; entry: Instrumentat
 
 *任意の* Operation_Log（長さ 0 を含む）と Instrumentation_Log（長さ 0 を含む）について、`mergeByTime` の出力系列は、(a) **保存性** — 長さが両入力の行数の合計に等しく、いずれの入力行も欠落・重複させない、(b) **安定整列** — `at`（epoch ms）の昇順であり、同一 `at` の行は両入力それぞれの元の出現順を保持する、(c) **決定性** — 同一入力に対して常に同一の系列を返す、を同時に満たす。片方または両方が 0 行でも (a) の保存性が成り立つ。
 
+> `mergeByTime` は**記録された素の `at`** で整列する汎用マージであり、cross-source のサーバ時計整合は行わない。サーバ時計（`serverTime`）への整合は意味的検証（Property 9 / 10 と区間帰属）にのみ適用する（要件6.7・「cross-source 時刻整合」節参照）。
+
 **Validates: Requirements 6.1, 6.6**
 
-### Property 9: 検証条件 a — idle 区間内の alarm→done 順序で合否が一意に定まる
+### Property 9: 検証条件 a — idle 区間内の alarm→done 順序（サーバ時計整合軸）で合否が一意に定まる
 
-*任意の* マージ系列と idle 区間について、`verifyAlarmFiredInIdle` は、idle 区間内で当該タイマーの `done`（Operation_Log）に対し `alarm`（Instrumentation_Log）の epoch ms が `done` 以下で先行するとき、対象タイマーを特定可能な形で `pass` を返す。対応する `alarm` が存在しない場合は `fail`（`cause: "NoAlarm"`）、`alarm` の epoch ms が `done` より後（順序逆転）の場合は `fail`（`cause: "AlarmAfterDone"`）を、両ケースを識別可能な形で返す。
+*任意の* マージ系列と idle 区間について、`verifyAlarmFiredInIdle` は、idle 区間内で当該タイマーの `done`（Operation_Log）に対し `alarm`（Instrumentation_Log）が**サーバ時計整合軸**で `done` 以下の時刻で先行するとき、対象タイマーを特定可能な形で `pass` を返す。対応する `alarm` が存在しない場合は `fail`（`cause: "NoAlarm"`）、`alarm` がサーバ時計整合軸で `done` より後（順序逆転）の場合は `fail`（`cause: "AlarmAfterDone"`）を、両ケースを識別可能な形で返す。ここで時刻比較は cross-source のクロックスキューを避けるためサーバ時計へ揃える——`ServerMessage`（`done` 等）は `payload.serverTime`、`alarm` 継ぎ目はサーバ時計の `at` を用い、`serverTime` を持たない記録のみ自身の `at` にフォールバックする（要件6.7）。
 
-**Validates: Requirements 6.2, 6.3**
+**Validates: Requirements 6.2, 6.3, 6.7**
 
-### Property 10: 検証条件 b — rehydrate 復元件数と直前 active 数の一致で合否が一意に定まる
+### Property 10: 検証条件 b — rehydrate 復元件数と直前 active 数（サーバ時計整合軸の境界）の一致で合否が一意に定まる
 
-*任意の* マージ系列と instanceId 区間について、`verifyRehydrateCount` は、idle 後の最初のイベントで新しい instanceId の `construct` に続く `rehydrate` の復元件数が、当該イベント直前に active（`start` 済みかつ `done`／`cancel` 未到達）だったタイマー数（Operation_Log から導出）と一致するとき `pass` を返し、一致しないとき期待件数（直前 active 数）と観測件数（復元件数）を識別可能な形で `fail` を返す。
+*任意の* マージ系列と instanceId 区間について、`verifyRehydrateCount` は、idle 後の最初のイベントで新しい instanceId の `construct` に続く `rehydrate` の復元件数が、当該イベント直前に active（`start` 済みかつ `done`／`cancel` 未到達）だったタイマー数（Operation_Log から導出）と一致するとき `pass` を返し、一致しないとき期待件数（直前 active 数）と観測件数（復元件数）を識別可能な形で `fail` を返す。「直前」の境界判定は再 construct の `bornAt`（サーバ時計）に対し、各 Operation_Log を**サーバ時計整合軸**（`ServerMessage` は `payload.serverTime`、無ければ自身の `at`）で突き合わせ、cross-source のクロックスキューによる active 数の取り違えを避ける（要件6.7）。
 
-**Validates: Requirements 6.4, 6.5**
+**Validates: Requirements 6.4, 6.5, 6.7**
 
 ### Property 11: 実行判定は confirmed / inconclusive / fail を排他に出力し、inconclusive を fail に含めない
 
@@ -742,6 +761,7 @@ Correlator も log codec も scenario 検証も、`at`（epoch ms）や observat
 | | 6.4 復元件数 = 直前 active 数 → 条件 b 合格 | `verifyRehydrateCount` | P10 |
 | | 6.5 復元件数 ≠ 直前 active 数 → 識別可能に fail | `verifyRehydrateCount` | P10 |
 | | 6.6 系列長 = 合計・欠落/重複なし・0行でも保存 | `mergeByTime` | P8 |
+| | 6.7 cross-source 意味比較をサーバ時計（serverTime）へ整合・mergeByTime は不変 | `serverAlignedAt`（classifyInterval / verifyAlarmFiredInIdle / activeCountBefore） | P9, P10 + P8（mergeByTime 不変） |
 | 7 | 7.1 hibernation 強制せず・未発生で中断/fail しない | `determineVerdict`（inconclusive） | P11 + Smoke（手段非提供） |
 | | 7.2 idle interval 1〜3600 秒整数の設定パラメータ | `Scenario.idleIntervalSeconds` | Example |
 | | 7.3 範囲外/非整数は拒否・実行せず・設定不変 | `validateScenario` | P4 |
@@ -803,4 +823,4 @@ Correlator も log codec も scenario 検証も、`at`（epoch ms）や observat
 3. **Instrumentation_Log の収集方法** — `wrangler tail` の標準出力をファイルへリダイレクトして Correlator に渡すか、Workers Logs からエクスポートするか。tail の出力フォーマット（プレフィックス除去）を実装時に確認し、`parseInstrumentationLine` の前処理を確定する。
 4. **idle interval の実務値** — 15〜30 秒で hibernate が安定発生する経験則に基づくが保証はない。観測ウィンドウ（idle + 最大 60 秒・要件7.4）の妥当性をパイロットで実測し、必要なら idle 値を調整する（inconclusive を減らす方向）。
 5. **CLI の WS ライブラリ選定** — Node ランタイムの WebSocket クライアント（`ws` 等）の採用は端の実装詳細。`tools/observe/` に閉じ、純粋層（`src/observe/`）には漏らさない。tooling 規律に従い `pnpm add -D` で追加する。
-6. **検証条件 a の二時計跨ぎ比較（秒スケールでは無視できる）** — Operation_Log の `at`（`done`＝クライアント受信時刻）は **CLIENT（Node）の時計**、Instrumentation_Log の `at`（`alarm`＝発火時刻）は **Cloudflare エッジの時計**で刻まれ、両者を同じ epoch ms 軸で跨いで比較する。だが本ハーネスの観測は秒スケール（idle 区間は秒単位、hibernate は約 15〜30 秒、観測ウィンドウは idle + 最大 60 秒）であり、`alarm ≤ done` の `≤` は「発火 → broadcast → 受信」という**因果**を表すもので ms 精度を要求しない。数十〜数百 ms のクロックスキューは判定に影響せず、特別な扱いは不要。検証条件 a の定義は現状のまま据え置く。
+6. **検証条件の二時計跨ぎ比較（解決済み・要件6.7）** — Operation_Log の `at`（`done`＝クライアント受信時刻）は **CLIENT（Node）の時計**、Instrumentation_Log の `at`（`alarm`＝発火時刻）は **Cloudflare エッジの時計**で刻まれる。当初は秒スケールゆえスキューを無視できると見積もったが、**ライブパイロットで約 180ms のスキューが idle 区間内の `alarm`→`done` 順序を逆転させ、偽 `fail` を生じた**。これを受け、cross-source の意味的比較は素の `at` ではなく**サーバ時計（各 `ServerMessage` が運ぶ `payload.serverTime`）へ揃える**方針を確定・実装済みである（純粋層ヘルパ `serverAlignedAt`、適用箇所は「cross-source 時刻整合」節の三点）。本項は未解決事項ではなく、確定した精緻化の記録として残す。汎用統合 `mergeByTime` は記録された素の `at` のまま不変（Property 8）。

@@ -36,11 +36,16 @@ export function isAssigned(slot: number, units: readonly number[]): boolean {
   return slotsOfUnits(units).has(slot);
 }
 
-/** 受信した全量 Timer から担当スロットに属するものだけを射影する（表示用導出）。 */
-export function assignedTimers(
-  allTimers: readonly WireTimer[],
+/**
+ * 受信した全量 Timer から担当スロットに属するものだけを射影する（表示用導出）。
+ *
+ * WireTimer を芯に持つ要素型 T を保ったまま絞り込む。ClientTimer（= WireTimer & { origin }）を
+ * 渡せば origin タグを失わずに射影でき、呼び出し側が起源（未確定か否か）を導出できる。
+ */
+export function assignedTimers<T extends WireTimer>(
+  allTimers: readonly T[],
   units: readonly number[],
-): readonly WireTimer[] {
+): readonly T[] {
   const assigned = slotsOfUnits(units);
   return allTimers.filter((timer) => assigned.has(slotOf(timer.slotId)));
 }

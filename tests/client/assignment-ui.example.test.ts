@@ -8,8 +8,7 @@
 // 「担当不変」は担当集合が view（接続台数の反映）に依存しないことに帰着する。
 
 import { describe, expect, it } from "vitest";
-import type { WireTimer } from "../../src/shared/messages";
-import type { TimerView } from "../../src/client/connection";
+import type { ClientTimer, ClientView } from "../../src/client/connection";
 import { slotsOfUnits } from "../../src/client/assignment";
 import { assignedSlotDisplays, type SlotDisplay } from "../../src/client/components/slotDisplay";
 import { unitsFrom } from "../../src/client/components/UnitSelector";
@@ -30,17 +29,18 @@ function operationsOf(display: SlotDisplay): readonly Operation[] {
   }
 }
 
-// 指定スロットにアクティブ Timer を 1 件持つ WireTimer を組み立てる。
-function timerOnSlot(slot: number, id: string): WireTimer {
-  return { id, slotId: String(slot), noodleType: "ramen", endTime: 60_000 };
+// 指定スロットにアクティブ Timer を 1 件持つ ClientTimer を組み立てる（server-confirmed）。
+function timerOnSlot(slot: number, id: string): ClientTimer {
+  return { id, slotId: String(slot), noodleType: "ramen", endTime: 60_000, origin: "server" };
 }
 
 // synced 済みのビューを、与えた Timer 集合から組み立てる。
-function syncedView(timers: readonly WireTimer[]): TimerView {
+function syncedView(timers: readonly ClientTimer[]): ClientView {
   return {
     timers,
     offset: 0,
     processedIds: new Set<string>(),
+    connectivity: "up",
     sync: "synced",
     error: null,
   };
@@ -93,7 +93,7 @@ describe("client 担当 UI と担当不変（要件12.3 / 12.4）", () => {
     //  - 接続 0 台相当: Timer なし
     //  - 接続少数: 担当内に数件
     //  - 接続多数: 担当内外にまたがる多数の Timer（他端末が店舗中の釜を動かしている状況）
-    const views: readonly TimerView[] = [
+    const views: readonly ClientView[] = [
       syncedView([]),
       syncedView([timerOnSlot(0, "a"), timerOnSlot(5, "b")]),
       syncedView(
