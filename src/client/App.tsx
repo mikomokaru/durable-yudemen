@@ -23,6 +23,7 @@ import { UnitSelector } from "./components/UnitSelector";
 import { useUnitCount } from "./components/useUnitCount";
 import { useWakeLock } from "./components/useWakeLock";
 import { ConnectionStatus } from "./components/ConnectionStatus";
+import { InstallPrompt } from "./components/InstallPrompt";
 import { unitsForCount } from "./assignment";
 import { DEFAULT_UNIT_COUNT } from "../domain/store";
 import { cn } from "./cn";
@@ -167,6 +168,9 @@ export function App() {
           <p role="status" className="text-muted">Connecting…</p>
         )}
       </main>
+
+      {/* ブラウザ閲覧時のみ表示する PWA インストール導線（standalone では自動的に消える）。 */}
+      <InstallPrompt />
     </div>
   );
 }
