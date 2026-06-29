@@ -17,7 +17,8 @@
   --color-idle: oklch(0.7 0.03 250); /* 待機：ブルーグレー */
   --color-running: oklch(0.78 0.14 70); /* 茹で中：琥珀 */
   --color-boiled: oklch(0.82 0.17 150); /* 完了：緑（最も目立つ） */
-  --color-danger: oklch(0.68 0.16 25); /* キャンセル / オフライン / エラー：赤 */
+  --color-warn: oklch(0.82 0.14 85); /* 残り1分以内：警告の黄琥珀（枠線） */
+  --color-danger: oklch(0.68 0.16 25); /* キャンセル / オフライン / エラー / ゆであがり：赤 */
 
   --font-sans: "Manrope", system-ui, -apple-system, sans-serif;
   --font-mono: "DM Mono", ui-monospace, monospace;
@@ -28,40 +29,40 @@
   --animate-boiled: boiledPulse 1.15s ease-in-out infinite;
 }
 
-/* 完了スロットのグロー点滅。色は --glow（麺のキャラクター色）を SlotCard が注入する。未設定時は
-   既定の --color-boiled（緑）へフォールバック。color-mix を含む複数 box-shadow はユーティリティ化が
-   辛いため keyframes に残す（設計メモ・Tailwind 版の方針）。 */
+/* 完了スロットのグロー点滅。枠線が danger（ゆであがり）なので、グローも danger に揃える（色相一致）。
+   バッジ✓・麺名・時刻の麺色（--glow）は identity として別に保つ。color-mix を含む複数 box-shadow は
+   ユーティリティ化が辛いため keyframes に残す（設計メモ・Tailwind 版の方針）。 */
 @keyframes boiledPulse {
   0%,
   100% {
     box-shadow:
       0 0.0625rem 0 rgba(255, 255, 255, 0.03) inset,
       0 0.5rem 1.5rem rgba(0, 0, 0, 0.35),
-      0 0 0 0.0625rem color-mix(in oklab, var(--glow, var(--color-boiled)) 35%, transparent),
-      0 0 0.75rem color-mix(in oklab, var(--glow, var(--color-boiled)) 18%, transparent);
+      0 0 0 0.0625rem color-mix(in oklab, var(--color-danger) 35%, transparent),
+      0 0 0.75rem color-mix(in oklab, var(--color-danger) 18%, transparent);
   }
   50% {
     box-shadow:
       0 0.0625rem 0 rgba(255, 255, 255, 0.03) inset,
       0 0.5rem 1.5rem rgba(0, 0, 0, 0.35),
-      0 0 0 0.125rem color-mix(in oklab, var(--glow, var(--color-boiled)) 60%, transparent),
-      0 0 2.5rem color-mix(in oklab, var(--glow, var(--color-boiled)) 45%, transparent);
+      0 0 0 0.125rem color-mix(in oklab, var(--color-danger) 60%, transparent),
+      0 0 2.5rem color-mix(in oklab, var(--color-danger) 45%, transparent);
   }
 }
 
-/* 完了スロットの茹で上がりバッジの点滅（steps で点灯/減光を切り替える）。 */
+/* 完了スロットの茹で上がりバッジ／OVER の点滅。枠線グロー（boiledPulse）と同じ周期・同じ ease-in-out・
+   同位相（50% で最大）にして、グローとバッジが一緒に明滅するよう揃える。 */
 @keyframes badgeBlink {
   0%,
-  49% {
-    opacity: 1;
-  }
-  50%,
   100% {
-    opacity: 0.35;
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
   }
 }
 @theme {
-  --animate-badge-blink: badgeBlink 1.15s steps(1) infinite;
+  --animate-badge-blink: badgeBlink 1.15s ease-in-out infinite;
 }
 
 /* 画面全体・スクロール抑制（プルトゥリフレッシュ含む／要件10.5）。アプリのルートに適用。 */

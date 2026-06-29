@@ -208,6 +208,13 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
     : display.remainingMs <= NEAR_MS
       ? STATE_BG.boilingNear
       : STATE_BG.boilingFar;
+  // 枠線で緊急度を示す（麺色から解放された枠の新役割）。ゆであがり=danger（赤）、残り1分以内=warn（黄琥珀）、
+  // それ以外は cardBase の border-line のまま（undefined で上書きしない）。
+  const stateBorder = isBoiled
+    ? "var(--color-danger)"
+    : display.remainingMs <= NEAR_MS
+      ? "var(--color-warn)"
+      : undefined;
   // ボタン外周リング。running は経過割合（麺色を 1 段暗く）、boiled は超過割合（danger 色＝超過タイマーと同色）。
   const total = display.timer.endTime - display.timer.startTime;
   const ringFraction = isBoiled
@@ -220,7 +227,8 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
     <article
       aria-label={`Slot ${slot}`}
       // --glow に麺色を注入し、boiled のグロー点滅（animate-boiled）を麺のキャラクター色で明滅させる。
-      style={{ backgroundColor: stateBg, "--glow": tint } as CSSProperties}
+      // 枠線（borderColor）は緊急度を示す：warn（残り1分以内）/ danger（ゆであがり）。
+      style={{ backgroundColor: stateBg, borderColor: stateBorder, "--glow": tint } as CSSProperties}
       className={cn(cardBase, isBoiled && "animate-boiled")}
     >
       {/* 上段：残り時間。スロット左上からの相対位置に固定（ボタンの右下固定と対）。
