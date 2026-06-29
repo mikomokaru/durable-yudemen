@@ -36,9 +36,9 @@ const ops: readonly OperationLogEntry[] = [
   { seq: 2, at: 100, atIso: iso(100), direction: "recv", messageType: "started",
     payload: { type: "started", serverTime: 110,
       timer: { id: "T", slotId: "kama-1", noodleType: "Medium", endTime: SERVER_TIME } } },
-  // 逆転の核心: client は 1000 で done を受信したが、サーバ確定時刻（serverTime）は 1010。
-  { seq: 3, at: CLIENT_DONE_AT, atIso: iso(CLIENT_DONE_AT), direction: "recv", messageType: "done",
-    payload: { type: "done", serverTime: SERVER_TIME, timerId: "T" } },
+  // 逆転の核心: client は 1000 で boiled を受信したが、サーバ確定時刻（serverTime）は 1010。
+  { seq: 3, at: CLIENT_DONE_AT, atIso: iso(CLIENT_DONE_AT), direction: "recv", messageType: "boiled",
+    payload: { type: "boiled", serverTime: SERVER_TIME, timerId: "T" } },
 ];
 
 const seams: readonly InstrumentationLogEntry[] = [
@@ -49,7 +49,7 @@ const seams: readonly InstrumentationLogEntry[] = [
   { seam: "construct", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B" },
   { seam: "rehydrate", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B", restoredCount: 1 },
   { seam: "alarm", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B" },
-  { seam: "broadcast", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B", messageType: "done" },
+  { seam: "broadcast", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B", messageType: "boiled" },
 ];
 
 const OBSERVATION_END = 2000;

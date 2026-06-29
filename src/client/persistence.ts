@@ -14,6 +14,7 @@ import type { ClientTimer, ClientView, TimerOrigin } from "./connection";
 import { EMPTY_VIEW } from "./connection";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
+import { DEFAULT_FIRMNESS, isFirmness } from "../domain/firmness";
 
 /**
  * 永続ブロブの形（単一 JSON・version 付き・要件11.1）。
@@ -141,10 +142,16 @@ function toClientTimer(value: unknown): ClientTimer | null {
   if (slotIds === null) {
     return null;
   }
+  // startTime は v4 で追加。欠如（旧保存ブロブ）は endTime で埋める（進捗リングは縮退・UI 側でガード）。
+  const startTime = typeof value.startTime === "number" ? value.startTime : value.endTime;
+  // firmness は v5 で追加。欠如/不正な旧ブロブは normal で埋める。
+  const firmness = isFirmness(value.firmness) ? value.firmness : DEFAULT_FIRMNESS;
   return {
     id: value.id,
     slotIds,
     noodleType: value.noodleType,
+    firmness,
+    startTime,
     endTime: value.endTime,
     origin: value.origin,
   };

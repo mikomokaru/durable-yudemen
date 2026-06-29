@@ -24,11 +24,15 @@ import type { Connectivity, Socket, SocketOpener } from "./connection";
 // 内部で使い、従来この経路から参照していた利用者のため公開も保つ。
 export { PING_REQUEST, PONG_RESPONSE };
 
-/** ping 送信間隔の上限（ミリ秒）。この間隔以下で ping を送る（要件1.2）。 */
-export const PING_INTERVAL_MS = 15_000;
-/** 1 回の ping に対する pong 待ち受けタイムアウト（ミリ秒・要件1.4）。 */
-export const PONG_TIMEOUT_MS = 10_000;
-/** 静かな喪失（half-open）と確定する連続未応答回数（要件1.4）。 */
+/** ping 送信間隔（ミリ秒）。この間隔以下で ping を送る（要件1.2: ≤15000）。 */
+export const PING_INTERVAL_MS = 4_000;
+/** 1 回の ping に対する pong 待ち受けタイムアウト（ミリ秒）。PONG_TIMEOUT_MS < PING_INTERVAL_MS を保つ。 */
+export const PONG_TIMEOUT_MS = 2_000;
+/**
+ * 静かな喪失（half-open）と確定する連続未応答回数（要件1.4）。
+ * down 確定までの目安は SILENT_LOSS_MISSES × PING_INTERVAL_MS + PONG_TIMEOUT_MS ≈ 10 秒
+ * （単発のパケット欠落で誤検知しないよう 2 回連続を要求する頑健性は保つ）。
+ */
 export const SILENT_LOSS_MISSES = 2;
 
 /**
@@ -84,7 +88,9 @@ function parseServerMessage(data: string): ServerMessage | null {
     case "snapshot":
     case "started":
     case "cancelled":
-    case "done":
+    case "boiled":
+    case "completed":
+    case "adjusted":
     case "config":
     case "error":
       return parsed as ServerMessage;

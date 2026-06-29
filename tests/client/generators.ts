@@ -22,6 +22,7 @@
 import * as fc from "fast-check";
 import type { ServerMessage } from "../../src/domain/messages";
 import type { TimerFact, NonEmptyArray } from "../../src/domain/timer";
+import type { Firmness } from "../../src/domain/firmness";
 import { nonEmpty } from "../nonEmpty";
 
 // ── 確定命名に沿ったローカル型（2.1 / 3.1 の公開型が定義され次第 import へ差し替える） ──────────────
@@ -40,6 +41,8 @@ export interface ClientTimer {
   readonly id: string;
   readonly slotIds: NonEmptyArray<string>;
   readonly noodleType: string;
+  readonly firmness: Firmness; // 茹で加減（安定 id・v5）。
+  readonly startTime: number; // 茹で開始の絶対時刻（事実・v4）。
   readonly endTime: number; // エポックミリ秒（事実）。残り秒は導出（clock.ts）。
   readonly origin: TimerOrigin; // "local" = Provisional_Timer（未確定）
 }
@@ -144,6 +147,8 @@ export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
   slotIds: genSlotIds,
   noodleType: fc.constantFrom(...NOODLE_POOL),
+  firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
+  startTime: genEndTime,
   endTime: genEndTime,
   origin: genTimerOrigin,
 });
@@ -202,6 +207,8 @@ const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
   slotIds: genSlotIds,
   noodleType: fc.constantFrom(...NOODLE_POOL),
+  firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
+  startTime: genEndTime,
   endTime: genEndTime,
 });
 
@@ -211,13 +218,30 @@ const genWireTimers: fc.Arbitrary<readonly TimerFact[]> = fc.uniqueArray(genWire
   maxLength: TIMER_ID_POOL.length,
 });
 
-/** ServerMessage — 5 種別（snapshot / started / cancelled / done / error）を分布。すべて serverTime を伴う。 */
+/** ServerMessage — 種別を分布（snapshot / started / cancelled / boiled / completed / config / error）。すべて serverTime を伴う。 */
 export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
   fc.record({ type: fc.constant("snapshot" as const), serverTime: genReceivedAt, timers: genWireTimers }),
   fc.record({ type: fc.constant("started" as const), serverTime: genReceivedAt, timer: genWireTimer }),
   fc.record({ type: fc.constant("cancelled" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
-  fc.record({ type: fc.constant("done" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
-  fc.record({ type: fc.constant("config" as const), serverTime: genReceivedAt, unitCount: fc.integer({ min: 1, max: 4 }) }),
+  fc.record({ type: fc.constant("boiled" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
+  fc.record({ type: fc.constant("completed" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
+  fc.record({
+    type: fc.constant("config" as const),
+    serverTime: genReceivedAt,
+    unitCount: fc.integer({ min: 1, max: 4 }),
+    noodlePresets: fc.array(
+      fc.record({
+        noodleType: fc.string({ minLength: 1, maxLength: 12 }),
+        boilSeconds: fc.record({
+          extraHard: fc.integer({ min: 1, max: 1800 }),
+          hard: fc.integer({ min: 1, max: 1800 }),
+          normal: fc.integer({ min: 1, max: 1800 }),
+          soft: fc.integer({ min: 1, max: 1800 }),
+        }),
+      }),
+      { minLength: 1, maxLength: 6 },
+    ),
+  }),
   fc.record({
     type: fc.constant("error" as const),
     serverTime: genReceivedAt,

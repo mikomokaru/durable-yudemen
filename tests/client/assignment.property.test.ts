@@ -22,6 +22,8 @@ const genSlotId: fc.Arbitrary<string> = fc.oneof(
 const genTimerSpec: fc.Arbitrary<Omit<TimerFact, "id">> = fc.record({
   slotIds: fc.array(genSlotId, { minLength: 1, maxLength: 3 }).map((s) => nonEmpty(s)),
   noodleType: fc.constantFrom("thin", "thick", "curly", "ramen", "soba", "udon"),
+  firmness: fc.constantFrom("extraHard", "hard", "normal", "soft"),
+  startTime: fc.integer({ min: 0, max: 2000 }),
   endTime: fc.integer({ min: 0, max: 2000 }),
 });
 

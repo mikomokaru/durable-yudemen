@@ -1,14 +1,15 @@
 // domain/timer.ts — Timer という事実の単一の芯（engine と client が共有する表現非依存の形）。
-// プラットフォーム非依存の純粋な型定義。import を持たない。
+// 同じ domain 内の firmness 語彙のみ取り込む（外部基盤には依存しない）。
 //
-// 4つのフィールド（id / slotId / noodleType / endTime）は「茹でタイマーという事実」そのものであり、
-// 一度だけここで宣言する。表現（ワイヤの生プリミティブ / engine のブランド型）はフィールド型を
-// 型パラメータで差し替えて導出する。既定（引数なし）はワイヤの生表現。
+// 5つのフィールド（id / slotIds / noodleType / firmness / startTime / endTime）は「茹でタイマーという事実」
+// そのものであり、一度だけここで宣言する。表現（ワイヤの生プリミティブ / engine のブランド型）はフィールド型を
+// 型パラメータで差し替えて導出する。既定（引数なし）はワイヤの生表現。firmness は表現に依らず Firmness で固定。
 //
 // domain は「真に両者で共有される契約」だけを持つ。片側専用の基底（engine 専用の Sequenced など）は
 // その側に置く（定義の場所は audience に従う・steering/timer-model.md）。
-// これは「Timer は 1 概念・2 表現」という判断（枠組み B）の芯にあたる。
 // 詳細は yude-men-timer/design.md「Timer 表現の単一芯化（TimerFact）」を参照。
+
+import type { Firmness } from "./firmness";
 
 /**
  * NonEmptyArray — 1 要素以上を型で強制する非空配列（タプル＋rest）。
@@ -30,7 +31,9 @@ export function isNonEmpty<T>(values: readonly T[]): values is NonEmptyArray<T> 
 /**
  * TimerFact — タイマーという事実の形。
  *
- * 残り秒は含めず endTime（事実）を運ぶ。表現ごとにフィールド型を差し替える:
+ * 残り秒は含めず、開始・終了の2つの絶対時刻（事実）を運ぶ。残り・進捗・総時間はここからの導出:
+ *   remaining = endTime - now / progress = (now - startTime)/(endTime - startTime) / duration = endTime - startTime。
+ * 表現ごとにフィールド型を差し替える:
  *   - ワイヤ: TimerFact（既定 = string/number の生プリミティブ）。
  *   - engine: TimerFact<TimerId, SlotId, NoodleType, EpochMillis>（検証済みブランド型）。
  */
@@ -41,6 +44,10 @@ export interface TimerFact<Id = string, Slot = string, Noodle = string, Time = n
   readonly slotIds: NonEmptyArray<Slot>;
   /** 麺の種類。 */
   readonly noodleType: Noodle;
+  /** 茹で加減（安定 id・Firmness）。麺ごとの硬さ別茹で秒表のキー。endTime はこれと startTime から決まる。 */
+  readonly firmness: Firmness;
+  /** 茹で開始の絶対時刻（事実）。endTime の兄弟。進捗リングはこの2点から導出する。 */
+  readonly startTime: Time;
   /** 絶対終了時刻（事実）。残り秒ではない。 */
   readonly endTime: Time;
 }

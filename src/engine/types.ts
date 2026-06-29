@@ -29,5 +29,8 @@ export const MAX_TIMERS = 100;
 /** 発火判定の許容窓（ミリ秒）。多重・境界付近発火を冪等に一括処理するための窓。 */
 export const EPSILON_MS = 500 as const;
 
-/** 永続スナップショットの現行スキーマバージョン。要件11。 */
-export const CURRENT_SCHEMA_VERSION = 2 as const;
+/** 永続スナップショットの現行スキーマバージョン。要件11。
+ *  v3: Timer に boiled フェーズの事実 boiledAt を追加（発火＝除去をやめ、明示完了まで残す）。
+ *  v4: Timer に startTime（茹で開始の絶対時刻）を追加。進捗リングの導出元（旧データは endTime で埋める）。
+ *  v5: Timer に firmness（茹で加減）を追加。旧データは "normal" で埋める。 */
+export const CURRENT_SCHEMA_VERSION = 5 as const;

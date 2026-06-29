@@ -10,12 +10,15 @@ import type { Event } from "./event";
 import type { Outcome } from "./effect";
 import { startTimer } from "./start";
 import { cancelTimer } from "./cancel";
+import { completeTimer } from "./complete";
+import { adjustTimer } from "./adjust";
 import { fireDueTimers, reconcile } from "./fire";
 
 /**
  * 唯一の状態遷移関数（要件8.1 / 8.4 / 8.7）。
  *
- * Start → startTimer / Cancel → cancelTimer / AlarmFired → fireDueTimers / Reconcile → reconcile。
+ * Start → startTimer / Cancel → cancelTimer / Complete → completeTimer /
+ * AlarmFired → fireDueTimers / Reconcile → reconcile。
  * 網羅は型で保証する（Event は判別共用体であり、未処理の種別は never に落ちて型エラーになる）。
  */
 export function decide(state: TimerState, event: Event): Outcome {
@@ -24,6 +27,10 @@ export function decide(state: TimerState, event: Event): Outcome {
       return startTimer(state, event);
     case "Cancel":
       return cancelTimer(state, event.timerId, event.now);
+    case "Complete":
+      return completeTimer(state, event.timerId, event.now);
+    case "Adjust":
+      return adjustTimer(state, event.timerId, event.firmness, event.boilSeconds, event.now);
     case "AlarmFired":
       return fireDueTimers(state, event.now);
     case "Reconcile":

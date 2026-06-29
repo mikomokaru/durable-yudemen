@@ -33,10 +33,13 @@ export function earliestEndTime(timers: readonly Timer[]): EpochMillis | null {
 /**
  * 残存 Timer から次に張るべき Alarm の作用を決める Alarm 導出の唯一の関数。
  *
- * 残存があれば最早 endTime へ SetAlarm、残存ゼロなら ClearAlarm を返す。
- * DO は同時に 1 Alarm のみ。開始・キャンセル・発火・rehydrate のすべてがここを通す。
+ * 対象は running（boiledAt === null）だけ。boiled（発火済み・明示完了待ち）は endTime が過去ゆえ
+ * Alarm の対象にすると過去時刻へ張られ無限再発火する。ここで running に絞ることで「Alarm は
+ * 走行中の最早にのみ張る」規律を一箇所へ畳み込む。running があれば最早 endTime へ SetAlarm、
+ * running ゼロなら ClearAlarm を返す。DO は同時に 1 Alarm のみ。
  */
 export function nextAlarmEffect(timers: readonly Timer[]): Effect {
-  const at = earliestEndTime(timers);
+  const running = timers.filter((t) => t.boiledAt === null);
+  const at = earliestEndTime(running);
   return at === null ? { type: "ClearAlarm" } : { type: "SetAlarm", at };
 }

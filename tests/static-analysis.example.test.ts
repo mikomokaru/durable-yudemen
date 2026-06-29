@@ -28,6 +28,7 @@ const repoRoot = resolve(here, "..");
 const CORE_FILES = [
   "src/engine/alarm.ts",
   "src/engine/cancel.ts",
+  "src/engine/complete.ts",
   "src/engine/decide.ts",
   "src/engine/effect.ts",
   "src/engine/event.ts",

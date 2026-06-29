@@ -5,18 +5,17 @@
 
 import type { TimerFact } from "../../domain/timer";
 import type { ClientTimer, ClientView } from "../connection";
-import { remainingMs } from "../clock";
+import { correctedNow, remainingMs } from "../clock";
 import { assignedTimers, slotOf, slotsOfUnits } from "../assignment";
 
 /**
  * 担当スロット 1 つの表示状態。
  *
- * - running   : 担当スロットにアクティブ Timer があり、残りを導出して秒読み表示する。
- *               remaining は 0 以上にクランプ済み（負を出さない／要件5.6）。
- *               unconfirmed は最早アクティブ Timer の origin === "local"（Provisional_Timer）からの
- *               導出値。degraded 中に生まれた未確定な走行を表示上で区別するためにあり、状態ではない（要件6.4）。
- * - boiled    : 当該スロットの Timer がすべて茹で上がり処理済み（done）。00:00 相当の茹で上がり表示。
- * - idle      : 同期済みだが担当スロットに Timer が無い。開始操作を提示できる。
+ * - running   : 担当スロットに走行中（remaining > 0）の Timer がある。残りを導出して秒読み表示する。
+ *               unconfirmed は最早走行 Timer の origin === "local"（Provisional_Timer）からの導出値（要件6.4）。
+ * - boiled    : 担当スロットの Timer が茹で上がった（remaining ≤ 0）が、まだ明示完了されていない。
+ *               ユーザーが消し込むべき状態。Complete 操作の対象として timer を保持する。
+ * - idle      : 同期済みだが担当スロットに Timer が無い。開始操作を提示できる（直前結果の表示は UI 層）。
  * - unreceived: 未同期で当該スロットの endTime を未受信。「残り時間未受信」表示（要件5.5）。
  */
 export type SlotDisplay =
@@ -27,7 +26,7 @@ export type SlotDisplay =
       readonly remainingMs: number;
       readonly unconfirmed: boolean;
     }
-  | { readonly kind: "boiled"; readonly slot: number }
+  | { readonly kind: "boiled"; readonly slot: number; readonly timer: TimerFact; readonly overdueMs: number }
   | { readonly kind: "idle"; readonly slot: number }
   | { readonly kind: "unreceived"; readonly slot: number };
 
@@ -35,8 +34,9 @@ export type SlotDisplay =
  * 担当スロットの全件について表示状態を昇順で導出する。
  *
  * 担当外スロットは slotsOfUnits / assignedTimers の射影で構造的に現れない（要件12.2）。
- * アクティブ（未処理）Timer を優先し、複数あれば最早 endTime を採る。アクティブが無く
- * done 済みの Timer だけが残るスロットは茹で上がり表示（次の snapshot 全置換で除去される）。
+ * boiled / running は endTime（事実）と now からの導出で切り分ける（remaining > 0 は走行中、≤ 0 は茹で上がり）。
+ * 走行中（remaining > 0）があればそれを最優先で秒読み表示し、無ければ茹で上がり（明示完了待ち）を示す。
+ * completed / cancelled で除去された Timer は view.timers から消えているため、空きスロットは idle になる。
  */
 export function assignedSlotDisplays(
   view: ClientView,
@@ -61,11 +61,10 @@ export function assignedSlotDisplays(
 
   return slots.map((slot) => {
     const bucket = timersBySlot.get(slot) ?? [];
-    // 未処理（アクティブ）の Timer のみが秒読みの対象。done 済みは茹で上がりの残渣。
-    const active = bucket.filter((timer) => !view.processedIds.has(timer.id));
-    if (active.length > 0) {
-      const earliest = active.reduce((a, b) => (b.endTime < a.endTime ? b : a));
-      // 残りは導出。0 以下でも 00:00 相当として running 表示し、負を出さない（要件5.6）。
+    // 走行中（remaining > 0）を最優先。複数あれば最早 endTime を採る。
+    const running = bucket.filter((timer) => remainingMs(timer.endTime, view.offset, now) > 0);
+    if (running.length > 0) {
+      const earliest = running.reduce((a, b) => (b.endTime < a.endTime ? b : a));
       const remaining = remainingMs(earliest.endTime, view.offset, now);
       // unconfirmed は origin === "local"（Provisional_Timer）からの導出値。状態には昇格させない（要件6.4）。
       return {
@@ -77,11 +76,14 @@ export function assignedSlotDisplays(
       };
     }
     if (bucket.length > 0) {
-      // アクティブが無く done 済みのみ → 茹で上がり表示（要件2.11 の表示切替の結果）。
-      return { kind: "boiled", slot };
+      // 走行中が無く Timer が在席＝茹で上がり（remaining ≤ 0・明示完了待ち）。最早 endTime を消し込み対象にする。
+      // overdueMs（≥ 0・クランプなし）も載せる：boiled は超過時間をマイナス表示する（早く上げろ、の意思表示）。
+      const earliest = bucket.reduce((a, b) => (b.endTime < a.endTime ? b : a));
+      const overdueMs = Math.max(0, correctedNow(view.offset, now) - earliest.endTime);
+      return { kind: "boiled", slot, timer: earliest, overdueMs };
     }
     if (view.sync === "synced") {
-      // 同期済みで Timer が無い＝アイドル。開始操作を提示する。
+      // 同期済みで Timer が無い＝アイドル。開始操作を提示する（直前結果の表示は UI 層が担う）。
       return { kind: "idle", slot };
     }
     // 未同期（connecting / syncFailed）で endTime 未受信 → 残り時間未受信（要件5.5）。

@@ -9,20 +9,21 @@
 
 import { describe, expect, it } from "vitest";
 import type { ClientTimer, ClientView } from "../../src/client/connection";
-import { slotsOfUnits } from "../../src/client/assignment";
+import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import { slotsOfUnits, unitsForCount } from "../../src/client/assignment";
 import { assignedSlotDisplays, type SlotDisplay } from "../../src/client/components/slotDisplay";
-import { unitsFrom } from "../../src/client/components/UnitSelector";
 
 // SlotCard の描画規則の写し: kind ごとに提示される操作手段を導出する。
-// running は Cancel、idle / boiled は Start を提示し、unreceived は操作手段を一切持たない。
+// running は Cancel、boiled は Complete、idle は Start を提示し、unreceived は操作手段を一切持たない。
 // （SlotCard.tsx の分岐とそのまま対応する。）
-type Operation = "start" | "cancel";
+type Operation = "start" | "cancel" | "complete";
 function operationsOf(display: SlotDisplay): readonly Operation[] {
   switch (display.kind) {
     case "running":
       return ["cancel"];
-    case "idle":
     case "boiled":
+      return ["complete"];
+    case "idle":
       return ["start"];
     case "unreceived":
       return [];
@@ -31,7 +32,15 @@ function operationsOf(display: SlotDisplay): readonly Operation[] {
 
 // 指定スロットにアクティブ Timer を 1 件持つ ClientTimer を組み立てる（server-confirmed）。
 function timerOnSlot(slot: number, id: string): ClientTimer {
-  return { id, slotIds: [String(slot)], noodleType: "ramen", endTime: 60_000, origin: "server" };
+  return {
+    id,
+    slotIds: [String(slot)],
+    noodleType: "ramen",
+    firmness: "normal",
+    startTime: 0,
+    endTime: 60_000,
+    origin: "server",
+  };
 }
 
 // synced 済みのビューを、与えた Timer 集合から組み立てる。
@@ -40,10 +49,12 @@ function syncedView(timers: readonly ClientTimer[]): ClientView {
     timers,
     offset: 0,
     processedIds: new Set<string>(),
+    lastResults: new Map(),
     connectivity: "up",
     sync: "synced",
     error: null,
     unitCount: 4,
+    noodlePresets: DEFAULT_NOODLE_PRESETS,
   };
 }
 
@@ -116,16 +127,18 @@ describe("client 担当 UI と担当不変（要件12.3 / 12.4）", () => {
     }
   });
 
-  // 担当範囲が変わる唯一の経路はユーザーの明示的再指定（UnitSelector → unitsFrom）であることを示す。
-  // unitsFrom は (base, count) というユーザー入力のみの純関数であり、接続台数を入力に取らない。
-  it("担当ユニット集合はユーザー明示指定（unitsFrom）のみで決まり、接続台数を入力に取らない", () => {
-    // ユーザーが unit 2 を 1 ユニット担当に再指定 → slot 12..17（店舗総数 3）。
-    expect(slotsOfUnits(unitsFrom(2, 1, 3))).toEqual(new Set([12, 13, 14, 15, 16, 17]));
-    // ユーザーが unit 0 から 2 ユニットへ再指定 → slot 0..11。
-    expect(slotsOfUnits(unitsFrom(0, 2, 3))).toEqual(
+  // 担当窓が変わる経路は viewport の向き（窓長 k）とユーザーのアンカー選択のみ。いずれも unitsForCount の
+  // 純粋遷移で決まり、接続台数を入力に取らない。アンカーを可行域 [0, N-k] へ射影し、展開/収束/右端クランプを導く。
+  it("担当窓は窓長(k)と現在アンカーのみで決まり、接続台数を入力に取らない（unitsForCount）", () => {
+    // 縦画面（k=1）: B を選べば slot 6..11。
+    expect(slotsOfUnits(unitsForCount([1], 1, 3))).toEqual(new Set([6, 7, 8, 9, 10, 11]));
+    // 横画面（k=2）: A→AB（slot 0..11）。C は右端クランプで BC（slot 6..17）。
+    expect(slotsOfUnits(unitsForCount([0], 2, 3))).toEqual(
       new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
     );
-    // 同一のユーザー入力は、接続状況に関わらず同一の担当集合を返す（決定的・副作用なし）。
-    expect(unitsFrom(1, 1, 3)).toEqual(unitsFrom(1, 1, 3));
+    expect(unitsForCount([2], 2, 3)).toEqual([1, 2]); // C→BC（右端クランプ）
+    expect(unitsForCount([1, 2], 1, 3)).toEqual([1]); // BC→B（収束＝左アンカー）
+    // 同一入力は同一窓（決定的・副作用なし）。
+    expect(unitsForCount([0], 2, 3)).toEqual(unitsForCount([0], 2, 3));
   });
 });

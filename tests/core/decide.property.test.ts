@@ -73,8 +73,19 @@ describe("core/decide", () => {
           if (outcome.ok) state = outcome.state;
         }
         for (const timer of state.timers) {
-          // 状態が保持する事実は id/slotIds/noodleType/endTime/seq のみ。remaining は存在しない（要件10.1）。
-          expect(Object.keys(timer).sort()).toEqual(["endTime", "id", "noodleType", "seq", "slotIds"]);
+          // 状態が保持する事実は id/slotIds/noodleType/startTime/endTime/firmness/seq/boiledAt のみ。remaining は存在しない（要件10.1）。
+          // startTime/endTime は開始・終了の絶対時刻（事実）。firmness は茹で加減の共有事実。boiledAt は発火を記録した
+          // engine 専用の事実（null=running・非null=boiled）。いずれも残り秒・進捗の昇格ではない（それらは導出）。
+          expect(Object.keys(timer).sort()).toEqual([
+            "boiledAt",
+            "endTime",
+            "firmness",
+            "id",
+            "noodleType",
+            "seq",
+            "slotIds",
+            "startTime",
+          ]);
           expect("remaining" in timer).toBe(false);
           expect(typeof timer.endTime).toBe("number");
           expect(Number.isInteger(timer.endTime as number)).toBe(true);

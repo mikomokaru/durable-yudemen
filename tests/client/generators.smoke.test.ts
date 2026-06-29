@@ -77,7 +77,7 @@ describe("client/generators 生成器土台のスモーク", () => {
   it("genServerMessage は 5 種別すべてを分布する", () => {
     const samples = fc.sample(genServerMessage, 400);
     const types = new Set(samples.map((m) => m.type));
-    for (const t of ["snapshot", "started", "cancelled", "done", "error"]) {
+    for (const t of ["snapshot", "started", "cancelled", "boiled", "completed", "error"]) {
       expect(types.has(t as (typeof samples)[number]["type"])).toBe(true);
     }
   });

@@ -55,7 +55,7 @@
 1. WHEN Store_Timer_DO が WebSocket 接続を収容するとき、THE Store_Timer_DO SHALL `state.setWebSocketAutoResponse` により、所定の ping 要求文字列に対して所定の pong 応答文字列を自動返信する設定を行う。
 2. WHILE WebSocket 接続が確立されているとき、THE iPad_Client SHALL 所定の ping 要求文字列を 15000 ミリ秒以下の間隔で当該 WebSocket へ送信する。
 3. WHEN iPad_Client が所定の pong 応答文字列を受信したとき、THE iPad_Client SHALL Connectivity を `up` として確定する。
-4. IF iPad_Client が ping 要求の送信後 10000 ミリ秒以内に対応する pong 応答を受信しないことが 2 回連続したとき、THEN THE iPad_Client SHALL Connectivity を `down`（half-open による静かな喪失）として確定する。
+4. IF iPad_Client が ping 要求の送信後 2000 ミリ秒以内に対応する pong 応答を受信しないことが 2 回連続したとき、THEN THE iPad_Client SHALL Connectivity を `down`（half-open による静かな喪失）として確定する。down 確定までの目安は `送信間隔 × 2 + 待ち時間 ≈ 10 秒`（単発のパケット欠落で誤検知しないよう 2 回連続を要求する）。
 5. THE Store_Timer_DO SHALL auto-response による ping/pong の応答を、`webSocketMessage` ハンドラの起動および hibernate からの復帰（wake）を伴わずに行う。
 6. THE iPad_Client SHALL 到達性検出のために `setInterval` 等で常駐するループを設ける場合も、当該ループが Store_Timer_DO を wake させる通常メッセージを送出しないことを保ち、heartbeats を auto-response 経路のみに限定する。
 

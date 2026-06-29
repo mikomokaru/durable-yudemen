@@ -56,11 +56,15 @@ const INSTRUMENTATION_MARKERS = [
 const WIRE_MESSAGE_TYPES = new Set([
   "start",
   "cancel",
+  "complete",
   "snapshot",
   "started",
   "cancelled",
-  "done",
+  "boiled",
+  "completed",
   "config",
+  "adjust",
+  "adjusted",
   "error",
 ]);
 

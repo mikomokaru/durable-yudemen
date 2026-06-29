@@ -6,6 +6,7 @@
 // `newTimerId` も shell が採取して渡し、crypto.randomUUID() という副作用を core から閉め出す。
 
 import type { EpochMillis, TimerId } from "../engine/types";
+import type { Firmness } from "../domain/firmness";
 
 /** core への入力イベント。すべて `now` を入力として受け取る。 */
 export type Event =
@@ -18,6 +19,16 @@ export type Event =
       readonly now: EpochMillis;
     }
   | { readonly type: "Cancel"; readonly timerId: string; readonly now: EpochMillis }
+  // ユーザーの明示完了（boiled の消し込み）。対象 Timer を除去する（cancel と同形・別概念）。
+  | { readonly type: "Complete"; readonly timerId: string; readonly now: EpochMillis }
+  // 走行中の茹で加減変更。boilSeconds は shell が StoreConfig（麺ごとの硬さ別秒）から解決して渡す。
+  | {
+      readonly type: "Adjust";
+      readonly timerId: string;
+      readonly firmness: Firmness;
+      readonly boilSeconds: number;
+      readonly now: EpochMillis;
+    }
   | { readonly type: "AlarmFired"; readonly now: EpochMillis }
   // rehydrate 直後の整合（即時発火含む）
   | { readonly type: "Reconcile"; readonly now: EpochMillis };

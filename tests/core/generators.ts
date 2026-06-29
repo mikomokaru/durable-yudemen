@@ -11,12 +11,15 @@ import * as fc from "fast-check";
 import { createTimer } from "../../src/engine/timer";
 import { EPSILON_MS, MAX_TIMERS } from "../../src/engine/types";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
+import type { Firmness } from "../../src/domain/firmness";
 import type { Timer } from "../../src/engine/timer";
 import type { TimerState } from "../../src/engine/state";
 import { nonEmpty } from "../nonEmpty";
 
 /** 一件の Timer を組み立てるための素データ（id・seq はビルド時に決定的に付与する）。 */
 interface TimerSpec {
+  readonly firmness: Firmness;
+  readonly startTime: number;
   readonly endTime: number;
   readonly slotIds: readonly string[];
   readonly noodleType: string;
@@ -24,6 +27,8 @@ interface TimerSpec {
 
 /** endTime は衝突を誘発する小さめ範囲。slotIds は 0 始まりスロット番号と任意文字列を混ぜた 1〜3 件の非空配列。 */
 const genTimerSpec: fc.Arbitrary<TimerSpec> = fc.record({
+  firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
+  startTime: fc.integer({ min: 0, max: 2000 }),
   endTime: fc.integer({ min: 0, max: 2000 }),
   slotIds: fc.array(
     fc.oneof(fc.integer({ min: 0, max: 17 }).map(String), fc.string({ minLength: 1, maxLength: 6 })),
@@ -39,6 +44,8 @@ function buildState(specs: readonly TimerSpec[], extraSeq: number): TimerState {
       id: `timer-${index}` as TimerId,
       slotIds: nonEmpty(spec.slotIds.map((s) => s as SlotId)),
       noodleType: spec.noodleType as NoodleType,
+      firmness: spec.firmness,
+      startTime: Math.min(spec.startTime, spec.endTime) as EpochMillis,
       endTime: spec.endTime as EpochMillis,
       seq: index,
     }),

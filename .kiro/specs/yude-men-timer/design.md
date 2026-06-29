@@ -226,7 +226,7 @@ async function runEffects(effects: readonly Effect[]): Promise<RunResult> {
 
 **Persist が確定の起点であり、Persist 成功後に発行される副作用 Effect（SetAlarm / Broadcast / ClearAlarm / Reply）は、永続済み状態から再構成可能な「派生作用」にすぎない。** したがって Persist 成功後に Effect 列が部分実行のまま中断・クラッシュしても、永続済み状態（SSOT）は正しく、失われた派生作用は次の二経路が最終的整合として回収する。
 
-- **(a) Broadcast（クライアントへの状態反映）の欠落** → クライアント再接続時の全量 Hydration（要件4）が回収する。落とした `started` / `cancelled` / `done` の通知は、再接続で全量スナップショットを受け取れば表示が正しい状態へ追いつく。送信は差分ではなく全量であるため、欠落した個別通知を再送する必要がない。
+- **(a) Broadcast（クライアントへの状態反映）の欠落** → クライアント再接続時の全量 Hydration（要件4）が回収する。落とした `started` / `cancelled` / `boiled` / `completed` の通知は、再接続で全量スナップショットを受け取れば表示が正しい状態へ追いつく。送信は差分ではなく全量であるため、欠落した個別通知を再送する必要がない。
 - **(b) SetAlarm / ClearAlarm（Alarm の更新）の欠落** → 次回 DO 起動時（任意のエントリポイント）の rehydrate + reconcile（要件7.1 / 7.2 / 7.7）が、永続済み状態の最早 endTime から Alarm を再導出して回収する。Alarm が張られていない／古い場合でも、次のイベントや既存 Alarm の発火で DO が起き、`reconcile` が `nextAlarmEffect` を通して Alarm を正しく張り直す。
 
 > **「Alarm が全く張られず、次のイベントも来なければ永久に発火しないのではないか」という懸念について:** Persist 直後のクラッシュであっても、(i) その Persist より前に張られていた既存 Alarm がいずれ発火して DO を起こす、(ii) あるいは次のクライアント操作（start / cancel / WS 接続）で DO が起きる、のいずれかで `reconcile` が走り、Alarm が永続状態から再導出される。DO が初めて Timer を持った時点で Persist と SetAlarm は同じ Effect 列で実行され、以後は常に直前の Alarm が安全網として残るため、既存 Alarm が一つでもある限り DO が完全に孤立して永久に起きないケースは生じない。
@@ -264,7 +264,7 @@ export const BOIL_SECONDS_MIN = 1;
 export const BOIL_SECONDS_MAX = 1800;
 export const MAX_TIMERS = 100;
 export const EPSILON_MS = 500 as const;
-export const CURRENT_SCHEMA_VERSION = 2 as const;
+export const CURRENT_SCHEMA_VERSION = 5 as const;
 ```
 
 ### Timer — 不正状態を構築不能にする（事実の芯＋engine 専用の連番）
@@ -290,12 +290,15 @@ import type { TimerFact } from "../domain/timer";
 /** engine だけが持つ登録順の事実（ワイヤには出ない）。同一 endTime のタイブレーク（要件3.2/2系）。 */
 export interface Sequenced { readonly seq: number; }
 
-/** 事実の芯（ブランド化）＋ engine 専用の連番。 */
-export interface Timer extends TimerFact<TimerId, SlotId, NoodleType, EpochMillis>, Sequenced {}
+/** engine だけが持つ発火事実（ワイヤには出ない）。null=running・非null=boiled（明示完了待ち）。 */
+export interface Boilable { readonly boiledAt: EpochMillis | null; }
+
+/** 事実の芯（ブランド化）＋ engine 専用の連番・発火事実。 */
+export interface Timer extends TimerFact<TimerId, SlotId, NoodleType, EpochMillis>, Sequenced, Boilable {}
 
 /** Timer を構築できる唯一の経路。検証に通った入力からのみ Timer が生まれる。 */
 export function createTimer(input: {
-  id: TimerId; slotIds: readonly SlotId[]; noodleType: NoodleType; endTime: EpochMillis; seq: number;
+  id: TimerId; slotIds: readonly SlotId[]; noodleType: NoodleType; endTime: EpochMillis; seq: number; boiledAt?: EpochMillis | null;
 }): Timer;
 ```
 
@@ -325,15 +328,44 @@ export function createTimer(input: {
 
 > 上記により `started`/`snapshot` の Timer 表現・`startTimer` の検証・`reconcile`/`fireDueTimers`/`cancelTimer`（endTime・timerId ベースで slotIds に非依存）はそのまま成立する。endTime のタイブレーク（`seq`）と容量上限（`MAX_TIMERS`）も不変。
 
+### 茹で上がりの保持と明示完了（boiled / complete / completed・スキーマ v3）
+
+**決定:** 発火を「除去」から「running → boiled への遷移」に変える。茹で上がった Timer は集合から消えず、ユーザーの**明示完了（complete）**まで boiled として残る。boiled は「ユーザーが消し込むべき状態」であり、自動消滅する残骸ではない（要件 2 / 要件 13）。
+
+判断の要点:
+
+- **engine 内部に発火事実 `boiledAt` を持つ。** `engine/timer.ts` の `Timer` に engine 専用基底 `Boilable { boiledAt: EpochMillis | null }` を多重継承で足す（`Timer extends TimerFact<…>, Sequenced, Boilable`）。`null` が running、非 null が boiled。これは timer-model.md の「片側専用の関心事はその側へ・共有の芯 `TimerFact` を god type にしない」の帰結で、**ワイヤには出さない**（クライアントは boiled を `endTime ≤ now` から導出する）。`seq` と同じく射影（`toWireTimer` / snapshot map）で削がれる。
+- **`fireDueTimers` は除去せずマークする。** `endTime ≤ now + ε` かつ running（`boiledAt === null`）の Timer を `boiledAt = now` へ写し、集合に残す。新たに boiled になった分だけ `boiled` 通知を Broadcast する（既 boiled は再通知しない＝冪等）。`reconcile` は同形。
+- **Alarm は running のみを対象にする。** `nextAlarmEffect` は `boiledAt === null` の Timer に絞って最早 endTime を採る。boiled（endTime が過去）を含めると過去時刻 Alarm で無限再発火するため、この一点で「Alarm は走行中の最早にのみ張る」規律を畳み込む（要件 2-9）。
+- **明示完了 `completeTimer`（新イベント `Complete`）。** id 指定で Timer を除去し、running の最早へ Alarm を張り直し（running 0 件で解除）、`completed` を Broadcast / Reply する。`cancelTimer` と同形だが別概念——cancel は走行中の中断、complete は茹で上がりの確認消し込み（要件 13）。対象不在は `TimerNotFound`。
+- **ワイヤの改称と追加（要件 13）。** ServerMessage `done` を **`boiled`**（除去しない茹で上がり通知）へ改称し、**`completed`**（明示完了による除去通知）を追加。ClientMessage に **`complete`** を追加。`cancelled`（中断による除去）と `completed`（完了による除去）は別メッセージとして区別する。
+- **クライアントの直前結果はベストエフォート（要件 13-5/6）。** boiled は client 側で `endTime ≤ now` から導出し（`processedIds` は茹で上がりアラートの重複抑止のみ）、Complete で `completed` を受けて除去する。完了した Slot には直前の調理結果（noodleType）を約 30 秒だけクライアント保持で表示する（`SlotBoard` の React state・SSOT には乗せない・リロードで失われてよい）。次の start で解除する。
+- **永続スキーマ v3。** `CURRENT_SCHEMA_VERSION` を 2→3 に上げ、`migrate` は `boiledAt` 欠如（v2 以前・走行中のみ永続）を `null` に写す。Timer SSOT スナップショットに `boiledAt` が加わる以外の形は不変。
+- **共有事実 `startTime` の追加（進捗リング・スキーマ v4）。** `TimerFact` に `startTime`（茹で開始の絶対時刻）を 5 つ目の事実フィールドとして足す（`endTime` の兄弟）。クライアントの進捗リングは2つの時刻事実から導出する（`progress = (now − startTime)/(endTime − startTime)`）——残り秒・進捗・総時間はいずれも状態に昇格させない。`Start` 時 `startTime = now`。ワイヤは `TimerFact` 既定形がそのまま運ぶ（新メッセージ不要）。`CURRENT_SCHEMA_VERSION` を 3→4 に上げ、`migrate` は `startTime` 欠如（v3 以前）を **`endTime`** で埋める（移行時に走行中だった旧タイマーは `duration=0` ＝リング縮退・UI 側で `total ≤ 0` をガード）。クライアント localStorage コーデックも同様に欠如時は `endTime` 埋め。timer-model.md「新しい関心事の足し方」に従い、両側が見る共有事実ゆえ `domain` の `TimerFact` へ置く。
+
 ### 店舗設定の配信（StoreConfig）
 
-**決定:** 店舗のユニット総数を、Timer の SSOT フローとは**別概念** `StoreConfig`（`domain/store.ts`・`{ unitCount }`、範囲 1〜4）として切り出し、**サーバ権威・クライアント不変・店舗ごとに固定**の設定とする。担当ユニット集合（端末ローカル・要件12.4）は不変で、**総数だけを店舗共有**にする。
+**決定:** 店舗のサーバ権威設定を、Timer の SSOT フローとは**別概念** `StoreConfig`（`domain/store.ts`）として切り出す。現行フィールドは **ユニット総数 `unitCount`（範囲 1〜4）** と **麺種プリセット `noodlePresets`（`NonEmptyArray<NoodlePreset>`・型で非空強制）**。いずれも**サーバ権威・クライアント不変・店舗ごとに固定**で、担当ユニット集合（端末ローカル・要件12.4）は不変のまま、**総数と提供麺種を店舗共有**にする。`NoodlePreset`（`{ noodleType; boilSeconds }`）は従来クライアント定数だった概念をサーバ権威設定へ昇格させたもので、ワイヤ（config）と client が同一の芯を共有する（別名を設けない）。茹で時間の範囲ポリシー（1〜1800 秒）の正本は engine `validateStart` にあり、`toNoodlePresets` は構造の健全性（非空の種別名・正の整数秒・非空配列）だけを担保する（ポリシー境界を二度書かない）。
 
-- **置き場所** — DO storage の**別キー `storeConfig`**（`activeTimers` には混ぜない）。Timer SSOT スナップショット（v2）は**無変更**（別概念ゆえ migrate v3 不要）。
-- **値の源（案2）** — DO 初回構築（`ensureConfigLoaded`）で `storeConfig` を読み、不在なら env `STORE_UNIT_COUNT` を `toUnitCount`（1〜4へ検証・既定 3）で確定して**永続**する。以後は永続値が正本＝店舗ごとに固定。**UI からは変更不可**（クライアント発の変更メッセージは設けない）。
-- **配信機構（一方向 push）** — `ServerMessage` に `config`（`{ type:"config"; serverTime; unitCount }`）を追加。接続時に snapshot より先に各クライアントへ送る。クライアントは制御できず、`decideView` の `config` 分岐で `ClientView.unitCount` を確定するのみ。これは「クライアントから制御されないサーバ権威の概念を配る」機構で、Timer のクライアントコマンド駆動フロー（`decide`/Effect）とは別系統。
-- **クライアント** — `TOTAL_UNITS` 定数を撤去し、`UnitSelector` は受信した `unitCount`（`App` がビューから供給）に従って担当の選択肢・上限を出す。
+- **置き場所** — DO storage の**別キー `storeConfig`**（`activeTimers` には混ぜない）。Timer SSOT スナップショット（v3）は**無変更**（別概念ゆえ migrate 不要）。
+- **値の源（env シード）** — DO 初回構築（`ensureConfigLoaded`）で `storeConfig` を読み、不在なら env `STORE_UNIT_COUNT`（`toUnitCount`）と `STORE_NOODLE_PRESETS`（JSON 文字列・`toNoodlePresets`）を検証して `StoreConfig` 全体を**永続**する。以後は永続値が正本。各検証関数は不正値を既定（`DEFAULT_UNIT_COUNT` / `DEFAULT_NOODLE_PRESETS`）へ畳む。
+- **外部投入（運用エンドポイント・案2）** — Worker に `PUT /admin/config` を設け、稼働中の店舗へ `StoreConfig` を**全体置換**で差し替える（「設定 JSON をそのまま投入」）。**認可は Worker 端**で env シークレット `ADMIN_TOKEN` と `Authorization: Bearer <token>` を**定数時間比較**し、未認可（401）・非 PUT（405）は DO へ到達させない。トークン未設定の環境は常に不許可（安全側の既定）。DO 側 `applyStoreConfig` はボディを `toUnitCount`/`toNoodlePresets` で検証 → `storeConfig` へ**永続成功の上に**接続中の全 WS へ config を**再配信**する（config は decide/Effect に乗らない別系統ゆえ shell が直接 broadcast）。**UI からは依然変更不可**（クライアント発の変更メッセージは設けない・運用チャネルのみ）。
+- **配信機構（一方向 push）** — `ServerMessage` の `config`（`{ type:"config"; serverTime; unitCount; noodlePresets }`）を接続時に snapshot より先に各クライアントへ送る。運用投入時も同じ `config` で再配信する（新種別を増やさない）。クライアントは制御できず、`decideView` の `config` 分岐で `ClientView.unitCount` / `ClientView.noodlePresets` を確定するのみ。
+- **クライアント** — 担当は窓 (アンカー b, 長さ k) で表す。長さ k は **viewport の向き**が決め（縦=1 / 横=2・`useUnitCount`）、アンカー b は `UnitSelector` が現在の k で取りうる窓（縦=A/B/C、横=AB/BC）から選ぶ。向きの変化時は純粋関数 `unitsForCount(current, k, totalUnits)`（`assignment.ts`）が窓を遷移させる（アンカーを可行域 `[0, N−k]` へ射影＝展開/収束/右端クランプを一式で導く）。総数 `unitCount` は窓の可行域の上限。`RadialMenu` は受信した `noodlePresets`（`SlotBoard` がビューから供給）を咲かせる。ボードは各ユニットを 2col×3row ブロックとして横並びに描く（縦=1ブロック / 横=2ブロック）。クライアント側に麺種のハードコード定数を持たない（`DEFAULT_NOODLE_PRESETS` は接続前/不在の安全網としてのみ）。
+- **担当窓と要件12.4** — 担当（窓）は接続台数の増減では変わらず、**ユーザー操作（端末の回転＝k、`UnitSelector`＝アンカー）でのみ動く**。回転を「ユーザーの明示操作」とみなすことで、担当はユーザー操作でのみ変わるという 12.4 の趣旨を保つ。
+- **将来** — 店舗ごとに異なる麺バリエーションは、DO が店舗 ID ごとに独立した `storeConfig` を持つこと＋ `/admin/config` の店舗別投入で対応する（現行 Worker は単一店舗 `default` 引き・多店舗化時に店舗 ID のルーティングを足す）。
 - **今回の対象外（決定 6/7）** — 総数縮小時の担当クランプ・範囲外スロットの走行中 Timer の扱いは後続。
+
+### 茹で加減の変更（firmness・adjust/adjusted・スキーマ v5）
+
+**決定:** boiling 相の Timer に対し、ユーザーが**茹で加減（firmness）**を変更でき、その麺の硬さ別茹で時間で `endTime` を引き直す。茹で加減は **両側が見る共有事実** ゆえ timer-model.md に従い `TimerFact.firmness` を 6 つ目の事実として `domain` へ置く。安定 id と表示語を分離する——id は `Firmness = "extraHard" | "hard" | "normal" | "soft"`（茹で時間が短い順・`domain/firmness.ts`・既定 `normal`）、画面の日本語ラベル（バリカタ／かため／ふつう／やわめ）は client の `FIRMNESS_LABEL`（`client/components/firmness.ts`）が id へ対応づける。id を英語の安定キーにするのは、券売機（後述）が硬さコードを id へ 1:1 写像するため・永続/ワイヤを言語非依存に保つため。
+
+- **麺ごとの硬さ別茹で時間（`FirmnessSeconds`）。** `NoodlePreset.boilSeconds` を単一の秒から **`FirmnessSeconds = Readonly<Record<Firmness, number>>`**（全 4 硬さの絶対秒マップ）へ拡張する。茹で時間は「麺の種類ごと」に硬さ別で定義される事実であり、全体共有の差分（delta）ではない（`StoreConfig` の正本に置く）。`toFirmnessSeconds` は全 4 硬さが正の整数秒であることを構造として要求し、一つでも欠け/不正なら当該プリセットを落とす（不正状態を表現させない）。範囲ポリシー（1〜1800 秒）の正本は engine `validateStart` / `adjustTimer` にあり、ここでは二度書かない。
+- **純粋変換 `Adjust` / `adjustTimer`。** engine に `Adjust` イベントと `adjustTimer(state, timerId, firmness, boilSeconds, now)`（`engine/adjust.ts`）を足す。boiling（running）な Timer の `firmness` を更新し `endTime = now + boilSeconds`（`startTime` は据え置き＝経過は保たれ進捗リングが新総時間で引き直る）。**boiled は対象外**（発火済みの事実は変えない）・対象 Timer 不在は拒否。`decide` が `Adjust` を分岐に追加し、`Persist`（SSOT 確定）→ `SetAlarm`（最早 endTime の再計算）→ `Broadcast` の Effect 列を返す（計算と作用の分離は不変）。
+- **ワイヤの追加（adjust / adjusted）。** `ClientMessage` に **`adjust`**（`{ type:"adjust"; timerId; firmness }`・硬さ id のみ運ぶ・秒はサーバが解決）、`ServerMessage` に **`adjusted`**（引き直し後の Timer 表現を運ぶ）を足す。秒をクライアントから受け取らないのは、茹で時間が `StoreConfig`（サーバ権威）の事実だから——クライアントは「どの硬さか」だけを主張し、shell が `this.noodlePresets[noodleType].boilSeconds[firmness]` で秒を解決する（preset/timer 不在は `error` を返す）。これにより端末間で茹で時間がぶれない。
+- **shell の解決と live-only。** `webSocketMessage` の `adjust` 分岐は対象 Timer の `noodleType` から preset を引き、`firmness` で秒を解決して `Adjust` を `decide` へ渡す。**接続（live）時のみ**——offline では adjust を発行しない（client `connection.ts` の `adjust` は live 限定。劣化中は従来表示を保つ）。`isFirmness` で受信値を検証する。
+- **永続スキーマ v5。** `CURRENT_SCHEMA_VERSION` を 4→5 に上げ、`migrate`（engine）とクライアント localStorage コーデック（`persistence.ts`）は `firmness` 欠如（v4 以前）を既定 `normal` で埋める（`reviveFirmness`）。Timer SSOT スナップショットに `firmness` が加わる以外の形は不変。
+- **券売機統合（将来・本機能の対象外）。** 店舗の券売機は商品コードの**複合**で麺仕様を決める——1 つ目が麺の種類（例 `19201` 味噌REG麺1.5玉）、2 つ目が全体共有の硬さ。将来この 2 商品を統合して「（noodleType, firmness）」へ写す**別レイヤ**を設け、硬さコードを `Firmness` id へ 1:1 対応させる。本機能ではそのための **id を英語安定キーにする**所まで用意し、写像レイヤ自体は後続とする。
 
 ### TimerState — engine が扱う状態（残り秒を持たない）
 

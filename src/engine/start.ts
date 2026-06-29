@@ -17,6 +17,7 @@ import { nextAlarmEffect } from "./alarm";
 import type { ServerMessage } from "../domain/messages";
 import type { TimerFact, NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
+import { DEFAULT_FIRMNESS } from "../domain/firmness";
 
 /** Start イベントの本体。startTimer はこの形だけを受け取る（event.ts の唯一の出所を再利用）。 */
 type StartEvent = Extract<Event, { type: "Start" }>;
@@ -72,12 +73,14 @@ export function validateStart(input: {
   };
 }
 
-/** Timer を WS のワイヤ表現へ射影する。残り秒は含めず endTime（事実）を運ぶ（要件10.2）。 */
+/** Timer を WS のワイヤ表現へ射影する。残り秒は含めず firmness/startTime/endTime（事実）を運ぶ（要件10.2）。 */
 function toWireTimer(timer: Timer): TimerFact {
   return {
     id: timer.id,
     slotIds: timer.slotIds,
     noodleType: timer.noodleType,
+    firmness: timer.firmness,
+    startTime: timer.startTime,
     endTime: timer.endTime,
   };
 }
@@ -104,12 +107,15 @@ export function startTimer(state: TimerState, args: StartEvent): Outcome {
       },
     };
   }
-  // endTime は「操作受信時刻 + 茹で時間」の絶対エポックミリ秒（要件1.2）。残り秒は持たない。
+  // endTime は「操作受信時刻 + 茹で時間」の絶対エポックミリ秒（要件1.2）。startTime は操作受信時刻（事実）。
+  // 残り秒・進捗・総時間は持たず、この2つの時刻事実から導出する。
   const endTime = (args.now + validated.boilSeconds * 1000) as EpochMillis;
   const timer = createTimer({
     id: args.newTimerId,
     slotIds: validated.slotIds,
     noodleType: validated.noodleType,
+    firmness: DEFAULT_FIRMNESS,
+    startTime: args.now,
     endTime,
     seq: state.nextSeq,
   });

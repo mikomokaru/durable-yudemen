@@ -37,6 +37,35 @@ export function isAssigned(slot: number, units: readonly number[]): boolean {
 }
 
 /**
+ * 表示ユニット数の切り替えに伴う担当ユニット範囲の遷移（純粋関数）。
+ *
+ * 担当範囲は「長さ k の連続窓」 [b, b+k-1]（b＝左アンカー / k＝表示ユニット数）として捉える。viewport の
+ * 縦横比が k を決め（1=縦長 / 2=横長）、本関数は左アンカーを「長さ k の窓が総数 N に収まる」可行区間
+ * [0, N-k] へ射影し、そこから k 個の連番を返すだけ:
+ *
+ *     anchor = clamp(現在の左, 0, N - k)        窓 = [anchor, anchor+1, …, anchor+k-1]
+ *
+ * 展開（k:1→2）・収束（k:2→1）・右端クランプは、すべてこの一式から導かれる（特例分岐は無い）。
+ * 例（総数 3・A=0/B=1/C=2）: A→AB, B→BC, C→BC（右端で anchor が N-k=1 に頭打ち）, AB→A, BC→B。
+ * 総数より長い窓は k' = min(k, N) で畳むため、総数 1 でも 2 ユニット要求は自然に 1 ユニットへ縮む。同数は冪等。
+ */
+export function unitsForCount(
+  current: readonly number[],
+  count: 1 | 2,
+  totalUnits: number,
+): readonly number[] {
+  const total = Math.max(1, totalUnits);
+  // 表示できる窓長（総数を超えない）。
+  const length = Math.min(count, total);
+  // 現在の左アンカー（空なら 0 起点）。
+  const left = current.length > 0 ? Math.min(...current) : 0;
+  // 左アンカーを可行区間 [0, total - length] へ射影する（右端クランプはこの頭打ちに含まれる）。
+  const anchor = Math.min(Math.max(left, 0), total - length);
+  // そこから length 個の連番が担当窓。
+  return Array.from({ length }, (_, offset) => anchor + offset);
+}
+
+/**
  * 受信した全量 Timer から担当スロットに属するものだけを射影する（表示用導出）。
  *
  * TimerFact を芯に持つ要素型 T を保ったまま絞り込む。ClientTimer（= TimerFact & { origin }）を

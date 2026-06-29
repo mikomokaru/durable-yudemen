@@ -13,7 +13,7 @@
 - **iPad_Client**: 厨房に設置された iPad 上で動作する React フロント。サーバ状態を映す表示であり、残り時間の秒読みのみローカル計算する。
 - **Slot**: 麺釜（ゆで釜）。スロット（Slot）と呼ぶ。1 店舗に複数（最大 18 個程度）存在し、各 Slot で独立にタイマーを走行させられる。0 始まりで採番され、連続する 6 スロットを 1 ユニット（Unit）として扱う。iPad の担当分割を述べる文脈でもこの Slot 語を用いる。
 - **Unit**: 連続する 6 スロットのまとまり（unit 0 = slot 0-5、unit 1 = slot 6-11、unit 2 = slot 12-17）。iPad_Client への担当割り当ての単位であり、unit u は slot 6u 〜 6u+5 を含む。
-- **Timer**: 1 つの Slot 上で走行する 1 件のゆで麺タイマー。麺種と絶対終了時刻（endTime）を保持する。
+- **Timer**: 1 つ以上の Slot 上で走行する 1 件のゆで麺タイマー。麺種と絶対終了時刻（endTime）を保持する。状態として **running**（走行中・endTime 未到来）と **boiled**（茹で上がり済み・ユーザーの明示完了待ち）を取る。boiled への遷移は Alarm 発火で起こり、boiled は明示完了（要件 15）まで集合に残る。running か boiled かは endTime と現在時刻から導出でき、ワイヤには status を乗せない（サーバ内部に発火事実を持つのみ）。
 - **timerId**: 各 Timer を一意に識別する識別子。Store_Timer_DO が Timer 生成時に付与し、状態更新・茹で上がり・キャンセルの各通知に含めてクライアントへ伝える。同一 Slot 上で先行 Timer の完了後に新たな Timer を開始しても両者は異なる timerId を持つため、iPad_Client は timerId を基準として通知の重複を判定する。
 - **endTime**: タイマーの絶対終了時刻。開始時刻に茹で時間を加えたエポックミリ秒で表現する。
 - **Active_Timers_Snapshot**: 現在アクティブな全タイマーの集合を表すオブジェクト。永続層に単一キー（例: "activeTimers"）で丸ごと保存され、再接続時の同期にも使用される。スキーマバージョン番号を含む。
@@ -41,23 +41,23 @@
 
 ### 要件 2: 茹で上がり時刻での通知発火
 
-**ユーザーストーリー:** 厨房スタッフとして、茹で上がり時刻にタイマーが必ず通知を発火してほしい。Durable Object がアイドルで hibernate していても確実に発火してほしい。
+**ユーザーストーリー:** 厨房スタッフとして、茹で上がり時刻にタイマーが必ず通知を発火してほしい。Durable Object がアイドルで hibernate していても確実に発火してほしい。茹で上がった Timer は自動では消えず、私が明示的に消し込む（完了する）まで「茹で上がり（boiled）」として残ってほしい（消し込みは要件 15）。
 
 #### 受け入れ基準
 
-1. WHEN タイマーを開始したとき、THE Store_Timer_DO SHALL Alarm を全 Timer のうち最も早い endTime に設定する。
+1. WHEN タイマーを開始したとき、THE Store_Timer_DO SHALL Alarm を走行中（running）の全 Timer のうち最も早い endTime に設定する。
 2. WHEN 開始した Timer の endTime が現在設定中の Alarm より早いとき、THE Store_Timer_DO SHALL Alarm を当該 endTime に再設定する。
-3. WHEN Alarm が発火したとき、THE Store_Timer_DO SHALL endTime が「発火処理時刻 + 許容誤差 ε」以下である全 Timer を茹で上がりとして処理する。
-4. WHEN Alarm 発火時に endTime が「発火処理時刻 + 許容誤差 ε」以下の Timer が 0 件であるとき、THE Store_Timer_DO SHALL 茹で上がり処理を行わず、残存 Timer のうち最も早い endTime に Alarm を再設定する。
-5. WHEN ある Timer を茹で上がりとして処理したとき、THE Store_Timer_DO SHALL 接続中の全 WebSocket に対し当該 Timer の茹で上がり通知をブロードキャストする。
-6. IF 茹で上がり通知のブロードキャストが失敗したとき、THEN THE Store_Timer_DO SHALL 当該 Timer を処理済みとして扱ってその状態を保持し、失敗した通知の状態回復を要件 4 の再接続時 Hydration（全量スナップショット送信）に委ねる。
+3. WHEN Alarm が発火したとき、THE Store_Timer_DO SHALL endTime が「発火処理時刻 + 許容誤差 ε」以下である走行中（running）の全 Timer を茹で上がり（boiled）として処理する。
+4. WHEN Alarm 発火時に endTime が「発火処理時刻 + 許容誤差 ε」以下の走行中 Timer が 0 件であるとき、THE Store_Timer_DO SHALL 茹で上がり処理を行わず、走行中 Timer のうち最も早い endTime に Alarm を再設定する。
+5. WHEN ある Timer を茹で上がりとして処理したとき、THE Store_Timer_DO SHALL 接続中の全 WebSocket に対し当該 Timer の茹で上がり通知（boiled）をブロードキャストする。
+6. IF 茹で上がり通知のブロードキャストが失敗したとき、THEN THE Store_Timer_DO SHALL 当該 Timer を boiled として状態を保持し、失敗した通知の状態回復を要件 4 の再接続時 Hydration（全量スナップショット送信）に委ねる。
 7. WHILE Store_Timer_DO が hibernate しているとき、THE Store_Timer_DO SHALL Alarm の発火を契機に起動し、alarm ハンドラを実行して該当 Timer の茹で上がり処理を行う（Cloudflare は alarm の at-least-once 起動を保証するが発火時刻からの遅延上限は公式には保証しないため、発火遅延が 30 秒以内に収まることはパイロットでの実測確認対象とする努力目標であり、保証値ではない）。
-8. WHEN 茹で上がり処理を完了したとき、THE Store_Timer_DO SHALL 処理済みの Timer を Working_Copy および Active_Timers_Snapshot から除去する。
-9. WHEN 茹で上がり処理の完了後に残存 Timer が存在するとき、THE Store_Timer_DO SHALL Alarm を残存 Timer のうち最も早い endTime に再設定する。
-10. IF Alarm 再設定時に算出した次回発火時刻が「現在時刻 + 許容誤差 ε」以下であるとき、THEN THE Store_Timer_DO SHALL 当該残存 Timer の茹で上がり処理を即時に実行するか、Alarm を可能な限り早い時刻に設定して即時の再発火を促し、境界付近に位置する Timer の取りこぼしと、同一時刻群に対する再発火の無限ループを防止する。
-11. WHEN iPad_Client が、自身の表示制御用記録に未登録の timerId を持つ茹で上がり通知を受信したとき、THE iPad_Client SHALL 当該 timerId に対応する Slot の表示を茹で上がり表示へ切り替え、当該 timerId を茹で上がり処理済みとして自身の表示制御用記録に登録する。
-12. IF iPad_Client が受信した茹で上がり通知の timerId が、既に茹で上がり処理済みとして表示制御用記録に登録済みであるか、または既に表示から除去済みであるとき、THEN THE iPad_Client SHALL 当該茹で上がり通知を無視し、アラーム音の再生・通知表示・カウントダウン表示の変更を行わない。
-13. THE iPad_Client SHALL 茹で上がり処理済みの timerId の表示制御用記録を自身の表示制御のためにのみ保持し、当該記録によって Store_Timer_DO が保持する状態の正本を変更しない。
+8. WHEN 茹で上がり処理を完了したとき、THE Store_Timer_DO SHALL 当該 Timer を除去せず、boiled（茹で上がり済み・明示完了待ち）として Working_Copy および Active_Timers_Snapshot に保持し続ける。除去はユーザーの明示完了（要件 15）でのみ行う。
+9. WHEN 茹で上がり処理の完了後に走行中（running）の Timer が存在するとき、THE Store_Timer_DO SHALL Alarm を走行中 Timer のうち最も早い endTime に再設定する。boiled の Timer は endTime が過去ゆえ Alarm 対象に含めない（過去時刻 Alarm による無限再発火を防ぐ）。
+10. IF Alarm 再設定時に算出した次回発火時刻が「現在時刻 + 許容誤差 ε」以下であるとき、THEN THE Store_Timer_DO SHALL 当該走行中 Timer の茹で上がり処理を即時に実行するか、Alarm を可能な限り早い時刻に設定して即時の再発火を促し、境界付近に位置する Timer の取りこぼしと、同一時刻群に対する再発火の無限ループを防止する。
+11. WHEN iPad_Client が、自身の表示制御用記録に未登録の timerId を持つ茹で上がり通知（boiled）を受信したとき、THE iPad_Client SHALL アラーム音の再生など茹で上がりの提示を 1 回だけ行い、当該 timerId をアラート済みとして自身の表示制御用記録に登録する（Slot の茹で上がり表示そのものは endTime が現在時刻以下であることから導出する）。
+12. IF iPad_Client が受信した茹で上がり通知の timerId が、既にアラート済みとして表示制御用記録に登録済みであるか、または既に表示から除去済みであるとき、THEN THE iPad_Client SHALL 当該茹で上がり通知を無視し、アラーム音の再生・通知表示の変更を行わない。
+13. THE iPad_Client SHALL アラート済みの timerId の表示制御用記録を自身の表示制御のためにのみ保持し、当該記録によって Store_Timer_DO が保持する状態の正本を変更しない。
 
 ### 要件 3: 複数タイマー並走時の単一 Alarm 運用
 
@@ -135,7 +135,7 @@
 
 #### 受け入れ基準
 
-1. WHEN タイマーの開始・キャンセル・茹で上がり完了のいずれかのイベントが発生したとき、THE Store_Timer_DO SHALL 同一イベント処理内で、更新後の Active_Timers_Snapshot 全体を単一の固定キーに対する storage.put により永続化する。
+1. WHEN タイマーの開始・キャンセル・茹で上がり（boiled への遷移）・明示完了（除去）のいずれかのイベントが発生したとき、THE Store_Timer_DO SHALL 同一イベント処理内で、更新後の Active_Timers_Snapshot 全体を単一の固定キーに対する storage.put により永続化する。
 2. THE Store_Timer_DO SHALL タイマー状態の永続化および読み出しを Durable Object ストレージ API の KV 方式（storage.put / storage.get）のみで行い、SQL ストレージ API を使用しない。
 3. THE Store_Timer_DO SHALL アクティブタイマー全体を 1 つの Active_Timers_Snapshot オブジェクトとして単一キーに丸ごと put / get する。
 4. THE Store_Timer_DO SHALL Working_Copy へのメモリ上の代入を永続化操作とは独立に扱い、永続化は明示的な storage.put 呼び出しが正常完了した時点でのみ確定したものとみなす。
@@ -182,7 +182,7 @@
 4. IF 読み出したデータにスキーマバージョン番号が存在しないとき、THEN THE Store_Timer_DO SHALL 当該データを現行バージョンより前の旧データとして扱い、現行バージョンへ移行する処理を実行する。
 5. IF 読み出したスキーマバージョン番号が現行バージョン番号より大きいとき、THEN THE Store_Timer_DO SHALL 移行処理を実行せず、未対応バージョンである旨を示すエラーを返し、読み出した元データを変更しない。
 6. IF 移行処理が失敗したとき、THEN THE Store_Timer_DO SHALL 移行前の元データを保持したまま変更せず、移行失敗を示すエラーを返す。
-7. THE Store_Timer_DO SHALL 本パイロットにおいてスキーマバージョン 1 を現行バージョン番号として扱う。
+7. THE Store_Timer_DO SHALL 現行スキーマバージョン番号を Active_Timers_Snapshot の構造拡張に伴って増加させる。slotIds の複数化を v2、boiled の発火事実（boiledAt）の追加を v3 とし、本パイロットの現行バージョン番号は 3 とする。旧版（v1 単一 slotId・v2 boiledAt 欠如）は移行時に現行へ写す（slotId→[slotId]、boiledAt 欠如→走行中=null）。
 
 ### 要件 12: iPad ごとのスロット担当（表示・操作範囲の分割）
 
@@ -199,3 +199,19 @@
 7. THE システム（Store_Timer_DO および iPad_Client 群） SHALL 担当ユニット割り当てにおける全スロットの被覆および担当の非重複を現場運用の責任に委ね、被覆および非重複をシステムによって強制せず、割り当ての整合性をシステムの保証範囲外として扱う。
 8. IF どの iPad_Client も担当しないスロット（担当の穴）または複数の iPad_Client が同一スロットを担当する状態（担当の重複）が生じた場合、THEN THE Store_Timer_DO SHALL 当該の穴および重複から影響を受けず、全 Timer の正本の保持と接続中の全 WebSocket への全量ブロードキャストを維持する。
 9. THE システム（Store_Timer_DO および iPad_Client 群） SHALL 担当の穴および担当の重複を iPad_Client の表示上の事象として扱い、その解消を現場運用における物理的な担当分担に委ねる。
+
+### 要件 13: 茹で上がりの明示完了と直前結果の表示
+
+**ユーザーストーリー:** 厨房スタッフとして、茹で上がった釜は自動で消えるのではなく、私が「完了（消し込み）」を押すまで茹で上がり表示のまま残ってほしい。完了した直後は、その釜で何を茹でていたか（直前の結果）が少しの間見えると、配膳や次の仕込みの確認に役立つ。
+
+明示完了（complete）は走行中の中断（cancel・要件 6）とは別概念である。cancel は茹で上がる前の取り消し、complete は茹で上がった釜の確認消し込みであり、両者は別のワイヤメッセージ（cancelled / completed）として区別される。
+
+#### 受け入れ基準
+
+1. WHEN iPad_Client が boiled 状態の Slot に対するユーザーの完了操作を受け付けたとき、THE iPad_Client SHALL 当該 Timer の明示完了（complete）を Store_Timer_DO へ送る。WHILE 回線不通（degraded）であるとき、THE iPad_Client SHALL 当該 Timer をローカル表示から除去し、WebSocket へ送らない。
+2. WHEN Store_Timer_DO が明示完了（complete）を受信したとき、THE Store_Timer_DO SHALL 当該 Timer を Working_Copy および Active_Timers_Snapshot から除去し、走行中（running）の Timer のうち最も早い endTime に Alarm を張り直し（走行中が 0 件なら Alarm を解除し）、接続中の全 WebSocket へ完了通知（completed）をブロードキャストする。
+3. IF 明示完了の対象 Timer が Working_Copy に存在しないとき、THEN THE Store_Timer_DO SHALL Working_Copy を変更せず、対象が存在しない旨を示すエラー応答を要求元へ返す。
+4. WHEN iPad_Client が完了通知（completed）を受信したとき、THE iPad_Client SHALL 当該 timerId を表示から除去し、当該 Slot を待機（idle）表示へ戻す。
+5. WHEN ある Slot の Timer が明示完了で除去されたとき、THE iPad_Client SHALL 当該 Slot に直前の調理結果（麺種）を完了からおよそ 30 秒間ベストエフォートで表示し、その後通常の待機表示へ戻す。表示時間の制御はクライアント側で行う。
+6. THE iPad_Client SHALL 直前の調理結果をクライアント保持のみのベストエフォート情報として扱い、Store_Timer_DO の状態の正本（SSOT）に持たせず、リロードや別端末との共有が失われることを許容する。
+7. WHEN ある Slot で新たなタイマー開始が行われたとき、THE iPad_Client SHALL 当該 Slot の直前結果表示を解除する。

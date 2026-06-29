@@ -1,10 +1,14 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
+    // Tailwind v4。設定ファイル不要でソースを自動走査し、styles.css の @theme トークンから
+    // ユーティリティを生成する。CSS の単一の取り込み点（main.tsx → styles.css）を読む。
+    tailwindcss(),
     react(),
     cloudflare(),
     // PWA 基盤（要件10.1/10.3）。App_Shell（HTML/JS/CSS）を Workbox で precache し、
@@ -18,8 +22,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       // ユーザー向け表示文言は英語（要件13.6）。display: standalone で全画面動作（要件10.3）。
       manifest: {
-        name: "Yude-men Timer",
-        short_name: "Yude-men",
+        name: "BoilIt",
+        short_name: "BoilIt",
         description: "Kitchen noodle boiling timer that keeps counting down offline.",
         lang: "en",
         display: "standalone",

@@ -329,11 +329,11 @@ Sync_Mediator が担う端の責務（純粋判定は持たない）:
 const PING_REQUEST = "ping" as const;   // 暫定
 const PONG_RESPONSE = "pong" as const;  // 暫定
 
-/** ping 送信間隔の上限（要件1.2）。 */
-const PING_INTERVAL_MS = 15_000;
-/** pong 待ち受けタイムアウト（要件1.4）。 */
-const PONG_TIMEOUT_MS = 10_000;
-/** 静かな喪失と確定する連続未応答回数（要件1.4）。 */
+/** ping 送信間隔（要件1.2: ≤15000）。 */
+const PING_INTERVAL_MS = 4_000;
+/** pong 待ち受けタイムアウト（PONG_TIMEOUT_MS < PING_INTERVAL_MS を保つ）。 */
+const PONG_TIMEOUT_MS = 2_000;
+/** 静かな喪失と確定する連続未応答回数（要件1.4）。down 確定 ≈ 2×間隔 + 待ち ≈ 10 秒。 */
 const SILENT_LOSS_MISSES = 2;
 
 interface ConnectivityWatch {
@@ -641,7 +641,7 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 | 1 | 1.1 DO が ping→pong を auto-response 設定 | shell `setWebSocketAutoResponse`（一点追加） | Smoke + Integration |
 | | 1.2 client が ping を ≤15000ms 間隔で送信 | `Connectivity_Watch` / `PING_INTERVAL_MS` | Integration |
 | | 1.3 pong 受信で `up` 確定 | `Connectivity_Watch` | Integration |
-| | 1.4 pong 未応答 10000ms×2 連続で `down` | `Connectivity_Watch` / `PONG_TIMEOUT_MS` / `SILENT_LOSS_MISSES` | Integration |
+| | 1.4 pong 未応答 2000ms×2 連続（≈10s）で `down` | `Connectivity_Watch` / `PONG_TIMEOUT_MS` / `SILENT_LOSS_MISSES` | Integration |
 | | 1.5 auto-response が wake / 継ぎ目発火を伴わない | shell auto-response（hibernation 互換） | Integration（計装ハーネス観測） |
 | | 1.6 常駐ループが wake させる通常メッセージを送らない | `Sync_Mediator` ティック（heartbeats は auto-response 経路限定） | Smoke（静的）+ Integration |
 | 2 | 2.1 close / error で `down`（明示的切断） | `Connectivity_Watch` | Integration |
@@ -769,6 +769,6 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 1. **公開シンボル名の確定（要ユーザー確認）** — 上記「公開シンボル命名の確認」節。特に `Sync_Mediator` のパターン名忌避、`Reconcile` の独立性、ping/pong 文字列・localStorage キーは実装前に確定する。
 2. **`setWebSocketAutoResponse` の登録回数と冪等性** — `ctx.setWebSocketAutoResponse` は state 全体に対する設定。接続ごとの `fetch()` で都度呼んでよいか、constructor で一度に絞るべきかを実装時に確認する（auto-response は単一ペアであり上書きは無害と見込むが要確認）。`WebSocketRequestResponsePair` の文字列長上限も確認する。
 3. **iOS standalone PWA の localStorage 永続性と eviction の実挙動** — `beforeunload` 不可信・Background Sync 不可は確定。localStorage がアプリ終了・OS eviction をどこまで生き延びるか、再水和で走行中タイマーが復元されるかを iPad 実機で実測する（決定 A の裾の受容範囲を確認）。
-4. **ping 間隔と pong タイムアウトの実務値** — `PING_INTERVAL_MS=15000` / `PONG_TIMEOUT_MS=10000` / `SILENT_LOSS_MISSES=2`（要件 1.2 / 1.4）は要件の上限値に沿うが、iPad Safari のバックグラウンド時の timer スロットリング下での実挙動（degraded への切り替わり速度）をパイロットで実測し、必要なら調整する。
+4. **ping 間隔と pong タイムアウトの実務値** — `PING_INTERVAL_MS=4000` / `PONG_TIMEOUT_MS=2000` / `SILENT_LOSS_MISSES=2`（down 確定 ≈ 10 秒・要件 1.2 / 1.4）に調整済み。iPad Safari のバックグラウンド時の timer スロットリング下での実挙動（degraded への切り替わり速度）をパイロットで実測し、必要なら再調整する。
 5. **vite-plugin-pwa / Workbox の App Shell precache 構成** — SPA フォールバック（既存 `not_found_handling: "single-page-application"`）との整合、precache 対象アセットの範囲、Service Worker 更新戦略（即時 / 次回起動）を実装時に確定する。`pnpm add -D vite-plugin-pwa` で追加（tooling 規律）。
 6. **`hibernation-observability` ハーネスでの auto-response 観測** — ping に対し継ぎ目が発火しないことの観測は既存ハーネスの計装で可能と見込むが、auto-response 経由のフレームがハーネスのどのログにも現れないこと（＝観測上「何も起きない」を確かめる形）になる点を、実観測で確認する。

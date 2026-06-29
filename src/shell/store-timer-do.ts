@@ -10,8 +10,9 @@ import { buildSeamEntry, type InstrumentationLogEntry } from "../observe/log";
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
 import type { ClientMessage, ServerMessage } from "../domain/messages";
 import type { TimerFact } from "../domain/timer";
-import type { StoreConfig } from "../domain/store";
-import { toUnitCount, DEFAULT_UNIT_COUNT } from "../domain/store";
+import { isFirmness } from "../domain/firmness";
+import type { StoreConfig, NoodlePreset } from "../domain/store";
+import { toUnitCount, toNoodlePresets, DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS } from "../domain/store";
 
 /** タイマー SSOT の単一キー。状態は丸ごとこのキーへ put / get する（要件8.3・SQL 不使用）。 */
 const SNAPSHOT_KEY = "activeTimers";
@@ -89,6 +90,16 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
         return { type: "cancel", timerId: candidate.timerId };
       }
       return undefined;
+    case "complete":
+      if (typeof candidate.timerId === "string") {
+        return { type: "complete", timerId: candidate.timerId };
+      }
+      return undefined;
+    case "adjust":
+      if (typeof candidate.timerId === "string" && isFirmness(candidate.firmness)) {
+        return { type: "adjust", timerId: candidate.timerId, firmness: candidate.firmness };
+      }
+      return undefined;
     default:
       return undefined;
   }
@@ -127,6 +138,14 @@ export class StoreTimerDO extends DurableObject<Env> {
    * 接続時に config ServerMessage として各クライアントへ一方向配信する。既定は接続前/不在の安全網。
    */
   private unitCount: number = DEFAULT_UNIT_COUNT;
+
+  /**
+   * 店舗が提供する麺種プリセット（StoreConfig.noodlePresets）。サーバ権威・クライアント不変の店舗設定。
+   *
+   * unitCount と同じ系統で storeConfig から読み込み、config として配信する。店舗ごとに異なりうる
+   * （env シード STORE_NOODLE_PRESETS / 運用エンドポイント PUT /admin/config）。既定は安全網。
+   */
+  private noodlePresets: readonly NoodlePreset[] = DEFAULT_NOODLE_PRESETS;
 
   /** storeConfig ロード済みフラグ。ensureConfigLoaded を冪等にする（hibernate 復帰ごとに false へ戻る）。 */
   private configLoaded = false;
@@ -234,30 +253,85 @@ export class StoreTimerDO extends DurableObject<Env> {
   }
 
   /**
-   * 店舗設定（StoreConfig.unitCount）のロードを保証する（サーバ権威・クライアント不変・店舗ごとに固定）。
+   * 店舗設定（StoreConfig）のロードを保証する（サーバ権威・クライアント不変・店舗ごとに固定）。
    *
-   * storage キー storeConfig を読み、不在なら env シード（STORE_UNIT_COUNT）を toUnitCount で検証して
-   * 永続する（初回構築時の一度きり）。存在すれば永続値が正本で、防御的に toUnitCount で範囲内へ畳む。
-   * Timer の SSOT フローとは独立した別概念であり、decide/Effect には乗らない。configLoaded で冪等に保つ。
+   * storage キー storeConfig を読み、不在なら env シード（STORE_UNIT_COUNT / STORE_NOODLE_PRESETS）を
+   * toUnitCount / toNoodlePresets で検証して永続する（初回構築時の一度きり）。存在すれば永続値が正本で、
+   * 防御的に同じ検証を通して健全な形へ畳む。Timer の SSOT フローとは独立した別概念であり、decide/Effect には
+   * 乗らない。稼働中の差し替えは applyStoreConfig（PUT /admin/config）が担う。configLoaded で冪等に保つ。
    */
   private async ensureConfigLoaded(): Promise<void> {
     if (this.configLoaded) return;
     const raw = await this.ctx.storage.get(STORE_CONFIG_KEY);
     if (raw === undefined || raw === null) {
-      // 初回: env シードを検証して永続する（以後この店舗の固定値となる）。
-      const seeded = toUnitCount(this.env.STORE_UNIT_COUNT);
-      await this.ctx.storage.put(STORE_CONFIG_KEY, { unitCount: seeded } satisfies StoreConfig);
-      this.unitCount = seeded;
+      // 初回: env シードを検証して永続する（以後この店舗の設定の起点となる）。
+      const seeded: StoreConfig = {
+        unitCount: toUnitCount(this.env.STORE_UNIT_COUNT),
+        noodlePresets: toNoodlePresets(this.env.STORE_NOODLE_PRESETS),
+      };
+      await this.ctx.storage.put(STORE_CONFIG_KEY, seeded);
+      this.unitCount = seeded.unitCount;
+      this.noodlePresets = seeded.noodlePresets;
     } else {
-      // 永続値が正本。壊れた値は toUnitCount が既定へ畳む（不正値を表現させない）。
-      this.unitCount = toUnitCount((raw as Record<string, unknown>).unitCount);
+      // 永続値が正本。壊れた値は各検証関数が既定へ畳む（不正値を表現させない）。
+      const persisted = raw as Record<string, unknown>;
+      this.unitCount = toUnitCount(persisted.unitCount);
+      this.noodlePresets = toNoodlePresets(persisted.noodlePresets);
     }
     this.configLoaded = true;
+  }
+
+  /**
+   * 店舗設定（StoreConfig）を外部投入で差し替える（PUT /admin/config の DO 側処理）。
+   *
+   * 認証は Worker 端で済んでいる（到達＝許可済み）。ボディ JSON を toUnitCount / toNoodlePresets で検証し、
+   * StoreConfig 全体を置換する（部分更新ではない＝「設定 JSON をそのまま投入」の意図）。検証関数が不正値を
+   * 既定へ畳むため、不正な StoreConfig は永続されない。永続成功の上に、接続中の全クライアントへ config を
+   * 再配信する（config は Timer の SSOT フロー＝decide/Effect には乗らない別系統ゆえ、ここで直接 broadcast する）。
+   */
+  private async applyStoreConfig(request: Request): Promise<Response> {
+    let parsed: unknown;
+    try {
+      parsed = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "invalid JSON body" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const body = (typeof parsed === "object" && parsed !== null ? parsed : {}) as Record<string, unknown>;
+    // 設定全体の置換。検証を一箇所（domain）へ委ね、健全な StoreConfig だけが永続・配信される。
+    const next: StoreConfig = {
+      unitCount: toUnitCount(body.unitCount),
+      noodlePresets: toNoodlePresets(body.noodlePresets),
+    };
+    // 確定の起点は put 成功。先に永続し、その上に在メモリ反映と再配信を立てる（SSOT 規律）。
+    await this.ctx.storage.put(STORE_CONFIG_KEY, next);
+    this.unitCount = next.unitCount;
+    this.noodlePresets = next.noodlePresets;
+    // 接続中の全クライアントへサーバ権威設定を再配信する（クライアントは制御できず受信して従うのみ）。
+    const config: ServerMessage = {
+      type: "config",
+      serverTime: Date.now(),
+      unitCount: this.unitCount,
+      noodlePresets: this.noodlePresets,
+    };
+    const payload = JSON.stringify(config);
+    for (const ws of this.ctx.getWebSockets()) {
+      ws.send(payload);
+    }
+    return new Response(payload, { status: 200, headers: { "Content-Type": "application/json" } });
   }
 
   override async fetch(request: Request): Promise<Response> {
     await this.ensureLoaded();
     await this.ensureConfigLoaded();
+
+    // 運用エンドポイント（サーバ権威の店舗設定の外部投入）。WebSocket 経路とは別系統で、稼働中の店舗へ
+    // StoreConfig を差し替える。認証は Worker 端で済んでいる前提（到達した時点で許可済み）。
+    if (new URL(request.url).pathname === "/admin/config") {
+      return this.applyStoreConfig(request);
+    }
 
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket", { status: 426 });
@@ -277,7 +351,12 @@ export class StoreTimerDO extends DurableObject<Env> {
 
     // 店舗設定の一方向配信（サーバ権威・クライアント不変）。snapshot より先に送り、クライアントが
     // ユニット総数（担当範囲のクランプ元）を先に確定できるようにする。クライアントは変更できない。
-    const config: ServerMessage = { type: "config", serverTime: Date.now(), unitCount: this.unitCount };
+    const config: ServerMessage = {
+      type: "config",
+      serverTime: Date.now(),
+      unitCount: this.unitCount,
+      noodlePresets: this.noodlePresets,
+    };
     server.send(JSON.stringify(config));
 
     // Hydration（要件4.1 / 9.2）。接続確立の一環として、収容直後にこの WS だけへ
@@ -291,6 +370,8 @@ export class StoreTimerDO extends DurableObject<Env> {
           id: timer.id,
           slotIds: timer.slotIds,
           noodleType: timer.noodleType,
+          firmness: timer.firmness,
+          startTime: timer.startTime,
           endTime: timer.endTime,
         }),
       ),
@@ -312,6 +393,45 @@ export class StoreTimerDO extends DurableObject<Env> {
     // ClientMessage を core への Event へ写す。crypto.randomUUID() と Date.now() は shell の作用であり、
     // core は時計も乱数も持たない（core/event.ts 参照）。
     const now = Date.now() as EpochMillis;
+    // adjust は engine が持たない「麺ごとの硬さ別茹で秒」を shell が StoreConfig から解決して載せる。
+    // 対象不在・該当麺なしは Event を作らず error を返す（解決できない要求は core へ進めない）。
+    if (command.type === "adjust") {
+      const target = this.workingCopy.timers.find((t) => t.id === command.timerId);
+      const preset = target && this.noodlePresets.find((p) => p.noodleType === target.noodleType);
+      if (target === undefined || preset === undefined) {
+        const error: ServerMessage = {
+          type: "error",
+          serverTime: Date.now(),
+          code: target === undefined ? "TimerNotFound" : "UnknownNoodle",
+          message:
+            target === undefined
+              ? `指定された timerId の Timer は存在しない: ${command.timerId}`
+              : `店舗設定に該当する麺種がない: ${target.noodleType}`,
+        };
+        ws.send(JSON.stringify(error));
+        return;
+      }
+      const outcome = decide(this.workingCopy, {
+        type: "Adjust",
+        timerId: command.timerId,
+        firmness: command.firmness,
+        boilSeconds: preset.boilSeconds[command.firmness],
+        now,
+      });
+      if (outcome.ok) {
+        await this.runEffects(outcome.effects, ws);
+        return;
+      }
+      const error: ServerMessage = {
+        type: "error",
+        serverTime: Date.now(),
+        code: outcome.rejection.code,
+        message: outcome.rejection.message,
+      };
+      ws.send(JSON.stringify(error));
+      return;
+    }
+
     const event =
       command.type === "start"
         ? {
@@ -322,7 +442,9 @@ export class StoreTimerDO extends DurableObject<Env> {
             newTimerId: crypto.randomUUID() as TimerId,
             now,
           }
-        : { type: "Cancel" as const, timerId: command.timerId, now };
+        : command.type === "cancel"
+          ? { type: "Cancel" as const, timerId: command.timerId, now }
+          : { type: "Complete" as const, timerId: command.timerId, now };
 
     const outcome = decide(this.workingCopy, event);
     if (outcome.ok) {

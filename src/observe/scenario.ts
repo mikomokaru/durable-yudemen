@@ -213,9 +213,10 @@ export function orderedSteps(scenario: Scenario): readonly ScenarioStep[] {
 
 /**
  * await-done の待機を終了すべきか（純粋判定・要件3.4 / 3.5）。
- * 受信が指定 timerId の done のときに限り true。一致しない done も、done 以外の種別も false
- * （待機継続）。実時間・タイムアウトは端の責務で、ここでは「done の一致」だけを語る。
+ * 受信が指定 timerId の boiled（茹で上がり通知）のときに限り true。一致しない boiled も、boiled 以外の
+ * 種別も false（待機継続）。DSL の op 名は await-done のまま（外部シナリオ互換）だが、待機対象の
+ * ワイヤ種別は茹で上がり通知 boiled である。実時間・タイムアウトは端の責務で、ここでは一致だけを語る。
  */
 export function shouldStopAwaiting(received: ServerMessage, targetTimerId: string): boolean {
-  return received.type === "done" && received.timerId === targetTimerId;
+  return received.type === "boiled" && received.timerId === targetTimerId;
 }

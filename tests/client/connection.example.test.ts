@@ -66,9 +66,9 @@ function setup(overrides: Partial<ConnectionOptions> = {}) {
   };
 }
 
-/** テスト用 TimerFact 生成。endTime は START_NOW から十分先に置く。 */
+/** テスト用 TimerFact 生成。endTime は START_NOW から十分先に置く。startTime は START_NOW（開始時刻の事実）。 */
 function makeTimer(id: string, endTime = START_NOW + 180_000): TimerFact {
-  return { id, slotIds: [`slot-${id}`], noodleType: "ramen", endTime };
+  return { id, slotIds: [`slot-${id}`], noodleType: "ramen", firmness: "normal", startTime: START_NOW, endTime };
 }
 
 /** JSON 文字列としてサーバメッセージを受信させる。 */
@@ -98,8 +98,8 @@ describe("client/connection — 状態同期と切断継続", () => {
     expect(connection.getView().sync).toBe("synced");
     expect(connection.getView().timers.map((t) => t.id)).toEqual(["A", "B"]);
 
-    // A を done として処理済みに記録する（A は次の snapshot まで集合に残る）。
-    receive(latest(), { type: "done", serverTime: START_NOW + 10, timerId: "A" });
+    // A を boiled として処理済み（アラート済み）に記録する（A は completed まで集合に残る）。
+    receive(latest(), { type: "boiled", serverTime: START_NOW + 10, timerId: "A" });
     expect(connection.getView().processedIds.has("A")).toBe(true);
 
     // 次の snapshot は B・C のみ。A は表示から除去され、処理済み記録からも刈り取られる。

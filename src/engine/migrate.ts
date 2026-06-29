@@ -15,6 +15,7 @@ import type { ActiveTimersSnapshot } from "./snapshot";
 import { toSnapshot } from "./snapshot";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
+import { DEFAULT_FIRMNESS, isFirmness, type Firmness } from "../domain/firmness";
 
 /**
  * migrate の結果。成功なら現行スキーマのスナップショット、失敗なら ShellFailure。
@@ -108,13 +109,64 @@ function reviveTimer(value: unknown): Timer | null {
   }
   const slotIds = reviveSlotIds(t.slotIds, t.slotId);
   if (slotIds === null) return null;
+  // boiledAt は v3 で追加。欠如/null（v2 以前・走行中）は null、数値はその値。それ以外は壊れたデータ。
+  const boiledAt = reviveBoiledAt(t.boiledAt);
+  if (boiledAt === INVALID_BOILED_AT) return null;
+  // startTime は v4 で追加。欠如（v3 以前）は endTime で埋める（進捗リングは縮退・UI 側でガード）。
+  const startTime = reviveStartTime(t.startTime, t.endTime);
+  if (startTime === null) return null;
+  // firmness は v5 で追加。欠如（v4 以前）は normal で埋める。不正な文字列は移行失敗。
+  const firmness = reviveFirmness(t.firmness);
+  if (firmness === null) return null;
   return createTimer({
     id: t.id as TimerId,
     slotIds: slotIds as NonEmptyArray<SlotId>,
     noodleType: t.noodleType as NoodleType,
+    firmness,
+    startTime: startTime as EpochMillis,
     endTime: t.endTime as EpochMillis,
     seq: t.seq,
+    boiledAt,
   });
+}
+
+/**
+ * 永続の firmness 表現を現行 v5 形へ写す（v5 で追加）。
+ * - 欠如 / null（v4 以前は firmness を持たない）→ "normal"。
+ * - 有効な Firmness → その値。
+ * - それ以外（未知の文字列等）→ 壊れたデータ（null）。
+ */
+function reviveFirmness(value: unknown): Firmness | null {
+  if (value === undefined || value === null) return DEFAULT_FIRMNESS;
+  return isFirmness(value) ? value : null;
+}
+
+/**
+ * 永続の startTime 表現を現行 v4 形へ写す（v4 で追加）。
+ * - 欠如 / null（v3 以前は startTime を持たない）→ endTime で埋める（duration=0・進捗リングは UI 側でガード）。
+ * - 有限数値 → その値。
+ * - それ以外（非有限数・文字列等）→ 壊れたデータ（null）。
+ * endTime は呼び出し前に number と検証済みのため、フォールバック値として安全に使える。
+ */
+function reviveStartTime(value: unknown, endTime: unknown): number | null {
+  if (value === undefined || value === null) return endTime as number;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return null;
+}
+
+/** reviveBoiledAt の「壊れたデータ」標識（null は正当な値ゆえ別の番兵が要る）。 */
+const INVALID_BOILED_AT = Symbol("invalid-boiledAt");
+
+/**
+ * 永続の boiledAt 表現を現行 v3 形へ写す。
+ * - 欠如 / null（v2 以前は走行中のみ永続。boiled 概念が無い）→ null。
+ * - 有限数値 → その値（EpochMillis）。
+ * - それ以外（非有限数・文字列等）→ 壊れたデータ（INVALID_BOILED_AT）。
+ */
+function reviveBoiledAt(value: unknown): EpochMillis | null | typeof INVALID_BOILED_AT {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value as EpochMillis;
+  return INVALID_BOILED_AT;
 }
 
 /**

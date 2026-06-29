@@ -22,7 +22,9 @@
 import { BOIL_SECONDS_MAX, BOIL_SECONDS_MIN } from "../engine/types";
 import type { ServerMessage } from "../domain/messages";
 import type { TimerFact, NonEmptyArray } from "../domain/timer";
-import { DEFAULT_UNIT_COUNT } from "../domain/store";
+import { DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS } from "../domain/store";
+import type { NoodlePreset } from "../domain/store";
+import { DEFAULT_FIRMNESS, type Firmness } from "../domain/firmness";
 import { clockOffset } from "./clock";
 import {
   isPingBlackholeActive,
@@ -77,6 +79,12 @@ export interface ClientView {
   readonly offset: number;
   /** done / cancelled を処理済みとして記録した timerId 集合（表示制御用・SSOT のコピーではない）。 */
   readonly processedIds: ReadonlySet<string>;
+  /**
+   * 直前の調理結果（client 専用・ベストエフォート）。slotId → { 麺種, 記録時刻 }。明示完了（completed /
+   * LocalComplete）で除去される直前に記録し、idle 表示で一定時間だけ提示する（要件13.5/13.6）。SSOT では
+   * なく processedIds と同じ表示制御用ローカル情報で、永続もしない（リロードで消えてよい）。
+   */
+  readonly lastResults: ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>;
   /** 到達性の事実。Mode の導出元（要件3.1）。 */
   readonly connectivity: Connectivity;
   /** 同期フェーズ。 */
@@ -85,6 +93,8 @@ export interface ClientView {
   readonly error: { readonly code: string; readonly message: string } | null;
   /** 店舗のユニット総数（サーバ権威・受信した事実）。config 受信で確定する。担当範囲のクランプ元。 */
   readonly unitCount: number;
+  /** 店舗が提供する麺種プリセット（サーバ権威・受信した事実）。config 受信で確定する。開始 UI の選択肢の元。 */
+  readonly noodlePresets: readonly NoodlePreset[];
 }
 
 /**
@@ -104,8 +114,9 @@ export type ClientEvent =
       readonly correctedNow: number;
     } // 要件6
   | { readonly kind: "LocalCancel"; readonly timerId: string } // 要件7
+  | { readonly kind: "LocalComplete"; readonly timerId: string; readonly now: number } // boiled の明示消し込み（degraded）
   | { readonly kind: "Connectivity"; readonly status: Connectivity } // 要件2/3
-  | { readonly kind: "LocalDone"; readonly timerId: string } // 要件8
+  | { readonly kind: "LocalDone"; readonly timerId: string } // 要件8（茹で上がりアラート記録）
   | { readonly kind: "Tick" } // 要件5（ビュー不変）
   | { readonly kind: "Reconcile"; readonly timers: readonly TimerFact[]; readonly receivedAt: number }; // 要件11（決定 B）
 
@@ -114,10 +125,12 @@ export const EMPTY_VIEW: ClientView = {
   timers: [],
   offset: 0,
   processedIds: new Set<string>(),
+  lastResults: new Map<string, { readonly noodleType: string; readonly at: number }>(),
   connectivity: "down",
   sync: "connecting",
   error: null,
   unitCount: DEFAULT_UNIT_COUNT,
+  noodlePresets: DEFAULT_NOODLE_PRESETS,
 };
 
 /**
@@ -154,6 +167,10 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
 
     case "LocalCancel":
       return decideLocalCancel(view, event.timerId);
+
+    case "LocalComplete":
+      // boiled の明示消し込み（degraded）。対象を除去し、ローカル再発火抑止のため処理済みに記録する。
+      return decideLocalComplete(view, event.timerId, event.now);
 
     case "Connectivity":
       // 到達性の事実だけをセットする。offset は変えない（degraded 中の凍結を維持・要件5.2）。
@@ -193,15 +210,19 @@ function decideLocalStart(
   ) {
     return view;
   }
-  // endTime は補正後現在時刻 + 茹で時間の絶対エポックミリ秒（事実）。残り秒は持たない（要件6.1）。
+  // endTime は補正後現在時刻 + 茹で時間の絶対エポックミリ秒（事実）。startTime は補正後現在時刻（事実）。
+  // 残り秒・進捗は持たず、この2点から導出する（要件6.1）。
   const provisional: ClientTimer = {
     id: event.newTimerId,
     slotIds: event.slotIds,
     noodleType: event.noodleType,
+    firmness: DEFAULT_FIRMNESS,
+    startTime: event.correctedNow,
     endTime: event.correctedNow + event.boilSeconds * 1000,
     origin: "local",
   };
-  return { ...view, timers: [...view.timers, provisional] };
+  // 新規開始した駆動スロットの直前結果（残滓）は解除する（要件13.7）。
+  return { ...view, timers: [...view.timers, provisional], lastResults: clearLastResults(view.lastResults, event.slotIds) };
 }
 
 /**
@@ -221,6 +242,48 @@ function decideLocalCancel(view: ClientView, timerId: string): ClientView {
   const processedIds =
     target.origin === "server" ? markProcessed(view.processedIds, timerId) : view.processedIds;
   return { ...view, timers, processedIds };
+}
+
+/**
+ * LocalComplete の畳み込み — degraded 中の boiled 明示消し込みを適用する（decideView の分岐）。
+ *
+ * 起源によらず対象 Timer を除去し、処理済みに記録してローカル再発火を抑止する。該当 id が無ければ
+ * ビュー不変。cancel と同形（id 指定で除去）だが別概念——完了は「茹で上がりの確認」である。
+ */
+function decideLocalComplete(view: ClientView, timerId: string, now: number): ClientView {
+  const target = view.timers.find((timer) => timer.id === timerId);
+  if (target === undefined) {
+    return view;
+  }
+  return {
+    ...view,
+    timers: view.timers.filter((timer) => timer.id !== timerId),
+    processedIds: markProcessed(view.processedIds, timerId),
+    // 除去直前の麺種を直前結果として記録する（idle 表示で一定時間提示する・要件13.5）。
+    lastResults: recordLastResults(view.lastResults, target, now),
+  };
+}
+
+/** 明示完了で除去される Timer の麺種を、その駆動スロット（slotId）ごとに直前結果として記録する。 */
+function recordLastResults(
+  prev: ClientView["lastResults"],
+  timer: ClientTimer,
+  at: number,
+): ClientView["lastResults"] {
+  const next = new Map(prev);
+  for (const slotId of timer.slotIds) next.set(slotId, { noodleType: timer.noodleType, at });
+  return next;
+}
+
+/** 指定スロット（slotId 群）の直前結果を消す。新規開始でそのスロットの残滓を解除する（要件13.7）。 */
+function clearLastResults(
+  prev: ClientView["lastResults"],
+  slotIds: readonly string[],
+): ClientView["lastResults"] {
+  if (!slotIds.some((slotId) => prev.has(slotId))) return prev;
+  const next = new Map(prev);
+  for (const slotId of slotIds) next.delete(slotId);
+  return next;
 }
 
 /**
@@ -255,8 +318,14 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
 
     case "started": {
       // 当該 Timer のカウントダウンを開始（要件1.4）。同一 id の重複 started は最新で置き換える。provisional は保持。
+      // 新規開始した駆動スロットの直前結果（残滓）は解除する（要件13.7）。
       const withoutDuplicate = view.timers.filter((timer) => timer.id !== message.timer.id);
-      return { ...view, offset, timers: [...withoutDuplicate, { ...message.timer, origin: "server" as const }] };
+      return {
+        ...view,
+        offset,
+        timers: [...withoutDuplicate, { ...message.timer, origin: "server" as const }],
+        lastResults: clearLastResults(view.lastResults, message.timer.slotIds),
+      };
     }
 
     case "cancelled": {
@@ -273,14 +342,30 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
       };
     }
 
-    case "done": {
-      // 処理済み / 除去済みの timerId は冪等に無視（音・通知・表示変更を行わない・要件2.12）。
+    case "boiled": {
+      // 茹で上がり通知（除去しない・明示完了待ち）。処理済み（＝既にアラート済み）の重複は冪等に無視する。
+      // boiled 表示は endTime ≤ now の導出から出すため、ここでの記録はアラート重複の抑止だけが目的。
+      // Timer 自体は集合に残す（明示完了 completed で初めて除去される）。
       if (!shouldHandleDone(message.timerId, view.processedIds)) {
         return { ...view, offset };
       }
-      // 未処理の timerId のみ処理済みとして記録する（要件2.11）。茹で上がり表示は processedIds 所属から
-      // 導出するため、Timer 自体は集合に残す（次の snapshot で全置換され除去される）。
       return { ...view, offset, processedIds: markProcessed(view.processedIds, message.timerId) };
+    }
+
+    case "completed": {
+      // 明示完了による除去。既に除去済みの重複 completed は冪等に無視する。当該 Timer を集合から除き、
+      // 除去直前の麺種を直前結果として記録する（idle 表示で一定時間提示・要件13.5）。処理済みにも登録する。
+      const target = view.timers.find((timer) => timer.id === message.timerId);
+      if (target === undefined) {
+        return { ...view, offset };
+      }
+      return {
+        ...view,
+        offset,
+        timers: view.timers.filter((timer) => timer.id !== message.timerId),
+        processedIds: markProcessed(view.processedIds, message.timerId),
+        lastResults: recordLastResults(view.lastResults, target, receivedAt),
+      };
     }
 
     case "error": {
@@ -288,8 +373,16 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
     }
 
     case "config": {
-      // 店舗設定の一方向受信（サーバ権威・クライアント不変）。ユニット総数を確定し offset も最新化する。
-      return { ...view, offset, unitCount: message.unitCount };
+      // 店舗設定の一方向受信（サーバ権威・クライアント不変）。ユニット総数と麺種プリセットを確定し offset も最新化する。
+      // 稼働中の差し替え（運用エンドポイント発の再配信）も同じ経路で反映される。
+      return { ...view, offset, unitCount: message.unitCount, noodlePresets: message.noodlePresets };
+    }
+
+    case "adjusted": {
+      // 茹で加減変更の反映（サーバ権威）。当該 Timer を更新後の事実で置き換える（endTime/firmness 更新）。
+      // 同一 id を差し替えるだけ（provisional は保持）。offset も最新化する。
+      const withoutTarget = view.timers.filter((timer) => timer.id !== message.timer.id);
+      return { ...view, offset, timers: [...withoutTarget, { ...message.timer, origin: "server" as const }] };
     }
   }
 }
@@ -355,6 +448,10 @@ export interface TimerConnection {
   start(slotIds: NonEmptyArray<string>, noodleType: string, boilSeconds: number): void;
   /** タイマーキャンセル操作を送る。 */
   cancel(timerId: string): void;
+  /** 茹で上がりの明示完了（消し込み）を送る。boiled な Timer を除去する。 */
+  complete(timerId: string): void;
+  /** 走行中の茹で加減変更を送る（live のみ・サーバが endTime を引き直す）。 */
+  adjust(timerId: string, firmness: Firmness): void;
   /** 接続を閉じ、再接続・ティックを停止する。 */
   close(): void;
 }
@@ -562,6 +659,20 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       }
       // degraded: LocalCancel を畳む（mint する id は無い）。WS へは送らない（要件7.3）。
       update(decideView(view, { kind: "LocalCancel", timerId }));
+    },
+    complete: (timerId) => {
+      if (mode(view) === "live") {
+        watch.send({ type: "complete", timerId });
+        return;
+      }
+      // degraded: LocalComplete を畳んでローカル除去する。WS へは送らない。直前結果の記録時刻は now()（client 実時刻）。
+      update(decideView(view, { kind: "LocalComplete", timerId, now: now() }));
+    },
+    adjust: (timerId, firmness) => {
+      // 茹で加減変更は live のみ（サーバが麺ごとの硬さ別秒で endTime を引き直す）。degraded では送らない。
+      if (mode(view) === "live") {
+        watch.send({ type: "adjust", timerId, firmness });
+      }
     },
     close: () => {
       clearSyncTimer();

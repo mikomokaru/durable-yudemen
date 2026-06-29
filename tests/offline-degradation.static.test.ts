@@ -48,8 +48,10 @@ const PERSISTENCE_FILE = "src/client/persistence.ts";
 
 /** core が持つべき純粋変換ファイルの確定集合（ここに増減があれば core が触られた証跡）。 */
 const EXPECTED_CORE_FILES = [
+  "src/engine/adjust.ts",
   "src/engine/alarm.ts",
   "src/engine/cancel.ts",
+  "src/engine/complete.ts",
   "src/engine/decide.ts",
   "src/engine/effect.ts",
   "src/engine/event.ts",
@@ -64,7 +66,20 @@ const EXPECTED_CORE_FILES = [
 ] as const;
 
 /** 既存ワイヤ形式（messages.ts）が定める全メッセージ種別。これ以外を導入しない（要件12.2）。 */
-const WIRE_MESSAGE_TYPES = new Set(["start", "cancel", "snapshot", "started", "cancelled", "done", "config", "error"]);
+const WIRE_MESSAGE_TYPES = new Set([
+  "start",
+  "cancel",
+  "complete",
+  "snapshot",
+  "started",
+  "cancelled",
+  "boiled",
+  "completed",
+  "config",
+  "adjust",
+  "adjusted",
+  "error",
+]);
 
 /** 日本語（ひらがな・カタカナ・漢字・CJK 記号・半角カナ）の検出。 */
 const JAPANESE = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff66-\uff9f]/;
@@ -542,11 +557,22 @@ describe("(e) クライアント純粋遷移層が暗黙の作用に触れない
 
 // ── (f) 英語 UI・日本語コメント（要件13.6） ───────────────────────────────────
 
+/**
+ * 英語 UI の唯一の例外＝茹で加減の表示ラベル（ラーメン調理の母語）。バリカタ／かため／ふつう／やわめは
+ * 英語に対応語を持たない調理ジャージョンであり、ユーザー（店舗運用者）の合意のもと日本語で表示する。
+ * 検査ではこの確定集合だけを許し、それ以外の日本語混入は従来どおり弾く（例外を最小に閉じ込める）。
+ */
+const ALLOWED_FIRMNESS_LABELS = ["バリカタ", "かため", "ふつう", "やわめ"] as const;
+
 describe("(f) ユーザー向け画面コンテンツは英語・コードコメントは日本語（要件13.6）", () => {
-  it("client のユーザー向け文字列・JSX に日本語が現れない（英語 UI）", () => {
+  it("client のユーザー向け文字列・JSX に日本語が現れない（茹で加減ラベルのみ例外・英語 UI）", () => {
     for (const file of CLIENT_FILES) {
       // コメント（日本語可）を除き、文字列リテラル・JSX テキストを残したテキストを検査する。
-      const code = readCodeWithStrings(file);
+      // 茹で加減ラベル（合意済みの調理母語）は取り除いてから日本語混入を判定する。
+      let code = readCodeWithStrings(file);
+      for (const label of ALLOWED_FIRMNESS_LABELS) {
+        code = code.split(label).join("");
+      }
       const match = JAPANESE.exec(code);
       expect(match, `${file} のユーザー向けコンテンツに日本語 "${match?.[0] ?? ""}" が含まれる`).toBeNull();
     }

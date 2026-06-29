@@ -3,6 +3,7 @@
 
 import type { EpochMillis, SlotId, NoodleType, TimerId } from "./types";
 import type { TimerFact, NonEmptyArray } from "../domain/timer";
+import type { Firmness } from "../domain/firmness";
 
 /**
  * Sequenced — engine だけが持つ登録順の事実（ワイヤには出ない）。
@@ -17,33 +18,54 @@ export interface Sequenced {
 }
 
 /**
- * Timer — アクティブな茹でタイマー一件。事実の芯（ブランド化）＋ engine 専用の連番。
+ * Boilable — engine だけが持つ「発火を記録した事実」（ワイヤには出ない）。
  *
- * 共有契約の芯 TimerFact（domain/timer.ts）をブランド型で具体化し、engine 専用の Sequenced を
- * 多重継承で合成する。endTime を持たない Timer や slotId を持たない Timer は型として存在しえない
- * （ブランド型と smart constructor が担保）。
+ * boiledAt は Alarm 発火で running → boiled へ遷移した時刻。null は走行中（running）を表す。
+ * boiled な Timer は除去されず、ユーザーの明示完了（Complete）まで残る。Alarm の張り直しは
+ * running（boiledAt === null）の最早だけを対象にし、過去時刻 Alarm の無限再発火を構造的に断つ。
+ * クライアントは boiled を endTime ≤ now から導出するため、この事実はワイヤに乗せず engine 内部に閉じる
+ * （timer-model.md: 片側専用の関心事は共有契約 domain に混ぜない）。
+ */
+export interface Boilable {
+  /** 発火時刻。null は running（未発火）。非 null は boiled（明示完了待ち）。 */
+  readonly boiledAt: EpochMillis | null;
+}
+
+/**
+ * Timer — アクティブな茹でタイマー一件。事実の芯（ブランド化）＋ engine 専用の連番・発火事実。
+ *
+ * 共有契約の芯 TimerFact（domain/timer.ts）をブランド型で具体化し、engine 専用の Sequenced /
+ * Boilable を多重継承で合成する。endTime を持たない Timer や slotId を持たない Timer は型として
+ * 存在しえない（ブランド型と smart constructor が担保）。
  * 残り秒は状態として持たない。保持するのは絶対終了時刻 endTime という「事実」だけ。
  */
-export interface Timer extends TimerFact<TimerId, SlotId, NoodleType, EpochMillis>, Sequenced {}
+export interface Timer extends TimerFact<TimerId, SlotId, NoodleType, EpochMillis>, Sequenced, Boilable {}
 
 /**
  * Timer を構築できる唯一の経路。検証に通った入力（ブランド型）からのみ Timer が生まれる。
  *
  * 入力はすべてブランド型なので、ここに到達する時点で各値は検証済みであることが型で保証される。
  * 構築の一点に生成を集約し、構築後は常に正当であることを型が担保する。
+ * boiledAt は省略時 null（走行中で生まれる）。発火時に fireDueTimers が非 null へ写す。
  */
 export function createTimer(input: {
   id: TimerId;
   slotIds: NonEmptyArray<SlotId>;
   noodleType: NoodleType;
+  firmness: Firmness;
+  startTime: EpochMillis;
   endTime: EpochMillis;
   seq: number;
+  boiledAt?: EpochMillis | null;
 }): Timer {
   return {
     id: input.id,
     slotIds: input.slotIds,
     noodleType: input.noodleType,
+    firmness: input.firmness,
+    startTime: input.startTime,
     endTime: input.endTime,
     seq: input.seq,
+    boiledAt: input.boiledAt ?? null,
   };
 }

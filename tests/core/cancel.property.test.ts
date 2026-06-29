@@ -34,8 +34,9 @@ describe("core/cancel", () => {
   });
 
   // Feature: yude-men-timer, Property 10: 発火・キャンセル後の Timer 集合は元集合の部分集合。
-  // fireDueTimers / cancelTimer の結果 timers は元集合の部分集合であり、キャンセル対象は残らない。
-  it("Property 10: 発火・キャンセル後の timers は元集合の部分集合（キャンセル対象は残らない）", () => {
+  // 発火は除去せず boiled として残すため id 集合は元と一致（部分集合かつ同数）。cancelTimer の結果 timers は
+  // 元集合の部分集合であり、キャンセル対象は残らない。
+  it("Property 10: 発火後の id は元集合に含まれ件数不変・キャンセル後は部分集合でキャンセル対象は残らない", () => {
     const genStateNowCancel = genState.chain((state) => {
       const idArb = state.timers.length > 0 ? fc.constantFrom(...state.timers.map((t) => t.id as string)) : fc.constant("absent");
       return fc.record({ state: fc.constant(state), now: nowArbFor(state), cancelId: idArb });
@@ -43,13 +44,15 @@ describe("core/cancel", () => {
 
     fc.assert(
       fc.property(genStateNowCancel, ({ state, now, cancelId }) => {
-        // 一括ドレイン発火の結果は元集合の部分集合。
+        // 一括ドレイン発火は除去しない。id は元集合に含まれ、件数は不変（boiled として残る）。
         const fired = fireDueTimers(state, now);
         expect(fired.ok).toBe(true);
         if (fired.ok) {
-          expect(isSubset(fired.state.timers, state.timers)).toBe(true);
+          const originIds = new Set(state.timers.map((t) => t.id as string));
+          expect(fired.state.timers.every((t) => originIds.has(t.id as string))).toBe(true);
+          expect(fired.state.timers.length).toBe(state.timers.length);
         }
-        // キャンセルの結果も部分集合で、対象 id は残らない（要件6.5）。
+        // キャンセルの結果は部分集合で、対象 id は残らない（要件6.5）。
         const cancelled = cancelTimer(state, cancelId, now);
         if (cancelled.ok) {
           expect(isSubset(cancelled.state.timers, state.timers)).toBe(true);

@@ -1,0 +1,68 @@
+/* =====================================================================
+   Yude-men Timer — Tailwind v4 テーマ
+   エントリ CSS（main.tsx で import するファイル）に貼るか、
+   このファイルを import してください。
+   ===================================================================== */
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&display=swap");
+
+/* デザイントークン → bg-panel / text-muted / border-line / text-running …
+   等の Tailwind ユーティリティが自動生成されます */
+@theme {
+  --color-bg:      #16140f;
+  --color-panel:   #211e17;
+  --color-panel2:  #2a261d;
+  --color-line:    #3a352a;
+  --color-ink:     #efe9dc;
+  --color-muted:   #9a9382;
+
+  /* 状態カラー（明度・彩度をそろえ色相だけ変更） */
+  --color-idle:    oklch(0.70 0.03 250);
+  --color-running: oklch(0.78 0.14 70);
+  --color-boiled:  oklch(0.82 0.17 150);
+
+  --font-sans: "Manrope", system-ui, -apple-system, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+
+  /* animate-boiled で使えるアニメーション */
+  --animate-boiled: boiledPulse 1.15s ease-in-out infinite;
+}
+
+/* 完了スロットのグロー点滅（color-mix を含むためユーティリティでなく keyframes に） */
+@keyframes boiledPulse {
+  0%, 100% {
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.03) inset,
+      0 8px 24px rgba(0,0,0,.35),
+      0 0 0 1px color-mix(in oklab, var(--color-boiled) 35%, transparent),
+      0 0 12px color-mix(in oklab, var(--color-boiled) 18%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.03) inset,
+      0 8px 24px rgba(0,0,0,.35),
+      0 0 0 2px color-mix(in oklab, var(--color-boiled) 60%, transparent),
+      0 0 40px color-mix(in oklab, var(--color-boiled) 45%, transparent);
+  }
+}
+
+/* 画面全体・スクロール抑制（アプリのルートに適用） */
+@layer base {
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    background: radial-gradient(120% 80% at 50% -10%, #20201a 0%, var(--color-bg) 55%);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* 動きが苦手な人・省電力設定 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-boiled { animation: none !important; }
+}

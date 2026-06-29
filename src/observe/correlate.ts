@@ -464,9 +464,9 @@ function activeCountBefore(ops: readonly OperationLogEntry[], boundary: number):
   return active.size;
 }
 
-/** 受信した `done` の payload.timerId（要件6.2 の対象タイマー特定）。該当しなければ null。 */
+/** 受信した `boiled`（茹で上がり通知）の payload.timerId（要件6.2 の対象タイマー特定）。該当しなければ null。 */
 function doneTimerId(entry: OperationLogEntry): string | null {
-  if (!isRecv(entry, "done")) {
+  if (!isRecv(entry, "boiled")) {
     return null;
   }
   return stringField(entry.payload, "timerId");
@@ -485,9 +485,10 @@ function startedTimerId(entry: OperationLogEntry): string | null {
   return stringField(timer, "id");
 }
 
-/** 受信した `done` / `cancelled` の payload.timerId（active 集合からの除去・要件6.4）。該当しなければ null。 */
+/** 受信した `completed` / `cancelled` の payload.timerId（active 集合からの除去・要件6.4）。該当しなければ null。
+ *  茹で上がり（boiled）は除去しない——boiled は明示完了まで集合に残る（active のまま rehydrate で復元される）。 */
 function endedTimerId(entry: OperationLogEntry): string | null {
-  if (entry.direction !== "recv" || (entry.messageType !== "done" && entry.messageType !== "cancelled")) {
+  if (entry.direction !== "recv" || (entry.messageType !== "completed" && entry.messageType !== "cancelled")) {
     return null;
   }
   return stringField(entry.payload, "timerId");
