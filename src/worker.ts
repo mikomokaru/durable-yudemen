@@ -24,7 +24,9 @@ function timingSafeEqual(a: string, b: string): boolean {
  * トークン未設定（空）の環境では常に不許可（誤って無認証で公開しない安全側の既定）。
  */
 function isAdminAuthorized(request: Request, env: Env): boolean {
-  const expected = (env.ADMIN_TOKEN as string | undefined) ?? "";
+  // ADMIN_TOKEN は secret。wrangler types は .dev.vars 非依存の CI では Env に含めないため、
+  // 生成 Env への依存を避けてローカルにキャストする（未設定なら undefined → 下で不許可へ畳む）。
+  const expected = (env as { readonly ADMIN_TOKEN?: string }).ADMIN_TOKEN ?? "";
   if (expected.length === 0) return false;
   const header = request.headers.get("Authorization") ?? "";
   const prefix = "Bearer ";
