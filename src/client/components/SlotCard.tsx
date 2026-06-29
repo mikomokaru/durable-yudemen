@@ -54,9 +54,11 @@ const actionStack = cn(
   "absolute bottom-[clamp(0.625rem,1.6vh,1.125rem)] right-[clamp(0.625rem,1.6vw,1.125rem)]",
   "flex flex-col items-center gap-[clamp(0.125rem,0.5vh,0.375rem)]",
 );
-/** 操作エリア: ボタン＋インジケータを収める正方形。全状態で同形にし、帯を常に確保する（boiling か否かで不変）。 */
+/** 操作エリア: ボタン＋インジケータを収める正方形。全状態で同形にし、帯を常に確保する（boiling か否かで不変）。
+ *  寸法はカード幅基準（cqi）。vh 基準だと iPhone の狭いカードに対して過大になり他コントロールと被るため、
+ *  クロック・茹で加減コントロールと同じくカード幅へ追従させる（iPad は cap で従来の大きさを維持）。 */
 const actionSlot = cn(
-  "relative grid aspect-square h-[clamp(6rem,13.5vh,7.875rem)] place-items-center",
+  "relative grid aspect-square h-[clamp(3.5rem,39cqi,7.875rem)] place-items-center",
 );
 /** ボタン下の操作ラベル（Start / Stop / Complete）。小さく控えめに。 */
 const actionLabel =
@@ -66,10 +68,10 @@ const actionBtn = cn(
   "grid aspect-square h-[88%] place-items-center rounded-full",
   "cursor-pointer transition active:scale-95",
 );
-/** 真円ボタン内のピクトグラムの大きさ（円に対して余白を残す）。 */
-const actionIcon = "h-[clamp(2.5rem,6vh,3.625rem)] w-auto";
-/** 操作エリア（右下の枠）を避けるための本文右余白。テキストが枠の下へ潜らないようにする。 */
-const contentPadRight = "pr-[clamp(7rem,15vh,9.125rem)]";
+/** 真円ボタン内のピクトグラムの大きさ（ボタンに比例＝カード幅基準 cqi）。 */
+const actionIcon = "h-[clamp(1.4rem,18cqi,3.625rem)] w-auto";
+/** 操作エリア（右下の枠）を避けるための本文右余白（ボタン幅に追従＝カード幅基準 cqi）。 */
+const contentPadRight = "pr-[clamp(5rem,45cqi,9.125rem)]";
 
 const slotTime = cn(
   "m-0 font-clock font-black leading-[.95] tabular-nums tracking-[.01em]",
