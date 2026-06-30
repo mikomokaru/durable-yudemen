@@ -76,8 +76,10 @@ function needsResume(ctx: AudioContext): boolean {
  * 本フック（タスク3.3）が担う Audio_Session ライフサイクル:
  *   - Audio_Unlock — 初回ジェスチャ（touchstart/touchend/click/keydown を capture フェーズで待受）で
  *     AudioContext を生成し、無音バッファ（createBuffer(1,1,sampleRate)）を 1 回 warm-up する（要件4.1/4.2）。
- *   - 解錠成立の確認 — 無音 BufferSource の onended が発火し「実際に再生完了した」ことを確認してから
- *     running（解錠済み）とみなし、確認後に解錠リスナ群を一括解除する（試みただけで running を主張しない）。
+ *   - 解錠成立の確認 — 無音 BufferSource の onended 発火、または resume 成功（state running）の早い方で
+ *     running（解錠済み）とみなし、確認後に解錠リスナ群を一括解除する。どちらも「実際に再生可能になった」
+ *     正直な証跡であり、warm-up を試みただけで running を主張しない。onended だけに頼ると iOS で不発時に
+ *     永久未解錠になりうるため、resume 成功も証跡に含める（要件4.2）。
  *   - resume — suspended/interrupted な Audio_Session を、可視化（visibilitychange→visible）起点で resume する（要件7.2）。
  *   - 破棄と再生成 — resume 失敗（InvalidStateError 等）で close → null 化し、解錠リスナを再武装して
  *     次ジェスチャで再 warm-up する。warm-up 失敗時も次ジェスチャで再試行する（要件4.6 / 7.4）。
@@ -165,25 +167,36 @@ export function useAudioCues(
       armUnlockListeners(); // 破棄後は次ジェスチャでの再 warm-up を待ち受ける（cancelled なら何もしない）
     }
 
-    /** 無音バッファを 1 回再生して warm-up する。onended 発火で解錠成立を確認してから running 化する。 */
+    /**
+     * 解錠成立を一度だけ確定する（冪等）。
+     * onended 発火、または resume 成功（state running）のいずれか早い方で呼ぶ。どちらも「実際に再生可能に
+     * なった」ことの正直な証跡であり、warm-up を試みただけの主張ではない（真＝状態について嘘をつかない）。
+     * onended だけに依存すると iOS では発火しないことがあり永久に未解錠になりうるため、resume 成功も証跡に含める。
+     */
+    function confirmUnlock(): void {
+      if (cancelled || unlockedRef.current) return;
+      const ctx = sessionRef.current;
+      if (ctx === null || ctx.state !== "running") return; // running を確認してからのみ解錠成立とする
+      unlockedRef.current = true;
+      warming = false;
+      removeUnlockListeners(); // 確認後に初めて解錠リスナ群を一括解除する
+    }
+
+    /** 無音バッファを 1 回再生して出力経路を温める（warm-up）。再生完了（onended）は running の確かな証跡。 */
     function warmUp(ctx: AudioContext): void {
       const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.onended = () => {
-        // 「試みた」だけでなく実際に再生完了したことを確認してから解錠済みとみなす（真＝状態について嘘をつかない）。
-        if (cancelled) return;
-        unlockedRef.current = true;
-        warming = false;
         source.disconnect();
         source.onended = null;
-        removeUnlockListeners(); // 確認後に初めて解錠リスナ群を一括解除する
+        confirmUnlock();
       };
       source.connect(ctx.destination);
       source.start(0);
     }
 
-    /** 初回ジェスチャでの解錠（生成 + resume + warm-up）。失敗時は破棄して次ジェスチャで再試行。 */
+    /** 初回ジェスチャでの解錠（生成 + warm-up + resume）。失敗時は破棄して次ジェスチャで再試行。 */
     function unlock(): void {
       if (unlockedRef.current || warming) return; // 解錠済み / warm-up 進行中は何もしない
       try {
@@ -191,10 +204,12 @@ export function useAudioCues(
           sessionRef.current = new AudioContextCtor();
         }
         const ctx = sessionRef.current;
-        // 生成直後は suspended のことがある。ジェスチャ内 resume を試みてから warm-up する。
-        if (needsResume(ctx)) void ctx.resume().catch(() => destroy());
         warming = true;
-        warmUp(ctx);
+        warmUp(ctx); // 出力経路を温める。onended が発火すれば解錠成立の一証跡になる。
+        // 生成直後は suspended のことがある。ジェスチャ内 resume を試み、成功（state running）も解錠成立の
+        // 証跡として扱う。iOS では onended が発火しないことがあるため、どちらか早い方で解錠を確定する（要件4.2）。
+        if (needsResume(ctx)) void ctx.resume().then(confirmUnlock).catch(() => destroy());
+        else confirmUnlock(); // 生成直後から running なら即確定
       } catch {
         // warm-up / 生成失敗。握り潰し、破棄して次ジェスチャで再試行する（要件4.6）。
         destroy();
