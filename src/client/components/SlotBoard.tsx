@@ -21,6 +21,8 @@ import { noodleColors } from "./noodleColor";
 interface SlotBoardProps {
   readonly connection: TimerConnection;
   readonly units: readonly number[];
+  /** 指定操作（Start 押下/麺選択確定/Cancel/Complete/茹で加減変更）に相乗りさせる Touch_Cue の再生口。best-effort・no-op しうる（要件1）。 */
+  readonly playTouchCue: () => void;
 }
 
 /** ラジアルメニューの開閉状態。どのスロットを、画面のどこを中心に開くか。閉のとき null。 */
@@ -34,7 +36,7 @@ interface PickerAnchor {
 const LAST_RESULT_TTL_MS = 30_000;
 
 /** 担当ユニットの Timer を秒読み表示し、担当スロットにのみ開始/キャンセル/完了操作を提示する。 */
-export function SlotBoard({ connection, units }: SlotBoardProps) {
+export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   // ビューは受信・接続状態変化でのみ更新される外部ストア。残り秒は持たない。
   const view = useSyncExternalStore(connection.subscribe, connection.getView);
   // 秒読み用の再レンダーの拍。値は持たず bump するだけ——毎秒＋復帰時に再レンダーを促し、時刻は描画時点の
@@ -101,12 +103,31 @@ export function SlotBoard({ connection, units }: SlotBoardProps) {
                     <SlotCard
                       key={display.slot}
                       display={display}
-                      onStart={(slot, center) => setPicker({ slot, ...center })}
-                      onCancel={connection.cancel}
-                      onComplete={(_slot, timer) => connection.complete(timer.id)}
+                      onStart={(slot, center) => {
+                        // Start ボタン押下（ラジアルを開く操作）にも Touch_Cue を相乗りさせる。開く動作は変えない
+                        // （best-effort・no-op しうる・要件1.1/1.4/1.5）。麺選択確定時にも別途鳴る（タップごとの反応）。
+                        setPicker({ slot, ...center });
+                        playTouchCue();
+                      }}
+                      onCancel={(timerId) => {
+                        // 指定操作（Cancel）に Touch_Cue を相乗りさせる。再生は副作用として加えるだけで、
+                        // 本来のキャンセル動作は変えない（best-effort・no-op しうる・要件1.4/1.5）。
+                        connection.cancel(timerId);
+                        playTouchCue();
+                      }}
+                      onComplete={(_slot, timer) => {
+                        // 指定操作（Complete＝消し込み）に Touch_Cue を相乗りさせる。
+                        connection.complete(timer.id);
+                        playTouchCue();
+                      }}
                       lastResultNoodle={lastResultNoodle}
                       noodleColor={colorOf}
-                      onAdjust={connection.adjust}
+                      onAdjust={(timerId, firmness) => {
+                        // 茹で加減変更（指定操作）にも Touch_Cue を相乗りさせる。サーバへの adjust 本体は変えない
+                        // （best-effort・no-op しうる・要件1.4/1.5）。
+                        connection.adjust(timerId, firmness);
+                        playTouchCue();
+                      }}
                     />
                   );
                 })}
@@ -119,8 +140,10 @@ export function SlotBoard({ connection, units }: SlotBoardProps) {
         colorOf={colorOf}
         label={picker ? `Slot ${picker.slot}` : undefined}
         onSelect={(preset) => {
+          // 麺選択確定＝Start。指定操作に Touch_Cue を相乗りさせる（開始動作は変えない・要件1.1/1.4/1.5）。
           if (picker) startOnSlot(picker.slot, preset.noodleType, preset.boilSeconds.normal);
           setPicker(null);
+          playTouchCue();
         }}
         onClose={() => setPicker(null)}
       />
