@@ -45,7 +45,7 @@ type CueShape = readonly Note[];
 // 一切触れない。直近タップ時刻と段数という揮発的なローカル変数のみで成立させ、状態へ昇格させない
 // （設計哲学「導出値を状態に昇格させない」）。段数は音を鳴らした副作用として進むだけで、誰も読み戻さない。
 const TOUCH_ESCALATION_SEMITONES = 1.5; // 1 段あたりの上昇幅（半音）。
-const TOUCH_ESCALATION_WINDOW_MS = 500; // この間隔以内の連続タップを「連打」とみなす。超えると基準へ戻す。
+const TOUCH_ESCALATION_WINDOW_MS = 1200; // この間隔以内の連続タップを「連打」とみなす。超えると基準へ戻す。
 const TOUCH_ESCALATION_MAX_STEP = 7;    // 上限段。耳が痛くなる音域までは上げない頭打ち。
 const SEMITONE_RATIO = Math.pow(2, 1 / 12); // 等比 1 半音＝周波数比 2^(1/12)。
 
