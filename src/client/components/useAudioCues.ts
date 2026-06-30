@@ -118,7 +118,11 @@ export function useAudioCues(
 
   // AudioContext の今を読み、鳴らせる（running な）ctx だけを返す。鳴らせる状態は保持せず毎回ライブで読む。
   // running でなければ resume() を投げて null を返す——ジェスチャ内なら解錠が成立し、そうでなければ次の機会へ。
-  const readyContext = useCallback((): AudioContext | null => {
+  //
+  // allowCreate はジェスチャ起点のときだけ true。iOS は「ユーザージェスチャ内で生成した AudioContext」しか
+  // running へ上げられない（tick 等の非ジェスチャで先に生成すると、後からジェスチャで resume しても効かず
+  // suspended のまま固まる）。ゆえに生成はジェスチャ経路に限り、tick は既存の running な ctx に相乗りするだけ。
+  const readyContext = useCallback((allowCreate: boolean): AudioContext | null => {
     const Ctor = resolveAudioContextConstructor();
     if (Ctor === undefined) return null; // 非対応環境（要件4.5）
     let ctx = sessionRef.current;
@@ -127,6 +131,7 @@ export function useAudioCues(
       ctx = null;
     }
     if (ctx === null) {
+      if (!allowCreate) return null; // 非ジェスチャでは生成しない（iOS の解錠条件を守る）
       try {
         ctx = new Ctor();
         sessionRef.current = ctx;
@@ -142,9 +147,10 @@ export function useAudioCues(
   }, []);
 
   // 撃ちっぱなしの再生口。running な ctx を読めたときだけ鳴らす。失敗は握り潰す（best-effort・要件1.3/3.11）。
+  // allowCreate はジェスチャ起点のときだけ true（生成はジェスチャ内に限る・iOS 解錠条件）。
   const emit = useCallback(
-    (play: (ctx: AudioContext) => void): void => {
-      const ctx = readyContext();
+    (play: (ctx: AudioContext) => void, allowCreate: boolean): void => {
+      const ctx = readyContext(allowCreate);
       if (ctx === null) return; // 未 running は pop 破棄
       try {
         play(ctx);
@@ -165,7 +171,7 @@ export function useAudioCues(
     // 解錠フラグを持たないので「解錠後にリスナを外す」儀式も無い。running 時は readyContext 内で resume を
     // 試みず素通りするだけなので、張りっぱなしでも安く、中断後の再タップで自然に回復する。
     const onGesture = (): void => {
-      readyContext();
+      readyContext(true); // ジェスチャ内で生成＋resume（iOS の解錠点。これが唯一 ctx を生成してよい経路の一つ）
     };
 
     /**
@@ -185,7 +191,7 @@ export function useAudioCues(
         now,
       );
       preAlertWatchRef.current = next;
-      for (let i = 0; i < fire.length; i++) emit(playPreAlertTone); // 撃ち捨て（各 timerId 1 回・要件2.1/2.8）
+      for (let i = 0; i < fire.length; i++) emit(playPreAlertTone, false); // 撃ち捨て（生成しない・tick は非ジェスチャ）
 
       // Done（状態型）— boiled が在る間、5 秒ペースで鳴らし続ける持続アラーム（要件3.1）。
       const boiled = boiledTimerIds(assignedSlotDisplays(currentView, currentUnits, now));
@@ -195,13 +201,13 @@ export function useAudioCues(
       }
       if (dueDoneCue(boiled, now, lastRingAtRef.current)) {
         lastRingAtRef.current = now; // ペースは撃とうとした時刻で進める（鳴否に依存しない＝撃ちっぱなし）
-        emit(playDoneTone);
+        emit(playDoneTone, false); // 生成しない（tick は非ジェスチャ）。既存の running な ctx に相乗りするだけ
       }
     }
 
     const onVisibility = (): void => {
       if (document.visibilityState !== "visible") return;
-      readyContext(); // 可視復帰で resume を試みる（要件5.2）
+      readyContext(false); // 可視復帰では既存 ctx の resume のみ（visibilitychange は非ジェスチャ＝生成しない・要件5.2）
       tick(); // throttle で止まった分を即時に再評価（boiled 残存なら 1 秒以内に Done 再開・要件5.2/5.3）
     };
 
@@ -230,7 +236,7 @@ export function useAudioCues(
   // Touch_Cue 再生口: 指定操作（タップ）から呼ぶ。running なら鳴らし、未 running なら resume を試みて no-op
   // （best-effort・要件1）。直前の Touch_Cue 未完了でも audioTone が毎回新ノードを生成＝先頭から再トリガ（要件1.6）。
   const playTouchCue = useCallback((): void => {
-    emit(playTouchTone);
+    emit(playTouchTone, true); // 指定操作（タップ）＝ジェスチャ。ここでの生成は iOS 解錠条件を満たす
   }, [emit]);
 
   return useMemo<AudioCues>(() => ({ playTouchCue }), [playTouchCue]);

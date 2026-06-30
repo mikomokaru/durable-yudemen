@@ -134,7 +134,7 @@ flowchart LR
 ```mermaid
 stateDiagram-v2
   [*] --> none: 未生成（AudioContext なし）
-  none --> ready: readyContext が生成（ジェスチャ／ティック／可視復帰の最初の通過）
+  none --> ready: readyContext が生成（**ジェスチャ経路のみ**：タップ／Touch の emit。tick・可視復帰では生成しない）
   none --> unsupported: 音声出力 API 非提供（要件4.5）
 
   ready --> running: resume() がジェスチャ内で効く（＝解錠／中断復帰・要件4.2/7.2/7.3）
@@ -155,7 +155,7 @@ stateDiagram-v2
   end note
 ```
 
-- **none** — AudioContext 未生成。`readyContext()` が最初に通ったとき（ジェスチャ・ティック・可視復帰のいずれか）に生成する。生成は作用であって解錠ではない。
+- **none** — AudioContext 未生成。生成は **ユーザージェスチャ経路でのみ**行う（`readyContext(allowCreate=true)`：汎用タップリスナと Touch の emit）。tick（setInterval）・可視復帰は `allowCreate=false` で、既存 ctx が無ければ何もしない。**iOS は「ジェスチャ内で生成した AudioContext」しか running へ上げられず、非ジェスチャ（tick 等）で先に生成すると後続のジェスチャ resume が効かず suspended のまま固まる**ため、生成タイミングをジェスチャに縛るのは必須条件（実機で確認した回帰の根因）。
 - **ready→running** — `resume()` は**ジェスチャ内**で叩かれて初めて iOS を `running` へ移す。Touch は指定操作（ジェスチャ）から emit されるため最初の Start タップが解錠点になり、汎用ジェスチャリスナ（capture）も任意のタップで resume を叩く。
 - **suspended** — バックグラウンド・画面ロック・着信等で停止。次に `readyContext()` を通る経路（タップ・5 秒ごとの Done・可視復帰）で `resume()` され回復する。回復は emit に内包され、専用の監視ループを持たない。
 - **closed** — OS が破棄した状態。`readyContext()` が `closed` を検知したら参照を捨てて新規生成し直す。
