@@ -388,7 +388,7 @@ remaining・boiled 集合・発火対象は上記からの**導出値**であり
 
 ### Touch_Cue / Pre_Alert_Cue / Done_Cue の音そのもの（合成トーン）
 
-3 種の音は、外部音源ファイルを持たず **AudioContext 上の合成トーン**（`OscillatorNode` + `GainNode` のエンベロープ）として鳴らす。これにより音声経路は AudioContext 単一に保たれ（`<audio>` 要素もアセット読み込みも持たない）、warm-up と同じ経路で全 Cue が鳴る。各 Cue は短いトーン（Touch：極短クリック、Pre_Alert：単発の予告音、Done：注意を引く反復しやすい音）として区別する。具体的な周波数・長さは実装フェーズの調整事項とし、設計上の不変点は「単一 AudioContext・合成トーン・best-effort」のみ。
+3 種の音は、外部音源ファイルを持たず **AudioContext 上の合成トーン**（`OscillatorNode` + `GainNode` のエンベロープ）として鳴らす。これにより音声経路は AudioContext 単一に保たれ（`<audio>` 要素もアセット読み込みも持たない）、解錠（resume）と同じ単一 context 上で全 Cue が鳴る。各 Cue は短いトーン（Touch：極短クリック、Pre_Alert：単発の予告音、Done：注意を引く反復しやすい音）として区別する。具体的な周波数・長さは実装フェーズの調整事項とし、設計上の不変点は「単一 AudioContext・合成トーン・best-effort」のみ。
 
 ### 再生終了ノードの後始末（finished ノードを抱え込まない）
 
@@ -404,7 +404,7 @@ Done_Cue は boiled が残る限り 5 秒ごとに `OscillatorNode` を生成し
 
 本機能は Property-Based Testing（PBT）が**強く適合**する。理由は明確である——鳴動判定の核（`boiledTimerIds` / `dueDoneCue` / `advancePreAlert`）は、いずれも **WS も DOM も時計も AudioContext も持たない決定的な純粋関数**だからである。時刻・観測位相はすべて引数で渡るため、生成器が吐く大量の `ClientView`・担当ユニット・時刻・イベント列に対して、以下の不変条件を**実 AudioContext も実時間も介さず**検証できる。
 
-逆に、AudioContext の生成・warm-up・解錠・resume・破棄と再生成（要件4 / 7）、実時間ティックと 100ms / 1 秒以内のレイテンシ（要件1.1 / 2.9 / 3.3）、visibilitychange 起点の可視復帰（要件5）、Silent_Switch（要件7.9）は、入力で振る舞いが変わらない／外部依存／実時間依存の**端**であり PBT に不適。これらは Integration / Example / Smoke で確認する（Testing Strategy 参照）。
+逆に、AudioContext の生成・解錠・resume・closed の作り直し（要件4 / 7）、実時間ティックと 100ms / 1 秒以内のレイテンシ（要件1.1 / 2.9 / 3.3）、visibilitychange 起点の可視復帰（要件5）、Silent_Switch（要件7.9）は、入力で振る舞いが変わらない／外部依存／実時間依存の**端**であり PBT に不適。これらは Integration / Example / Smoke で確認する（Testing Strategy 参照）。
 
 > 各プロパティは骨格の帰結である。「計算と作用の分離をクライアントへ徹底」が P1〜P5 の純粋性に、「導出値を状態に昇格させない」が P4（boiled 導出）・P5（remaining 導出）に、「SSOT を侵さない」が P1（書き戻し禁止）に、「既存資産の延長」が P3（担当限定）・P5（slotDisplay 由来の boiled）に、そのまま写されている。
 
