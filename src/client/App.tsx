@@ -26,7 +26,6 @@ import { useWakeLock } from "./components/useWakeLock";
 import { useAudioCues } from "./components/useAudioCues";
 import { ConnectionStatus } from "./components/ConnectionStatus";
 import { InstallPrompt } from "./components/InstallPrompt";
-import { DebugAudioProbe } from "./components/DebugAudioProbe";
 import { unitsForCount } from "./assignment";
 import { DEFAULT_UNIT_COUNT } from "../domain/store";
 import { cn } from "./cn";
@@ -184,9 +183,6 @@ export function App() {
 
       {/* ブラウザ閲覧時のみ表示する PWA インストール導線（standalone では自動的に消える）。 */}
       <InstallPrompt />
-
-      {/* ?audiodebug=1 のときだけ出る一時診断オーバーレイ（iOS 解錠の切り分け用・原因特定後に撤去）。 */}
-      <DebugAudioProbe />
     </div>
   );
 }
