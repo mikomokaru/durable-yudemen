@@ -75,10 +75,10 @@ const TOUCH_CUE: CueShape = [
   { frequency: 1320, type: "sine", durationMs: 50, peakGain: 0.13 },
 ];
 
-/** Pre_Alert_Cue — 660→988 の上昇 2 音。上昇形が「そろそろ来る」予告を直感的に伝える（急かさない）。 */
+/** Pre_Alert_Cue — 660→988 の上昇 2 音。triangle で抜けを出し、Done に埋もれない音量に上げる（上昇形で予告）。 */
 const PRE_ALERT_CUE: CueShape = [
-  { frequency: 660, type: "sine", durationMs: 140, peakGain: 0.17 },
-  { frequency: 988, type: "sine", durationMs: 220, peakGain: 0.20, atMs: 130 },
+  { frequency: 660, type: "triangle", durationMs: 150, peakGain: 0.3 },
+  { frequency: 988, type: "triangle", durationMs: 240, peakGain: 0.34, atMs: 130, octaveLayer: true },
 ];
 
 /** Done_Cue — ソ・シ・ミ（784/988/1319）の上昇 3 音＋倍音のチャイム。鐘のように識別しやすく反復に強い。 */
