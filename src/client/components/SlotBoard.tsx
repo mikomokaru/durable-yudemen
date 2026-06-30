@@ -1,7 +1,8 @@
 // client/components/SlotBoard.tsx — 担当スロットの一覧表示と操作の配線。
 // 接続の外部ストアを useSyncExternalStore で購読してビューを得る（受信・接続状態の変化で再描画）。
-// 残りの秒読みはビュー変化では起きないため、useNow が現在時刻を 1 秒間隔で刻んで再描画を促し、
-// 描画のたびに slotDisplay の純粋導出で残りを算出し直す（要件10.5）。残り秒は状態に持たない。
+// 残りの秒読みはビュー変化では起きないため、毎秒＋復帰時に再レンダーを促す拍をこのボードが持ち、
+// 描画時点の Date.now() を読んで slotDisplay の純粋導出で残りを算出し直す（要件10.5）。現在時刻は
+// キャッシュせず（どの経路の再レンダーでも実時刻で算出）、残り秒も状態に持たない。
 //
 // レイアウトの外殻（フルスクリーンの .ymt / 上部バー）と同期インジケータは App / ConnectionStatus が担う。
 // ここはボード本体——エラー帯・スロットグリッド・ラジアルメニュー——だけを描く。
@@ -10,10 +11,9 @@
 // LocalComplete で除去直前に記録される）。ここはそれを idle スロットに LAST_RESULT_TTL_MS だけ提示するだけ。
 // 記録ロジックを decideView 側へ寄せたことで、自端末完了・リモート完了の双方で残滓が出る（表示は導出のみ）。
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { TimerConnection } from "../connection";
 import { assignedSlotDisplays } from "./slotDisplay";
-import { useNow } from "./useNow";
 import { SlotCard } from "./SlotCard";
 import { RadialMenu } from "./RadialMenu";
 import { noodleColors } from "./noodleColor";
@@ -37,7 +37,28 @@ const LAST_RESULT_TTL_MS = 30_000;
 export function SlotBoard({ connection, units }: SlotBoardProps) {
   // ビューは受信・接続状態変化でのみ更新される外部ストア。残り秒は持たない。
   const view = useSyncExternalStore(connection.subscribe, connection.getView);
-  const now = useNow();
+  // 秒読み用の再レンダーの拍。値は持たず bump するだけ——毎秒＋復帰時に再レンダーを促し、時刻は描画時点の
+  // Date.now() で読む（現在時刻をキャッシュせず、どの経路の再レンダーでも実時刻で算出する）。
+  const [, beat] = useState(0);
+  useEffect(() => {
+    const tick = () => beat((n) => n + 1);
+    const id = setInterval(tick, 1000);
+    // バックグラウンド中は setInterval がスロットル/停止する。復帰の瞬間に即時再レンダーして止まっていた分を解消。
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    window.addEventListener("pageshow", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+      window.removeEventListener("pageshow", tick);
+    };
+  }, []);
+  // 現在時刻は端のここで一度だけ読み、純粋導出（slotDisplay）へ引数で渡す。
+  const now = Date.now();
   // 保持は全量・表示は導出。担当外スロットはここで構造的に除外される（要件12.2）。
   const displays = assignedSlotDisplays(view, units, now);
   // ラジアルメニューの開閉。ボード内で一つだけ持ち、RadialMenu も一つだけ描画する。
