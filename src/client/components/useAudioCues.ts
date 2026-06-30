@@ -51,6 +51,14 @@ type AudioContextConstructor = new () => AudioContext;
 /** 解錠ジェスチャの待受イベント（capture フェーズで張り、初回ジェスチャを取りこぼしにくくする）。 */
 const UNLOCK_EVENTS = ["touchstart", "touchend", "click", "keydown"] as const;
 
+// ─── 一時デバッグ計測（?audiodebug=1 のときだけ console へ出力・通常ユーザーには無影響）─────────
+// iOS 実機での解錠失敗を Safari リモート Web インスペクタから観測するための計測。原因切り分け後に撤去する。
+const AUDIO_DEBUG =
+  typeof location !== "undefined" && new URLSearchParams(location.search).has("audiodebug");
+function audioLog(...args: unknown[]): void {
+  if (AUDIO_DEBUG) console.log("[audio-cues]", ...args);
+}
+
 /**
  * AudioContext コンストラクタを解決する。標準 AudioContext を優先し、無ければ webkitAudioContext。
  * いずれも無ければ undefined（音声出力 API 非提供＝unsupported・要件4.5）。
@@ -176,10 +184,14 @@ export function useAudioCues(
     function confirmUnlock(): void {
       if (cancelled || unlockedRef.current) return;
       const ctx = sessionRef.current;
-      if (ctx === null || ctx.state !== "running") return; // running を確認してからのみ解錠成立とする
+      if (ctx === null || ctx.state !== "running") {
+        audioLog("confirmUnlock skipped", { ctx: ctx === null ? "null" : ctx.state });
+        return; // running を確認してからのみ解錠成立とする
+      }
       unlockedRef.current = true;
       warming = false;
       removeUnlockListeners(); // 確認後に初めて解錠リスナ群を一括解除する
+      audioLog("UNLOCKED ✓", { state: ctx.state, sampleRate: ctx.sampleRate });
     }
 
     /** 無音バッファを 1 回再生して出力経路を温める（warm-up）。再生完了（onended）は running の確かな証跡。 */
@@ -188,6 +200,7 @@ export function useAudioCues(
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.onended = () => {
+        audioLog("warmUp onended fired");
         source.disconnect();
         source.onended = null;
         confirmUnlock();
@@ -202,16 +215,32 @@ export function useAudioCues(
       try {
         if (sessionRef.current === null) {
           sessionRef.current = new AudioContextCtor();
+          audioLog("AudioContext created", {
+            state: sessionRef.current.state,
+            sampleRate: sessionRef.current.sampleRate,
+          });
         }
         const ctx = sessionRef.current;
         warming = true;
         warmUp(ctx); // 出力経路を温める。onended が発火すれば解錠成立の一証跡になる。
         // 生成直後は suspended のことがある。ジェスチャ内 resume を試み、成功（state running）も解錠成立の
         // 証跡として扱う。iOS では onended が発火しないことがあるため、どちらか早い方で解錠を確定する（要件4.2）。
-        if (needsResume(ctx)) void ctx.resume().then(confirmUnlock).catch(() => destroy());
-        else confirmUnlock(); // 生成直後から running なら即確定
-      } catch {
+        if (needsResume(ctx)) {
+          audioLog("resume() called", { state: ctx.state });
+          void ctx
+            .resume()
+            .then(() => {
+              audioLog("resume() resolved", { state: ctx.state });
+              confirmUnlock();
+            })
+            .catch((err) => {
+              audioLog("resume() rejected", String(err));
+              destroy();
+            });
+        } else confirmUnlock(); // 生成直後から running なら即確定
+      } catch (err) {
         // warm-up / 生成失敗。握り潰し、破棄して次ジェスチャで再試行する（要件4.6）。
+        audioLog("unlock threw", String(err));
         destroy();
       }
     }
@@ -230,7 +259,10 @@ export function useAudioCues(
         .catch(() => destroy());
     }
 
-    const onGesture = (): void => unlock();
+    const onGesture = (event: Event): void => {
+      audioLog("gesture", event.type, { unlocked: unlockedRef.current });
+      unlock();
+    };
 
     /**
      * 評価ティック（≤ tickMs）— now を採取し boiled 集合と Pre_Alert 発火群を毎ティック純粋導出する。
@@ -329,7 +361,14 @@ export function useAudioCues(
   // 未解錠（1.2）・running 以外・再生失敗（1.3）はいずれも鳴らさない。
   const playTouchCue = useCallback((): void => {
     const ctx = playableContext();
-    if (ctx === null) return;
+    if (ctx === null) {
+      audioLog("playTouchCue no-op", {
+        unlocked: unlockedRef.current,
+        state: sessionRef.current?.state ?? "null",
+      });
+      return;
+    }
+    audioLog("playTouchCue ▶", { state: ctx.state });
     playTouchTone(ctx);
   }, [playableContext]);
 
