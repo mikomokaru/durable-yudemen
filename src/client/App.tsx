@@ -10,8 +10,9 @@
 // 残り高さをボードが満たし、スロットグリッドが等分充填でスクロールなしに収まる。設定は
 // ポップオーバーに集約し、外側クリック / Esc で閉じる。
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  EMPTY_VIEW,
   isPingBlackholeActive,
   openTimerConnection,
   pingBlackholeDebugEnabled,
@@ -22,6 +23,7 @@ import { SlotBoard } from "./components/SlotBoard";
 import { UnitSelector } from "./components/UnitSelector";
 import { useUnitCount } from "./components/useUnitCount";
 import { useWakeLock } from "./components/useWakeLock";
+import { useAudioCues } from "./components/useAudioCues";
 import { ConnectionStatus } from "./components/ConnectionStatus";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { unitsForCount } from "./assignment";
@@ -46,6 +48,16 @@ export function App() {
   useWakeLock();
   // 接続はマウント中のみ生存する作用。effect で開閉を対応させる。
   const [connection, setConnection] = useState<TimerConnection | null>(null);
+  // 音声評価のための view 購読（SlotBoard と同じ useSyncExternalStore パターン）。残り秒は状態化しない——
+  // 受信・接続状態変化でのみ更新される事実を参照するだけ。接続確立前は EMPTY_VIEW、確立で subscribe 参照が
+  // 変わり購読し直す。
+  const view = useSyncExternalStore(
+    useCallback((onChange: () => void) => (connection ? connection.subscribe(onChange) : () => {}), [connection]),
+    useCallback(() => (connection ? connection.getView() : EMPTY_VIEW), [connection]),
+  );
+  // 画面点灯維持（useWakeLock）の隣に同列でマウントする端の作用。担当ユニット units を音の対象に渡し、
+  // Touch_Cue の再生口を受け取って SlotBoard の指定操作へ相乗りさせる。
+  const { playTouchCue } = useAudioCues(view, units);
   // 設定ポップオーバーの開閉。上部バーの設定ボタンが切り替える UI 状態。
   const [settingsOpen, setSettingsOpen] = useState(false);
   const popRef = useRef<HTMLDivElement>(null);
@@ -163,7 +175,7 @@ export function App() {
         aria-label="Slots"
       >
         {connection ? (
-          <SlotBoard connection={connection} units={units} />
+          <SlotBoard connection={connection} units={units} playTouchCue={playTouchCue} />
         ) : (
           <p role="status" className="text-muted">Connecting…</p>
         )}

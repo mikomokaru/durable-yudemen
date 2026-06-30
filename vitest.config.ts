@@ -25,6 +25,8 @@ export default defineConfig({
           include: [
             "tests/static-analysis.example.test.ts",
             "tests/offline-degradation.static.test.ts",
+            // Wake_Lock マウントの依存確認（タスク6.1）。node:fs で App.tsx を読むため node 環境で実行する。
+            "tests/client/audioWakeLock.example.test.ts",
           ],
         },
       },
@@ -51,6 +53,8 @@ export default defineConfig({
           exclude: [
             "tests/static-analysis.example.test.ts",
             "tests/offline-degradation.static.test.ts",
+            // node:fs でソースを読む静的検査は static プロジェクト（node）が担当する。
+            "tests/client/audioWakeLock.example.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
           ],
