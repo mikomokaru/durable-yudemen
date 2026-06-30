@@ -100,6 +100,8 @@ flowchart LR
 
 ビューが保持する「事実」は Connectivity（up / down）であり、Mode はその関数 `mode(view) = view.connectivity === "up" ? "live" : "degraded"` として参照のたびに導出する（要件3.1〜3.3）。Mode を独立フィールドに持つと二つの真実の源になり、必ずズレる。
 
+> **操作の経路は Mode だけでなく対象 Timer の origin でも分ける（幽霊タイマーの防止）:** `cancel` / `complete` / `adjust` の送り先は、Mode に加えて**対象 Timer の origin**で決める。Provisional_Timer（origin:"local"）は degraded 中にローカルで生まれ、**サーバへ送られたことがない**（write-back はスコープ外）。よってサーバは決してその id を知らない。回線復帰（live）後にこの provisional を Mode だけで「live だからサーバへ送る」経路に乗せると、サーバが `TimerNotFound` を返し、しかもローカルでも除去されず——**止められない幽霊タイマー**になる（実機で確認）。したがって origin:"local" の対象は **Mode に関わらずローカルで畳む**（`LocalCancel` / `LocalComplete`）。サーバへ送るのは「origin:"server" かつ live」のときだけ。`adjust` はサーバが endTime を引き直す操作ゆえ provisional には無意味で、この条件以外では送らない。これは「不正な状態を表現可能にしない／握り潰された失敗を残さない」の帰結であり、`src/client/connection.ts` の送信窓口に閉じる（engine 不変）。
+
 #### 設計上の確定判断（degraded の入り口と再同期機構）
 
 検討の結果、次の二点を確定する。いずれも「導出値を状態に昇格させない」「SSOT 規律を崩さない」骨格の直接の帰結である。

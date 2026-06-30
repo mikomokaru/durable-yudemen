@@ -653,24 +653,31 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       );
     },
     cancel: (timerId) => {
-      if (mode(view) === "live") {
+      // provisional（origin:"local"）はサーバが知らないローカル意図。mode に関わらずローカルで畳んで除去する
+      // （live なのにサーバへ送ると TimerNotFound で詰む＝幽霊タイマー化する）。server-confirmed のみ live で送る。
+      const target = view.timers.find((timer) => timer.id === timerId);
+      if (target?.origin === "server" && mode(view) === "live") {
         watch.send({ type: "cancel", timerId });
         return;
       }
-      // degraded: LocalCancel を畳む（mint する id は無い）。WS へは送らない（要件7.3）。
+      // degraded、または対象が provisional / 不在のときはローカル畳み込み（要件7.3・幽霊タイマーの解消）。
       update(decideView(view, { kind: "LocalCancel", timerId }));
     },
     complete: (timerId) => {
-      if (mode(view) === "live") {
+      // cancel と同じ origin 経路分け。provisional の boiled 消し込みもサーバへ送らずローカルで除去する。
+      const target = view.timers.find((timer) => timer.id === timerId);
+      if (target?.origin === "server" && mode(view) === "live") {
         watch.send({ type: "complete", timerId });
         return;
       }
-      // degraded: LocalComplete を畳んでローカル除去する。WS へは送らない。直前結果の記録時刻は now()（client 実時刻）。
+      // degraded、または対象が provisional / 不在のときはローカル除去。直前結果の記録時刻は now()（client 実時刻）。
       update(decideView(view, { kind: "LocalComplete", timerId, now: now() }));
     },
     adjust: (timerId, firmness) => {
-      // 茹で加減変更は live のみ（サーバが麺ごとの硬さ別秒で endTime を引き直す）。degraded では送らない。
-      if (mode(view) === "live") {
+      // 茹で加減変更はサーバが麺ごとの硬さ別秒で endTime を引き直す操作。server-confirmed かつ live のときだけ送る。
+      // provisional（サーバに対象が無い）・degraded では送らない（送れば TimerNotFound になるだけ）。
+      const target = view.timers.find((timer) => timer.id === timerId);
+      if (target?.origin === "server" && mode(view) === "live") {
         watch.send({ type: "adjust", timerId, firmness });
       }
     },

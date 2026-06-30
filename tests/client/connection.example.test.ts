@@ -12,11 +12,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { remainingMs } from "../../src/client/clock";
 import {
+  mode,
   openTimerConnection,
+  type Connectivity,
   type ConnectionOptions,
   type Socket,
   type SocketListeners,
 } from "../../src/client/connection";
+import type { ConnectivityWatch } from "../../src/client/connectivity";
+import type { ClientMessage, ServerMessage } from "../../src/domain/messages";
 import type { TimerFact } from "../../src/domain/timer";
 
 /** 1 回の接続試行で生成された偽 Socket（送信・切断のモック）とそのリスナの組。 */
@@ -186,6 +190,91 @@ describe("client/connection — 状態同期と切断継続", () => {
     expect(disconnected.send).not.toHaveBeenCalled();
 
     unsubscribe();
+    connection.close();
+  });
+});
+
+describe("client/connection — provisional への操作は origin で経路分けする（幽霊タイマー解消）", () => {
+  /**
+   * Connectivity を直接駆動できる偽 Watch で接続を組む。default watchConnectivity の ping/pong に依存せず、
+   * degraded→live の遷移と送信有無を決定的に検証する。openSocket は偽 Watch が無視する。
+   */
+  function setupWithWatch(overrides: Partial<ConnectionOptions> = {}) {
+    const send = vi.fn<(message: ClientMessage) => void>();
+    let connectivityHandler: ((status: Connectivity) => void) | null = null;
+    let serverMessageHandler: ((message: ServerMessage, receivedAt: number) => void) | null = null;
+    const watch: ConnectivityWatch = {
+      onConnectivity: (handler) => {
+        connectivityHandler = handler;
+      },
+      send,
+      onServerMessage: (handler) => {
+        serverMessageHandler = handler;
+      },
+      close: vi.fn(),
+    };
+    let idCounter = 0;
+    const connection = openTimerConnection({
+      url: "wss://test/ws",
+      now: () => START_NOW,
+      newId: () => `local-${(idCounter += 1)}`,
+      connectivity: () => watch,
+      ...overrides,
+    });
+    return {
+      connection,
+      send,
+      setConnectivity: (status: Connectivity) => connectivityHandler?.(status),
+      receiveMessage: (message: ServerMessage) => serverMessageHandler?.(message, START_NOW),
+    };
+  }
+
+  it("degraded で開始した provisional を live で Cancel するとサーバへ送らずローカル除去する（TimerNotFound 回避）", () => {
+    const { connection, send, setConnectivity } = setupWithWatch();
+
+    // boot は connectivity down（degraded）。ここで開始すると provisional（origin:"local"）が生まれ、送信はしない。
+    connection.start(["slot-5"], "ramen", 180);
+    const provisional = connection.getView().timers.find((t) => t.origin === "local");
+    expect(provisional).toBeDefined();
+    expect(send).not.toHaveBeenCalled();
+
+    // 回線復帰（live）。provisional は保持される。
+    setConnectivity("up");
+    expect(mode(connection.getView())).toBe("live");
+
+    // live でも provisional の Cancel はサーバへ送らず、ローカルで除去する（幽霊タイマーにならない）。
+    connection.cancel(provisional!.id);
+    expect(send).not.toHaveBeenCalled();
+    expect(connection.getView().timers.some((t) => t.id === provisional!.id)).toBe(false);
+
+    connection.close();
+  });
+
+  it("live で server-confirmed な Timer の Cancel は従来どおりサーバへ送る", () => {
+    const { connection, send, setConnectivity, receiveMessage } = setupWithWatch();
+
+    setConnectivity("up");
+    receiveMessage({ type: "snapshot", serverTime: START_NOW, timers: [makeTimer("S")] });
+    expect(mode(connection.getView())).toBe("live");
+
+    connection.cancel("S");
+    expect(send).toHaveBeenCalledWith({ type: "cancel", timerId: "S" });
+
+    connection.close();
+  });
+
+  it("live で provisional の Complete もサーバへ送らずローカル除去する", () => {
+    const { connection, send, setConnectivity } = setupWithWatch();
+
+    connection.start(["slot-3"], "udon", 120);
+    const provisional = connection.getView().timers.find((t) => t.origin === "local");
+    expect(provisional).toBeDefined();
+
+    setConnectivity("up");
+    connection.complete(provisional!.id);
+    expect(send).not.toHaveBeenCalled();
+    expect(connection.getView().timers.some((t) => t.id === provisional!.id)).toBe(false);
+
     connection.close();
   });
 });
