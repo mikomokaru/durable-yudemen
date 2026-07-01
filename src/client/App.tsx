@@ -26,6 +26,7 @@ import { useWakeLock } from "./components/useWakeLock";
 import { useAudioCues } from "./components/useAudioCues";
 import { ConnectionStatus } from "./components/ConnectionStatus";
 import { InstallPrompt } from "./components/InstallPrompt";
+import { Logo } from "./components/Logo";
 import { unitsForCount } from "./assignment";
 import { DEFAULT_UNIT_COUNT } from "../domain/store";
 import { cn } from "./cn";
@@ -126,8 +127,8 @@ export function App() {
           "px-[clamp(0.75rem,2.4vw,1.625rem)] bg-[color-mix(in_oklab,var(--color-panel)_92%,black)]",
         )}
       >
-        <h1 className="m-0 text-[clamp(0.9375rem,2.2vw,1.25rem)] font-extrabold uppercase tracking-[.06em] text-ink">
-          BoilIt
+        <h1 className="m-0 text-[clamp(1rem,2.4vw,1.375rem)] leading-none">
+          <Logo />
         </h1>
         <div className="flex-1" />
         {connection && <ConnectionStatus connection={connection} />}

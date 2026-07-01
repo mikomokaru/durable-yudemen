@@ -14,6 +14,9 @@
   --color-ink: #efe9dc;
   --color-muted: #9a9382;
 
+  /* ブランド（ロゴの鍋リング＝麺の三点）。状態色ではなく identity。ロゴの配色はここが唯一の出所。 */
+  --color-brand: oklch(0.8 0.1 78); /* 琥珀の金：ワードマーク BOILIT の O */
+
   --color-idle: oklch(0.7 0.03 250); /* 待機：ブルーグレー */
   --color-running: oklch(0.78 0.14 70); /* 茹で中：琥珀 */
   --color-boiled: oklch(0.82 0.17 150); /* 完了：緑（最も目立つ） */

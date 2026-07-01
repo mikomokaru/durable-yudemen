@@ -21,6 +21,8 @@ export default defineConfig({
       // 要件10.5）、ここで追加の更新プロンプト層は設けない。
       registerType: "autoUpdate",
       // ユーザー向け表示文言は英語（要件13.6）。display: standalone で全画面動作（要件10.3）。
+      // 背景/テーマ色はダークなアプリ地色（styles.css の color-bg）に揃え、起動スプラッシュや
+      // PWA クロムがアイコン・本編と地続きになるようにする。
       manifest: {
         name: "BoilIt",
         short_name: "BoilIt",
@@ -29,9 +31,16 @@ export default defineConfig({
         display: "standalone",
         start_url: "/",
         scope: "/",
-        background_color: "#ffffff",
-        theme_color: "#ffffff",
+        background_color: "#16140f",
+        theme_color: "#16140f",
         orientation: "portrait",
+        // アイコン（public/ 配下・rsvg で SVG マスターから生成）。any は角丸版、
+        // maskable は全面ダーク版（OS 側マスクに委ねる／安全域に収めた）。
+        icons: [
+          { src: "pwa-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "pwa-maskable-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
       },
       workbox: {
         // App_Shell の precache 対象（HTML/JS/CSS とアイコン等の静的アセット・要件10.1）。

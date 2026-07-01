@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- 全面ダーク背景版（角丸なし）。iOS ホーム画面と Android maskable は OS 側でマスクするため角を丸めない。
+       リングと三点は maskable の安全域（中心 80%）に収まる大きさにしてある。 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26221a"/>
+      <stop offset="1" stop-color="#14120d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="328" fill="none" stroke="#e4ba76" stroke-width="62"/>
+  <circle cx="440" cy="612" r="50" fill="#e4ba76"/>
+  <circle cx="600" cy="588" r="46" fill="#e4ba76"/>
+  <circle cx="520" cy="654" r="36" fill="#f0d9a8"/>
+</svg>
