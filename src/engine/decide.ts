@@ -8,6 +8,7 @@
 import type { TimerState } from "./state";
 import type { Event } from "./event";
 import type { Outcome } from "./effect";
+import type { SyncParams } from "./sync";
 import { startTimer } from "./start";
 import { cancelTimer } from "./cancel";
 import { completeTimer } from "./complete";
@@ -15,25 +16,29 @@ import { adjustTimer } from "./adjust";
 import { fireDueTimers, reconcile } from "./fire";
 
 /**
- * 唯一の状態遷移関数（要件8.1 / 8.4 / 8.7）。
+ * 唯一の状態遷移関数（要件8.1 / 8.4 / 8.7・本機能の要件7.1 / 7.2）。
  *
  * Start → startTimer / Cancel → cancelTimer / Complete → completeTimer /
  * AlarmFired → fireDueTimers / Reconcile → reconcile。
  * 網羅は型で保証する（Event は判別共用体であり、未処理の種別は never に落ちて型エラーになる）。
+ *
+ * params は同期計算の値（arms / toleranceRatio）。engine は StoreConfig 型を知らず、ただの数値の束として
+ * 受け取る（非純粋を端へ寄せる規律）。集合や窓を変える Start / Cancel / Complete / Adjust に加え、発火経路の
+ * AlarmFired / Reconcile も settle 経由で残り running を全体再同期するため、すべての分岐に params を渡す。
  */
-export function decide(state: TimerState, event: Event): Outcome {
+export function decide(state: TimerState, event: Event, params: SyncParams): Outcome {
   switch (event.type) {
     case "Start":
-      return startTimer(state, event);
+      return startTimer(state, event, params);
     case "Cancel":
-      return cancelTimer(state, event.timerId, event.now);
+      return cancelTimer(state, event.timerId, event.now, params);
     case "Complete":
-      return completeTimer(state, event.timerId, event.now);
+      return completeTimer(state, event.timerId, event.now, params);
     case "Adjust":
-      return adjustTimer(state, event.timerId, event.firmness, event.boilSeconds, event.now);
+      return adjustTimer(state, event.timerId, event.firmness, event.boilSeconds, event.now, params);
     case "AlarmFired":
-      return fireDueTimers(state, event.now);
+      return fireDueTimers(state, event.now, params);
     case "Reconcile":
-      return reconcile(state, event.now);
+      return reconcile(state, event.now, params);
   }
 }

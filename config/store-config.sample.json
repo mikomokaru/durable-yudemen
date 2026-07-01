@@ -1,5 +1,7 @@
 {
   "unitCount": 3,
+  "arms": 2,
+  "toleranceRatio": 3,
   "noodlePresets": [
     { "noodleType": "REG", "boilSeconds": { "extraHard": 75, "hard": 82, "normal": 90, "soft": 105 } },
     { "noodleType": "つけ", "boilSeconds": { "extraHard": 160, "hard": 180, "normal": 200, "soft": 230 } },

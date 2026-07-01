@@ -6,7 +6,11 @@ import { startTimer } from "../../src/engine/start";
 import type { Event } from "../../src/engine/event";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
+import type { SyncParams } from "../../src/engine/sync";
 import { genState, genStateExact } from "./generators";
+
+/** 固定の同期パラメータ（既定域内・arms=2 / toleranceRatio=10%）。start は settle 経由で全体再同期する。 */
+const PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
 
 /** Start イベントを組み立てる（startTimer は Start 種別だけを受け取る）。 */
 function startEvent(input: {
@@ -42,7 +46,7 @@ describe("core/start", () => {
         fc.string({ minLength: 1, maxLength: 6 }),
         fc.integer({ min: 0, max: 5_000_000 }),
         (state, boilSeconds, slotId, noodleType, now) => {
-          const outcome = startTimer(state, startEvent({ slotIds: [slotId], noodleType, boilSeconds, now }));
+          const outcome = startTimer(state, startEvent({ slotIds: [slotId], noodleType, boilSeconds, now }), PARAMS);
           expect(outcome.ok).toBe(true);
           if (outcome.ok) {
             expect(outcome.state.timers.length).toBe(state.timers.length + 1);
@@ -85,7 +89,7 @@ describe("core/start", () => {
     fc.assert(
       fc.property(genState, genInvalidStart, fc.integer({ min: 0, max: 5_000_000 }), (state, { input, expected }, now) => {
         const before = plain(state);
-        const outcome = startTimer(state, startEvent({ ...input, now }));
+        const outcome = startTimer(state, startEvent({ ...input, now }), PARAMS);
         expect(outcome.ok).toBe(false);
         if (!outcome.ok) {
           expect(outcome.rejection.code).toBe(expected);
@@ -111,7 +115,7 @@ describe("core/start", () => {
         (state, input, now) => {
           expect(state.timers.length).toBe(100);
           const before = plain(state);
-          const outcome = startTimer(state, startEvent({ ...input, now }));
+          const outcome = startTimer(state, startEvent({ ...input, now }), PARAMS);
           expect(outcome.ok).toBe(false);
           if (!outcome.ok) {
             expect(outcome.rejection.code).toBe("CapacityExceeded");

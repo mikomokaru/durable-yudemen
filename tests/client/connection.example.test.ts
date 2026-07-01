@@ -93,17 +93,18 @@ describe("client/connection — 状態同期と切断継続", () => {
     const { connection, latest } = setup();
     latest().listeners.onOpen();
 
-    // 最初の snapshot で A・B を保持し synced になる。
+    // 最初の snapshot で A・B を保持し synced になる。A は endTime が過去（クライアントで boiled として導出される）。
     receive(latest(), {
       type: "snapshot",
       serverTime: START_NOW,
-      timers: [makeTimer("A"), makeTimer("B")],
+      timers: [makeTimer("A", START_NOW - 1000), makeTimer("B")],
     });
     expect(connection.getView().sync).toBe("synced");
     expect(connection.getView().timers.map((t) => t.id)).toEqual(["A", "B"]);
 
-    // A を boiled として処理済み（アラート済み）に記録する（A は completed まで集合に残る）。
-    receive(latest(), { type: "boiled", serverTime: START_NOW + 10, timerId: "A" });
+    // 茹で上がりアラートはクライアントのローカル導出（endTime ≤ 補正後現在）で鳴り、A を処理済みに記録する
+    // （server の boiled メッセージは撤去済み。dedup は endTime 導出＋ LocalDone 記録で担う）。
+    vi.advanceTimersByTime(1000);
     expect(connection.getView().processedIds.has("A")).toBe(true);
 
     // 次の snapshot は B・C のみ。A は表示から除去され、処理済み記録からも刈り取られる。

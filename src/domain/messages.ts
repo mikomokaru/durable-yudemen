@@ -23,13 +23,12 @@ export type ClientMessage =
   | { readonly type: "complete"; readonly timerId: string } // 茹で上がりの明示消し込み（boiled → 除去）
   | { readonly type: "adjust"; readonly timerId: string; readonly firmness: Firmness }; // 走行中の茹で加減変更（endTime 再計算）
 
-/** server → client のメッセージ。すべて serverTime を付与する。 */
+/** server → client のメッセージ。すべて serverTime を付与する。
+ *
+ * 確定した状態変化ごとに送るのは snapshot ただ一つ（唯一の権威表現・SSOT）。
+ * 意味論メッセージ（started/cancelled/completed/boiled/adjusted）は撤去した
+ * ——同一事実に二つの表現を持たせないための引き算（bug#1 の構造的消滅）。 */
 export type ServerMessage =
-  | { readonly type: "snapshot"; readonly serverTime: number; readonly timers: readonly TimerFact[] } // hydration 全量（要件4.1）
-  | { readonly type: "started"; readonly serverTime: number; readonly timer: TimerFact } // 開始反映（要件1.3）
-  | { readonly type: "cancelled"; readonly serverTime: number; readonly timerId: string } // 走行中の中断による除去（要件6.2）
-  | { readonly type: "boiled"; readonly serverTime: number; readonly timerId: string } // 茹で上がり通知（除去しない・明示完了待ち／要件2.5）
-  | { readonly type: "completed"; readonly serverTime: number; readonly timerId: string } // 明示完了による除去
-  | { readonly type: "adjusted"; readonly serverTime: number; readonly timer: TimerFact } // 茹で加減変更の反映（endTime/firmness 更新）
+  | { readonly type: "snapshot"; readonly serverTime: number; readonly timers: readonly TimerFact[] } // 唯一の権威表現（hydration も状態変化も同一・全量／要件4.1）
   | { readonly type: "config"; readonly serverTime: number; readonly unitCount: number; readonly noodlePresets: readonly NoodlePreset[] } // 店舗設定の一方向配信（サーバ権威・クライアント不変）
-  | { readonly type: "error"; readonly serverTime: number; readonly code: string; readonly message: string }; // 各拒否・失敗
+  | { readonly type: "error"; readonly serverTime: number; readonly code: string; readonly message: string }; // 各拒否・失敗（要求元へ直接 ws.send）

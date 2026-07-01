@@ -6,20 +6,20 @@
 
 import type { EpochMillis } from "../engine/types";
 import type { TimerState } from "./state";
-import type { Outcome, Effect } from "./effect";
-import { toSnapshot } from "./snapshot";
-import { nextAlarmEffect } from "./alarm";
-import type { ServerMessage } from "../domain/messages";
+import type { Outcome } from "./effect";
+import { settle } from "./settle";
+import type { SyncParams } from "./sync";
 
 /**
- * タイマーキャンセルの状態遷移。対象 Timer を除去し、残存から Alarm を張り直す（要件6.1 / 6.3 / 6.4 / 6.5）。
+ * タイマーキャンセルの状態遷移。対象 Timer を除去し、残り running 集合全体を再同期する（要件6.1 / 6.3 / 6.4 / 6.5・本機能の要件7.2）。
  *
  * 対象が存在しなければ TimerNotFound を返し、状態を一切変更しない（要件6.6）。拒否は例外ではなく戻り値。
- * 成功時の Effect 列は [Persist, (SetAlarm|ClearAlarm), Broadcast(cancelled), Reply(cancelled)]。Persist を
- * 先頭に置くのは SSOT 規律の表明であり、shell は put 成功の上にのみ Alarm / Broadcast を立てる。
- * 残存ゼロなら nextAlarmEffect が ClearAlarm を返す（要件6.4）。
+ * 除去後の running 集合全体を settle が synchronize で再同期し、Effect 列を組む。成功時の Effect 列は
+ * [Persist, (SetAlarm|ClearAlarm), Broadcast(snapshot)]（snapshot は残余 Timer の調整変化を含む全量・唯一の
+ * 権威表現）。Persist を先頭に置くのは SSOT 規律の表明。
+ * 残存ゼロなら settle 内の nextAlarmEffect が ClearAlarm を返す（要件6.4）。
  */
-export function cancelTimer(state: TimerState, timerId: string, now: EpochMillis): Outcome {
+export function cancelTimer(state: TimerState, timerId: string, now: EpochMillis, params: SyncParams): Outcome {
   // 対象が存在しなければ状態不変で拒否する（要件6.6）。
   if (!state.timers.some((t) => t.id === timerId)) {
     return {
@@ -31,22 +31,9 @@ export function cancelTimer(state: TimerState, timerId: string, now: EpochMillis
     };
   }
   // 対象を除去する。残存は元集合の部分集合であり、除去後は発火対象に現れない（要件6.5）。
-  const nextState: TimerState = {
+  const moved: TimerState = {
     timers: state.timers.filter((t) => t.id !== timerId),
     nextSeq: state.nextSeq,
   };
-  // cancelled は要求元への Reply と全 WS への Broadcast で同一内容を運ぶ（serverTime = now）。
-  const cancelled: ServerMessage = {
-    type: "cancelled",
-    serverTime: now,
-    timerId,
-  };
-  // 最早 Alarm の算出は必ず nextAlarmEffect を通す（残存ありで SetAlarm、ゼロで ClearAlarm）。
-  const effects: readonly Effect[] = [
-    { type: "Persist", snapshot: toSnapshot(nextState) },
-    nextAlarmEffect(nextState.timers),
-    { type: "Broadcast", message: cancelled },
-    { type: "Reply", message: cancelled },
-  ];
-  return { ok: true, state: nextState, effects };
+  return settle(state, moved, params, now);
 }

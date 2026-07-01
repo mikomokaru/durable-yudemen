@@ -15,8 +15,7 @@ export type Effect =
   | { readonly type: "Persist"; readonly snapshot: ActiveTimersSnapshot } // storage.put（確定の起点）
   | { readonly type: "SetAlarm"; readonly at: EpochMillis } // storage.setAlarm
   | { readonly type: "ClearAlarm" } // storage.deleteAlarm
-  | { readonly type: "Broadcast"; readonly message: ServerMessage } // 接続中の全 WS へ
-  | { readonly type: "Reply"; readonly message: ServerMessage }; // 要求元の WS へ
+  | { readonly type: "Broadcast"; readonly message: ServerMessage }; // 接続中の全 WS へ
 
 /** 純粋変換の結果。成功なら新状態と Effect 列、失敗なら拒否理由。 */
 export type Outcome =

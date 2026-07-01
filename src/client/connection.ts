@@ -80,9 +80,10 @@ export interface ClientView {
   /** done / cancelled を処理済みとして記録した timerId 集合（表示制御用・SSOT のコピーではない）。 */
   readonly processedIds: ReadonlySet<string>;
   /**
-   * 直前の調理結果（client 専用・ベストエフォート）。slotId → { 麺種, 記録時刻 }。明示完了（completed /
-   * LocalComplete）で除去される直前に記録し、idle 表示で一定時間だけ提示する（要件13.5/13.6）。SSOT では
-   * なく processedIds と同じ表示制御用ローカル情報で、永続もしない（リロードで消えてよい）。
+   * 直前の調理結果（client 専用・ベストエフォート）。slotId → { 麺種, 記録時刻 }。除去される直前に記録し、
+   * idle 表示で一定時間だけ提示する（要件13.5/13.6）。理由を問わず一様——snapshot 差分で消えた Timer・
+   * degraded の LocalComplete / LocalCancel のいずれでも記録する（要件5.1/5.2）。SSOT ではなく processedIds と
+   * 同じ表示制御用ローカル情報で、永続もしない（リロードで消えてよい）。
    */
   readonly lastResults: ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>;
   /** 到達性の事実。Mode の導出元（要件3.1）。 */
@@ -113,7 +114,7 @@ export type ClientEvent =
       readonly newTimerId: string;
       readonly correctedNow: number;
     } // 要件6
-  | { readonly kind: "LocalCancel"; readonly timerId: string } // 要件7
+  | { readonly kind: "LocalCancel"; readonly timerId: string; readonly now: number } // 要件7 / 5.2（除去直前の麺種を残滓化）
   | { readonly kind: "LocalComplete"; readonly timerId: string; readonly now: number } // boiled の明示消し込み（degraded）
   | { readonly kind: "Connectivity"; readonly status: Connectivity } // 要件2/3
   | { readonly kind: "LocalDone"; readonly timerId: string } // 要件8（茹で上がりアラート記録）
@@ -158,15 +159,16 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
       return decideServerMessage(view, event.message, event.receivedAt);
 
     case "Reconcile":
-      // snapshot と同一規律（server-confirmed のみ置換・provisional 保持・processedIds 刈り取り・要件11.5/11.6/11.7）。
-      // Reconcile イベントは serverTime を運ばないため offset は凍結する（接続中に確立した最新値を維持・要件5.2）。
-      return reconcileServerConfirmed(view, event.timers);
+      // snapshot と同一規律（server-confirmed 全置換・provisional 保持・差分残滓・processedIds 刈り取り・要件4.1〜4.7）。
+      // Reconcile イベントは serverTime を運ばないため offset は凍結する（reconcileServerConfirmed は offset を
+      // 触らず、接続中に確立した最新値を維持・要件5.2）。残滓記録時刻 at には受信時刻 receivedAt を渡す。
+      return reconcileServerConfirmed(view, event.timers, event.receivedAt);
 
     case "LocalStart":
       return decideLocalStart(view, event);
 
     case "LocalCancel":
-      return decideLocalCancel(view, event.timerId);
+      return decideLocalCancel(view, event.timerId, event.now);
 
     case "LocalComplete":
       // boiled の明示消し込み（degraded）。対象を除去し、ローカル再発火抑止のため処理済みに記録する。
@@ -231,8 +233,12 @@ function decideLocalStart(
  *   - origin==="local"（Provisional_Timer）→ timers から除去するだけ（要件7.1）。
  *   - origin==="server"（server-confirmed）→ 除去に加え markProcessed で記録し、後続のローカル発火を抑止する（要件7.2）。
  *   - 該当 id が存在しない → ビュー不変（view をそのまま返す）。
+ *
+ * 起源によらず、除去直前の麺種を直前結果（残滓）として記録する。中断（Cancel）でも完了（Complete）でも
+ * 「在ったものが消えた」事実だけで一様に残滓を出す——degraded 経路も snapshot 差分と同じ規律に揃える
+ * （LocalComplete と同一手順・要件5.2 / 5.3）。除去時刻 now を残滓の提示時間窓の起点 at に運ぶ。
  */
-function decideLocalCancel(view: ClientView, timerId: string): ClientView {
+function decideLocalCancel(view: ClientView, timerId: string, now: number): ClientView {
   const target = view.timers.find((timer) => timer.id === timerId);
   if (target === undefined) {
     return view;
@@ -241,7 +247,13 @@ function decideLocalCancel(view: ClientView, timerId: string): ClientView {
   // server-confirmed のローカル cancel はローカル発火抑止のため処理済みに記録する（要件7.2）。
   const processedIds =
     target.origin === "server" ? markProcessed(view.processedIds, timerId) : view.processedIds;
-  return { ...view, timers, processedIds };
+  return {
+    ...view,
+    timers,
+    processedIds,
+    // 除去直前の麺種を直前結果として記録する（LocalComplete と同一・理由を問わない一様残滓・要件5.2）。
+    lastResults: recordLastResults(view.lastResults, target, now),
+  };
 }
 
 /**
@@ -305,110 +317,88 @@ export function dueLocalTimers(view: ClientView, correctedNow: number): readonly
  * Date.now() を関数内に持ち込まない（純粋性を保ち、任意時刻で検証可能にする）。
  */
 function decideServerMessage(view: ClientView, message: ServerMessage, receivedAt: number): ClientView {
-  // すべての server → client メッセージは serverTime を伴う。受信のたびに offset を最新化する（要件10.3）。
+  // すべての server → client メッセージは serverTime を伴う。受信のたびに offset を最新化する（要件2.5）。
   const offset = clockOffset(message.serverTime, receivedAt);
 
   switch (message.type) {
     case "snapshot": {
-      // server-confirmed のみ全置換し provisional は保持する共有規律（要件11.5/11.6/11.7）。
-      // 初回 hydration では provisional 空ゆえ全置換に縮退する。offset 再確立・同期確定・エラー解消を重ねる。
-      const reconciled = reconcileServerConfirmed(view, message.timers);
+      // server-confirmed の全置換＋直前集合との差分で残滓を導く唯一の権威表現（要件4.1〜4.7）。
+      // 初回 hydration では prevServer / provisional が空ゆえ全置換に縮退する。offset 再確立・同期確定・
+      // エラー解消を重ねる。残滓記録時刻 at には受信時刻 receivedAt を渡す（要件4.2 / 5.1）。
+      const reconciled = reconcileServerConfirmed(view, message.timers, receivedAt);
       return { ...reconciled, offset, sync: "synced", error: null };
     }
 
-    case "started": {
-      // 当該 Timer のカウントダウンを開始（要件1.4）。同一 id の重複 started は最新で置き換える。provisional は保持。
-      // 新規開始した駆動スロットの直前結果（残滓）は解除する（要件13.7）。
-      const withoutDuplicate = view.timers.filter((timer) => timer.id !== message.timer.id);
-      return {
-        ...view,
-        offset,
-        timers: [...withoutDuplicate, { ...message.timer, origin: "server" as const }],
-        lastResults: clearLastResults(view.lastResults, message.timer.slotIds),
-      };
-    }
-
-    case "cancelled": {
-      // 既に処理済み（＝除去済み）の重複 cancelled は冪等に無視する（要件6.8）。offset のみ最新化。
-      if (!shouldHandleDone(message.timerId, view.processedIds)) {
-        return { ...view, offset };
-      }
-      // 当該 Slot の表示を除去し（要件6.7）、処理済みとして記録する。
-      return {
-        ...view,
-        offset,
-        timers: view.timers.filter((timer) => timer.id !== message.timerId),
-        processedIds: markProcessed(view.processedIds, message.timerId),
-      };
-    }
-
-    case "boiled": {
-      // 茹で上がり通知（除去しない・明示完了待ち）。処理済み（＝既にアラート済み）の重複は冪等に無視する。
-      // boiled 表示は endTime ≤ now の導出から出すため、ここでの記録はアラート重複の抑止だけが目的。
-      // Timer 自体は集合に残す（明示完了 completed で初めて除去される）。
-      if (!shouldHandleDone(message.timerId, view.processedIds)) {
-        return { ...view, offset };
-      }
-      return { ...view, offset, processedIds: markProcessed(view.processedIds, message.timerId) };
-    }
-
-    case "completed": {
-      // 明示完了による除去。既に除去済みの重複 completed は冪等に無視する。当該 Timer を集合から除き、
-      // 除去直前の麺種を直前結果として記録する（idle 表示で一定時間提示・要件13.5）。処理済みにも登録する。
-      const target = view.timers.find((timer) => timer.id === message.timerId);
-      if (target === undefined) {
-        return { ...view, offset };
-      }
-      return {
-        ...view,
-        offset,
-        timers: view.timers.filter((timer) => timer.id !== message.timerId),
-        processedIds: markProcessed(view.processedIds, message.timerId),
-        lastResults: recordLastResults(view.lastResults, target, receivedAt),
-      };
-    }
-
-    case "error": {
-      return { ...view, offset, error: { code: message.code, message: message.message } };
-    }
-
-    case "config": {
+    case "config":
       // 店舗設定の一方向受信（サーバ権威・クライアント不変）。ユニット総数と麺種プリセットを確定し offset も最新化する。
-      // 稼働中の差し替え（運用エンドポイント発の再配信）も同じ経路で反映される。
+      // 稼働中の差し替え（運用エンドポイント発の再配信）も同じ経路で反映される（要件2.3）。
       return { ...view, offset, unitCount: message.unitCount, noodlePresets: message.noodlePresets };
-    }
 
-    case "adjusted": {
-      // 茹で加減変更の反映（サーバ権威）。当該 Timer を更新後の事実で置き換える（endTime/firmness 更新）。
-      // 同一 id を差し替えるだけ（provisional は保持）。offset も最新化する。
-      const withoutTarget = view.timers.filter((timer) => timer.id !== message.timer.id);
-      return { ...view, offset, timers: [...withoutTarget, { ...message.timer, origin: "server" as const }] };
-    }
+    case "error":
+      // 拒否・失敗の通知（要件2.4）。次の snapshot 受信で解消する（error: null）。
+      return { ...view, offset, error: { code: message.code, message: message.message } };
   }
 }
 
 /**
- * server-confirmed のみ全置換し provisional は保持する共有規律（snapshot と Reconcile が共有・決定 B）。
+ * server-confirmed を全置換し provisional は保持しつつ、直前集合との差分で一様残滓を導く共有規律
+ * （snapshot と Reconcile が共有・要件4.1〜4.7 / 5.1 / 5.3）。
  *
  * 純粋関数。offset / connectivity / sync / error など serverTimers から導出できない事実は呼び出し元に委ね、
- * ここでは「timers の置換」と「processedIds の刈り取り」だけを担う（重複の根絶・要件11.5/11.6/11.7）。
+ * ここでは timers の置換・残滓（lastResults）の差分導出・processedIds の刈り取りだけを担う（重複の根絶）。
  *
- *   - server-confirmed（origin==="server"）は serverTimers（すべて origin:"server" 化）で全置換する（要件11.5）。
- *   - Provisional_Timer（origin==="local"）は保持する。回線復帰の瞬間に走行中ポットを消さない（要件11.6）。
- *   - processedIds は「serverTimers の id ∪ 保持 provisional の id」に属するものだけ残す（記録を有界に保ちつつ、
- *     復活した server-confirmed のローカル発火抑止を維持する・要件11.7）。
+ *   - (a) server-confirmed（origin==="server"）は serverTimers（すべて origin:"server" 化）で全置換し、
+ *     Provisional_Timer（origin==="local"）は保持する（要件4.1 / 4.7）。
+ *   - (b) 直前 server-confirmed に在り新 serverTimers に無い Timer（消えた Timer）の noodleType を、
+ *     再占有されていない各 slotId へ受信時刻 at とともに残滓記録する。理由（Complete / Cancel / Fire→Complete）を
+ *     問わず一様に扱う（要件4.2 / 5.1）。
+ *   - (c) 占有スロット（新 serverTimers ∪ 保持 provisional）の残滓は消去する（要件4.3 / 5.3）。
+ *   - (d) processedIds は「serverTimers の id ∪ 保持 provisional の id」に属するものだけ残す（記録を有界に保ちつつ、
+ *     復活した server-confirmed のローカル発火抑止を維持する・要件4.4）。
+ *
+ * boiled / running 状態とアラート dedup は endTime からの導出を維持し、状態へ昇格させない（要件4.4）。
+ * 同一 serverTimers を二度適用しても timers・processedIds は不変、lastResults はキー集合不変で新規残滓を生まない
+ * （at の更新のみ・冪等・要件4.5）。残滓は (直前 server-confirmed, serverTimers, at) のみから導出し、
+ * TimerFact への追加フィールドに依存しない（要件4.6）。
  */
-export function reconcileServerConfirmed(view: ClientView, serverTimers: readonly TimerFact[]): ClientView {
-  // Provisional_Timer は未確定なローカル意図として保持する（決定 B・要件11.6）。
+export function reconcileServerConfirmed(
+  view: ClientView,
+  serverTimers: readonly TimerFact[],
+  at: number,
+): ClientView {
+  // 直前の server-confirmed と provisional を分ける（差分の基準は直前 server-confirmed）。
+  const prevServer = view.timers.filter((timer) => timer.origin === "server");
   const provisional = view.timers.filter((timer) => timer.origin === "local");
-  // server-confirmed は snapshot で全置換する。すべて起源タグを "server" 化する（要件11.5）。
+  // (a) server-confirmed は serverTimers で全置換する。すべて起源タグを "server" 化する（要件4.1）。
   const confirmed: readonly ClientTimer[] = serverTimers.map((timer) => ({ ...timer, origin: "server" as const }));
 
-  // 保持 id 集合 = serverTimers に含まれる id ∪ 保持される provisional の id（要件11.7）。
-  const retainedIds = new Set<string>(serverTimers.map((timer) => timer.id));
+  // 占有スロット = 新 serverTimers のスロット ∪ 保持 provisional のスロット。
+  const occupied = new Set<string>();
+  for (const timer of serverTimers) for (const slotId of timer.slotIds) occupied.add(slotId);
+  for (const timer of provisional) for (const slotId of timer.slotIds) occupied.add(slotId);
+
+  // 新 server-confirmed の id 集合（消えた Timer の判定に用いる）。
+  const newIds = new Set<string>(serverTimers.map((timer) => timer.id));
+
+  // (c) 占有スロットの残滓は先に消去する（新規/継続タイマーが乗っているスロット・要件4.3 / 5.3）。
+  const nextLastResults = new Map(view.lastResults);
+  for (const slotId of occupied) nextLastResults.delete(slotId);
+
+  // (b) 消えた Timer（直前 server にいて新 server にいない）の麺種を、再占有されない各 slotId へ残滓記録する
+  //     （理由を問わず一様・要件4.2 / 5.1）。占有スロットは (c) で除去済みかつ記録条件で除外する。
+  for (const timer of prevServer) {
+    if (newIds.has(timer.id)) continue;
+    for (const slotId of timer.slotIds) {
+      if (occupied.has(slotId)) continue;
+      nextLastResults.set(slotId, { noodleType: timer.noodleType, at });
+    }
+  }
+
+  // (d) 保持 id 集合 = serverTimers に含まれる id ∪ 保持される provisional の id（要件4.4）。
+  const retainedIds = new Set<string>(newIds);
   for (const timer of provisional) retainedIds.add(timer.id);
 
-  // processedIds は保持 id 集合に属するものだけ残す（記録を有界に保ち、復活キャンセル抑止を維持・要件11.7）。
+  // processedIds は保持 id 集合に属するものだけ残す（記録を有界に保ち、復活キャンセル抑止を維持・要件4.4）。
   const prunedProcessed = new Set<string>();
   for (const id of view.processedIds) {
     if (retainedIds.has(id)) prunedProcessed.add(id);
@@ -417,6 +407,7 @@ export function reconcileServerConfirmed(view: ClientView, serverTimers: readonl
   return {
     ...view,
     timers: [...confirmed, ...provisional],
+    lastResults: nextLastResults,
     processedIds: prunedProcessed,
   };
 }
@@ -661,7 +652,8 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
         return;
       }
       // degraded、または対象が provisional / 不在のときはローカル畳み込み（要件7.3・幽霊タイマーの解消）。
-      update(decideView(view, { kind: "LocalCancel", timerId }));
+      // 除去直前の麺種を残滓へ記録するため、記録時刻に now()（client 実時刻）を運ぶ（要件5.2）。
+      update(decideView(view, { kind: "LocalCancel", timerId, now: now() }));
     },
     complete: (timerId) => {
       // cancel と同じ origin 経路分け。provisional の boiled 消し込みもサーバへ送らずローカルで除去する。

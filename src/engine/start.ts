@@ -7,15 +7,13 @@
 import { BOIL_SECONDS_MIN, BOIL_SECONDS_MAX, MAX_TIMERS } from "../engine/types";
 import type { SlotId, NoodleType, EpochMillis } from "../engine/types";
 import type { TimerState } from "./state";
-import type { Timer } from "./timer";
 import { createTimer } from "./timer";
 import type { Event } from "./event";
-import type { Outcome, Effect } from "./effect";
+import type { Outcome } from "./effect";
 import type { Rejection } from "./rejection";
-import { toSnapshot } from "./snapshot";
-import { nextAlarmEffect } from "./alarm";
-import type { ServerMessage } from "../domain/messages";
-import type { TimerFact, NonEmptyArray } from "../domain/timer";
+import { settle } from "./settle";
+import type { SyncParams } from "./sync";
+import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS } from "../domain/firmness";
 
@@ -73,26 +71,15 @@ export function validateStart(input: {
   };
 }
 
-/** Timer を WS のワイヤ表現へ射影する。残り秒は含めず firmness/startTime/endTime（事実）を運ぶ（要件10.2）。 */
-function toWireTimer(timer: Timer): TimerFact {
-  return {
-    id: timer.id,
-    slotIds: timer.slotIds,
-    noodleType: timer.noodleType,
-    firmness: timer.firmness,
-    startTime: timer.startTime,
-    endTime: timer.endTime,
-  };
-}
-
 /**
- * タイマー開始の状態遷移。検証 → 容量検査 → endTime 算出 → Timer 追加（要件1.1 / 1.2 / 3.1 / 3.8）。
+ * タイマー開始の状態遷移。検証 → 容量検査 → endTime 算出 → Timer 追加 → 全体再同期（要件1.1 / 1.2 / 3.1 / 3.8・本機能の要件7.1）。
  *
- * 成功時の Effect 列は [Persist, SetAlarm, Broadcast(started), Reply(started)]。Persist を先頭に
- * 置くのは SSOT 規律の表明であり、shell は put 成功の上にのみ Alarm / Broadcast を立てる。
- * 拒否時は状態を一切変更せず Rejection を返す。
+ * 追加後の running 集合全体を settle が synchronize で再同期し、Effect 列を組む。成功時の Effect 列は
+ * [Persist, SetAlarm, Broadcast(snapshot)]（snapshot は他 Timer の調整変化も含む全量・実効 endTime を載せる
+ * 唯一の権威表現）。Persist を先頭に置くのは SSOT 規律の表明。
+ * 拒否時（InvalidBoilSeconds / InvalidSlotOrNoodle / CapacityExceeded）は状態を一切変更せず Rejection を返す。
  */
-export function startTimer(state: TimerState, args: StartEvent): Outcome {
+export function startTimer(state: TimerState, args: StartEvent, params: SyncParams): Outcome {
   const validated = validateStart(args);
   if (!validated.ok) {
     return { ok: false, rejection: validated.rejection };
@@ -119,22 +106,10 @@ export function startTimer(state: TimerState, args: StartEvent): Outcome {
     endTime,
     seq: state.nextSeq,
   });
-  const nextState: TimerState = {
+  // 基底の集合変更（Timer を adjustment=0 で追加）。同期・no-op 検出・Effect 列組み立ては settle に委ねる。
+  const moved: TimerState = {
     timers: [...state.timers, timer],
     nextSeq: state.nextSeq + 1,
   };
-  // started は要求元への Reply と全 WS への Broadcast で同一内容を運ぶ（serverTime = now）。
-  const started: ServerMessage = {
-    type: "started",
-    serverTime: args.now,
-    timer: toWireTimer(timer),
-  };
-  // 最早 Alarm の算出は必ず nextAlarmEffect を通す（最早算出の重複を根絶）。
-  const effects: readonly Effect[] = [
-    { type: "Persist", snapshot: toSnapshot(nextState) },
-    nextAlarmEffect(nextState.timers),
-    { type: "Broadcast", message: started },
-    { type: "Reply", message: started },
-  ];
-  return { ok: true, state: nextState, effects };
+  return settle(state, moved, params, args.now);
 }

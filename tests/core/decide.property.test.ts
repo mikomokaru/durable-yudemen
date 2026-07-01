@@ -6,7 +6,11 @@ import { decide } from "../../src/engine/decide";
 import type { Event } from "../../src/engine/event";
 import type { TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
+import type { SyncParams } from "../../src/engine/sync";
 import { genNow, genState } from "./generators";
+
+/** 固定の同期パラメータ（既定域内・arms=2 / toleranceRatio=10%）。decide は Start/Cancel/Complete を settle 経由で再同期する。 */
+const PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
 
 /** 妥当寄りの Start イベント（ok:true を多く踏ませ、Effect 列の構造を検証可能にする）。 */
 const genStartEvent: fc.Arbitrary<Event> = fc
@@ -45,13 +49,19 @@ const genStateAndEvent: fc.Arbitrary<{ state: TimerState; event: Event }> = genS
 );
 
 describe("core/decide", () => {
-  // Feature: yude-men-timer, Property 2: Effect 列は常に Persist を先頭に持つ（SSOT 規律）。
-  // decide が ok:true なら effects 先頭は必ず Persist で、Persist は唯一（件数 0 のイベントでも先頭に存在）。
-  it("Property 2: ok 成功時の effects は先頭が Persist であり、Persist は唯一", () => {
+  // Feature: yude-men-timer, Property 2: Effect 列は常に Persist を先頭に持つ（SSOT 規律・要件7.7）。
+  // Start / Cancel / Complete / Adjust は Running_Timer 集合を必ず変えるため、ok なら effects は非空で先頭
+  // が Persist（Persist は唯一）。AlarmFired / Reconcile は「新規 boiled なし＋再同期で確定結果不変」の
+  // とき put も broadcast もしない no-op ゆえ、ok かつ空 Effect を返しうる（要件7.7 の正しい表明）。空でない
+  // ときは他の遷移と同じく Persist 先頭・唯一。
+  it("Property 2: ok 成功時の effects は Persist 先頭・唯一（発火/整合の no-op は空 Effect を許す）", () => {
     fc.assert(
       fc.property(genStateAndEvent, ({ state, event }) => {
-        const outcome = decide(state, event);
+        const outcome = decide(state, event, PARAMS);
         if (outcome.ok) {
+          const noopAllowed = event.type === "AlarmFired" || event.type === "Reconcile";
+          // 確定結果が直前と変わらない発火/整合は空 Effect が正しい（put も broadcast もしない）。
+          if (noopAllowed && outcome.effects.length === 0) return;
           expect(outcome.effects.length).toBeGreaterThanOrEqual(1);
           expect(outcome.effects[0]?.type).toBe("Persist");
           const persistCount = outcome.effects.filter((e) => e.type === "Persist").length;
@@ -69,14 +79,16 @@ describe("core/decide", () => {
       fc.property(genState, fc.array(genStartEvent, { maxLength: 30 }), (initial, events) => {
         let state = initial;
         for (const event of events) {
-          const outcome = decide(state, event);
+          const outcome = decide(state, event, PARAMS);
           if (outcome.ok) state = outcome.state;
         }
         for (const timer of state.timers) {
-          // 状態が保持する事実は id/slotIds/noodleType/startTime/endTime/firmness/seq/boiledAt のみ。remaining は存在しない（要件10.1）。
+          // 状態が保持する事実は id/slotIds/noodleType/startTime/endTime/firmness/seq/boiledAt/adjustment のみ。remaining は存在しない（要件10.1）。
           // startTime/endTime は開始・終了の絶対時刻（事実）。firmness は茹で加減の共有事実。boiledAt は発火を記録した
-          // engine 専用の事実（null=running・非null=boiled）。いずれも残り秒・進捗の昇格ではない（それらは導出）。
+          // engine 専用の事実（null=running・非null=boiled）。adjustment は同期のための engine 専用オフセット（初期値 0）。
+          // いずれも残り秒・進捗の昇格ではない（それらは導出）。
           expect(Object.keys(timer).sort()).toEqual([
+            "adjustment",
             "boiledAt",
             "endTime",
             "firmness",
@@ -101,8 +113,8 @@ describe("core/decide", () => {
   it("Property 12: decide は同じ入力に同じ Outcome を返す（決定的）", () => {
     fc.assert(
       fc.property(genStateAndEvent, ({ state, event }) => {
-        const first = decide(state, event);
-        const second = decide(state, event);
+        const first = decide(state, event, PARAMS);
+        const second = decide(state, event, PARAMS);
         expect(first).toEqual(second);
       }),
       { numRuns: 300 },

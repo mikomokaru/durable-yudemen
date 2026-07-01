@@ -118,6 +118,9 @@ function reviveTimer(value: unknown): Timer | null {
   // firmness は v5 で追加。欠如（v4 以前）は normal で埋める。不正な文字列は移行失敗。
   const firmness = reviveFirmness(t.firmness);
   if (firmness === null) return null;
+  // adjustment は v6 で追加。欠如/null（v5 以前）は 0 で埋める（移行後の reconcile が running を再同期する）。非有限は移行失敗。
+  const adjustment = reviveAdjustment(t.adjustment);
+  if (adjustment === null) return null;
   return createTimer({
     id: t.id as TimerId,
     slotIds: slotIds as NonEmptyArray<SlotId>,
@@ -127,6 +130,7 @@ function reviveTimer(value: unknown): Timer | null {
     endTime: t.endTime as EpochMillis,
     seq: t.seq,
     boiledAt,
+    adjustment,
   });
 }
 
@@ -139,6 +143,18 @@ function reviveTimer(value: unknown): Timer | null {
 function reviveFirmness(value: unknown): Firmness | null {
   if (value === undefined || value === null) return DEFAULT_FIRMNESS;
   return isFirmness(value) ? value : null;
+}
+
+/**
+ * 永続の adjustment 表現を現行 v6 形へ写す（v6 で追加）。
+ * - 欠如 / null（v5 以前は adjustment を持たない）→ 0（未調整）。移行後の reconcile が running を正しい値へ収束させる。
+ * - 有限数値 → その値（符号付きミリ秒オフセット）。
+ * - それ以外（非有限数・文字列等）→ 壊れたデータ（null）。
+ */
+function reviveAdjustment(value: unknown): number | null {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return null;
 }
 
 /**

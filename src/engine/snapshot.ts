@@ -11,9 +11,9 @@ import type { Timer } from "./timer";
  * スキーマバージョンを含む（要件11）。version は常に現行スキーマバージョンに一致する。
  */
 export interface ActiveTimersSnapshot {
-  /** スキーマバージョン。現行は 1。 */
+  /** スキーマバージョン。現行は v6（CURRENT_SCHEMA_VERSION）。 */
   readonly version: typeof CURRENT_SCHEMA_VERSION;
-  /** アクティブな全 Timer。 */
+  /** アクティブな全 Timer。engine 専用の adjustment を含む（欠如は migrate が 0 で埋める）。 */
   readonly timers: readonly Timer[];
   /** 次に割り当てる登録順（seq）。 */
   readonly nextSeq: number;
@@ -24,7 +24,8 @@ export interface ActiveTimersSnapshot {
  *
  * version は常に現行スキーマバージョンを名乗る（要件11.1）。永続化の起点は常にこの形で、
  * 「いま書くものは必ず現行版」という事実をここ一箇所で表明する。
- * timers / nextSeq はそのまま写す（状態は残り秒を持たない事実だけなので、落とす情報はない）。
+ * timers / nextSeq はそのまま写す。timers 内の adjustment（engine 専用の調整・v6）も Timer 型に
+ * 含まれるため丸ごとそのまま乗る（状態は残り秒を持たない事実だけなので、落とす情報はない）。
  */
 export function toSnapshot(state: TimerState): ActiveTimersSnapshot {
   return {

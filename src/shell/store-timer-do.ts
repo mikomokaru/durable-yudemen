@@ -5,14 +5,14 @@ import { migrate } from "../engine/migrate";
 import type { ShellFailure } from "../engine/rejection";
 import { fromSnapshot } from "../engine/snapshot";
 import { EMPTY_STATE, type TimerState } from "../engine/state";
+import { toWireTimer } from "../engine/project";
 import type { EpochMillis, TimerId } from "../engine/types";
 import { buildSeamEntry, type InstrumentationLogEntry } from "../observe/log";
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
 import type { ClientMessage, ServerMessage } from "../domain/messages";
-import type { TimerFact } from "../domain/timer";
 import { isFirmness } from "../domain/firmness";
 import type { StoreConfig, NoodlePreset } from "../domain/store";
-import { toUnitCount, toNoodlePresets, DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS } from "../domain/store";
+import { toUnitCount, toNoodlePresets, toArms, toToleranceRatio, DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS, DEFAULT_ARMS, DEFAULT_TOLERANCE_RATIO } from "../domain/store";
 
 /** タイマー SSOT の単一キー。状態は丸ごとこのキーへ put / get する（要件8.3・SQL 不使用）。 */
 const SNAPSHOT_KEY = "activeTimers";
@@ -110,7 +110,7 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
  *
  * core（decide）が返す Effect 列を shell が先頭から順に実行する。SSOT 規律はこの実行規則に宿る。
  * 確定の起点は storage.put の成功のみ。Persist が成功して初めて Working_Copy を確定反映し、
- * その上に SetAlarm / ClearAlarm / Broadcast / Reply が立つ。
+ * その上に SetAlarm / ClearAlarm / Broadcast が立つ。
  *
  * rehydrate（task 11）・Alarm（task 12）・WebSocket メッセージ処理（task 13）は後続タスクで配線する。
  */
@@ -146,6 +146,22 @@ export class StoreTimerDO extends DurableObject<Env> {
    * （env シード STORE_NOODLE_PRESETS / 運用エンドポイント PUT /admin/config）。既定は安全網。
    */
   private noodlePresets: readonly NoodlePreset[] = DEFAULT_NOODLE_PRESETS;
+
+  /**
+   * 腕の本数（StoreConfig.arms）。同時に上げられる本数の上限＝1 Sync_Set の最大本数。サーバ権威設定。
+   *
+   * unitCount と同じ系統で storeConfig から読み込み（不在なら env シード STORE_ARMS を検証して永続）、
+   * decide 呼び出し時に synchronize へ値として注入する。client へは配信しない（要件6.5）。既定は安全網。
+   */
+  private arms: number = DEFAULT_ARMS;
+
+  /**
+   * 許容調整割合（StoreConfig.toleranceRatio・整数パーセント）。各 Timer が茹で時間に対し前後に調整してよい割合。
+   *
+   * arms と同じ系統で storeConfig から読み込み（不在なら env シード STORE_TOLERANCE_RATIO を検証して永続）、
+   * decide 呼び出し時に synchronize へ値として注入する。client へは配信しない（要件6.5）。既定は安全網。
+   */
+  private toleranceRatio: number = DEFAULT_TOLERANCE_RATIO;
 
   /** storeConfig ロード済みフラグ。ensureConfigLoaded を冪等にする（hibernate 復帰ごとに false へ戻る）。 */
   private configLoaded = false;
@@ -208,9 +224,13 @@ export class StoreTimerDO extends DurableObject<Env> {
       await this.ensureConfigLoaded();
       // ロード後の整合（要件7.6 / 7.2 / 7.7）。now は shell が採取して core へ渡す（core は時計を持たない）。
       const now = Date.now() as EpochMillis;
-      const outcome = decide(this.workingCopy, { type: "Reconcile", now });
+      // arms / toleranceRatio は ensureConfigLoaded が確立した StoreConfig の確定値を synchronize へ注入する。
+      const outcome = decide(this.workingCopy, { type: "Reconcile", now }, {
+        arms: this.arms,
+        toleranceRatio: this.toleranceRatio,
+      });
       // reconcile は常に成功する（fireDueTimers と同形）。Persist 先頭の Effect 列を runEffects が実行し、
-      // 即時発火による状態変化は put 成功時にのみ確定する（SSOT 規律）。Reconcile 経路に Reply 宛先はない。
+      // 即時発火による状態変化は put 成功時にのみ確定する（SSOT 規律）。
       if (outcome.ok) {
         await this.runEffects(outcome.effects);
       }
@@ -255,8 +275,9 @@ export class StoreTimerDO extends DurableObject<Env> {
   /**
    * 店舗設定（StoreConfig）のロードを保証する（サーバ権威・クライアント不変・店舗ごとに固定）。
    *
-   * storage キー storeConfig を読み、不在なら env シード（STORE_UNIT_COUNT / STORE_NOODLE_PRESETS）を
-   * toUnitCount / toNoodlePresets で検証して永続する（初回構築時の一度きり）。存在すれば永続値が正本で、
+   * storage キー storeConfig を読み、不在なら env シード（STORE_UNIT_COUNT / STORE_ARMS /
+   * STORE_TOLERANCE_RATIO / STORE_NOODLE_PRESETS）を各検証関数で検証して永続する（初回構築時の一度きり）。
+   * 存在すれば永続値が正本で、
    * 防御的に同じ検証を通して健全な形へ畳む。Timer の SSOT フローとは独立した別概念であり、decide/Effect には
    * 乗らない。稼働中の差し替えは applyStoreConfig（PUT /admin/config）が担う。configLoaded で冪等に保つ。
    */
@@ -267,15 +288,21 @@ export class StoreTimerDO extends DurableObject<Env> {
       // 初回: env シードを検証して永続する（以後この店舗の設定の起点となる）。
       const seeded: StoreConfig = {
         unitCount: toUnitCount(this.env.STORE_UNIT_COUNT),
+        arms: toArms(this.env.STORE_ARMS),
+        toleranceRatio: toToleranceRatio(this.env.STORE_TOLERANCE_RATIO),
         noodlePresets: toNoodlePresets(this.env.STORE_NOODLE_PRESETS),
       };
       await this.ctx.storage.put(STORE_CONFIG_KEY, seeded);
       this.unitCount = seeded.unitCount;
+      this.arms = seeded.arms;
+      this.toleranceRatio = seeded.toleranceRatio;
       this.noodlePresets = seeded.noodlePresets;
     } else {
       // 永続値が正本。壊れた値は各検証関数が既定へ畳む（不正値を表現させない）。
       const persisted = raw as Record<string, unknown>;
       this.unitCount = toUnitCount(persisted.unitCount);
+      this.arms = toArms(persisted.arms);
+      this.toleranceRatio = toToleranceRatio(persisted.toleranceRatio);
       this.noodlePresets = toNoodlePresets(persisted.noodlePresets);
     }
     this.configLoaded = true;
@@ -303,11 +330,16 @@ export class StoreTimerDO extends DurableObject<Env> {
     // 設定全体の置換。検証を一箇所（domain）へ委ね、健全な StoreConfig だけが永続・配信される。
     const next: StoreConfig = {
       unitCount: toUnitCount(body.unitCount),
+      // 検証を domain へ委ね、当該パラメータのみ既定へ畳む（他の妥当値は保持）。
+      arms: toArms(body.arms),
+      toleranceRatio: toToleranceRatio(body.toleranceRatio),
       noodlePresets: toNoodlePresets(body.noodlePresets),
     };
     // 確定の起点は put 成功。先に永続し、その上に在メモリ反映と再配信を立てる（SSOT 規律）。
     await this.ctx.storage.put(STORE_CONFIG_KEY, next);
     this.unitCount = next.unitCount;
+    this.arms = next.arms;
+    this.toleranceRatio = next.toleranceRatio;
     this.noodlePresets = next.noodlePresets;
     // 接続中の全クライアントへサーバ権威設定を再配信する（クライアントは制御できず受信して従うのみ）。
     const config: ServerMessage = {
@@ -359,22 +391,15 @@ export class StoreTimerDO extends DurableObject<Env> {
     };
     server.send(JSON.stringify(config));
 
-    // Hydration（要件4.1 / 9.2）。接続確立の一環として、収容直後にこの WS だけへ
+    // Hydration（要件4.1 / 9.2 / 5.4）。接続確立の一環として、収容直後にこの WS だけへ
     // 現在のアクティブ Timer 全量を snapshot として送る（差分ではなく全量）。
+    // 射影は engine の唯一の関数 toWireTimer に委譲する（重複の根絶・SSOT）。これにより endTime は
+    // 実効値（オリジナル + adjustment）として載り、broadcast 経路（settle）と同一の射影で一致する。
     // serverTime は送信時点のサーバ現在時刻（残り秒は送らず endTime から各クライアントが導出する）。
     const snapshot: ServerMessage = {
       type: "snapshot",
       serverTime: Date.now(),
-      timers: this.workingCopy.timers.map(
-        (timer): TimerFact => ({
-          id: timer.id,
-          slotIds: timer.slotIds,
-          noodleType: timer.noodleType,
-          firmness: timer.firmness,
-          startTime: timer.startTime,
-          endTime: timer.endTime,
-        }),
-      ),
+      timers: this.workingCopy.timers.map(toWireTimer),
     };
     server.send(JSON.stringify(snapshot));
 
@@ -411,15 +436,20 @@ export class StoreTimerDO extends DurableObject<Env> {
         ws.send(JSON.stringify(error));
         return;
       }
-      const outcome = decide(this.workingCopy, {
-        type: "Adjust",
-        timerId: command.timerId,
-        firmness: command.firmness,
-        boilSeconds: preset.boilSeconds[command.firmness],
-        now,
-      });
+      // arms / toleranceRatio は ensureConfigLoaded が確立した StoreConfig の確定値を synchronize へ注入する。
+      const outcome = decide(
+        this.workingCopy,
+        {
+          type: "Adjust",
+          timerId: command.timerId,
+          firmness: command.firmness,
+          boilSeconds: preset.boilSeconds[command.firmness],
+          now,
+        },
+        { arms: this.arms, toleranceRatio: this.toleranceRatio },
+      );
       if (outcome.ok) {
-        await this.runEffects(outcome.effects, ws);
+        await this.runEffects(outcome.effects);
         return;
       }
       const error: ServerMessage = {
@@ -446,10 +476,12 @@ export class StoreTimerDO extends DurableObject<Env> {
           ? { type: "Cancel" as const, timerId: command.timerId, now }
           : { type: "Complete" as const, timerId: command.timerId, now };
 
-    const outcome = decide(this.workingCopy, event);
+    // arms / toleranceRatio は ensureConfigLoaded が確立した StoreConfig の確定値を synchronize へ注入する。
+    const outcome = decide(this.workingCopy, event, { arms: this.arms, toleranceRatio: this.toleranceRatio });
     if (outcome.ok) {
-      // Reply は要求元の WS（ws）へ返す。Persist 先頭の Effect 列を runEffects が実行する（SSOT 規律）。
-      await this.runEffects(outcome.effects, ws);
+      // Persist 先頭の Effect 列を runEffects が実行する（SSOT 規律）。確定変化は全 WS へ snapshot を
+      // broadcast し、要求元も他 client と同一の snapshot を受ける（Reply を使わない・bug#1 の構造的消滅）。
+      await this.runEffects(outcome.effects);
       return;
     }
     // 拒否は Effect 列を生まない（outcome.ok === false）。要求元の WS だけへ error を返す（要件1.5 / 3.8 / 6.6）。
@@ -480,8 +512,12 @@ export class StoreTimerDO extends DurableObject<Env> {
     this.emitSeam(buildSeamEntry({ seam: "alarm", at: Date.now(), instanceId: this.instanceId }));
     // now は shell が採取して core へ渡す（core は時計を持たない＝純粋）。
     const now = Date.now() as EpochMillis;
-    // AlarmFired は fireDueTimers と同形で常に成功する（拒否経路を持たない）。Alarm 経路に Reply 宛先はない。
-    const outcome = decide(this.workingCopy, { type: "AlarmFired", now });
+    // AlarmFired は fireDueTimers と同形で常に成功する（拒否経路を持たない）。
+    // arms / toleranceRatio は ensureConfigLoaded が確立した StoreConfig の確定値を synchronize へ注入する。
+    const outcome = decide(this.workingCopy, { type: "AlarmFired", now }, {
+      arms: this.arms,
+      toleranceRatio: this.toleranceRatio,
+    });
     if (!outcome.ok) return;
     // Persist 先頭の Effect 列を runEffects が実行する。SetAlarm/ClearAlarm は applySideEffect が
     // storage.setAlarm/deleteAlarm へ写し、done の Broadcast は put 成功の上にのみ立つ（SSOT 規律）。
@@ -503,12 +539,13 @@ export class StoreTimerDO extends DurableObject<Env> {
    * core が返した Effect 列を先頭から順に実行する（要件8.1・8.4・8.5・3.7）。
    *
    * Persist は確定の起点。await で書き込み完了を保証してから後続へ進む。put 成功時にのみ
-   * Working_Copy を確定反映する。put が失敗したら後続 Effect（SetAlarm/ClearAlarm/Broadcast/Reply）
+   * Working_Copy を確定反映する。put が失敗したら後続 Effect（SetAlarm/ClearAlarm/Broadcast）
    * を実行せず、Working_Copy も put 前のまま据え置く（成功するまで代入しないので「戻す」操作は不要）。
    *
-   * @param replyTo Reply の宛先 WS（要求元）。WS メッセージ処理（task 13）から渡す。Alarm 経路では無い。
+   * 拒否・失敗の要求元通知は Effect 列に乗らず、shell が error を直接 ws.send する（Reply を使わない）。
+   * ゆえに runEffects は宛先 WS を引き回さない（Broadcast は全 WS 一様・snapshot 単一表現）。
    */
-  private async runEffects(effects: readonly Effect[], replyTo?: WebSocket): Promise<RunResult> {
+  private async runEffects(effects: readonly Effect[]): Promise<RunResult> {
     for (const effect of effects) {
       if (effect.type === "Persist") {
         try {
@@ -524,7 +561,7 @@ export class StoreTimerDO extends DurableObject<Env> {
         this.workingCopy = fromSnapshot(effect.snapshot);
       } else {
         // Persist 成功の後でのみ到達する。put 成功の上に broadcast / alarm が立つ。
-        this.applySideEffect(effect, replyTo);
+        this.applySideEffect(effect);
       }
     }
     return { persisted: true };
@@ -536,7 +573,7 @@ export class StoreTimerDO extends DurableObject<Env> {
    * これらは永続済み状態から再構成可能な派生作用であり、Persist のように完了を await しない
    * （欠落は Alarm なら次回起動の reconcile、Broadcast なら再接続時の全量 hydration が回収する）。
    */
-  private applySideEffect(effect: Exclude<Effect, { readonly type: "Persist" }>, replyTo?: WebSocket): void {
+  private applySideEffect(effect: Exclude<Effect, { readonly type: "Persist" }>): void {
     switch (effect.type) {
       case "SetAlarm":
         void this.ctx.storage.setAlarm(effect.at);
@@ -564,12 +601,6 @@ export class StoreTimerDO extends DurableObject<Env> {
         }
         break;
       }
-      case "Reply":
-        // 要求元の WS のみへ返す。宛先が無い経路（Alarm）では Reply Effect は発生しない。
-        if (replyTo !== undefined) {
-          replyTo.send(JSON.stringify(effect.message));
-        }
-        break;
     }
   }
 }

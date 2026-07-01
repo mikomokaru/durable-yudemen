@@ -1,7 +1,7 @@
-// tests/client/complete.example.test.ts — boiled → 明示完了（complete）→ completed → idle の遷移検証。
-// 接続レベル（openTimerConnection）と表示導出（assignedSlotDisplays）で、complete 後にスロットが
-// idle へ戻ること、boiled の Complete 対象 timer が正しく拾えることを確認する（直前結果の表示そのものは
-// SlotBoard の React state で、ここでは扱わない）。
+// tests/client/complete.example.test.ts — boiled → 明示完了（complete）→ snapshot 差分で除去 → idle の遷移検証。
+// 接続レベル（openTimerConnection）と表示導出（assignedSlotDisplays）で、complete 後に当該 Timer が
+// snapshot から消えてスロットが idle へ戻ること、boiled の Complete 対象 timer が正しく拾えることを確認する
+// （直前結果の表示そのものは SlotBoard の React state で、ここでは扱わない）。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -80,8 +80,8 @@ describe("client/connection — 茹で上がりの明示完了", () => {
     const sent = latest().send.mock.calls.map(([d]) => JSON.parse(d));
     expect(sent).toContainEqual({ type: "complete", timerId: "T" });
 
-    // サーバが completed をブロードキャスト → Timer 除去 → スロットは idle へ。直前結果が記録される。
-    receive(latest(), { type: "completed", serverTime: START_NOW + 5, timerId: "T" });
+    // サーバが T の消えた snapshot をブロードキャスト → Timer 除去 → スロットは idle へ。直前結果が差分で記録される。
+    receive(latest(), { type: "snapshot", serverTime: START_NOW + 5, timers: [] });
     const view2 = connection.getView();
     expect(view2.timers.some((t) => t.id === "T")).toBe(false);
     const displays2 = assignedSlotDisplays(view2, [0], START_NOW);
@@ -101,14 +101,14 @@ describe("client/connection — 茹で上がりの明示完了", () => {
       timers: [{ id: "T", slotIds: ["3"], noodleType: "Medium", endTime: START_NOW - 1000 }],
     });
     connection.complete("T");
-    receive(latest(), { type: "completed", serverTime: START_NOW + 5, timerId: "T" });
+    receive(latest(), { type: "snapshot", serverTime: START_NOW + 5, timers: [] });
     expect(connection.getView().lastResults.has("3")).toBe(true);
 
-    // スロット 3 で新規開始（started 受信）→ 残滓は解除される。
+    // スロット 3 で新規開始（当該スロットを占有する snapshot 受信）→ 残滓は差分で解除される。
     receive(latest(), {
-      type: "started",
+      type: "snapshot",
       serverTime: START_NOW + 10,
-      timer: { id: "U", slotIds: ["3"], noodleType: "Thin", endTime: START_NOW + 70_000 },
+      timers: [{ id: "U", slotIds: ["3"], noodleType: "Thin", endTime: START_NOW + 70_000 }],
     });
     expect(connection.getView().lastResults.has("3")).toBe(false);
 

@@ -57,27 +57,29 @@ const EXPECTED_CORE_FILES = [
   "src/engine/event.ts",
   "src/engine/fire.ts",
   "src/engine/migrate.ts",
+  "src/engine/project.ts",
   "src/engine/rejection.ts",
+  "src/engine/settle.ts",
   "src/engine/snapshot.ts",
   "src/engine/start.ts",
   "src/engine/state.ts",
+  "src/engine/sync.ts",
   "src/engine/timer.ts",
   "src/engine/types.ts",
 ] as const;
 
-/** 既存ワイヤ形式（messages.ts）が定める全メッセージ種別。これ以外を導入しない（要件12.2）。 */
+/** 既存ワイヤ形式（messages.ts）が定める全メッセージ種別。これ以外を導入しない（要件12.2）。
+ *
+ * ServerMessage は snapshot 単一表現へ畳まれ、意味論メッセージ（started / cancelled / boiled /
+ * completed / adjusted）は撤去済み（snapshot-broadcast）。存置は snapshot / config / error のみ。
+ * ClientMessage（start / cancel / complete / adjust）は不変。 */
 const WIRE_MESSAGE_TYPES = new Set([
   "start",
   "cancel",
   "complete",
-  "snapshot",
-  "started",
-  "cancelled",
-  "boiled",
-  "completed",
-  "config",
   "adjust",
-  "adjusted",
+  "snapshot",
+  "config",
   "error",
 ]);
 

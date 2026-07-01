@@ -213,10 +213,22 @@ export function orderedSteps(scenario: Scenario): readonly ScenarioStep[] {
 
 /**
  * await-done の待機を終了すべきか（純粋判定・要件3.4 / 3.5）。
- * 受信が指定 timerId の boiled（茹で上がり通知）のときに限り true。一致しない boiled も、boiled 以外の
- * 種別も false（待機継続）。DSL の op 名は await-done のまま（外部シナリオ互換）だが、待機対象の
- * ワイヤ種別は茹で上がり通知 boiled である。実時間・タイムアウトは端の責務で、ここでは一致だけを語る。
+ *
+ * 受信が snapshot で、その全量 timers の中に対象 timerId の Timer が在り、かつその実効 endTime が
+ * snapshot の serverTime 以下（＝茹で上がり済み）のときに限り true。それ以外（対象が未茹で上がり・
+ * 対象が不在・snapshot 以外の種別）は false（待機継続）。
+ *
+ * boiled メッセージは撤去された（snapshot 単一表現・snapshot-broadcast）。茹で上がりは専用の通知では
+ * なく、権威 snapshot 内の Timer の endTime から導出する事実になった（残り秒・boiled を状態へ昇格させ
+ * ない）。DSL の op 名は await-done のまま（外部シナリオ互換）だが、待機の判定条件は専用の boiled 通知
+ * ではなく snapshot の中身を覗く。対象 Timer は茹で上がり後も snapshot に残る（complete / cancel で
+ * 初めて消える）ため、消滅ではなく endTime ≤ serverTime で茹で上がりを検出する。実時間・タイムアウトは
+ * 端の責務で、ここでは snapshot 上の茹で上がり判定だけを語る。
  */
 export function shouldStopAwaiting(received: ServerMessage, targetTimerId: string): boolean {
-  return received.type === "boiled" && received.timerId === targetTimerId;
+  if (received.type !== "snapshot") {
+    return false;
+  }
+  const target = received.timers.find((timer) => timer.id === targetTimerId);
+  return target !== undefined && target.endTime <= received.serverTime;
 }

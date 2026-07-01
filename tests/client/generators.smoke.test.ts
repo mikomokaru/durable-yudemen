@@ -74,10 +74,10 @@ describe("client/generators 生成器土台のスモーク", () => {
     expect(samples.some((now) => endTimes.has(now))).toBe(true);
   });
 
-  it("genServerMessage は 5 種別すべてを分布する", () => {
+  it("genServerMessage は snapshot / config / error の 3 種別すべてを分布する", () => {
     const samples = fc.sample(genServerMessage, 400);
     const types = new Set(samples.map((m) => m.type));
-    for (const t of ["snapshot", "started", "cancelled", "boiled", "completed", "error"]) {
+    for (const t of ["snapshot", "config", "error"]) {
       expect(types.has(t as (typeof samples)[number]["type"])).toBe(true);
     }
   });

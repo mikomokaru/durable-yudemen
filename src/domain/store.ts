@@ -21,6 +21,24 @@ export const UNIT_COUNT_MAX = 4;
 /** ユニット総数の既定。env シード不在・不正・接続前のクライアント表示のフォールバックに用いる。 */
 export const DEFAULT_UNIT_COUNT = 3;
 
+/** 腕の本数（arms）の下限。1 Sync_Set の最大本数＝同時に上げられる本数の上限。 */
+export const ARMS_MIN = 1;
+
+/** 腕の本数（arms）の上限。 */
+export const ARMS_MAX = 10;
+
+/** 腕の本数（arms）の既定。env シード不在・不正のフォールバックに用いる。 */
+export const DEFAULT_ARMS = 2;
+
+/** 許容調整割合（toleranceRatio）の下限（整数パーセント）。 */
+export const TOLERANCE_RATIO_MIN = 1;
+
+/** 許容調整割合（toleranceRatio）の上限（整数パーセント）。 */
+export const TOLERANCE_RATIO_MAX = 50;
+
+/** 許容調整割合（toleranceRatio）の既定（整数パーセント）。env シード不在・不正のフォールバックに用いる。 */
+export const DEFAULT_TOLERANCE_RATIO = 10;
+
 /** 硬さ別の茹で時間（秒）。麺ごとに異なる値を持つ（券売機統合・運用注入の写し先）。 */
 export type FirmnessSeconds = Readonly<Record<Firmness, number>>;
 
@@ -53,6 +71,10 @@ export const DEFAULT_NOODLE_PRESETS: NonEmptyArray<NoodlePreset> = [
 export interface StoreConfig {
   /** 店舗のユニット総数（UNIT_COUNT_MIN〜UNIT_COUNT_MAX）。1 ユニット = 6 スロット。 */
   readonly unitCount: number;
+  /** 腕の本数（ARMS_MIN〜ARMS_MAX）。1 Sync_Set の最大本数＝同時に上げられる本数の上限（既定 DEFAULT_ARMS）。 */
+  readonly arms: number;
+  /** 許容調整割合（TOLERANCE_RATIO_MIN〜TOLERANCE_RATIO_MAX の整数パーセント・既定 DEFAULT_TOLERANCE_RATIO）。 */
+  readonly toleranceRatio: number;
   /** 店舗が提供する麺種プリセット（型で非空を強制・開始 UI はこの集合だけを咲かせる）。 */
   readonly noodlePresets: NonEmptyArray<NoodlePreset>;
 }
@@ -69,6 +91,34 @@ export function toUnitCount(raw: unknown): number {
     return DEFAULT_UNIT_COUNT;
   }
   return Math.min(Math.max(value, UNIT_COUNT_MIN), UNIT_COUNT_MAX);
+}
+
+/**
+ * 任意の生値（env 文字列・永続値など）を、範囲内の整数 arms へ写す純粋関数。
+ *
+ * 整数でない・範囲外・非有限はすべて DEFAULT_ARMS へ畳む（当該パラメータのみ・要件 6.3 / 6.4）。
+ * 範囲内へはクランプし、検証を一箇所へ集約する（toUnitCount と同形）。
+ */
+export function toArms(raw: unknown): number {
+  const value = typeof raw === "string" ? Number(raw) : raw;
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    return DEFAULT_ARMS;
+  }
+  return Math.min(Math.max(value, ARMS_MIN), ARMS_MAX);
+}
+
+/**
+ * 任意の生値（env 文字列・永続値など）を、範囲内の整数パーセント toleranceRatio へ写す純粋関数。
+ *
+ * 整数でない・範囲外・非有限はすべて DEFAULT_TOLERANCE_RATIO へ畳む（当該パラメータのみ・要件 6.3 / 6.4）。
+ * 範囲内へはクランプし、検証を一箇所へ集約する（toUnitCount と同形）。engine では toleranceRatio / 100 を割合として用いる。
+ */
+export function toToleranceRatio(raw: unknown): number {
+  const value = typeof raw === "string" ? Number(raw) : raw;
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    return DEFAULT_TOLERANCE_RATIO;
+  }
+  return Math.min(Math.max(value, TOLERANCE_RATIO_MIN), TOLERANCE_RATIO_MAX);
 }
 
 /**

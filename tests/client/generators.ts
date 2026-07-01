@@ -218,13 +218,12 @@ const genWireTimers: fc.Arbitrary<readonly TimerFact[]> = fc.uniqueArray(genWire
   maxLength: TIMER_ID_POOL.length,
 });
 
-/** ServerMessage — 種別を分布（snapshot / started / cancelled / boiled / completed / config / error）。すべて serverTime を伴う。 */
+/** ServerMessage — 種別を分布（snapshot / config / error のみ）。すべて serverTime を伴う。
+ *
+ * 意味論メッセージ（started / cancelled / boiled / completed / adjusted）は snapshot 単一表現へ畳まれ撤去済み。
+ * 状態変化は snapshot（server-confirmed の全量 TimerFact 列）だけで伝わる。 */
 export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
   fc.record({ type: fc.constant("snapshot" as const), serverTime: genReceivedAt, timers: genWireTimers }),
-  fc.record({ type: fc.constant("started" as const), serverTime: genReceivedAt, timer: genWireTimer }),
-  fc.record({ type: fc.constant("cancelled" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
-  fc.record({ type: fc.constant("boiled" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
-  fc.record({ type: fc.constant("completed" as const), serverTime: genReceivedAt, timerId: fc.constantFrom(...TIMER_ID_POOL) }),
   fc.record({
     type: fc.constant("config" as const),
     serverTime: genReceivedAt,

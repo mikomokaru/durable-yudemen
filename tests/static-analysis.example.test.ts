@@ -12,6 +12,9 @@
 //      （要件9.2）
 //   3. ストレージは非同期 KV API（put/get）のみ。ctx.storage.sql・SQL クエリは使わない。
 //      （要件8.2 / 9.5）
+//   4. core（純粋変換群）は cloudflare:workers に依存せず、waitUntil で作用を抱え込まない。
+//      Boil_Sync の sync.ts / project.ts も CORE_FILES に含めて追随検査する。
+//      （要件4.6 / 8.2 / 8.3）
 //
 // 検査は実コードに対して行う。コメント・文字列リテラルは誤検出の元（例: store-timer-do.ts の
 // コメントに「server.accept() は使わない」という文字列が含まれる）なので、走査前に除去する。
@@ -34,10 +37,12 @@ const CORE_FILES = [
   "src/engine/event.ts",
   "src/engine/fire.ts",
   "src/engine/migrate.ts",
+  "src/engine/project.ts",
   "src/engine/rejection.ts",
   "src/engine/snapshot.ts",
   "src/engine/start.ts",
   "src/engine/state.ts",
+  "src/engine/sync.ts",
   "src/engine/timer.ts",
   "src/engine/types.ts",
 ] as const;
@@ -144,6 +149,23 @@ describe("静的検査 — core / StoreTimerDO の不変点（タスク22.1）",
     for (const file of SCANNED_FILES) {
       const code = readCode(file);
       expect(code, `${file} に setTimeout が存在する`).not.toMatch(/\bsetTimeout\b/);
+    }
+  });
+
+  it("core（純粋変換群）は cloudflare:workers に依存しない（要件4.6 / 8.3）", () => {
+    // 純粋変換はプラットフォーム非依存。cloudflare:workers の import を core に持ち込まない。
+    // 端（StoreTimerDO）だけが Cloudflare 固有依存を抱える（構造の主権）。
+    for (const file of CORE_FILES) {
+      const code = readCode(file);
+      expect(code, `${file} が cloudflare:workers に依存している`).not.toMatch(/cloudflare:workers/);
+    }
+  });
+
+  it("core（純粋変換群）は waitUntil で作用を抱え込まない（要件8.3）", () => {
+    // 「待つなら寝かせる、抱えると漏れる」。純粋変換は waitUntil で非同期作用を継続的に抱えない。
+    for (const file of CORE_FILES) {
+      const code = readCode(file);
+      expect(code, `${file} で waitUntil を使っている`).not.toMatch(/\bwaitUntil\b/);
     }
   });
 

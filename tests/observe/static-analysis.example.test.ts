@@ -52,19 +52,18 @@ const INSTRUMENTATION_MARKERS = [
   "InstrumentationLogEntry",
 ] as const;
 
-/** 既存ワイヤ形式（src/domain/messages.ts）が定める全メッセージ種別。これ以外を導入しない（要件9.6）。 */
+/** 既存ワイヤ形式（src/domain/messages.ts）が定める全メッセージ種別。これ以外を導入しない（要件9.6）。
+ *  server→client は snapshot 単一表現へ畳んだため snapshot / config / error の 3 種のみ（snapshot-broadcast）。
+ *  意味論種別（started / cancelled / boiled / completed / adjusted）は撤去済み。 */
 const WIRE_MESSAGE_TYPES = new Set([
+  // client → server（ClientMessage）
   "start",
   "cancel",
   "complete",
-  "snapshot",
-  "started",
-  "cancelled",
-  "boiled",
-  "completed",
-  "config",
   "adjust",
-  "adjusted",
+  // server → client（ServerMessage・snapshot 単一表現）
+  "snapshot",
+  "config",
   "error",
 ]);
 

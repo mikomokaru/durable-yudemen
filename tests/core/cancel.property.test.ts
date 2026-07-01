@@ -6,11 +6,26 @@ import { cancelTimer } from "../../src/engine/cancel";
 import { fireDueTimers } from "../../src/engine/fire";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
+import type { SyncParams } from "../../src/engine/sync";
 import { genState, nowArbFor } from "./generators";
 
-/** 結果 timers が元集合の部分集合か（id で対応づけ、各残存が元集合に同一内容で存在する）。 */
+/** 固定の同期パラメータ（既定域内・arms=2 / toleranceRatio=10%）。cancel は settle 経由で残余を再同期する。 */
+const PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
+
+/** adjustment を除いた Timer のアンカー恒等（id・startTime・endTime・seq・boiledAt・slotIds 等）。 */
+function anchorOf(t: Timer): unknown {
+  const { adjustment: _adjustment, ...anchor } = t;
+  return anchor;
+}
+
+/**
+ * 結果 timers が元集合の部分集合か。cancel は残余 running を再同期するため adjustment は変わりうる。
+ * ゆえに adjustment を除いたアンカー恒等（id・時刻事実・seq・boiledAt）が元集合に同一で存在するかで判定する。
+ */
 function isSubset(result: readonly Timer[], origin: readonly Timer[]): boolean {
-  return result.every((r) => origin.some((o) => o.id === r.id && JSON.stringify(o) === JSON.stringify(r)));
+  return result.every((r) =>
+    origin.some((o) => o.id === r.id && JSON.stringify(anchorOf(o)) === JSON.stringify(anchorOf(r))),
+  );
 }
 
 describe("core/cancel", () => {
@@ -22,7 +37,7 @@ describe("core/cancel", () => {
         const timerId = `absent-${suffix}`; // 生成器の id は "timer-N"。前置で衝突を排除する。
         fc.pre(!state.timers.some((t) => t.id === timerId));
         const before = structuredClone({ timers: state.timers, nextSeq: state.nextSeq });
-        const outcome = cancelTimer(state, timerId, now as EpochMillis);
+        const outcome = cancelTimer(state, timerId, now as EpochMillis, PARAMS);
         expect(outcome.ok).toBe(false);
         if (!outcome.ok) {
           expect(outcome.rejection.code).toBe("TimerNotFound");
@@ -45,15 +60,15 @@ describe("core/cancel", () => {
     fc.assert(
       fc.property(genStateNowCancel, ({ state, now, cancelId }) => {
         // 一括ドレイン発火は除去しない。id は元集合に含まれ、件数は不変（boiled として残る）。
-        const fired = fireDueTimers(state, now);
+        const fired = fireDueTimers(state, now, PARAMS);
         expect(fired.ok).toBe(true);
         if (fired.ok) {
           const originIds = new Set(state.timers.map((t) => t.id as string));
           expect(fired.state.timers.every((t) => originIds.has(t.id as string))).toBe(true);
           expect(fired.state.timers.length).toBe(state.timers.length);
         }
-        // キャンセルの結果は部分集合で、対象 id は残らない（要件6.5）。
-        const cancelled = cancelTimer(state, cancelId, now);
+        // キャンセルの結果は部分集合で、対象 id は残らない（要件6.5）。残余 running の adjustment は再同期で変わりうる。
+        const cancelled = cancelTimer(state, cancelId, now, PARAMS);
         if (cancelled.ok) {
           expect(isSubset(cancelled.state.timers, state.timers)).toBe(true);
           expect(cancelled.state.timers.some((t) => t.id === cancelId)).toBe(false);

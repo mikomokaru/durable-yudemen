@@ -32,5 +32,6 @@ export const EPSILON_MS = 500 as const;
 /** 永続スナップショットの現行スキーマバージョン。要件11。
  *  v3: Timer に boiled フェーズの事実 boiledAt を追加（発火＝除去をやめ、明示完了まで残す）。
  *  v4: Timer に startTime（茹で開始の絶対時刻）を追加。進捗リングの導出元（旧データは endTime で埋める）。
- *  v5: Timer に firmness（茹で加減）を追加。旧データは "normal" で埋める。 */
-export const CURRENT_SCHEMA_VERSION = 5 as const;
+ *  v5: Timer に firmness（茹で加減）を追加。旧データは "normal" で埋める。
+ *  v6: Timer に engine 専用の adjustment（同期用の符号付きオフセット）を追加。欠如は 0 で埋める。 */
+export const CURRENT_SCHEMA_VERSION = 6 as const;
