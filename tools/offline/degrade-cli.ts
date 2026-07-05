@@ -1,7 +1,7 @@
 // tools/offline/degrade-cli.ts — ライブ縮退ライフサイクル CLI（端・Node ランタイム）。
 //
-// 実行中のサーバ（既定 ws://localhost:5173/ws）に対し、本番のクライアント窓口
-// （openTimerConnection）をそのまま駆動して縮退→操作→復帰のライフサイクルをライブに検証する。
+// 実行中のサーバ（既定 ws://localhost:5173 のオリジン ＋ `/s/{storeId}/ws` 経路）に対し、本番の
+// クライアント窓口（openTimerConnection）をそのまま駆動して縮退→操作→復帰のライフサイクルをライブに検証する。
 // 本番実装は一切変更しない——縮退は openTimerConnection の注入継ぎ目（openSocket）に
 // リンク遮断ゲート（link-gate.ts）を差し込むことだけで起こす。永続は localStorage に触れない
 // インメモリ ViewStore を注入する。状態遷移（watchConnectivity / decideView / Reconcile）は
@@ -28,8 +28,20 @@ import { createLinkGate } from "./link-gate";
 const EXIT_SUCCESS = 0;
 const EXIT_FAILURE = 1;
 
-/** 既定の接続先（dev サーバ）。第 1 引数で上書きできる。 */
-const DEFAULT_URL = "ws://localhost:5173/ws";
+/** 既定の接続元（dev サーバのオリジン）。第 2 引数で上書きできる。 */
+const DEFAULT_ORIGIN = "ws://localhost:5173";
+
+/**
+ * 試験用の storeId（第 1 引数で上書きできる）。本番は採番スラッグを用いる運用のため固定既定を持たない
+ * が、ライブ検証は「プロビジョニング済みの試験店舗」に対して行う——要件2.3 が挙げる開発・試験用の
+ * 明示指定スラッグ（例: `1234`）を既定に採る。単一店舗固定の `DEFAULT_STORE_ID` 配線ではない。
+ */
+const TEST_STORE_ID = "1234";
+
+/** オリジンと storeId から本番と同一経路の WS URL（`/s/{storeId}/ws`）を組む（要件1.1 / 1.3）。 */
+function timerSocketUrl(origin: string, storeId: string): string {
+  return `${origin.replace(/\/+$/, "")}/s/${storeId}/ws`;
+}
 
 /** 起動からの相対秒付きで 1 行ログする（英語・端の観測記録）。 */
 function log(line: string): void {
@@ -94,9 +106,12 @@ function waitFor(
 }
 
 /** 縮退ライフサイクルを駆動し、復帰検証の合否で終了コードを返す。 */
-async function run(url: string): Promise<number> {
+async function run(storeId: string, url: string): Promise<number> {
   const gate = createLinkGate();
   const connection = openTimerConnection({
+    // storeId は宛先パス（url の `/s/{storeId}/ws`）とオフライン永続のスコープ元を兼ねる。省略不能
+    // （要件1.3 / 1.5）——インメモリ ViewStore を注入するため永続漏洩は起きないが、シグネチャの真実に従う。
+    storeId,
     url,
     openSocket: gate.opener,
     persistence: memoryViewStore(),
@@ -170,8 +185,11 @@ async function run(url: string): Promise<number> {
   }
 }
 
-const targetUrl = process.argv[2] ?? DEFAULT_URL;
-run(targetUrl).then(
+// 引数: [storeId] [origin]。storeId は宛先パスに載る店舗識別子、origin は接続元（既定 dev サーバ）。
+const targetStoreId = process.argv[2] ?? TEST_STORE_ID;
+const targetOrigin = process.argv[3] ?? DEFAULT_ORIGIN;
+const targetUrl = timerSocketUrl(targetOrigin, targetStoreId);
+run(targetStoreId, targetUrl).then(
   (code) => {
     process.exit(code);
   },

@@ -25,6 +25,8 @@ export default defineConfig({
           include: [
             "tests/static-analysis.example.test.ts",
             "tests/offline-degradation.static.test.ts",
+            // 撤去・不変・漏洩不能の静的検査（タスク7.3）。node:fs でソースを読むため node 環境で実行する。
+            "tests/per-store-provisioning.static.test.ts",
             // Wake_Lock マウントの依存確認（タスク6.1）。node:fs で App.tsx を読むため node 環境で実行する。
             "tests/client/audioWakeLock.example.test.ts",
           ],
@@ -36,6 +38,29 @@ export default defineConfig({
           name: "observe",
           environment: "node",
           include: ["tests/observe/**/*.property.test.ts", "tests/observe/**/*.example.test.ts"],
+        },
+      },
+      {
+        // レジストリの純粋層テスト。src/registry/ は cloudflare:workers・storage に依存しない純粋関数群
+        // ゆえ Workers pool 不要。node 環境（既定 pool）で実行する（design.md「純粋関数群は既定 pool」）。
+        test: {
+          name: "registry",
+          environment: "node",
+          include: ["tests/registry/**/*.property.test.ts", "tests/registry/**/*.example.test.ts"],
+        },
+      },
+      {
+        // Worker 認可の純粋層テスト。src/worker-auth.ts（timingSafeEqual / isAdminAuthorized）は
+        // cloudflare:workers・storage に依存しない純粋関数ゆえ Workers pool 不要。node 環境（既定 pool）で
+        // 実行する（design.md Property 21・タスク 5.4「既定 pool」）。統合テスト（*.integration.test.ts）は
+        // DO を要するため下の workers プロジェクトに残す。
+        test: {
+          name: "worker",
+          environment: "node",
+          // example テスト（entry.example.test.ts）も純粋核（worker-entry.ts・registry/authz.ts・
+          // registry/roster.ts）だけを import し cloudflare:workers を引き込まないため、property と同じく
+          // node（既定 pool）で実行する（下の workers project からは同名 glob を exclude で除外する）。
+          include: ["tests/worker/**/*.property.test.ts", "tests/worker/**/*.example.test.ts"],
         },
       },
       {
@@ -54,9 +79,17 @@ export default defineConfig({
             "tests/static-analysis.example.test.ts",
             "tests/offline-degradation.static.test.ts",
             // node:fs でソースを読む静的検査は static プロジェクト（node）が担当する。
+            "tests/per-store-provisioning.static.test.ts",
             "tests/client/audioWakeLock.example.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
+            // src/registry/ の純粋層テストは registry プロジェクト（node）が担当する。
+            "tests/registry/**/*.property.test.ts",
+            "tests/registry/**/*.example.test.ts",
+            // src/worker-auth.ts の純粋層テストは worker プロジェクト（node）が担当する。
+            "tests/worker/**/*.property.test.ts",
+            // worker の純粋 example テスト（entry.example.test.ts）も worker プロジェクト（node）が担当する。
+            "tests/worker/**/*.example.test.ts",
           ],
         },
       },

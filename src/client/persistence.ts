@@ -177,13 +177,27 @@ function toSlotIds(slotIds: unknown, legacySlotId: unknown): NonEmptyArray<strin
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
- * 永続ビューの保存キー（単一・version 込み）。
+ * 永続ビューの保存キーの接頭辞（単一・version 込み）。
  *
  * ビュー全体を単一の JSON ブロブとして 1 キーに丸ごと書く（要件11.1）。キー名に version 接尾辞
  * （.v1）を持たせ、将来ブロブ形式が非互換に変わったときは別キーへ移せるようにしてある
  * （旧キーは parse 失敗 → EMPTY_VIEW へ優雅にフォールバックする）。
+ *
+ * この接頭辞は単独ではキーにならない。実キーは必ず storeId でスコープした scopedStorageKey で作る
+ * （要件1.5：スコープは条件付きではなく必須）。接頭辞のみの旧キー（未スコープ）は決して読まない。
  */
-export const STORAGE_KEY = "yudemen.offline.view.v1" as const;
+const STORAGE_KEY_PREFIX = "yudemen.offline.view.v1" as const;
+
+/**
+ * storeId でスコープした永続ビューの保存キー（`yudemen.offline.view.v1:${storeId}`・要件1.5）。
+ *
+ * 店舗ごとに別キーへ書き分けることで、店舗を跨いだビューの漏洩（前店舗の表示が次店舗に出ること）を
+ * キー空間の分離だけで構造的に防ぐ。現在の storeId のキーを読む限り、別店舗・未スコープのブロブは
+ * そもそも参照されず、当該永続ビューは空として扱われる（要件1.6 のフェイルセーフ初期化の土台）。
+ */
+export function scopedStorageKey(storeId: string): string {
+  return `${STORAGE_KEY_PREFIX}:${storeId}`;
+}
 
 /**
  * ビュー永続の抽象境界（端）。
@@ -200,10 +214,19 @@ export interface ViewStore {
 }
 
 /**
- * localStorage を裏側に持つ既定の ViewStore（端）。
+ * localStorage を裏側に持つ既定の ViewStore（端）。storeId でスコープする（要件1.5・必須引数）。
  *
- * save は serializeView の結果を単一キー STORAGE_KEY へ同期書き込み、load は同キーをページ内同期で
- * 読み出して parsePersistedView でビューへ復元する（要件11.2 / 11.4）。
+ * save は serializeView の結果を storeId スコープのキー scopedStorageKey(storeId) へ同期書き込みし、
+ * load は同一 storeId のキーをページ内同期で読み出して parsePersistedView でビューへ復元する
+ * （要件11.2 / 11.4）。storeId は省略不能——スコープは「あれば付ける」条件付きではなく常に必須であり、
+ * スコープなしでは店舗を跨いだビューの漏洩を防げないため、型で欠落を排除する（不正な状態を表現可能にしない）。
+ *
+ * なぜ別店舗・未スコープの永続ビューが再水和されないか（要件1.5 / 1.6・フェイルセーフ初期化）:
+ * 読み書きするキーは現在の storeId でスコープされたキーだけである。前店舗（storeId が異なる）は別キーに
+ * 書かれており、未スコープの旧キー（接頭辞のみ）はそもそもキーとして構成しない。ゆえに現在の storeId で
+ * load すると、当該 storeId に属さないブロブは参照されず getItem は null を返し、parsePersistedView が
+ * EMPTY_VIEW を返す——前店舗のビューを再水和せず空から始める。漏洩をランタイム条件ではなくキー空間の
+ * 分離で構造的に封じる。
  *
  * なぜ save の失敗を握り潰さず、かつ呼び出し側のループも止めないか（優雅な劣化・「失敗を握り潰さず
  * 回復経路を持つ」）: localStorage への書き込みは容量逼迫やプライベートモードでの拒否で
@@ -213,11 +236,12 @@ export interface ViewStore {
  * console.error で観測可能に残しつつ、表示・発火は継続させる。永続は「次のビュー変化で再試行」され、
  * 一過性の失敗（容量逼迫の解消等）からは自然に回復する。これが本ファイルで採る回復経路である。
  */
-export function localStorageViewStore(): ViewStore {
+export function localStorageViewStore(storeId: string): ViewStore {
+  const key = scopedStorageKey(storeId);
   return {
     save(view: ClientView): void {
       try {
-        localStorage.setItem(STORAGE_KEY, serializeView(view));
+        localStorage.setItem(key, serializeView(view));
       } catch (cause) {
         // 失敗を握り潰さず観測可能にする。だが再 throw はしない（上記コメントの「なぜ」を参照）。
         console.error("[yudemen] view persistence failed; will retry on next view change", cause);
@@ -227,13 +251,69 @@ export function localStorageViewStore(): ViewStore {
       // getItem も SecurityError 等で失敗しうる。読み出し不能なら EMPTY_VIEW 起点へ優雅に劣化する。
       let raw: string | null;
       try {
-        raw = localStorage.getItem(STORAGE_KEY);
+        raw = localStorage.getItem(key);
       } catch (cause) {
         console.error("[yudemen] view rehydration read failed; starting from empty view", cause);
         return EMPTY_VIEW;
       }
       // parse 自体は純粋コーデックに委ね、不正・不在は EMPTY_VIEW（connectivity は "down" 起点）へ畳む。
+      // 別店舗・未スコープのブロブは key が一致せず raw=null となり、ここで EMPTY_VIEW に畳まれる（要件1.6）。
       return parsePersistedView(raw);
     },
   };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 前回使用店の記憶（client 専用の関心事・端）— ACCESS OFF 期の唯一の復帰経路の土台。
+//
+// start_url `/`（Entry）で開いた PWA は、ACCESS OFF 期（Phase 1〜2）にはサーバ側の行き先解決を
+// 持たない（要件7.8）。そこで「前回どの店舗にいたか」だけをローカルに憶えておき、次回 Entry 起動時に
+// クライアント側で店舗パス（/s/{storeId}/）へ直行する（App の Entry）。これはビュー永続（scopedStorageKey）
+// とは別の関心事ゆえ、専用キーに分ける——店舗スコープのビューと混ぜない（キー空間で関心事を分離する）。
+// 記憶が無い／壊れているときは一様に「記憶なし」（null）へ畳み、呼び出し側は合鍵 URL の案内へ落とす。
+// ───────────────────────────────────────────────────────────────────────────
+
+/** 前回使用店の保存キー（ビュー永続とは別系統・単一の storeId 値のみを持つ）。 */
+const LAST_STORE_KEY = "yudemen.last-store.v1" as const;
+
+/**
+ * storeId の許容形（[a-z0-9-]・長さ 1..64・要件1.2 / storeIdFromPath と同一形）。
+ * 壊れた記憶（別用途の値の混入・切り詰め・改竄）を「記憶なし」へ弾く番人。
+ */
+const STORE_ID_PATTERN = /^[a-z0-9-]{1,64}$/;
+
+/**
+ * 前回使用店として storeId を記憶する（端）。
+ *
+ * なぜ失敗を握り潰さず、かつ再 throw もしないか（view save と同じ規律）: localStorage 書き込みは
+ * 容量逼迫やプライベートモードで失敗しうる。ここで例外を投げれば呼び出し元（店舗タイマーのマウント）
+ * まで巻き添えに死ぬ——記憶は「次回の直行の利便」であってタイマー機能の前提ではないため、失敗は
+ * console.error で観測可能に残しつつ握り潰さず、稼働は継続させる。次回のマウントで自然に再試行される。
+ */
+export function rememberLastStore(storeId: string): void {
+  try {
+    localStorage.setItem(LAST_STORE_KEY, storeId);
+  } catch (cause) {
+    console.error("[yudemen] last-store memory write failed; will retry on next store mount", cause);
+  }
+}
+
+/**
+ * 前回使用店の storeId を読み出す（端）。無い／不正／読み出し不能はすべて「記憶なし」= null に畳む。
+ *
+ * 保存値が storeId の許容形（STORE_ID_PATTERN）を満たさなければ壊れた記憶として null を返す
+ * （不正な状態を「ある」ものとして扱わない）。getItem 自体の SecurityError も null へ優雅に劣化する。
+ */
+export function readLastStore(): string | null {
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(LAST_STORE_KEY);
+  } catch (cause) {
+    console.error("[yudemen] last-store memory read failed; treating as no memory", cause);
+    return null;
+  }
+  if (raw === null || !STORE_ID_PATTERN.test(raw)) {
+    return null;
+  }
+  return raw;
 }

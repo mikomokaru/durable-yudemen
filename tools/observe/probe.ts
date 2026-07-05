@@ -47,21 +47,22 @@ export interface ProbeConnection {
 }
 
 /**
- * `wss://` エンドポイントの `/ws` パスへ WebSocket 接続を確立する（要件1.2 / 1.3）。
+ * `wss://` エンドポイントの `/s/{storeId}/ws` パスへ WebSocket 接続を確立する（要件1.1 / 1.2 / 1.3）。
  *
  * 確立試行開始から CONNECT_TIMEOUT_MS（10,000ms）以内に open しない、または確立が失敗したら、
  * 理由を持つ Error で reject する。呼び出し側（CLI エントリ）はその理由を Operation_Log に記録し
  * 非ゼロ終了する（要件1.3）。endpoint / storeId は事前に validateProbeArgs で検証済みである前提
  * （wss スキーム・非空店舗識別子）だが、接続そのものの失敗はここで端の作用として扱う。
  *
- * 店舗識別子は `/ws` の query（`store`）として運ぶ。ワイヤ上のメッセージ形式は一切拡張しない
- * （新メッセージ種別・フィールドを足さない・要件9.6）——これは接続先の選択であってプロトコルではない。
+ * 店舗識別子は宛先パス `/s/{storeId}/ws` に載せる（`?store=` クエリではない）。宛先を storeId で運ぶ
+ * のは Store_Path の唯一の運搬方法であり（要件1.1）、本番クライアント（timerSocketUrl）と同一経路。
+ * ワイヤ上のメッセージ形式は一切拡張しない（新メッセージ種別・フィールドを足さない・要件9.6）
+ * ——これは接続先の選択であってプロトコルではない。
  */
 export function connectProbe(endpoint: string, storeId: string): Promise<ProbeConnection> {
   return new Promise<ProbeConnection>((resolve, reject) => {
     const url = new URL(endpoint);
-    url.pathname = "/ws";
-    url.searchParams.set("store", storeId);
+    url.pathname = `/s/${storeId}/ws`;
 
     const socket = new WebSocket(url.toString());
     const handlers: Array<(raw: string, receivedAt: number) => void> = [];

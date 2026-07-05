@@ -7,25 +7,32 @@
   },
   // 観測ハーネスの debug flag。"1" で計装ログ出力が有効・既定は無効（"0"）。
   // 本番での有効化はデプロイ時オーバーライドで行う（要件4.10/8.3/8.4）。
-  // STORE_UNIT_COUNT: 店舗のユニット総数（1〜4）の初期シード。DO 初回構築時に検証して storeConfig へ永続する。
-  // STORE_NOODLE_PRESETS: 店舗が提供する麺種プリセットの初期シード（JSON 文字列）。同じく初回構築時に検証して永続する。
-  // STORE_ARMS: 腕の本数（1〜10・同時に上げられる本数の上限）の初期シード。DO 初回構築時に検証して永続する。
-  // STORE_TOLERANCE_RATIO: 許容調整割合（1〜50 の整数パーセント）の初期シード。同じく初回構築時に検証して永続する。
-  // いずれも以後は永続値が正本（店舗ごとに固定・UI から変更不可）。稼働中の差し替えは PUT /admin/config が再投入する。
+  // ACCESS_REQUIRED: Cloudflare Access 統合の有効化フラグ（パイロットスイッチ・要件8.7）。
+  //   既定 OFF（"0"）= 合鍵 URL（推測困難な Store_Path の直叩き）のみで接続。JWT 検証・Roster 判定・Entry 行き先解決は休眠。
+  //   ON（"1"）= WS 接続時の JWT 検証（worker.ts）＋店舗 DO の Roster 判定（store-timer-do.ts）＋Entry `/` の逆引き解決（worker.ts）を有効化。
+  //   切替は env のみ・コード変更なし（3 分岐はいずれも実行時に env.ACCESS_REQUIRED を読む）。ON にするには実 TEAM_DOMAIN / POLICY_AUD を設定した上で "1" にする。
+  //   本番での有効化はデプロイ時オーバーライドで行い、この既定は "0"（OFF）を保つ（テストは env override で "0"/"1" を切り替える）。
+  // TEAM_DOMAIN: Access チーム URL（JWKS 取得・issuer 検証に用いる・要件8.6）。ACCESS ON 時に実値へ差し替える（プレースホルダ）。
+  // POLICY_AUD: Access アプリの audience（JWT の aud 検証に用いる・要件8.6）。ACCESS ON 時に実値へ差し替える（プレースホルダ）。
+  // STORE_* シード（STORE_UNIT_COUNT / STORE_ARMS / STORE_TOLERANCE_RATIO / STORE_NOODLE_PRESETS）は撤去した。
+  // 設定投入は Provisioning_API → StoreRegistryDO → StoreTimerDO の一本に統一する（要件2.7 / 9.3）。
   // ADMIN_TOKEN（運用エンドポイントの Bearer トークン）は秘密のため vars に置かず secret で投入する:
   //   本番: `wrangler secret put ADMIN_TOKEN`／ローカル dev: `.dev.vars` に ADMIN_TOKEN=... を置く。
   "vars": {
     "OBSERVE_DEBUG": "0",
-    "STORE_UNIT_COUNT": "3",
-    "STORE_ARMS": "2",
-    "STORE_TOLERANCE_RATIO": "3",
-    "STORE_NOODLE_PRESETS": "[{\"noodleType\":\"Thin\",\"boilSeconds\":{\"extraHard\":45,\"hard\":52,\"normal\":60,\"soft\":75}},{\"noodleType\":\"Medium\",\"boilSeconds\":{\"extraHard\":75,\"hard\":82,\"normal\":90,\"soft\":105}},{\"noodleType\":\"Thick\",\"boilSeconds\":{\"extraHard\":100,\"hard\":110,\"normal\":120,\"soft\":140}}]"
+    "ACCESS_REQUIRED": "0",
+    "TEAM_DOMAIN": "https://<team>.cloudflareaccess.com",
+    "POLICY_AUD": "<access-app-aud>"
   },
   "durable_objects": {
     "bindings": [
       {
         "name": "STORE_TIMER_DO",
         "class_name": "StoreTimerDO"
+      },
+      {
+        "name": "STORE_REGISTRY_DO",
+        "class_name": "StoreRegistryDO"
       }
     ]
   },
@@ -34,6 +41,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["StoreTimerDO"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["StoreRegistryDO"]
     }
   ],
   // React 静的アセットを同一オリジンで配信。SPA フォールバック。

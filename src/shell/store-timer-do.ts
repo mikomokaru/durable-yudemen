@@ -9,19 +9,47 @@ import { toWireTimer } from "../engine/project";
 import type { EpochMillis, TimerId } from "../engine/types";
 import { buildSeamEntry, type InstrumentationLogEntry } from "../observe/log";
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
+import { REJECTION_CLOSE_CODE } from "../transport/rejection";
 import type { ClientMessage, ServerMessage } from "../domain/messages";
 import { isFirmness } from "../domain/firmness";
 import type { StoreConfig, NoodlePreset } from "../domain/store";
-import { toUnitCount, toNoodlePresets, toArms, toToleranceRatio, DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS, DEFAULT_ARMS, DEFAULT_TOLERANCE_RATIO } from "../domain/store";
+import { DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS, DEFAULT_ARMS, DEFAULT_TOLERANCE_RATIO } from "../domain/store";
+import type { StoreProjection } from "../registry/projection";
+import type { Roster } from "../registry/ideal";
+import { normalize } from "../registry/authz";
+
+/**
+ * 内部 identity ヘッダ名 — Worker が JWKS 検証済みの identity を店舗 DO へ運ぶ唯一の内部ヘッダ（要件6.3 / 8.6）。
+ *
+ * このヘッダはサーバ内部（Worker → 店舗 DO）専用であり、クライアント由来の同名ヘッダを決して透過しない。
+ * Worker（task 13.3）は転送時に無条件でこのヘッダを除去した上で、ACCESS_REQUIRED ON かつ JWT 検証成功時に
+ * のみ検証済み identity を付与し直す（偽装防御）。店舗 DO 側（本 task 13.4）は ACCESS_REQUIRED ON のとき
+ * このヘッダから検証済み identity を読み、永続投影の Roster にローカル照合する（レジストリ照会なし）。
+ * X- 接頭辞と Yudemen 名前空間で、標準ヘッダ・他アプリのヘッダとの衝突を避ける（この定数が単一の正本で、
+ * Worker 側の付与／除去はこの名前に一致させる）。
+ */
+export const IDENTITY_HEADER = "X-Yudemen-Identity";
 
 /** タイマー SSOT の単一キー。状態は丸ごとこのキーへ put / get する（要件8.3・SQL 不使用）。 */
 const SNAPSHOT_KEY = "activeTimers";
 
 /**
- * 店舗設定（StoreConfig）の単一キー。Timer SSOT とは別概念ゆえ別キーに持つ（activeTimers には混ぜない）。
- * 初回構築時に env シードを検証して書き込み、以後は永続値が正本（店舗ごとに固定・UI 不変）。
+ * 投影（StoreProjection）の単一永続キー。config + roster + active + version を丸ごとこのキーへ put / get する。
+ * Timer SSOT（activeTimers）とは別概念ゆえ独立したキーに持つ（要件5.2 / 6.5）。
+ * レジストリからの押し込み（applyProjection）だけがこのキーを書き、店舗 DO はここを投影の正本とする。
+ * env シード（旧 storeConfig）は廃止した——設定はプロビジョニング（投影押し込み）でのみ確立する（要件2.7 / 9.3）。
  */
-const STORE_CONFIG_KEY = "storeConfig";
+const PROJECTION_KEY = "projection";
+
+/**
+ * プロビジョニング状態。投影が永続されていれば provisioned（その投影を同梱）、未永続なら未プロビジョニング。
+ * env シードを廃した今、投影の永続だけが「この店舗が存在する」ことの唯一の証左（要件2.6 / 2.7）。
+ * fetch 経路（接続可否判定 — task 4.3 の未プロビジョニング拒否・task 4.4 の非活性化）がこの状態を読む。
+ * detection のみを表し、作用（put など）は一切持たない。
+ */
+type ProvisionState =
+  | { readonly provisioned: false }
+  | { readonly provisioned: true; readonly projection: StoreProjection };
 
 /** Cloudflare Alarm の自動リトライ上限（公式: 初回2秒・指数バックオフ・最大6回）。 */
 const ALARM_MAX_RETRIES = 6;
@@ -34,6 +62,18 @@ const ALARM_REARM_THRESHOLD = ALARM_MAX_RETRIES - 1;
 
 /** 張り直す Alarm の遅延。put が回復するまでの猶予を置く（公式推奨パターンの例値）。 */
 const ALARM_REARM_DELAY_MS = 30_000;
+
+/**
+ * 非活性化（deactivated）で接続中の WS を閉じるときの close code（要件6.6）。
+ *
+ * 「店舗の状態による接続拒否」を表すアプリ固有シグナルは client と共有する単一の確定値ゆえ、値は
+ * transport/rejection.ts（REJECTION_CLOSE_CODE）に集約する（二重定義の根絶）。クライアントはこの符号を
+ * 接続拒否と解し、Entry へ戻って行き先を解決し直す（要件7.6・design.md Component 8 / 10）。
+ */
+const DEACTIVATED_CLOSE_CODE = REJECTION_CLOSE_CODE;
+
+/** 非活性化で WS を閉じるときに添える close reason（人が読む診断用。判定には使わない）。 */
+const DEACTIVATED_CLOSE_REASON = "store deactivated";
 
 /** runEffects の結果。Persist が確定したか（put 成功か）だけを呼び出し元へ返す。 */
 interface RunResult {
@@ -112,7 +152,13 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
  * 確定の起点は storage.put の成功のみ。Persist が成功して初めて Working_Copy を確定反映し、
  * その上に SetAlarm / ClearAlarm / Broadcast が立つ。
  *
- * rehydrate（task 11）・Alarm（task 12）・WebSocket メッセージ処理（task 13）は後続タスクで配線する。
+ * 自立性の不変（要件6.1 / 6.2）：この DO はレジストリ（STORE_REGISTRY_DO）へ一切越境読みをしない。
+ * 設定・名簿はレジストリからの applyProjection 押し込みでのみ届き（pull せず push で受ける）、自身の
+ * projection キーへ永続した「最後に受領した投影」だけが正本となる。ゆえに rehydrate（hibernate 復帰）の
+ * ホットパス（ensureLoaded → ensureProvisioned → reconcile）も接続時の条件判定（fetch の未プロビジョニング・
+ * 非活性化ゲート）も store DO 内で閉じ、いずれも自身の storage.get だけを読む。レジストリが不達・停止して
+ * いてもタイマー機能と接続可否判定は最後の投影で継続する。env から読むのは OBSERVE_DEBUG（計装フラグ）のみで、
+ * この DO は STORE_REGISTRY_DO バインディングも他 DO スタブ（idFromName / getByName）も一切保持しない。
  */
 export class StoreTimerDO extends DurableObject<Env> {
   /**
@@ -134,37 +180,43 @@ export class StoreTimerDO extends DurableObject<Env> {
   /**
    * 店舗のユニット総数（StoreConfig.unitCount）。サーバ権威・クライアント不変の店舗設定。
    *
-   * ensureConfigLoaded で storage キー storeConfig から読み込む（不在なら env シードを検証して永続）。
-   * 接続時に config ServerMessage として各クライアントへ一方向配信する。既定は接続前/不在の安全網。
+   * ensureProvisioned が永続投影（projection.config）から在メモリへ反映する。接続時に config ServerMessage
+   * として各クライアントへ一方向配信する。既定は投影未受領（未プロビジョニング）時の安全網。
    */
   private unitCount: number = DEFAULT_UNIT_COUNT;
 
   /**
    * 店舗が提供する麺種プリセット（StoreConfig.noodlePresets）。サーバ権威・クライアント不変の店舗設定。
    *
-   * unitCount と同じ系統で storeConfig から読み込み、config として配信する。店舗ごとに異なりうる
-   * （env シード STORE_NOODLE_PRESETS / 運用エンドポイント PUT /admin/config）。既定は安全網。
+   * unitCount と同じ系統で投影 config から反映し、config として配信する。店舗ごとに異なりうる
+   * （レジストリのイデアから合成された投影が正本）。既定は安全網。
    */
   private noodlePresets: readonly NoodlePreset[] = DEFAULT_NOODLE_PRESETS;
 
   /**
    * 腕の本数（StoreConfig.arms）。同時に上げられる本数の上限＝1 Sync_Set の最大本数。サーバ権威設定。
    *
-   * unitCount と同じ系統で storeConfig から読み込み（不在なら env シード STORE_ARMS を検証して永続）、
-   * decide 呼び出し時に synchronize へ値として注入する。client へは配信しない（要件6.5）。既定は安全網。
+   * unitCount と同じ系統で投影 config から反映し、decide 呼び出し時に synchronize へ値として注入する。
+   * client へは配信しない（要件6.5）。既定は安全網。
    */
   private arms: number = DEFAULT_ARMS;
 
   /**
    * 許容調整割合（StoreConfig.toleranceRatio・整数パーセント）。各 Timer が茹で時間に対し前後に調整してよい割合。
    *
-   * arms と同じ系統で storeConfig から読み込み（不在なら env シード STORE_TOLERANCE_RATIO を検証して永続）、
-   * decide 呼び出し時に synchronize へ値として注入する。client へは配信しない（要件6.5）。既定は安全網。
+   * arms と同じ系統で投影 config から反映し、decide 呼び出し時に synchronize へ値として注入する。
+   * client へは配信しない（要件6.5）。既定は安全網。
    */
   private toleranceRatio: number = DEFAULT_TOLERANCE_RATIO;
 
-  /** storeConfig ロード済みフラグ。ensureConfigLoaded を冪等にする（hibernate 復帰ごとに false へ戻る）。 */
-  private configLoaded = false;
+  /**
+   * プロビジョニング状態のキャッシュ。ensureProvisioned が一度読んだ判定を保持し、fetch 経路が参照する。
+   * 既定は未プロビジョニング（安全側）。applyProjection の押し込み確定時にも provisioned へ更新される。
+   */
+  private provisionState: ProvisionState = { provisioned: false };
+
+  /** プロビジョニング判定済みフラグ。ensureProvisioned を冪等にする（hibernate 復帰ごとに false へ戻る）。 */
+  private provisionChecked = false;
 
   /**
    * instanceId — この in-memory 生存期間を一意に識別する観測キー（要件4.8 / 5.1）。
@@ -192,6 +244,32 @@ export class StoreTimerDO extends DurableObject<Env> {
   }
 
   /**
+   * Access_Required_Flag ゲート。接続時 Roster 認可の要否をこの一点で判定する（要件6.3 / 6.4 / 8.7）。
+   *
+   * ACCESS_REQUIRED は env 経由の公開設定キー。ON（"1"）のとき、fetch は Worker が付与した検証済み identity を
+   * 投影 Roster にローカル照合する（レジストリ照会なし）。OFF（既定 "0"）のときは Roster 照合を行わず、
+   * プロビジョニング済みであることのみを接続の条件とする（合鍵 URL・要件6.4）。フラグの切替は env のみで、
+   * コード変更を要しない（要件8.7）。wrangler types は既定値から literal 型 "0" を生成するため、"1" との
+   * 直接比較は型の重なりが無く TS2367 になる。実行時は "1" を取りうる事実を表すため string へ広げて比較する。
+   */
+  private get accessRequired(): boolean {
+    return (this.env.ACCESS_REQUIRED as string) === "1";
+  }
+
+  /**
+   * 接続時 Roster 認可の所属判定（投影のみで完結・レジストリ照会なし・要件6.3）。
+   *
+   * 照合の両辺——接続要求の identity と Roster の各要素——を normalize で正準形へ写してから比較する
+   * （同じ人を同じ単位で照合する・要件9.5）。判定に用いるのは永続投影が同梱する roster だけで、レジストリへ
+   * 越境しない（自立性・要件6.2）。identity 欠如（null）は非所属として扱い、呼び出し側が接続を拒否する。
+   */
+  private isRostered(roster: Roster, identity: string | null): boolean {
+    if (identity === null) return false;
+    const target = normalize(identity);
+    return roster.some((entry) => normalize(entry) === target);
+  }
+
+  /**
    * 計装 entry を Instrumentation_Log として吐く唯一の作用点（要件4.1〜4.4 / 4.10）。
    *
    * debug 無効時は即 return し、いずれの継ぎ目からも出力しない。ゲートをこの一点に集約することで
@@ -211,6 +289,10 @@ export class StoreTimerDO extends DurableObject<Env> {
    * 中途半端な Working_Copy を外部へ応答しないための規律。ロード後に reconcile を 1 回適用し、
    * 期限到来分の即時発火・残存からの Alarm 再導出を回収する（要件7.6 / 7.2 / 7.7）。
    * blockConcurrencyWhile 内で投げられた例外（読み出し失敗 / 移行不能）は DO を再初期化させる（要件7.5）。
+   *
+   * この復帰ホットパスはレジストリへ越境しない（要件6.1）——ensureLoaded / ensureProvisioned は自身の
+   * storage.get のみを読み、reconcile は在メモリ状態と ensureProvisioned が確立した投影 config（arms /
+   * toleranceRatio）だけで決まる。レジストリ RPC は経路上に存在せず、その可用性に依存せず復帰できる。
    */
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -221,10 +303,10 @@ export class StoreTimerDO extends DurableObject<Env> {
     this.emitSeam(buildSeamEntry({ seam: "construct", at: this.instanceBornAt, instanceId: this.instanceId }));
     void ctx.blockConcurrencyWhile(async () => {
       await this.ensureLoaded();
-      await this.ensureConfigLoaded();
+      await this.ensureProvisioned();
       // ロード後の整合（要件7.6 / 7.2 / 7.7）。now は shell が採取して core へ渡す（core は時計を持たない）。
       const now = Date.now() as EpochMillis;
-      // arms / toleranceRatio は ensureConfigLoaded が確立した StoreConfig の確定値を synchronize へ注入する。
+      // arms / toleranceRatio は ensureProvisioned が投影 config から確立した確定値を synchronize へ注入する。
       const outcome = decide(this.workingCopy, { type: "Reconcile", now }, {
         arms: this.arms,
         toleranceRatio: this.toleranceRatio,
@@ -273,100 +355,138 @@ export class StoreTimerDO extends DurableObject<Env> {
   }
 
   /**
-   * 店舗設定（StoreConfig）のロードを保証する（サーバ権威・クライアント不変・店舗ごとに固定）。
+   * プロビジョニング状態を確定し、投影が在れば config を在メモリへ反映する（現行 ensureConfigLoaded の後継）。
    *
-   * storage キー storeConfig を読み、不在なら env シード（STORE_UNIT_COUNT / STORE_ARMS /
-   * STORE_TOLERANCE_RATIO / STORE_NOODLE_PRESETS）を各検証関数で検証して永続する（初回構築時の一度きり）。
-   * 存在すれば永続値が正本で、
-   * 防御的に同じ検証を通して健全な形へ畳む。Timer の SSOT フローとは独立した別概念であり、decide/Effect には
-   * 乗らない。稼働中の差し替えは applyStoreConfig（PUT /admin/config）が担う。configLoaded で冪等に保つ。
+   * env シード分岐は撤去した。自身の storeId は DO の addressed name（ctx.id.name）で表され（Cloudflare 前提2）、
+   * この DO が「存在する店舗」かどうかは永続投影（projection キー）の有無だけが語る。投影が未永続なら
+   * 未プロビジョニング——env から設定を自動確立することはしない（要件2.7 / 9.3）。永続されていれば投影 config を
+   * 在メモリへ反映し（接続時 config 配信・adjust 解決・decide 注入がこの値に従う）、provisioned として返す。
+   *
+   * これは detection のみで作用（put）を持たない。未プロビジョニングの拒否（要件2.6・書き込みゼロ）と
+   * 非活性化の閉鎖（要件6.6）は fetch 側が本状態を読んで行う（task 4.3 / 4.4）。provisionChecked で冪等に保つ。
    */
-  private async ensureConfigLoaded(): Promise<void> {
-    if (this.configLoaded) return;
-    const raw = await this.ctx.storage.get(STORE_CONFIG_KEY);
-    if (raw === undefined || raw === null) {
-      // 初回: env シードを検証して永続する（以後この店舗の設定の起点となる）。
-      const seeded: StoreConfig = {
-        unitCount: toUnitCount(this.env.STORE_UNIT_COUNT),
-        arms: toArms(this.env.STORE_ARMS),
-        toleranceRatio: toToleranceRatio(this.env.STORE_TOLERANCE_RATIO),
-        noodlePresets: toNoodlePresets(this.env.STORE_NOODLE_PRESETS),
-      };
-      await this.ctx.storage.put(STORE_CONFIG_KEY, seeded);
-      this.unitCount = seeded.unitCount;
-      this.arms = seeded.arms;
-      this.toleranceRatio = seeded.toleranceRatio;
-      this.noodlePresets = seeded.noodlePresets;
+  private async ensureProvisioned(): Promise<ProvisionState> {
+    if (this.provisionChecked) return this.provisionState;
+    // 越境読みなし——参照するのは自身の永続投影だけ（レジストリへ問い合わせない・要件6.1 / 6.2）。
+    const projection = (await this.ctx.storage.get(PROJECTION_KEY)) as StoreProjection | undefined;
+    if (projection === undefined) {
+      // 投影未永続＝未プロビジョニング。config は既定の安全網のまま（接続は task 4.3 が拒否する）。
+      this.provisionState = { provisioned: false };
     } else {
-      // 永続値が正本。壊れた値は各検証関数が既定へ畳む（不正値を表現させない）。
-      const persisted = raw as Record<string, unknown>;
-      this.unitCount = toUnitCount(persisted.unitCount);
-      this.arms = toArms(persisted.arms);
-      this.toleranceRatio = toToleranceRatio(persisted.toleranceRatio);
-      this.noodlePresets = toNoodlePresets(persisted.noodlePresets);
+      // 投影を受領済み＝プロビジョニング済み。config を在メモリへ反映して以後の応答の正本とする。
+      this.adoptProjectionConfig(projection.config);
+      this.provisionState = { provisioned: true, projection };
     }
-    this.configLoaded = true;
+    this.provisionChecked = true;
+    return this.provisionState;
   }
 
   /**
-   * 店舗設定（StoreConfig）を外部投入で差し替える（PUT /admin/config の DO 側処理）。
+   * 投影の StoreConfig を在メモリへ反映する唯一の反映点。
    *
-   * 認証は Worker 端で済んでいる（到達＝許可済み）。ボディ JSON を toUnitCount / toNoodlePresets で検証し、
-   * StoreConfig 全体を置換する（部分更新ではない＝「設定 JSON をそのまま投入」の意図）。検証関数が不正値を
-   * 既定へ畳むため、不正な StoreConfig は永続されない。永続成功の上に、接続中の全クライアントへ config を
-   * 再配信する（config は Timer の SSOT フロー＝decide/Effect には乗らない別系統ゆえ、ここで直接 broadcast する）。
+   * 接続時の config 配信・adjust 解決・decide への注入はこの在メモリ値に従う。applyProjection（押し込み確定時）と
+   * ensureProvisioned（rehydrate ロード時）の双方がここを経由し、設定の写しが二箇所で分岐しないようにする
+   * （SSOT は永続投影、その在メモリ側の反映を一本化する）。純粋な代入のみで永続・配信の作用は持たない。
    */
-  private async applyStoreConfig(request: Request): Promise<Response> {
-    let parsed: unknown;
-    try {
-      parsed = await request.json();
-    } catch {
-      return new Response(JSON.stringify({ error: "invalid JSON body" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+  private adoptProjectionConfig(config: StoreConfig): void {
+    this.unitCount = config.unitCount;
+    this.arms = config.arms;
+    this.toleranceRatio = config.toleranceRatio;
+    this.noodlePresets = config.noodlePresets;
+  }
+
+  /**
+   * applyProjection — レジストリからの投影押し込みを受ける型付き RPC（設定投入の唯一の経路）。
+   *
+   * 受領した投影を projection キーへ丸ごと永続し（config + roster + active + version が正本）、その上で
+   * config の変化を接続中の全クライアントへ config メッセージで再配信する（要件5.2）。受領した version を
+   * エコーで返す（要件5.9）。
+   *
+   * 単調ガード（要件5.4）：受領 version が永続済み version より小さい投影は適用せず、永続済み version を
+   * そのまま返す。レジストリのリクエスト処理と Alarm 継続の fan-out は await 中に並走しうるため、到着順が
+   * 逆転しても last-write-wins が店舗 DO 側で完結する。照合基準は在メモリのキャッシュではなく永続層
+   * （SSOT）とし、確定済みの版に照らす。
+   *
+   * roster は投影の一部として永続するが ServerMessage には決して載せない（要件5.3）。config だけを配信可能と
+   * する分離は StoreProjection の型構造と config ServerMessage の形が担い、ここでの送信フィルタには依らない
+   * （ServerMessage に roster を表現するフィールドが無く、構築不能）。
+   *
+   * 到達＝計算済みの健全な投影（要件4.6 の帰結・レジストリ入口で検証済み）ゆえ、ここで再検証はしない。
+   */
+  async applyProjection(projection: StoreProjection): Promise<{ readonly version: number }> {
+    // 単調ガードの基準は永続済み投影の version。SSOT は永続層ゆえ storage から読む。
+    const persisted = (await this.ctx.storage.get(PROJECTION_KEY)) as StoreProjection | undefined;
+    if (persisted !== undefined && projection.version < persisted.version) {
+      // 到着順逆転。より新しい投影が既に確定済みゆえ適用せず、永続済み version をエコーする。
+      return { version: persisted.version };
     }
-    const body = (typeof parsed === "object" && parsed !== null ? parsed : {}) as Record<string, unknown>;
-    // 設定全体の置換。検証を一箇所（domain）へ委ね、健全な StoreConfig だけが永続・配信される。
-    const next: StoreConfig = {
-      unitCount: toUnitCount(body.unitCount),
-      // 検証を domain へ委ね、当該パラメータのみ既定へ畳む（他の妥当値は保持）。
-      arms: toArms(body.arms),
-      toleranceRatio: toToleranceRatio(body.toleranceRatio),
-      noodlePresets: toNoodlePresets(body.noodlePresets),
-    };
-    // 確定の起点は put 成功。先に永続し、その上に在メモリ反映と再配信を立てる（SSOT 規律）。
-    await this.ctx.storage.put(STORE_CONFIG_KEY, next);
-    this.unitCount = next.unitCount;
-    this.arms = next.arms;
-    this.toleranceRatio = next.toleranceRatio;
-    this.noodlePresets = next.noodlePresets;
-    // 接続中の全クライアントへサーバ権威設定を再配信する（クライアントは制御できず受信して従うのみ）。
-    const config: ServerMessage = {
-      type: "config",
-      serverTime: Date.now(),
-      unitCount: this.unitCount,
-      noodlePresets: this.noodlePresets,
-    };
-    const payload = JSON.stringify(config);
-    for (const ws of this.ctx.getWebSockets()) {
-      ws.send(payload);
+
+    // 確定の起点は put 成功。先に投影全体を永続し、その上に在メモリ反映と config 再配信を立てる（SSOT 規律）。
+    await this.ctx.storage.put(PROJECTION_KEY, projection);
+    // config の値を在メモリへ反映する（この instance の以後の接続・adjust 解決が最新投影に従う）。
+    this.adoptProjectionConfig(projection.config);
+    // 投影を確定したこの店舗はプロビジョニング済み。ensureProvisioned のキャッシュも provisioned へ更新し、
+    // 同一 instance 内で materialize（押し込み）直後に来る接続が正しく受理されるようにする。
+    this.provisionState = { provisioned: true, projection };
+    this.provisionChecked = true;
+    // 接続中の全 WS への作用は投影の活性状態で分岐する（要件5.2 / 6.6）。
+    if (projection.active) {
+      // 活性: サーバ権威設定を config で再配信する（クライアントは制御できず受信して従うのみ）。
+      // roster は載せない — config ServerMessage に表現する場所が無い（要件5.3）。
+      const config: ServerMessage = {
+        type: "config",
+        serverTime: Date.now(),
+        unitCount: this.unitCount,
+        noodlePresets: this.noodlePresets,
+      };
+      const payload = JSON.stringify(config);
+      for (const ws of this.ctx.getWebSockets()) {
+        ws.send(payload);
+      }
+    } else {
+      // 非活性化（deactivated・要件6.6）: 新規接続は fetch が拒否する。接続中の WS はここで閉じる。
+      // close はメモリ上の接続を切るだけで、永続した投影・タイマー SSOT は残す（物理削除しない・要件9.6）。
+      for (const ws of this.ctx.getWebSockets()) {
+        ws.close(DEACTIVATED_CLOSE_CODE, DEACTIVATED_CLOSE_REASON);
+      }
     }
-    return new Response(payload, { status: 200, headers: { "Content-Type": "application/json" } });
+    // 受領した version をエコーする（収束台帳の突き合わせに用いる・要件5.9）。
+    return { version: projection.version };
   }
 
   override async fetch(request: Request): Promise<Response> {
     await this.ensureLoaded();
-    await this.ensureConfigLoaded();
-
-    // 運用エンドポイント（サーバ権威の店舗設定の外部投入）。WebSocket 経路とは別系統で、稼働中の店舗へ
-    // StoreConfig を差し替える。認証は Worker 端で済んでいる前提（到達した時点で許可済み）。
-    if (new URL(request.url).pathname === "/admin/config") {
-      return this.applyStoreConfig(request);
-    }
+    // プロビジョニング状態を確定する（投影の有無を判定し、在れば config を在メモリへ反映する）。
+    // 非活性化閉鎖（要件6.6）はこの状態を読む後続タスク（4.4）が担う。
+    const provision = await this.ensureProvisioned();
 
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket", { status: 426 });
+    }
+
+    // 未プロビジョニング拒否（要件2.6・書き込みゼロ）。投影が未永続の DO への WS 接続は、storage.put を
+    // 一切行わずに拒否する。ここまでの経路は書き込みを持たない——ensureLoaded / ensureProvisioned は
+    // storage.get のみ、constructor の reconcile は空状態ゆえ settle が no-op で Effect 空を返し put が立たない
+    // （空の DO では timers が無く Persist が生成されない）。判定を WebSocketPair 生成・acceptWebSocket より
+    // 前に置くことで書き込み経路へ一切進ませず、書き込みゼロの DO は消滅して痕跡を残さない（合鍵 URL の帰結）。
+    if (!provision.provisioned) {
+      return new Response("Not provisioned", { status: 403 });
+    }
+
+    // 非活性化（deactivated）拒否（要件6.6）。保持する投影が active=false を示すとき、新規接続を受け付けない。
+    // タイマー状態・投影はそのまま保持し（物理削除しない・コスト根拠は要件9.6）、拒否のみを返す。接続中の
+    // 既存 WS の閉鎖は applyProjection（active=false 受領時）が担い、ここは「新規接続の拒否」に限る。
+    if (!provision.projection.active) {
+      return new Response("Store deactivated", { status: 403 });
+    }
+
+    // 接続時 Roster 認可（要件6.3 / 6.4）。ACCESS_REQUIRED ON 時のみ、Worker が JWKS 検証の上で内部ヘッダ
+    // （IDENTITY_HEADER）に付与した identity を、永続投影の実効 Roster にローカル照合する。判定は投影だけで
+    // 完結し、レジストリへ照会しない（自立性・要件6.2）。identity 欠如または Roster に不在なら 403 で拒否する。
+    // OFF（暫定期）のときはこのゲートを通さず、プロビジョニング済み（＋活性）のみを条件とする（合鍵 URL・要件6.4）。
+    // 判定は WebSocketPair 生成・acceptWebSocket より前に置き、拒否時は収容へ一切進ませない。
+    if (this.accessRequired && !this.isRostered(provision.projection.roster, request.headers.get(IDENTITY_HEADER))) {
+      return new Response("Forbidden", { status: 403 });
     }
 
     const pair = new WebSocketPair();
@@ -436,7 +556,7 @@ export class StoreTimerDO extends DurableObject<Env> {
         ws.send(JSON.stringify(error));
         return;
       }
-      // arms / toleranceRatio は ensureConfigLoaded が確立した StoreConfig の確定値を synchronize へ注入する。
+      // arms / toleranceRatio は ensureProvisioned が投影 config から確立した確定値を synchronize へ注入する。
       const outcome = decide(
         this.workingCopy,
         {
@@ -476,7 +596,7 @@ export class StoreTimerDO extends DurableObject<Env> {
           ? { type: "Cancel" as const, timerId: command.timerId, now }
           : { type: "Complete" as const, timerId: command.timerId, now };
 
-    // arms / toleranceRatio は ensureConfigLoaded が確立した StoreConfig の確定値を synchronize へ注入する。
+    // arms / toleranceRatio は ensureProvisioned が投影 config から確立した確定値を synchronize へ注入する。
     const outcome = decide(this.workingCopy, event, { arms: this.arms, toleranceRatio: this.toleranceRatio });
     if (outcome.ok) {
       // Persist 先頭の Effect 列を runEffects が実行する（SSOT 規律）。確定変化は全 WS へ snapshot を
@@ -513,7 +633,7 @@ export class StoreTimerDO extends DurableObject<Env> {
     // now は shell が採取して core へ渡す（core は時計を持たない＝純粋）。
     const now = Date.now() as EpochMillis;
     // AlarmFired は fireDueTimers と同形で常に成功する（拒否経路を持たない）。
-    // arms / toleranceRatio は ensureConfigLoaded が確立した StoreConfig の確定値を synchronize へ注入する。
+    // arms / toleranceRatio は ensureProvisioned が投影 config から確立した確定値を synchronize へ注入する。
     const outcome = decide(this.workingCopy, { type: "AlarmFired", now }, {
       arms: this.arms,
       toleranceRatio: this.toleranceRatio,

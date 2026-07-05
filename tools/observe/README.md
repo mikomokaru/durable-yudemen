@@ -3,7 +3,7 @@
 hibernation 観測ハーネス（spec: `hibernation-observability`）の **Node ランタイムの端**を置く。
 workerd ではなく Node 上で動く実行体であり、I/O・実時間・終了コードはここに閉じる。
 
-- Probe_Client（`probe.ts`）— `wss://` `/ws` 接続・`start`/`cancel` 送信・受信記録
+- Probe_Client（`probe.ts`）— `wss://` `/s/{storeId}/ws` 接続・`start`/`cancel` 送信・受信記録
 - Scenario_Runner（`runner.ts`）— 宣言的シナリオを実時間に沿って駆動
 - 突き合わせ CLI（`correlate-cli.ts`）— 二つのログを読み `src/observe/` の純粋関数で判定
 - CLI エントリ（`probe-cli.ts`）・Deploy_Procedure（本 README 末尾「Deploy Procedure」節）
@@ -142,8 +142,9 @@ pnpm wrangler tail yude-men-timer --format pretty   # exercise the seams; expect
 
 ### Security: the WebSocket endpoint is unauthenticated (Req 8.5)
 
-The `/ws` endpoint targeted by this harness is published **without authentication**. Any third
-party who knows a store identifier can connect over `wss://` and send `start` / `cancel` messages.
+The `/s/{storeId}/ws` endpoint targeted by this harness is published **without authentication**. Any
+third party who knows a store identifier (carried in the path) can connect over `wss://` and send
+`start` / `cancel` messages.
 This is accepted **only under the pilot premise** (a limited network and a short verification
 window), and adding access control is **out of scope** for this harness. **Before any production
 rollout, an authentication layer is mandatory.**

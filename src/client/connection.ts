@@ -422,7 +422,12 @@ export interface Socket {
 export interface SocketListeners {
   readonly onOpen: () => void;
   readonly onMessage: (data: string) => void;
-  readonly onClose: () => void;
+  /**
+   * 切断時に呼ぶ。close code を運ぶ（省略可＝コード不明）。到達性検出（down 確定）はコードに依らないが、
+   * サーバが添えるアプリ固有の拒否符号（transport/rejection.ts の REJECTION_CLOSE_CODE）を Connectivity_Watch が
+   * 識別して「接続拒否」を導けるよう、コードを透過する（要件7.6）。
+   */
+  readonly onClose: (code?: number) => void;
   readonly onError: () => void;
 }
 
@@ -449,7 +454,13 @@ export interface TimerConnection {
 
 /** openTimerConnection のオプション。時計・Socket・永続・接続性検出・アラートを注入可能にしてテスト容易性を保つ。 */
 export interface ConnectionOptions {
-  /** 接続先 WS URL（例: wss://host/ws）。 */
+  /**
+   * 接続先店舗の storeId（URL パス `/s/{storeId}/` 由来）。永続のスコープ元であり省略不能（要件1.3 / 1.5）。
+   * 既定 ViewStore は必ずこの storeId でスコープされる（localStorageViewStore(storeId)）——店舗を跨いだ
+   * ビューの漏洩をキー空間の分離で構造的に封じるため、スコープは条件付きではなく必須（不正な状態を表現不能にする）。
+   */
+  readonly storeId: string;
+  /** 接続先 WS URL（例: wss://host/s/{storeId}/ws）。 */
   readonly url: string;
   /** 現在時刻の採取。既定 Date.now（offset 算出・補正後現在時刻・受信時刻に用いる）。 */
   readonly now?: () => number;
@@ -463,6 +474,13 @@ export interface ConnectionOptions {
   readonly connectivity?: ConnectivityWatchFactory;
   /** 茹で上がりアラートの発火（作用の端）。既定は no-op。decideView は決して鳴らさない（要件8.1）。 */
   readonly onBoilAlert?: (timer: ClientTimer) => void;
+  /**
+   * サーバに接続を拒否されたときの作用（既定は no-op・要件7.6）。未プロビジョニング／Roster 不一致／
+   * deactivated による拒否を Connectivity_Watch が REJECTION_CLOSE_CODE から検出したら呼ばれる。App は
+   * ここで Entry（`/`）へ戻り、行き先を解決し直す。redirect は純粋な決定（decideView）から切り離した
+   * 端の作用ゆえビューには昇格させない（計算と作用の分離）。
+   */
+  readonly onRejected?: () => void;
   /** 接続確立から snapshot 受信までの猶予（ミリ秒）。既定 2000（要件4.1 / 4.6）。 */
   readonly syncTimeoutMs?: number;
   /**
@@ -476,6 +494,85 @@ export interface ConnectionOptions {
   readonly tickMs?: number;
 }
 
+// ── 宛先の同定（addressing）— URL パスと storeId の相互変換（要件1.3） ──
+//
+// 同定（どの店舗か）と認可（入ってよいか）を分離する設計に従い、クライアントは自身の URL パスから
+// storeId を読み、その同一 storeId で WS へ接続する（identity から宛先を導出しない）。storeId の型は
+// client 側では素の string に留める（registry のイデア型 StoreId を client へ引き込まない — 依存方向
+// client → domain を保つ）。許容形（[a-z0-9-]・1..64）は Worker が到達前に検証済み（要件1.2）だが、
+// パス外（Entry `/` など）を null として弾けるよう、抽出時にも同じ許容形で照合する。
+
+/** `/s/{storeId}/` の許容形。storeId は許容文字集合（[a-z0-9-]）かつ長さ 1..64（要件1.2 と同一形）。 */
+const STORE_PATH_PATTERN = /^\/s\/([a-z0-9-]{1,64})(?:\/|$)/;
+
+/**
+ * URL パス（`window.location.pathname`）から接続先 storeId を読む（要件1.3）。
+ *
+ * `/s/{storeId}/`（画面）・`/s/{storeId}/ws`（WS）・`/s/{storeId}`（末尾スラッシュ無し）のいずれからも
+ * storeId を取り出す。店舗パス外（Entry `/` や不正な storeId）は null を返す——呼び出し側（App）が
+ * 「接続先なし」として扱い、行き先解決へ委ねる。純粋関数（window にも時計にも触れない）。
+ */
+export function storeIdFromPath(pathname: string): string | null {
+  const match = STORE_PATH_PATTERN.exec(pathname);
+  if (match === null) {
+    return null;
+  }
+  return match[1] ?? null;
+}
+
+/**
+ * storeId から同一オリジンの WS エンドポイント URL を構成する（要件1.3）。
+ *
+ * https なら wss、それ以外は ws。宛先は必ず `/s/{storeId}/ws`——URL から読んだ storeId と同一の storeId で
+ * 接続することを、この一箇所の構成で担保する（宛先の二重定義を作らない）。window を読む作用の端。
+ */
+export function timerSocketUrl(storeId: string): string {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/s/${storeId}/ws`;
+}
+
+/**
+ * 店舗切替の選択肢 — Entry が渡す宛先 storeId と表示名 name の組（要件7.4）。
+ *
+ * storeId はランダムスラッグゆえ人間には無意味であり、切替 UI の表示には必ず name を用いる。client は
+ * registry のイデア型を引き込まず素の string で持つ（依存方向 client → domain を保つ）。
+ */
+export interface StoreChoice {
+  readonly storeId: string;
+  readonly name: string;
+}
+
+/**
+ * GET /entry/stores を取得し、複数店舗担当者の切替 UI 用の店舗選択肢を返す（要件7.4）。
+ *
+ * Access ON のときだけサーバが (storeId, name)[] の JSON を返す。OFF（パイロット）は Entry の行き先解決を
+ * 提供しないため 404 となり、ここは空配列へ畳む（切替 UI を出さない）。ネットワーク・パース失敗・想定外の
+ * 形もすべて空配列へ優雅に劣化する——切替は複数店舗担当者向けの付加機能であり、タイマー機能の前提では
+ * ないため、取得できないときは黙って提示しないのが最も害が少ない（作用の端・window/fetch に触れる）。
+ */
+export async function fetchStoreChoices(): Promise<readonly StoreChoice[]> {
+  try {
+    const response = await fetch("/entry/stores", { headers: { Accept: "application/json" } });
+    if (!response.ok) {
+      return [];
+    }
+    const data: unknown = await response.json();
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    // 各要素は storeId・name の string を持つもののみ受理する（未知形・欠落は静かに除く）。
+    return data.filter(
+      (item): item is StoreChoice =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as { storeId?: unknown }).storeId === "string" &&
+        typeof (item as { name?: unknown }).name === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
 /** 既定の Socket オープナ — ブラウザ WebSocket を SocketListeners へ配線する。 */
 function browserSocketOpener(url: string, listeners: SocketListeners): Socket {
   const ws = new WebSocket(url);
@@ -484,7 +581,7 @@ function browserSocketOpener(url: string, listeners: SocketListeners): Socket {
     // サーバは JSON 文字列のみ送る。文字列以外は破棄相当（空文字を渡し parse 失敗で無視させる）。
     listeners.onMessage(typeof event.data === "string" ? event.data : "");
   };
-  ws.onclose = () => listeners.onClose();
+  ws.onclose = (event: CloseEvent) => listeners.onClose(event.code);
   ws.onerror = () => listeners.onError();
   return {
     send: (data) => ws.send(data),
@@ -514,9 +611,10 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
   if (import.meta.env.DEV && pingBlackholeDebugEnabled()) {
     openSocket = withPingBlackhole(openSocket, isPingBlackholeActive);
   }
-  const persistence = options.persistence ?? localStorageViewStore();
+  const persistence = options.persistence ?? localStorageViewStore(options.storeId);
   const connectivityFactory = options.connectivity ?? watchConnectivity;
   const onBoilAlert = options.onBoilAlert ?? (() => {});
+  const onRejected = options.onRejected ?? (() => {});
   const syncTimeoutMs = options.syncTimeoutMs ?? 2000;
   const tickMs = options.tickMs ?? 1000;
 
@@ -594,6 +692,13 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
     }
     prevConnectivity = status;
     update(decideView(view, { kind: "Connectivity", status }));
+  });
+
+  // サーバによる接続拒否（未プロビジョニング／Roster 不一致／deactivated）を購読し、端の作用として通知する。
+  // ビュー状態には昇格させない——「Entry へ戻る」は決定ではなく作用ゆえ、App が onRejected で navigation を担う
+  // （要件7.6。Entry の逆引きリダイレクト＝タスク 14.1 が再解決する）。
+  watch.onRejected(() => {
+    onRejected();
   });
 
   // 受信 ServerMessage を購読し、ビューへ畳む。snapshot は sync タイマを解除する。

@@ -43,6 +43,7 @@ function setup(overrides: Partial<ConnectionOptions> = {}) {
   let currentNow = START_NOW;
 
   const connection = openTimerConnection({
+    storeId: "test-store",
     url: "wss://test/ws",
     now: () => currentNow,
     openSocket: (_url, listeners) => {
@@ -212,10 +213,12 @@ describe("client/connection — provisional への操作は origin で経路分�
       onServerMessage: (handler) => {
         serverMessageHandler = handler;
       },
+      onRejected: () => {},
       close: vi.fn(),
     };
     let idCounter = 0;
     const connection = openTimerConnection({
+      storeId: "test-store",
       url: "wss://test/ws",
       now: () => START_NOW,
       newId: () => `local-${(idCounter += 1)}`,

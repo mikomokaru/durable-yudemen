@@ -10,6 +10,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { FIRMNESS_ORDER, type Firmness } from "../../domain/firmness";
 import { FIRMNESS_LABEL } from "./firmness";
+import { cn } from "../cn";
 
 export interface FirmnessCornerControlProps {
   readonly value: Firmness;
@@ -29,9 +30,13 @@ const W = 23; // 選択肢ボタン幅（cqw）
 const GAP = 1.5; // cqw
 const LEFT0 = 2; // 先頭ボタンの左位置（cqw）。合計 = LEFT0 + 4W + 3GAP ≒ 98.5cqw（ほぼ全幅・左右に僅かな余白）
 const BOTTOM = 1; // rem
-/** 選択肢の高さ・文字サイズ（タッチ下限を確保しつつカード幅に追従）。 */
-const OPTION_H = "clamp(2.75rem,16cqw,4.875rem)";
-const OPTION_FONT = "clamp(0.8rem,4.6cqw,1.1875rem)";
+/** iPad（大カード）の横スライド行での選択肢サイズ。カード幅に追従（cqw）しつつタッチ下限を確保する。 */
+const OPTION_SIZE = "h-[clamp(2.75rem,16cqw,4.875rem)] text-[clamp(0.8rem,4.6cqw,1.1875rem)]";
+
+// 狭カード（iPhone・カードコンテナ幅 ≤240px）は iPad の横スライド行を隠し、代わりにスロット全面の 2×2
+// グリッドを出す。判定はカードのコンテナクエリ（@max-[240px]:）で行い、機種・向きに依存しない（「狭ければ
+// 広げる」という本質に紐づける）。iPhone のカードは 2 カラム配置で ≈184px、iPad は ≳270px ゆえ 240px で
+// 分かれる（実機で確認済み・調整可）。Tailwind は静的スキャンゆえ variant はリテラルで書く（動的連結は拾えない）。
 /**
  * 角ボタンの寸法もカード幅基準（cqw）にする。固定 rem だと横画面（2ユニット=カードが小さい）で
  * カードに対する占有率が上がり過大に見えるため、クロック（cqi）・選択肢（cqw）と同じく幅追従にして
@@ -91,14 +96,14 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
 
   return (
     <>
-      {/* 薄いカバー：他要素を軽く沈める。タップで閉じる。 */}
+      {/* 薄いカバー：他要素を軽く沈める。タップで閉じる。狭カード（iPhone）ではタイマーを透かすため暗幕を薄くする。 */}
       <div
         onClick={() => setOpenAnd(false)}
+        className="bg-[#0a0805]/40 @max-[240px]:bg-[#0a0805]/15"
         style={{
           position: "absolute",
           inset: 0,
           zIndex: 4,
-          background: "rgba(10,8,5,.42)",
           opacity: open ? 1 : 0,
           pointerEvents: open ? "auto" : "none",
           transition: "opacity .18s",
@@ -110,8 +115,9 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
         {FIRMNESS_LABEL[value]}
       </button>
 
-      {/* 右へスライド展開する硬さ選択（硬い→柔らかい）。閉じている間は角ボタン位置に畳む。 */}
-      <div role="radiogroup" aria-label="Firmness" style={{ position: "absolute", left: 0, bottom: 0, zIndex: 5 }}>
+      {/* iPad（広カード）: 右へスライド展開する硬さ選択（硬い→柔らかい）。閉じている間は角ボタン位置に畳む。
+          狭カード（iPhone）ではこの行を隠し、下の 2×2 グリッドに委ねる。 */}
+      <div role="radiogroup" aria-label="Firmness" className="@max-[240px]:hidden" style={{ position: "absolute", left: 0, bottom: 0, zIndex: 5 }}>
         {FIRMNESS_ORDER.map((id, i) => {
           const x = LEFT0 + i * (W + GAP);
           const active = id === value;
@@ -120,7 +126,6 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
             left: `${x}cqw`,
             bottom: `${BOTTOM}rem`,
             width: `${W}cqw`,
-            height: OPTION_H,
             borderRadius: "1rem",
             display: "flex",
             alignItems: "center",
@@ -128,7 +133,6 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
             border: active ? 0 : "0.0625rem solid var(--color-line)",
             background: active ? accent : "var(--color-panel2)",
             color: active ? "#15120c" : "var(--color-ink)",
-            fontSize: OPTION_FONT,
             fontWeight: 800,
             lineHeight: 1,
             cursor: "pointer",
@@ -148,7 +152,52 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
               type="button"
               role="radio"
               aria-checked={active}
+              className={OPTION_SIZE}
               style={style}
+              onClick={() => {
+                onChange(id); // その麺の硬さ別茹で時間で endTime を引き直す（親が adjust を発行）
+                setOpenAnd(false); // 選択＝確定して閉じる
+              }}
+            >
+              {FIRMNESS_LABEL[id]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* iPhone（狭カード）専用: スロット全面を 2×2 で覆う大ボタン。狭カードでだけ grid で現れる（既定は hidden）。
+          押しやすさを最大化するため各セルいっぱいに広げる。開閉は opacity/scale でアニメート（座標計算は不要）。 */}
+      <div
+        role="radiogroup"
+        aria-label="Firmness"
+        className={cn(
+          "absolute inset-[0.5rem] z-[5] hidden grid-cols-2 grid-rows-2 gap-[0.5rem] @max-[240px]:grid",
+          "transition-[opacity,transform] duration-150",
+          open ? "opacity-100" : "pointer-events-none scale-95 opacity-0",
+        )}
+      >
+        {FIRMNESS_ORDER.map((id) => {
+          const active = id === value;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              className={cn(
+                "grid place-items-center whitespace-nowrap rounded-[0.875rem] text-[1.0625rem] font-extrabold leading-none",
+                active ? "border-0" : "border border-line",
+              )}
+              style={{
+                // 背景は半透明にして下のタイマー表示を透かす（選びながら残り時間が見える）。
+                background: active
+                  ? `color-mix(in oklab, ${accent} 78%, transparent)`
+                  : "color-mix(in oklab, var(--color-panel2) 52%, transparent)",
+                color: active ? "#15120c" : "var(--color-ink)",
+                boxShadow: active
+                  ? `0 0.5rem 1.375rem color-mix(in oklab, ${accent} 40%, transparent)`
+                  : "0 0.5rem 1.25rem rgba(0,0,0,.35)",
+              }}
               onClick={() => {
                 onChange(id); // その麺の硬さ別茹で時間で endTime を引き直す（親が adjust を発行）
                 setOpenAnd(false); // 選択＝確定して閉じる

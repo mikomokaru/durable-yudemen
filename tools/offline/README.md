@@ -12,6 +12,7 @@
 縮退の遷移ロジック（`watchConnectivity` / `decideView` / Reconcile）は**本番コードがそのまま走る**。
 CLI は `openTimerConnection` が最初から公開している注入点だけを使う:
 
+- `storeId` / `url` — 宛先店舗（パス `/s/{storeId}/ws`）。`storeId` は省略不能（永続スコープ元・要件1.3/1.5）。
 - `openSocket` — `ws` 製の `SocketOpener` ＋ リンク遮断ゲート（`tools/offline` に閉じる）。
 - `persistence` — `localStorage` に触れないインメモリ `ViewStore`。
 - `now` / `onBoilAlert` — 時刻採取とローカル発火の観測。
@@ -35,16 +36,21 @@ CLI は `openTimerConnection` が最初から公開している注入点だけ�
 dev サーバを起動しておく（別シェル）:
 
 ```sh
-pnpm dev   # http://localhost:5173/ （/ws も同オリジンで提供される）
+pnpm dev   # http://localhost:5173/ （店舗パス /s/{storeId}/ws も同オリジンで提供される）
 ```
 
 別シェルで CLI を走らせる（ワンショット。tooling 規律に従い npm/yarn/npx は使わない）:
 
 ```sh
+# 既定は試験店舗 1234 ＋ dev オリジン（→ ws://localhost:5173/s/1234/ws へ接続）。
 pnpm exec vite-node -c tools/offline/harness.vite.config.ts tools/offline/degrade-cli.ts
-# 接続先を変える場合は第 1 引数で上書き:
-pnpm exec vite-node -c tools/offline/harness.vite.config.ts tools/offline/degrade-cli.ts ws://localhost:5173/ws
+# storeId を変える場合は第 1 引数、接続元オリジンを変える場合は第 2 引数で上書き:
+pnpm exec vite-node -c tools/offline/harness.vite.config.ts tools/offline/degrade-cli.ts 1234 ws://localhost:5173
 ```
+
+> 宛先店舗（storeId）は本番クライアントと同じく**パスに載る**（`/s/{storeId}/ws`）。第 1 引数は storeId、
+> 第 2 引数は接続元オリジン（既定 `ws://localhost:5173`）で、CLI が両者から `/s/{storeId}/ws` を組む。
+> 事前に当該 storeId を Provisioning_API でプロビジョニングしておくこと（未登録店舗は接続拒否される）。
 
 ## 検証するライフサイクルと合否
 

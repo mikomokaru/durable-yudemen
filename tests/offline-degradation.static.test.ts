@@ -34,6 +34,13 @@ const repoRoot = resolve(here, "..");
 /** DO シェル。オフライン劣化が許す唯一の追加点（setWebSocketAutoResponse）を持つ。 */
 const SHELL_FILE = "src/shell/store-timer-do.ts";
 
+/**
+ * per-store-provisioning が追加した第二の作用の端（StoreRegistryDO）。
+ * オフライン劣化の関心（心拍・auto-response）はこのファイルに一切及ばないが、shell の
+ * ファイル集合検査を最新の正当な構成に一致させるため確定集合へ含める。
+ */
+const REGISTRY_FILE = "src/shell/store-registry-do.ts";
+
 /** ワイヤ形式の正本。client と core が共有する（要件12.2）。 */
 const MESSAGES_FILE = "src/domain/messages.ts";
 
@@ -376,8 +383,10 @@ describe("(a) core 無変更・shell は auto-response 一点のみ（要件12.1
     }
   });
 
-  it("src/shell は store-timer-do.ts ただ一つ（shell へ別ファイルを足していない）", () => {
-    expect(collectSourceFiles("src/shell")).toEqual([SHELL_FILE]);
+  it("src/shell は 2 つの DO シェル（store-registry-do.ts / store-timer-do.ts）に限る（オフライン劣化は shell へファイルを足していない）", () => {
+    // collectSourceFiles は sort 済み。store-registry-do.ts は per-store-provisioning が
+    // 追加した正当な作用の端で、オフライン劣化の footprint は store-timer-do.ts に閉じる。
+    expect(collectSourceFiles("src/shell")).toEqual([REGISTRY_FILE, SHELL_FILE]);
   });
 
   it("store-timer-do.ts の setWebSocketAutoResponse 呼び出しはちょうど 1 点で、心拍ペアを登録する", () => {

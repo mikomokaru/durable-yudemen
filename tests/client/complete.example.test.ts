@@ -24,6 +24,7 @@ function setup(overrides: Partial<ConnectionOptions> = {}) {
   const sockets: OpenedSocket[] = [];
   let currentNow = START_NOW;
   const connection = openTimerConnection({
+    storeId: "test-store",
     url: "wss://test/ws",
     now: () => currentNow,
     openSocket: (_url, listeners) => {

@@ -592,3 +592,38 @@ engine の `Rejection` は本機能で新種別を増やさない（同期はコ
 - **構造の主権** — engine は `StoreConfig` を知らず値だけを受け取る。Cloudflare 固有依存は shell に隔離されたまま。
 
 「角度を変える手続き」は現れない。新しいのは engine 内の純粋変換 `synchronize` と、単一化された射影 `toWireTimer` だけである。
+
+---
+
+## 設計検討メモ（将来・未確定）: Timer 表現を duration 一次へ（案 ii）
+
+> **位置づけ:** 本節は確定決定ではなく、将来検討のために記録する未確定の設計考察である。上記の確定設計（`TimerFact` は `endTime` を事実として保存し、engine の `Timer` はそれに `seq`/`boiledAt`/`adjustment` を合成する）を一切変更しない。採用可否は将来別途判断する。
+
+### Context / 動機
+
+- 本考察は write-back（degraded 中に offline で作った Provisional_Timer を、復帰後にサーバの正本へ確定させる将来機能）の検討から派生したものである。
+- write-back を成立させるには「既に `startTime` から茹で始めている timer を、経過時間を保ったままサーバへ取り込む」必要がある。しかし engine の Start は `boilSeconds`（相対）しか受け取らず、`endTime = now + boilSeconds` で採り直すため、経過分だけ茹で上がりがずれる。クライアントが本当に honor して欲しいのは絶対 `endTime`（= `startTime + duration`）である。
+- 併せて、現行 `TimerFact` は `endTime` を「事実」として保存し `duration = endTime − startTime` を導出している。存在論的には `startTime`（実イベント）と `duration`（茹で時間の意図・プリセット `boilSeconds` 由来）が一次の事実であり、`endTime` はその和の導出値である。すなわち現状は主従が逆になっている。
+
+### 提案（案 ii・engine 内部＋永続に限定し、ワイヤ/クライアントは不変）
+
+- engine の内部 Timer 表現を `(startTime, duration)` 一次にし、`endTime` は導出（実効 `endTime = startTime + duration + adjustment`）にする。
+- ワイヤ `TimerFact` / クライアントは**不変に保つ**。`toWireTimer` が `startTime + duration + adjustment` を畳んで従来どおり `endTime` を射影して載せる（`seq` を射影で削ぐのと同じ「表現境界」を一つ増やすだけ）。snapshot-broadcast で安定させたワイヤを再び動かさない。
+- 変更範囲: engine の `Timer` 型・`sync.ts`（`h = duration × ratio` となり引き算が消える）・`project.ts`（`endTime` を射影導出）・永続スキーマ移行（`duration = endTime − startTime` で移行）・engine テスト。
+
+### synchronize との整合（利点）
+
+- 許容半幅 `h = duration × toleranceRatio` が引き算なしで直接得られる（`duration` がそのまま Boil_Duration）。
+- オリジナル `endTime = startTime + duration` が導出になり、「アンカーの `endTime` を書き換えない」という規律が構造的に保証される（規律ではなく型で不変になる）。これは現行 design がアンカー不変を強調している点を、より強く（構造的に）満たす。
+- 実効 `endTime = startTime + duration + adjustment`。
+
+### 代償 / 留意
+
+- `timer-model.md` は「engine Timer は `TimerFact` を合成する」としており、案 ii では engine が `endTime` を持たず導出するため、engine Timer は `TimerFact`（`endTime` を持つ）の素直な上位集合ではなくなる（矛盾ではなく「表現境界の追加」だが、採るなら steering への反映が要る）。
+- `design-philosophy.md` の「`endTime` は事実」という記述は、この案を採る場合「`startTime` と `duration` が事実、`endTime` は導出（実効値は `+adjustment`）」へ更新して真実を一致させるべきである。
+- 情報量は `endTime ⇔ duration` で可逆であり、これは能力ではなく表現の明晰さの改善にすぎない。未確定であり、採用可否は将来別途判断する。
+
+### 相互参照
+
+- 動機の出発点（write-back の絶対時刻保持問題）は `.kiro/specs/offline-degradation/` のスコープ外「write-back / reconciliation」に対応する。
+- write-back を実装するなら、engine に「稼働中 timer を絶対 `endTime` で取り込む」新イベント（＋ `ClientMessage` 拡張）が必要になる点も併記しておく。

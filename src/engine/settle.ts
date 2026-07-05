@@ -63,8 +63,14 @@ function mergeBoiled(movedTimers: readonly Timer[], synced: readonly Timer[]): r
 }
 
 /**
- * 確定結果の同一性判定（要件7.7）。Timer の集合（id）＋各 timer の adjustment＋boiledAt が
- * prev と next で完全一致するか。id をキーに突き合わせるため列挙順に依存しない。
+ * 確定結果の同一性判定（要件7.7）。Timer の集合（id）＋各 timer の確定結果フィールドが prev と next で
+ * 完全一致するか。id をキーに突き合わせるため列挙順に依存しない。
+ *
+ * 「確定結果」とは永続（toSnapshot）され broadcast（toWireTimer）される事実そのもの。ゆえに遷移で変わりうる
+ * フィールドをすべて突き合わせる必要がある——sync/fire が動かす adjustment / boiledAt に加え、adjust が動かす
+ * endTime（アンカー）と firmness も含める。ここが adjustment / boiledAt だけを見ていると、単独 running への
+ * 茹で加減変更（adjustment が 0 のまま）が no-op と誤判定され、Persist も Broadcast も出ずに握り潰される。
+ * id / slotIds / noodleType / startTime / seq は生成後に変わらないため比較不要（集合の id 一致で足りる）。
  */
 function isSameConfirmedResult(prev: TimerState, next: TimerState): boolean {
   if (prev.timers.length !== next.timers.length) return false;
@@ -72,7 +78,14 @@ function isSameConfirmedResult(prev: TimerState, next: TimerState): boolean {
   for (const t of next.timers) {
     const p = prevById.get(t.id);
     if (p === undefined) return false;
-    if (p.adjustment !== t.adjustment || p.boiledAt !== t.boiledAt) return false;
+    if (
+      p.endTime !== t.endTime ||
+      p.firmness !== t.firmness ||
+      p.adjustment !== t.adjustment ||
+      p.boiledAt !== t.boiledAt
+    ) {
+      return false;
+    }
   }
   return true;
 }

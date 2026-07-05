@@ -16,6 +16,7 @@
 // いずれか一方の成立で down を確定する。
 
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
+import { REJECTION_CLOSE_CODE } from "../transport/rejection";
 import type { ClientMessage, ServerMessage } from "../domain/messages";
 import type { Connectivity, Socket, SocketOpener } from "./connection";
 
@@ -57,6 +58,12 @@ export interface ConnectivityWatch {
   send(message: ClientMessage): void;
   /** 受信した ServerMessage を購読する（Sync_Mediator が decideView へ畳み込む）。 */
   onServerMessage(handler: (message: ServerMessage, receivedAt: number) => void): void;
+  /**
+   * サーバがアプリ固有の拒否符号（REJECTION_CLOSE_CODE）で接続を閉じたことを購読する（要件7.6）。
+   * 到達性の down（一過性の切断・再接続で回復しうる）とは区別された確定的な「接続拒否」の合図であり、
+   * 呼び出し側は Entry へ戻って行き先を解決し直す。最後に登録したハンドラを保持する。
+   */
+  onRejected(handler: () => void): void;
   /** 接続・ping/pong ループ・再接続予約を停止する。 */
   close(): void;
 }
@@ -118,6 +125,7 @@ export function watchConnectivity(
   // 購読ハンドラ（最後に登録されたものを保持する）。
   let connectivityHandler: ((status: Connectivity) => void) | null = null;
   let serverMessageHandler: ((message: ServerMessage, receivedAt: number) => void) | null = null;
+  let rejectionHandler: (() => void) | null = null;
 
   // 直近に発行した Connectivity。同値の連続発行を抑え、down→up 遷移の観測を明瞭に保つ。
   let lastEmitted: Connectivity | null = null;
@@ -225,7 +233,13 @@ export function watchConnectivity(
         }
         serverMessageHandler?.(message, receivedAt);
       },
-      onClose: () => {
+      onClose: (code) => {
+        // サーバがアプリ固有の拒否符号で閉じたら「接続拒否」を通知する（要件6.6 / 7.6）。到達性の down とは
+        // 別系統の確定的合図で、呼び出し側は Entry へ戻って再解決する。再接続でも回復しないため down の
+        // 予約（loseConnection）に先立って通知する。
+        if (code === REJECTION_CLOSE_CODE) {
+          rejectionHandler?.();
+        }
         // 明示的切断（要件2.1）。静かな喪失とは独立した系統だが down の合流点は一つ。
         loseConnection();
       },
@@ -249,6 +263,9 @@ export function watchConnectivity(
     },
     onServerMessage: (handler) => {
       serverMessageHandler = handler;
+    },
+    onRejected: (handler) => {
+      rejectionHandler = handler;
     },
     close: () => {
       disposed = true;

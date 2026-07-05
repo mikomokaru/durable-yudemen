@@ -7,7 +7,7 @@
 // （Complete で明示消し込み）。boiled は「ユーザーが消し込むべき状態」で、Complete までカードに残る。
 // 完了後、当該スロットは idle に戻り、直前の調理結果（noodleType）をベストエフォートで一定時間表示する。
 
-import { type CSSProperties, type MouseEvent, useState } from "react";
+import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from "react";
 import { remainingParts } from "../format";
 import { cn } from "../cn";
 import type { TimerFact } from "../../domain/timer";
@@ -15,6 +15,7 @@ import type { SlotDisplay } from "./slotDisplay";
 import type { NoodleColor } from "./noodleColor";
 import { PlayIcon, StopIcon, LiftIcon } from "./icons";
 import { FirmnessCornerControl } from "./FirmnessCornerControl";
+import { CANCEL_GUARD_THRESHOLD_MS, CANCEL_ARMED_BOUNCE_MS, decideCancelTap, isCancelArmed } from "./cancelGuard";
 import type { Firmness } from "../../domain/firmness";
 
 /** ラジアルメニューを開く中心座標（ビューポート）。 */
@@ -70,8 +71,6 @@ const actionBtn = cn(
 );
 /** 真円ボタン内のピクトグラムの大きさ（ボタンに比例＝カード幅基準 cqi）。 */
 const actionIcon = "h-[clamp(1.4rem,18cqi,3.625rem)] w-auto";
-/** 操作エリア（右下の枠）を避けるための本文右余白（ボタン幅に追従＝カード幅基準 cqi）。 */
-const contentPadRight = "pr-[clamp(5rem,45cqi,9.125rem)]";
 
 const slotTime = cn(
   "m-0 font-clock font-black leading-[.95] tabular-nums tracking-[.01em]",
@@ -86,6 +85,7 @@ const AFFIX_COLOR = "color-mix(in oklab, var(--glow) 50%, var(--color-muted))";
 
 /** 残り 1 分のしきい（boiling の遠近を分ける）。 */
 const NEAR_MS = 60_000;
+// Cancel 誤タップ保険のしきい・窓・バウンスは cancelGuard.ts（純粋な決定ロジックの正本）に集約する。
 
 /** boiled の超過リングが一周し切る猶予窓（ミリ秒）。これを超えると数字をやめ「OVER」表示へ切り替える。 */
 const OVERDUE_FULL_MS = 99_000;
@@ -101,7 +101,6 @@ const STATE_BG = {
   boilingNear: "oklch(0.32 0.018 95)", // 茹で中・残り僅か（≤60s・かすかな黄）
   boiled: "oklch(0.34 0.022 30)", // 茹で上がり（かすかな赤）
 } as const;
-const slotState = "m-0 inline-flex min-w-0 items-center gap-2 text-[clamp(0.8125rem,1.8vh,1rem)] font-bold";
 
 /**
  * 残り時間を分・秒のサイズ差つきで描く（分=大・秒=小／1 分未満は秒だけ大・比率およそ 2:1）。
@@ -153,12 +152,85 @@ function ProgressRing({ fraction, stroke }: { readonly fraction: number; readonl
   );
 }
 
+/**
+ * 麺種を表す色付きピル（塗り）。色＝種類の identity を担う全相共通の表現（running / boiled / idle 残滓）。
+ * 背景はアクセント（時間・リング・「ふつう」タグと同色）、文字はアクセント上で読める濃色（#15120c）。
+ * 長い名称はカード幅からリング領域を引いた max-width で折り返す（省略記号は使わない）。faded は idle 残滓
+ * （過去の結果・best-effort）を淡く示すため。実行時に変わる色だけインライン、寸法・折返しはクラス。
+ */
+/**
+ * バッジ prefix のマーカー。相ごとに状態を 1 記号で示す（identity は色、状態はこのマーカー）。
+ * - boiling: 走行中＝点滅する live ドット（monochrome・絵文字非依存）。
+ * - ready  : 茹で上がり（上がり待ち）＝✓。
+ * - last   : idle の直前結果（過去・best-effort）＝✓。
+ * - none   : マーカーなし。
+ */
+type BadgeMarker = "none" | "boiling" | "ready" | "last";
+
+function NoodleBadge({
+  noodleType,
+  tint,
+  faded = false,
+  marker = "none",
+}: {
+  readonly noodleType: string;
+  readonly tint: string;
+  readonly faded?: boolean;
+  readonly marker?: BadgeMarker;
+}) {
+  const ariaPrefix =
+    marker === "last" ? "Last: " : marker === "ready" ? "Ready: " : marker === "boiling" ? "Boiling: " : "";
+  return (
+    <span
+      aria-label={`${ariaPrefix}${noodleType}`}
+      className={cn(
+        "inline-block w-fit rounded-full font-bold leading-[1.25] [overflow-wrap:anywhere]",
+        "text-[clamp(1.0625rem,6.4cqi,1.4375rem)] px-[1.375rem] py-[0.5625rem]",
+        "max-w-[calc(100cqi_-_clamp(6rem,48cqi,9.5rem))]",
+        faded && "opacity-60",
+      )}
+      style={{ backgroundColor: tint, color: "#15120c" }}
+    >
+      {/* 走行中は点滅ドット（bg-current = 濃色文字色）、上がり/前回結果は ✓。いずれも色＝種類とは独立の状態記号。 */}
+      {marker === "boiling" && (
+        <span aria-hidden="true" className="mr-[0.4em] inline-block h-[0.5em] w-[0.5em] animate-pulse rounded-full bg-current align-middle" />
+      )}
+      {(marker === "ready" || marker === "last") && <span aria-hidden="true" className="mr-[0.35em]">✓</span>}
+      {noodleType}
+    </span>
+  );
+}
+
 /** 表示状態に応じてスロットを描画する。開始/キャンセル/完了の口はここにのみ存在する。 */
 export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoodle, noodleColor, onAdjust }: SlotCardProps) {
   const { slot } = display;
   // 茹で加減メニューの開閉（boiling のみ）。展開中は操作ボタンを隠す（衝突回避）。現在の硬さは Timer の事実から読む。
   // フック規則上、早期 return より前に置く。
   const [firmnessMenuOpen, setFirmnessMenuOpen] = useState(false);
+  // Cancel 誤タップ保険の armed 状態。保持する事実は「armed に入った絶対時刻」ひとつだけ（残り秒と同じく、
+  // armed か否かは armedAt + 3 秒窓 + 現在時刻からの導出値であって状態に昇格させない）。フック規則上、早期 return より前。
+  const [armedAt, setArmedAt] = useState<number | null>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+
+  // 前提（running かつ 残り ≥ しきい）が崩れたら armed を黙って解除する。残り < しきい・boiled/idle への遷移・
+  // snapshot からの消失は、いずれも display.kind / remainingMs の変化として現れ、この導出が false へ落ちる。
+  const cancelGuardEligible = display.kind === "running" && display.remainingMs >= CANCEL_GUARD_THRESHOLD_MS;
+  useEffect(() => {
+    if (!cancelGuardEligible) setArmedAt(null);
+  }, [cancelGuardEligible]);
+
+  // 盤面の他所タップで解除する（自 Cancel ボタン上のタップは 2 タップ目＝commit 経路に委ねる）。
+  // armed 直後 CANCEL_ARMED_BOUNCE_MS は入力を無視し、バウンス連打での即解除／即確定を防ぐ。
+  useEffect(() => {
+    if (armedAt === null) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (Date.now() - armedAt < CANCEL_ARMED_BOUNCE_MS) return;
+      if (cancelBtnRef.current?.contains(event.target as Node)) return;
+      setArmedAt(null);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [armedAt]);
 
   // 空きスロット。Play ピクトグラムの真円ボタン（他状態と同じ右下位置）でラジアルを開く。直前結果があれば併記。
   if (display.kind === "idle") {
@@ -170,9 +242,10 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
         className={cn(cardBase)}
       >
         {lastResultNoodle && (
-          <span className={cn(contentPadRight, "truncate text-[clamp(0.75rem,1.6vh,0.875rem)] font-bold text-muted")}>
-            Last: {lastResultNoodle}
-          </span>
+          // 直前の調理結果（残滓）も同じバッジ方針で。過去の best-effort 情報ゆえ faded で淡く示す。
+          <div className="absolute left-[clamp(0.875rem,1.8vw,1.25rem)] top-[clamp(0.625rem,1.6vh,1.125rem)]">
+            <NoodleBadge noodleType={lastResultNoodle} tint={noodleColor(lastResultNoodle)} faded marker="last" />
+          </div>
         )}
         <div className={actionStack}>
           <div className={actionSlot}>
@@ -225,6 +298,25 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
       ? Math.min(Math.max(1 - display.remainingMs / total, 0), 1)
       : 0;
   const ringStroke = isBoiled ? "var(--color-danger)" : "color-mix(in oklab, var(--glow) 68%, black)";
+
+  // armed か否かは armedAt + 3 秒窓 + 現在時刻からの導出（描画 tick で再評価）。ボタンの幾何は不変で、色・ラベルだけ警告表現にする。
+  const cancelArmed = display.kind === "running" && isCancelArmed({ remainingMs: display.remainingMs, armedAt, now: Date.now() });
+  // Cancel タップ。決定は純粋関数（cancelGuard）に委ね、ここは決定に応じた作用（送信・armed 更新）だけを行う。
+  const onCancelTap = () => {
+    if (display.kind !== "running") return; // このボタンは running のみ描画（型絞り込み）
+    const decision = decideCancelTap({ remainingMs: display.remainingMs, armedAt, now: Date.now() });
+    switch (decision.kind) {
+      case "cancel":
+        onCancel(display.timer.id);
+        setArmedAt(null);
+        break;
+      case "arm":
+        setArmedAt(decision.at);
+        break;
+      case "ignore":
+        break;
+    }
+  };
   return (
     <article
       aria-label={`Slot ${slot}`}
@@ -233,16 +325,12 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
       style={{ backgroundColor: stateBg, borderColor: stateBorder, "--glow": tint } as CSSProperties}
       className={cn(cardBase, isBoiled && "animate-boiled")}
     >
-      {/* 上段：残り時間。スロット左上からの相対位置に固定（ボタンの右下固定と対）。
+      {/* 左上：麺種バッジ（色＝identity）→ 直下に大きな残り時間。状態は背景/枠/リングが担う。
           running は麺色の秒読み（MM:SS）。boiled は超過秒を「↑Ns」で danger 色表示（早く上げろ）。
           ↑ と s はコロンと同じ扱い（小さく・付帯記号色）。 */}
-      <p
-        className={cn(
-          slotTime,
-          "absolute left-[clamp(0.875rem,1.8vw,1.25rem)] top-[clamp(0.625rem,1.6vh,1.125rem)] flex items-baseline",
-        )}
-        style={{ color: isBoiled ? "var(--color-danger)" : tint }}
-      >
+      <div className="absolute left-[clamp(0.875rem,1.8vw,1.25rem)] top-[clamp(0.625rem,1.6vh,1.125rem)] flex flex-col gap-[clamp(0.25rem,1vh,0.5rem)]">
+      <NoodleBadge noodleType={display.timer.noodleType} tint={tint} marker={isBoiled ? "ready" : "boiling"} />
+      <p className={cn(slotTime, "flex items-baseline")} style={{ color: isBoiled ? "var(--color-danger)" : tint }}>
         {isBoiled ? (
           display.overdueMs >= OVERDUE_FULL_MS ? (
             // 超過が猶予窓（リング満杯）を超えたら、大きすぎる数字をやめ「OVER」で示す（モチベーションを削がない）。
@@ -262,28 +350,9 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
           <RemainingTime remainingMs={display.remainingMs} />
         )}
       </p>
+      </div>
 
-      {/* 下段：状態。boiled は ✓ ＋ 麺名（麺色）、running は「Boiling — 麺名」。 */}
-      {isBoiled ? (
-        <p className={cn(slotState, contentPadRight, "text-muted tracking-[.04em]")}>
-          <span
-            className="grid h-[1.375rem] w-[1.375rem] place-items-center rounded-full animate-badge-blink"
-            style={{ backgroundColor: "color-mix(in oklab, var(--glow) 24%, transparent)", color: tint }}
-          >
-            ✓
-          </span>
-          {/* 麺名はここ（boiled の状態ラベル位置）へ移動。状態は背景色/グロー/バッジ/アイコン形状が担う。 */}
-          <span className="truncate" style={{ color: tint }}>
-            {display.timer.noodleType}
-          </span>
-        </p>
-      ) : (
-        <p className={cn(slotState, contentPadRight, "text-muted")}>
-          <span className="truncate">
-            Boiling — <span style={{ color: tint }}>{display.timer.noodleType}</span>
-          </span>
-        </p>
-      )}
+      {/* 状態ラベルは持たない：identity は左上バッジ、状態はバッジの prefix マーカー（✓/ドット）と背景/枠/リングが担う。 */}
 
       {/* 操作スタック：右下に固定。茹で加減メニュー展開中（running）は隠す（衝突回避）。 */}
       {(isBoiled || !firmnessMenuOpen) && (
@@ -302,17 +371,21 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
               </button>
             ) : (
               <button
+                ref={cancelBtnRef}
                 type="button"
-                aria-label="Cancel"
-                onClick={() => onCancel(display.timer.id)}
-                style={{ backgroundColor: tint }}
-                className={cn(actionBtn, "text-[#15120c] hover:brightness-105")}
+                aria-label={cancelArmed ? "Tap again to cancel" : "Cancel"}
+                onClick={onCancelTap}
+                // 幾何（サイズ・位置・円形・進捗リング）は不変。armed のときだけ背景を danger・文字を白の警告表現にする。
+                style={{ backgroundColor: cancelArmed ? "var(--color-danger)" : tint, color: cancelArmed ? "#fff" : "#15120c" }}
+                className={cn(actionBtn, "hover:brightness-105")}
               >
                 <StopIcon className={actionIcon} />
               </button>
             )}
           </div>
-          <span className={actionLabel}>{isBoiled ? "Up" : "Cancel"}</span>
+          <span className={actionLabel} style={cancelArmed ? { color: "var(--color-danger)" } : undefined}>
+            {isBoiled ? "Up" : cancelArmed ? "Tap again" : "Cancel"}
+          </span>
         </div>
       )}
 
