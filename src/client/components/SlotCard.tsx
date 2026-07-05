@@ -172,11 +172,13 @@ function NoodleBadge({
   tint,
   faded = false,
   marker = "none",
+  className,
 }: {
   readonly noodleType: string;
   readonly tint: string;
   readonly faded?: boolean;
   readonly marker?: BadgeMarker;
+  readonly className?: string;
 }) {
   const ariaPrefix =
     marker === "last" ? "Last: " : marker === "ready" ? "Ready: " : marker === "boiling" ? "Boiling: " : "";
@@ -184,10 +186,12 @@ function NoodleBadge({
     <span
       aria-label={`${ariaPrefix}${noodleType}`}
       className={cn(
-        "inline-block w-fit rounded-full font-bold leading-[1.25] [overflow-wrap:anywhere]",
+        // 常にカード幅いっぱい（親コラム幅の 100%）。狭カード(iPhone)で max-width により縦長化するのを避ける。
+        // relative z-[7]: 茹で加減の 2×2 オーバーレイ（暗幕 z-4 / グリッド z-5）より前面に出し、選択中もバッジを見せる。
+        "relative z-[7] block w-full rounded-full font-bold leading-[1.25] [overflow-wrap:anywhere]",
         "text-[clamp(1.0625rem,6.4cqi,1.4375rem)] px-[1.375rem] py-[0.5625rem]",
-        "max-w-[calc(100cqi_-_clamp(6rem,48cqi,9.5rem))]",
         faded && "opacity-60",
+        className,
       )}
       style={{ backgroundColor: tint, color: "#15120c" }}
     >
@@ -243,7 +247,7 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
       >
         {lastResultNoodle && (
           // 直前の調理結果（残滓）も同じバッジ方針で。過去の best-effort 情報ゆえ faded で淡く示す。
-          <div className="absolute left-[clamp(0.875rem,1.8vw,1.25rem)] top-[clamp(0.625rem,1.6vh,1.125rem)]">
+          <div className="absolute left-[clamp(0.4375rem,0.9vw,0.625rem)] right-[clamp(0.4375rem,0.9vw,0.625rem)] top-[clamp(0.625rem,1.6vh,1.125rem)]">
             <NoodleBadge noodleType={lastResultNoodle} tint={noodleColor(lastResultNoodle)} faded marker="last" />
           </div>
         )}
@@ -328,9 +332,29 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
       {/* 左上：麺種バッジ（色＝identity）→ 直下に大きな残り時間。状態は背景/枠/リングが担う。
           running は麺色の秒読み（MM:SS）。boiled は超過秒を「↑Ns」で danger 色表示（早く上げろ）。
           ↑ と s はコロンと同じ扱い（小さく・付帯記号色）。 */}
-      <div className="absolute left-[clamp(0.875rem,1.8vw,1.25rem)] top-[clamp(0.625rem,1.6vh,1.125rem)] flex flex-col gap-[clamp(0.25rem,1vh,0.5rem)]">
-      <NoodleBadge noodleType={display.timer.noodleType} tint={tint} marker={isBoiled ? "ready" : "boiling"} />
-      <p className={cn(slotTime, "flex items-baseline")} style={{ color: isBoiled ? "var(--color-danger)" : tint }}>
+      <div
+        className={cn(
+          "absolute left-[clamp(0.4375rem,0.9vw,0.625rem)] right-[clamp(0.4375rem,0.9vw,0.625rem)] top-[clamp(0.625rem,1.6vh,1.125rem)] flex flex-col items-start gap-[clamp(0.25rem,1vh,0.5rem)]",
+          // iPhone(狭カード)で茹で加減 2×2 展開中だけ、バッジ＋クロックを横一列にしてオーバーレイ前面(z-7)へ。
+          // クロックはバッジ右端へ寄せる（下の 2×2 と重ねず、背後を透かさずに残り時間を見せる）。
+          firmnessMenuOpen && "@max-[240px]:z-[7] @max-[240px]:flex-row @max-[240px]:items-center @max-[240px]:gap-[0.5rem]",
+        )}
+      >
+      <NoodleBadge
+        noodleType={display.timer.noodleType}
+        tint={tint}
+        marker={isBoiled ? "ready" : "boiling"}
+        className={firmnessMenuOpen ? "@max-[240px]:w-auto @max-[240px]:min-w-0 @max-[240px]:flex-1" : ""}
+      />
+      <p
+        className={cn(
+          slotTime,
+          "flex items-baseline",
+          // 展開中(iPhone)は右端へ寄せ、巨大な秒読みを小さく畳んで一列に収める（このときだけ）。
+          firmnessMenuOpen && "@max-[240px]:ml-auto @max-[240px]:shrink-0 @max-[240px]:[&_span]:text-[1.375rem]",
+        )}
+        style={{ color: isBoiled ? "var(--color-danger)" : tint }}
+      >
         {isBoiled ? (
           display.overdueMs >= OVERDUE_FULL_MS ? (
             // 超過が猶予窓（リング満杯）を超えたら、大きすぎる数字をやめ「OVER」で示す（モチベーションを削がない）。

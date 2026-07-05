@@ -99,7 +99,7 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
       {/* 薄いカバー：他要素を軽く沈める。タップで閉じる。狭カード（iPhone）ではタイマーを透かすため暗幕を薄くする。 */}
       <div
         onClick={() => setOpenAnd(false)}
-        className="bg-[#0a0805]/40 @max-[240px]:bg-[#0a0805]/15"
+        className="bg-[#0a0805]/40"
         style={{
           position: "absolute",
           inset: 0,
@@ -171,7 +171,8 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
         role="radiogroup"
         aria-label="Firmness"
         className={cn(
-          "absolute inset-[0.5rem] z-[5] hidden grid-cols-2 grid-rows-2 gap-[0.5rem] @max-[240px]:grid",
+          // 上端はバッジ（SlotCard・z-7）の下から始めて被らない。左右下は 0.5rem。バッジ選択中も上部にバッジが見える。
+          "absolute left-[0.5rem] right-[0.5rem] bottom-[0.5rem] top-[3.5rem] z-[5] hidden grid-cols-2 grid-rows-2 gap-[0.5rem] @max-[240px]:grid",
           "transition-[opacity,transform] duration-150",
           open ? "opacity-100" : "pointer-events-none scale-95 opacity-0",
         )}
@@ -189,14 +190,12 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
                 active ? "border-0" : "border border-line",
               )}
               style={{
-                // 背景は半透明にして下のタイマー表示を透かす（選びながら残り時間が見える）。
-                background: active
-                  ? `color-mix(in oklab, ${accent} 78%, transparent)`
-                  : "color-mix(in oklab, var(--color-panel2) 52%, transparent)",
+                // 不透明。背後は透かさず、残り時間はバッジ右端へ寄せたクロックで見せる（SlotCard 側）。
+                background: active ? accent : "var(--color-panel2)",
                 color: active ? "#15120c" : "var(--color-ink)",
                 boxShadow: active
                   ? `0 0.5rem 1.375rem color-mix(in oklab, ${accent} 40%, transparent)`
-                  : "0 0.5rem 1.25rem rgba(0,0,0,.35)",
+                  : "0 0.5rem 1.25rem rgba(0,0,0,.45)",
               }}
               onClick={() => {
                 onChange(id); // その麺の硬さ別茹で時間で endTime を引き直す（親が adjust を発行）
