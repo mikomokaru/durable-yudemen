@@ -32,22 +32,20 @@
   --animate-boiled: boiledPulse 1.15s ease-in-out infinite;
 }
 
-/* 完了スロットのグロー点滅。枠線が danger（ゆであがり）なので、グローも danger に揃える（色相一致）。
-   バッジ✓・麺名・時刻の麺色（--glow）は identity として別に保つ。color-mix を含む複数 box-shadow は
-   ユーティリティ化が辛いため keyframes に残す（設計メモ・Tailwind 版の方針）。 */
+/* 完了スロットのグロー点滅。boiled は稼働中ゆえ「凹（--slot-shadow-concave）」を土台に、danger のグローを
+   重ねて明滅させる（枠線 danger と色相一致）。凹 inset とグローを同じ box-shadow に合成する（inset を保つ）。
+   バッジ✓・麺名・時刻の麺色（--glow）は identity として別に保つ。 */
 @keyframes boiledPulse {
   0%,
   100% {
     box-shadow:
-      0 0.0625rem 0 rgba(255, 255, 255, 0.03) inset,
-      0 0.5rem 1.5rem rgba(0, 0, 0, 0.35),
+      var(--slot-shadow-concave),
       0 0 0 0.0625rem color-mix(in oklab, var(--color-danger) 35%, transparent),
       0 0 0.75rem color-mix(in oklab, var(--color-danger) 18%, transparent);
   }
   50% {
     box-shadow:
-      0 0.0625rem 0 rgba(255, 255, 255, 0.03) inset,
-      0 0.5rem 1.5rem rgba(0, 0, 0, 0.35),
+      var(--slot-shadow-concave),
       0 0 0 0.125rem color-mix(in oklab, var(--color-danger) 60%, transparent),
       0 0 2.5rem color-mix(in oklab, var(--color-danger) 45%, transparent);
   }
@@ -66,6 +64,40 @@
 }
 @theme {
   --animate-badge-blink: badgeBlink 1.15s ease-in-out infinite;
+}
+
+/* スロットの奥行き（凹凸）トークン。状態を色や記号ではなく面の奥行きで示す：稼働中=凹（沈む）/ 待機中=凸（浮く）。
+   光源は左上。ダークテーマではのっぺりしやすいため弱〜中の強度を初期値とし、ここ 1 箇所で一括調整する
+   （--slot-* を編集すれば全スロットへ反映。色や記号は変えずに立体だけ調律できる）。 */
+@layer base {
+  :root {
+    /* 面色そのもので奥行きを稼ぐ（dark-on-dark で影が弱く、稼働中は中身が inset 影を覆い隠すため）。
+       稼働中=凹＝周囲(--color-bg #16140f)より暗い沈んだタイル、待機中=凸＝明るい隆起タイル。影はエッジの補強。
+       強度・色はここ 1 箇所で調律する（実機の輝度に合わせて微調整する前提）。 */
+    /* 反射（明るいエッジ）主導。暗地では暗い影が消えるため、凹凸は「光る線の位置」で示す（面積最小・フラット維持）。
+       浮く(凸)=上エッジが光る／沈む(凹)=上内壁は翳り下内壁が光る。面は微かなシーン（上下グラデ）で補強。 */
+    --slot-face-concave: linear-gradient(180deg, #120f0a, #231e14); /* 沈む：上をより暗く・下を明るく（深い翳り→受光） */
+    --slot-face-convex: linear-gradient(180deg, #262114, #1a1710); /* 浮く：上を明るく（受光）→下へ落とす */
+    --slot-shadow-concave: inset 0 3px 7px rgba(0, 0, 0, 0.66), inset 0 -2px 0 rgba(255, 255, 255, 0.12); /* 上内壁を深く翳らせ下内壁を強く受光＝凹み強調 */
+    --slot-shadow-convex: inset 0 1.5px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.35),
+      0 2px 4px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@layer components {
+  /* 稼働中＝凹（面を内側へ沈める）。boiled はグロー点滅（boiledPulse）が box-shadow を担うため、面色だけ別クラスで与える。 */
+  .slot-concave {
+    background: var(--slot-face-concave);
+    box-shadow: var(--slot-shadow-concave);
+  }
+  .slot-face-concave {
+    background: var(--slot-face-concave);
+  }
+  /* 待機中＝凸（面を持ち上げる）。 */
+  .slot-convex {
+    background: var(--slot-face-convex);
+    box-shadow: var(--slot-shadow-convex);
+  }
 }
 
 /* 画面全体・スクロール抑制（プルトゥリフレッシュ含む／要件10.5）。アプリのルートに適用。 */

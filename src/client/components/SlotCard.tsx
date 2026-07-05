@@ -42,12 +42,13 @@ function centerOf(el: HTMLElement): Center {
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 }
 
+// 面（背景）と奥行き（box-shadow）は状態別の slot-concave / slot-convex / slot-face-concave（styles.css）が与える。
+// ゆえに cardBase には bg / shadow を置かない（utility の bg-* は component 層の slot-* を上書きしてしまうため）。
 const cardBase = cn(
   "@container relative min-h-0 grid content-center gap-[clamp(0.25rem,1vh,0.625rem)]",
-  "rounded-[0.875rem] border border-line bg-panel",
+  "rounded-[0.875rem] border border-line",
   "p-[clamp(0.625rem,1.6vh,1.125rem)_clamp(0.875rem,1.8vw,1.25rem)]",
-  "shadow-[0_0.0625rem_0_rgba(255,255,255,.03)_inset,0_0.5rem_1.5rem_rgba(0,0,0,.35)]",
-  "transition-[border-color,box-shadow] duration-200",
+  "transition-[border-color,box-shadow,background] duration-200",
 );
 
 /** 操作スタック: カード右下に固定。真円ボタン（＋リング）の下に小さなラベルを縦に並べる。 */
@@ -90,17 +91,8 @@ const NEAR_MS = 60_000;
 /** boiled の超過リングが一周し切る猶予窓（ミリ秒）。これを超えると数字をやめ「OVER」表示へ切り替える。 */
 const OVERDUE_FULL_MS = 99_000;
 
-/**
- * 状態を表すスロット背景色（oklch・ダーク維持）。麺の identity は前景が担うので、背景は状態を示す。
- * ready はアプリ背景（--color-bg）より僅かに明るいだけのダークで「空き」をそっと示す。boilingFar はモノクロのダーク、
- * boilingNear（≤60s）は黄の成分、boiled は赤の成分を、いずれも暗いまま控えめに導入して「残り少」「上がり」を色でも示す。
- */
-const STATE_BG = {
-  ready: "oklch(0.215 0.006 80)", // 待機（空き＝アプリ背景より一段だけ明るいダーク）
-  boilingFar: "oklch(0.275 0.006 80)", // 茹で中・残り潤沢（>60s・モノクロ）
-  boilingNear: "oklch(0.32 0.018 95)", // 茹で中・残り僅か（≤60s・かすかな黄）
-  boiled: "oklch(0.34 0.022 30)", // 茹で上がり（かすかな赤）
-} as const;
+// 状態は背景色ではなく面の奥行き（凹＝稼働／凸＝待機・styles.css の slot-*）で示す。緊急度（≤60s / boiled）は
+// 枠線色（warn / danger）が時間軸の別シグナルとして担う。背景色トークン（旧 STATE_BG）は depth へ置換して撤去。
 
 /**
  * 残り時間を分・秒のサイズ差つきで描く（分=大・秒=小／1 分未満は秒だけ大・比率およそ 2:1）。
@@ -172,12 +164,15 @@ function NoodleBadge({
   tint,
   faded = false,
   marker = "none",
+  outline = false,
   className,
 }: {
   readonly noodleType: string;
   readonly tint: string;
   readonly faded?: boolean;
   readonly marker?: BadgeMarker;
+  // outline: 待機中（idle）割当済み用の枠バッジ。塗りは薄く、枠線・文字を種類色にする（色分けは維持・面は凸）。
+  readonly outline?: boolean;
   readonly className?: string;
 }) {
   const ariaPrefix =
@@ -193,7 +188,11 @@ function NoodleBadge({
         faded && "opacity-60",
         className,
       )}
-      style={{ backgroundColor: tint, color: "#15120c" }}
+      style={
+        outline
+          ? { background: `color-mix(in oklab, ${tint} 14%, transparent)`, color: tint, border: `0.0625rem solid ${tint}` }
+          : { backgroundColor: tint, color: "#15120c" }
+      }
     >
       {/* 走行中は点滅ドット（bg-current = 濃色文字色）、上がり/前回結果は ✓。いずれも色＝種類とは独立の状態記号。 */}
       {marker === "boiling" && (
@@ -239,16 +238,11 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
   // 空きスロット。Play ピクトグラムの真円ボタン（他状態と同じ右下位置）でラジアルを開く。直前結果があれば併記。
   if (display.kind === "idle") {
     return (
-      <article
-        aria-label={`Slot ${slot}`}
-        // READY は空き＝アプリ背景より僅かに明るいダークで縁取り（ボーダーは cardBase）。
-        style={{ backgroundColor: STATE_BG.ready }}
-        className={cn(cardBase)}
-      >
+      <article aria-label={`Slot ${slot}`} className={cn(cardBase, "slot-convex")}>
         {lastResultNoodle && (
-          // 直前の調理結果（残滓）も同じバッジ方針で。過去の best-effort 情報ゆえ faded で淡く示す。
+          // 割当済み（直前結果）の色分けは枠バッジで維持する（薄い塗り＋種類色の枠線・文字）。面は凸のまま。
           <div className="absolute left-[clamp(0.4375rem,0.9vw,0.625rem)] right-[clamp(0.4375rem,0.9vw,0.625rem)] top-[clamp(0.625rem,1.6vh,1.125rem)]">
-            <NoodleBadge noodleType={lastResultNoodle} tint={noodleColor(lastResultNoodle)} faded marker="last" />
+            <NoodleBadge noodleType={lastResultNoodle} tint={noodleColor(lastResultNoodle)} outline marker="last" />
           </div>
         )}
         <div className={actionStack}>
@@ -270,7 +264,7 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
 
   if (display.kind === "unreceived") {
     return (
-      <article aria-label={`Slot ${slot}`} className={cn(cardBase, "border-dashed opacity-80")}>
+      <article aria-label={`Slot ${slot}`} className={cn(cardBase, "border-dashed bg-panel opacity-80")}>
         <span className="text-[clamp(0.75rem,1.6vh,0.8125rem)] font-bold text-muted opacity-85">
           Remaining time not received
         </span>
@@ -281,12 +275,6 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
   const isBoiled = display.kind === "boiled";
   // 麺のキャラクター色。時間・ボタンをこの 1 色へ揃える（色＝麺の identity）。
   const tint = noodleColor(display.timer.noodleType);
-  // 状態は背景色で示す（ダーク維持の控えめな差）。boiled / boiling 遠 / boiling 近 を分ける。
-  const stateBg = isBoiled
-    ? STATE_BG.boiled
-    : display.remainingMs <= NEAR_MS
-      ? STATE_BG.boilingNear
-      : STATE_BG.boilingFar;
   // 枠線で緊急度を示す（麺色から解放された枠の新役割）。ゆであがり=danger（赤）、残り1分以内=warn（黄琥珀）、
   // それ以外は cardBase の border-line のまま（undefined で上書きしない）。
   const stateBorder = isBoiled
@@ -326,8 +314,9 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
       aria-label={`Slot ${slot}`}
       // --glow に麺色を注入し、boiled のグロー点滅（animate-boiled）を麺のキャラクター色で明滅させる。
       // 枠線（borderColor）は緊急度を示す：warn（残り1分以内）/ danger（ゆであがり）。
-      style={{ backgroundColor: stateBg, borderColor: stateBorder, "--glow": tint } as CSSProperties}
-      className={cn(cardBase, isBoiled && "animate-boiled")}
+      // 稼働中＝凹。boiled はグロー点滅（animate-boiled）が box-shadow を担うため面色だけ slot-face-concave で与える。
+      style={{ borderColor: stateBorder, "--glow": tint } as CSSProperties}
+      className={cn(cardBase, isBoiled ? "animate-boiled slot-face-concave" : "slot-concave")}
     >
       {/* 左上：麺種バッジ（色＝identity）→ 直下に大きな残り時間。状態は背景/枠/リングが担う。
           running は麺色の秒読み（MM:SS）。boiled は超過秒を「↑Ns」で danger 色表示（早く上げろ）。
