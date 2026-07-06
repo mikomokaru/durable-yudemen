@@ -12,8 +12,9 @@
   //   ON（"1"）= WS 接続時の JWT 検証（worker.ts）＋店舗 DO の Roster 判定（store-timer-do.ts）＋Entry `/` の逆引き解決（worker.ts）を有効化。
   //   切替は env のみ・コード変更なし（3 分岐はいずれも実行時に env.ACCESS_REQUIRED を読む）。ON にするには実 TEAM_DOMAIN / POLICY_AUD を設定した上で "1" にする。
   //   本番での有効化はデプロイ時オーバーライドで行い、この既定は "0"（OFF）を保つ（テストは env override で "0"/"1" を切り替える）。
-  // TEAM_DOMAIN: Access チーム URL（JWKS 取得・issuer 検証に用いる・要件8.6）。ACCESS ON 時に実値へ差し替える（プレースホルダ）。
-  // POLICY_AUD: Access アプリの audience（JWT の aud 検証に用いる・要件8.6）。ACCESS ON 時に実値へ差し替える（プレースホルダ）。
+  //   デプロイ時オーバーライドは段階的有効化の「移行期」の手段であり恒久状態にしない。恒久対処は既定反転（この既定を "1" へ）＋ .dev.vars で ローカル OFF 維持（要件5.7）。
+  // TEAM_DOMAIN: Access チーム URL（JWKS 取得・issuer 検証に用いる・要件8.6）。移行期はここにプレースホルダを残し、実値はデプロイ時オーバーライドで投入する（要件5.6）。
+  // POLICY_AUD: Access アプリの audience（JWT の aud 検証に用いる・要件8.6）。移行期はここにプレースホルダを残し、実値はデプロイ時オーバーライドで投入する（要件5.6）。
   // STORE_* シード（STORE_UNIT_COUNT / STORE_ARMS / STORE_TOLERANCE_RATIO / STORE_NOODLE_PRESETS）は撤去した。
   // 設定投入は Provisioning_API → StoreRegistryDO → StoreTimerDO の一本に統一する（要件2.7 / 9.3）。
   // ADMIN_TOKEN（運用エンドポイントの Bearer トークン）は秘密のため vars に置かず secret で投入する:

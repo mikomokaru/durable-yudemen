@@ -71,6 +71,17 @@
 8. THE Worker SHALL 設定投入の経路を Provisioning_API → Store_Registry_DO → StoreTimerDO の一本とし、Worker から `StoreTimerDO` への直接の設定投入経路（現行 `PUT /admin/config` の直接委譲）を撤去する。
 9. THE Store_Registry_DO SHALL ローカル開発環境でも本番と同一の Provisioning_API 経路で店舗登録を受ける（試験用の別経路を設けない）。
 10. THE Store_Registry_DO SHALL イデアの読み出し（チェーン・店舗の一覧および個別取得）を Provisioning_API と同一の認可（ADMIN_TOKEN）で提供する（外部マスタとの突き合わせ・採番スラッグの再確認用の最小の GET）。
+11. WHEN 店舗登録要求に店舗 Roster（storeRoster）が同梱されたとき、THE Store_Registry_DO SHALL 更新経路（Requirement 3.1・3.5）と同一の検証を適用して当該店舗の Roster として確定し、同梱されないときは空名簿とする（作成時に自己完結でき、作成後の更新を必須としない）。
+12. IF 店舗登録要求に同梱された店舗 Roster が更新経路と同一の検証に反するとき、THEN THE Store_Registry_DO SHALL 当該登録を HTTP 400 で拒否し、イデアを変更しない。
+13. THE Store_Registry_DO SHALL `PUT /admin/stores/{storeId}` を冪等な upsert として扱い、対象店舗が不在なら（明示 storeId の作成と同一の検証＝許容文字集合・長さ・未使用性を適用し、path の storeId を採用して）作成し、存在すれば更新する（対象不在で HTTP 404 とはしない）。
+14. WHEN 同一ボディの `PUT /admin/stores/{storeId}` 再送を受けたとき、THE Store_Registry_DO SHALL 同一のイデアへ収束させる（一括投入の再実行安全性）。
+15. THE Store_Registry_DO SHALL `POST /admin/stores` を作成専用（ランダム採番、または storeId 明示指定）とし、明示 storeId が使用済みのときは AC 2.4 のとおり HTTP 400 で拒否する（POST の作成意味論であり、AC 2.13 の PUT upsert とは別経路）。
+16. THE Store_Registry_DO SHALL コレクションへの配列ボディの `PUT /admin/stores` を店舗の一括 upsert として受け、各要素を storeId をキーに（不在なら作成し、存在すれば更新して）確定する（単発の `POST /admin/stores`＝AC 2.15、および単一 upsert の `PUT /admin/stores/{storeId}`＝AC 2.13 とは別経路）。
+17. THE Store_Registry_DO SHALL 配列ボディの `PUT /admin/stores` の各要素に storeId を必須とし（冪等の鍵とする）、一括経路ではランダム採番を行わない。
+18. IF 配列ボディの `PUT /admin/stores` のいずれかの要素が検証に反する（storeId の欠落・不正、name／chainId の欠落〈作成時〉、override／roster／policyIds の値違反、バッチ内 storeId の重複 等）とき、THEN THE Store_Registry_DO SHALL バッチ全体を HTTP 400 で拒否し、失敗要素を列挙し、イデアを一切変更しない（妥当だった要素も書き込まず、部分適用しない＝all-or-nothing）。
+19. WHEN 同一の配列ボディの `PUT /admin/stores` 再送を受けたとき、THE Store_Registry_DO SHALL 同一のイデアへ収束させる（再実行安全性）。
+20. THE Store_Registry_DO SHALL 配列ボディの `PUT /admin/stores` を「宣言された集合の upsert」として扱い、配列に列挙されていない既存店舗を削除しない（コレクション全置換ではなく、そもそも物理削除を持たない）。
+21. WHEN 配列ボディの `PUT /admin/stores` の全要素が妥当なとき、THE Store_Registry_DO SHALL イデアを put-first で一度に確定してから、影響した全店舗を収束（Requirement 5）へ載せる（大量要素は既存の Alarm 継続ドレインで捌く）。
 
 ### Requirement 3: イデアのモデル（Chain / Policy / Store_Override / Roster）
 

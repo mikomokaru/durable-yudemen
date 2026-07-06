@@ -47,24 +47,35 @@ export function fireDueTimers(state: TimerState, now: EpochMillis, params: SyncP
   // ε 許容窓。境界に位置する Timer を取りこぼさず一括で茹で上げる閾値（要件2.3 / 2.10 / 3.3）。
   const dueThreshold = (now as number) + EPSILON_MS;
 
-  // 凍結→再同期を、新規 due が出なくなるまで反復する（固定点）。running は毎反復で単調減少し必ず停止する。
+  // 再同期→凍結を、新規 due が出なくなるまで反復する（固定点）。running は毎反復で単調減少し必ず停止する。
+  //
+  // 各反復で「先に」running を synchronize し、「同期後の」実効値で due 判定する。これは順序が要点である——
+  // synchronize は負の Adjustment（前倒し）で走行中だった running の実効 endTime を due 窓（≤ now + ε）へ
+  // 押し込みうるため、同期前の実効値で due 判定して break すると、その後 settle が同じ running を再同期した
+  // 結果に ε 窓内の running が残り、ε 一括ドレイン不変条件（残存 running の実効最早は必ず now + ε より未来）が
+  // 破れる。synchronize は不変アンカー（endTime/startTime/seq）のみに依存し冪等ゆえ、ここで break 時点の
+  // running は settle の再同期と一致し、同期後に due なしを確かめてから抜けることで不変条件が保たれる。
   let working: readonly Timer[] = state.timers;
   for (;;) {
-    // 現在の実効 adjustment で due 判定。running かつ実効期限到来（要件3.6 / 4.4）。
-    const due = working.filter(
-      (t) => t.boiledAt === null && (adjustedEndTime(t) as number) <= dueThreshold,
-    );
-    if (due.length === 0) break;
-    // due を boiled（boiledAt = now）へ写して Adjustment を凍結する。それ以外はそのまま残す。
-    const dueIds = new Set<string>(due.map((t) => t.id as string));
-    const frozen = working.map((t) => (dueIds.has(t.id as string) ? { ...t, boiledAt: now } : t));
     // 残り running のみ再同期し、adjustment を全体置換する（boiled は据え置き＝凍結を保持）。
-    const running = frozen.filter((t) => t.boiledAt === null);
+    const running = working.filter((t) => t.boiledAt === null);
     const synced = synchronize(running, params);
     const syncedById = new Map<string, Timer>(synced.map((t) => [t.id as string, t]));
-    working = frozen.map((t) =>
+    const resynced = working.map((t) =>
       t.boiledAt === null ? (syncedById.get(t.id as string) ?? t) : t,
     );
+    // 同期後の実効 adjustment で due 判定。running かつ実効期限到来（要件3.6 / 4.4）。
+    const due = resynced.filter(
+      (t) => t.boiledAt === null && (adjustedEndTime(t) as number) <= dueThreshold,
+    );
+    if (due.length === 0) {
+      // 同期済み・due なしの固定点。この running は settle の再同期と一致する（冪等）。
+      working = resynced;
+      break;
+    }
+    // due を boiled（boiledAt = now）へ写し、それを due にした同期後 Adjustment を凍結する。他はそのまま残す。
+    const dueIds = new Set<string>(due.map((t) => t.id as string));
+    working = resynced.map((t) => (dueIds.has(t.id as string) ? { ...t, boiledAt: now } : t));
   }
 
   // 固定点に到達した状態（全 due を boiled 化・残り running は最終再同期済み）。nextSeq は発火では変えない。

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "test": "vitest --run",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "access-preflight": "vite-node --config tools/preflight.vite.config.ts tools/check-access-enablement.ts"
   },
   "dependencies": {
     "jose": "^6.2.3",

@@ -64,6 +64,16 @@ export default defineConfig({
         },
       },
       {
+        // デプロイ前検査 CLI（tools/check-access-enablement.ts）の example テスト。CLI モジュールは
+        // node:fs / node:child_process / node:process に依存する端ゆえ Workers pool では動かない。純粋核
+        // accessEnablementPreflight を作用なしで検証するため node 環境（既定 pool）で実行する（design「既定 pool」）。
+        test: {
+          name: "tools",
+          environment: "node",
+          include: ["tests/check-access-enablement.example.test.ts"],
+        },
+      },
+      {
         // 既存のテスト群＋観測ハーネスの shell 計装統合テスト。workerd を要するため cloudflareTest を用いる。
         plugins: [
           cloudflareTest({
@@ -90,6 +100,8 @@ export default defineConfig({
             "tests/worker/**/*.property.test.ts",
             // worker の純粋 example テスト（entry.example.test.ts）も worker プロジェクト（node）が担当する。
             "tests/worker/**/*.example.test.ts",
+            // デプロイ前検査 CLI の example テストは tools プロジェクト（node）が担当する（node 組み込み依存）。
+            "tests/check-access-enablement.example.test.ts",
           ],
         },
       },

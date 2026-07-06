@@ -131,10 +131,10 @@ sequenceDiagram
   participant ST as storage（KV・イデア）
   participant S as StoreTimerDO（idFromName storeId）
 
-  EXT->>W: PUT /admin/stores（Bearer ADMIN_TOKEN・登録ボディ）
+  EXT->>W: PUT /admin/stores/{id}（Bearer ADMIN_TOKEN・登録ボディ＝storeRoster 同梱可）
   Note over W: isAdminAuthorized（定数時間）→ 許可のみ R へ委譲
   W->>R: RPC / fetch（登録要求）
-  Note over R: 入口検証（拒否型・400）／storeId 採番 or 明示検証
+  Note over R: 入口検証（拒否型・400。storeRoster も同一検証）／PUT は冪等 upsert（不在なら作成・404 なし。同一ボディ再送は同一イデアへ収束）
   R->>R: composeEffectiveConfig・effectiveRoster で投影を再合成
   R->>ST: storage.put（イデア＋残作業＋updatedAt）  ← 確定の起点（SSOT）
   ST-->>R: 成功
@@ -355,13 +355,31 @@ export class StoreRegistryDO extends DurableObject<Env> {
   /** Policy の登録／更新。同一 priority・同一フィールドの曖昧割当は 400 で拒否（要件3.4）。 */
   createOrUpdatePolicy(input: PolicyInput): Promise<ProvisionResult>;
   /**
-   * 店舗の登録。storeId 明示指定は検証（文字集合・長さ・未使用）通過時のみ受理、違反は 400 で
+   * 店舗の作成（POST 経路・作成専用）。storeId 明示指定は検証（文字集合・長さ・未使用）通過時のみ受理、違反は 400 で
    * 別 ID 代替なし（要件2.3 / 2.4）。未指定はランダムスラッグを採番して返す（要件2.2）。
+   * 作成ボディに storeRoster を同梱でき、更新経路（要件3.1 / 3.5）と同一の検証を適用して当該店舗の Roster として確定する。
+   * 同梱されないときは空名簿とする（作成時に自己完結し、作成後の Roster 更新を必須としない・要件2.11）。
+   * 同梱 storeRoster が検証に反するときは 400 で拒否しイデアを変更しない（要件2.12）。
    * イデア put 成功の上で当該店舗を materialize（applyProjection 押し込み）する（要件2.5 / 5.1）。
    */
   createStore(input: StoreInput): Promise<CreatedStore>;
-  /** 店舗の更新（Policy 割当・Override・Roster・active）。影響店舗の収束を開始する（要件3.7 / 3.9）。 */
+  /**
+   * 店舗の作成または更新（PUT /admin/stores/{storeId}・冪等 upsert）。対象が不在なら明示 storeId 作成と同一の
+   * 検証（文字集合・長さ・未使用性）を適用し path の storeId を採用して作成（createStore へ委譲）、存在すれば更新する
+   * （対象不在で 404 を返さない・要件2.13）。同一ボディの再送は同一イデアへ収束する（一括投入の再実行安全性・要件2.14）。
+   * 更新では Policy 割当・Override・storeRoster・active を受け、影響店舗の収束を開始する（要件3.7 / 3.9）。
+   */
   updateStore(storeId: StoreId, patch: StorePatch): Promise<ProvisionResult>;
+  /**
+   * 店舗の一括作成／更新（PUT /admin/stores・配列ボディ・all-or-nothing）。配列の各要素を storeId キーで upsert
+   * （不在＝作成／存在＝更新。単発 POST／単一 PUT とは別経路・要件2.16）。各要素に storeId 必須（一括では採番しない・要件2.17）。
+   * 全要素を resolveBulkElement で検証してから確定し、1 要素でも不正（storeId 欠落／不正・作成時の name/chainId 欠落・
+   * override/roster/policyIds 違反・バッチ内 storeId 重複）なら 400・failures 全列挙・イデア不変（部分適用しない＝all-or-nothing・要件2.18）。
+   * delete-missing なし（宣言集合の upsert であって全置換ではない・要件2.20）。同一配列の再送は同一イデアへ収束する（冪等・要件2.19）。
+   * 受理時は一度の put-first（commitIdeal）で全イデア＋逆引きを確定し、影響全店を residual に載せて converge を 1 回起こす
+   * （大量要素は既存の Alarm 継続ドレインで捌く・要件2.21）。検証は resolveBulkElement が単発経路と同一の validateProvisioningInput を用いる。
+   */
+  upsertStores(inputs: readonly StoreInput[]): Promise<BulkProvisionResult>;
   /** Roster の更新（チェーン／店舗）。逆引きインデックスを再導出し収束を開始する（要件3.6 / 3.7）。 */
   updateRoster(target: RosterTarget, roster: Roster): Promise<ProvisionResult>;
 
@@ -390,8 +408,9 @@ export class StoreRegistryDO extends DurableObject<Env> {
 | --- | --- |
 | `PUT /admin/chains/{chainId}` | createOrUpdateChain（チェーン Roster を含むボディ全置換） |
 | `PUT /admin/policies/{policyId}` | createOrUpdatePolicy |
-| `POST /admin/stores` | createStore（storeId 未指定は採番・明示指定は検証） |
-| `PUT /admin/stores/{storeId}` | updateStore（Policy 割当・Override・storeRoster・active・name） |
+| `POST /admin/stores` | createStore（作成専用。storeId 未指定は採番・明示指定は検証／使用済みは 400・要件2.15。作成ボディに `storeRoster` 同梱可＝省略時は空名簿・要件2.11） |
+| `PUT /admin/stores/{storeId}` | updateStore（単一 upsert・冪等。不在なら明示 storeId 作成と同一検証で path の storeId を採用し作成／存在すれば更新。404 は返さない・要件2.13。同一ボディ再送は同一イデアへ収束・要件2.14。Policy 割当・Override・storeRoster・active・name） |
+| `PUT /admin/stores`（配列ボディ） | upsertStores（一括冪等 upsert・all-or-nothing。各要素は storeId 必須〈一括では採番しない〉。全要素を検証してから確定し、1 要素でも不正なら 400・failures 全列挙・イデア不変〈部分適用しない〉。delete-missing なし〈宣言集合の upsert であり全置換ではない〉。同一配列再送は同一イデアへ収束・要件2.16〜2.21） |
 | `GET /admin/chains` ／ `GET /admin/stores?chainId=` ／ `GET /admin/stores/{storeId}` | listChains ／ listStores ／ getStore（要件2.10） |
 
 ### Component 8: `src/shell/store-timer-do.ts` — `StoreTimerDO` の変更
@@ -751,6 +770,8 @@ END
 - 同一投影を二度押しても店舗 DO の永続状態は一度押した結果と同一（冪等・要件5.4）。受領 version が永続済み version より小さい押し込みは状態を変えず、永続済み version を返す（単調ガード — 到着順に依存しない）。
 - `residual = ∅` が収束完了の判定。`convergedVersion[storeId]` は各店が最後に受領した投影の revision であり、レジストリ `revision` との突き合わせで「どの変更まで届いたか」を観測する（要件5.9）。
 
+**一括 upsert（`upsertStores`）は新機構を足さずこの手続きに載る。** 受理された全要素を一度の `commitIdeal`（put-first・`meta:revision` を 1 回進める）で確定し、影響する全店を `converge:residual` に載せて `converge` を **1 回**起こすだけである。大量要素で 1 波に収まらない分は、既存の Alarm 継続ドレイン（作業があるときだけ張り直す・25 件/波規模）がそのまま捌く。fan-out・last-write-wins・冪等再送の意味論は単発経路と共通で、一括専用の収束経路は存在しない（要件2.16 / 5.1 / 5.8）。
+
 ### `isValidStoreId` / `mintStoreId`
 
 ```pascal
@@ -985,6 +1006,16 @@ END
 | | 2.7 | env シード分岐撤去 | Edge-case / Smoke |
 | | 2.8 | `/admin/config` 直接委譲撤去 | Example |
 | | 2.9 / 2.10 | 同一経路・認可付き GET | Smoke / Example |
+| | 2.11 | `createStore` が `storeRoster` を受理（省略時は空名簿・更新経路と同一検証） | Integration |
+| | 2.12 | 同梱 storeRoster 検証違反は 400・イデア不変 | Edge-case |
+| | 2.13 | `PUT /admin/stores/{id}` 冪等 upsert（不在は作成・404 なし） | Integration |
+| | 2.14 | 同一ボディ再送は同一イデアへ収束（再実行安全） | Property 5 / Integration |
+| | 2.15 | `POST /admin/stores` 作成専用（使用済み storeId は 400） | Edge-case |
+| | 2.16 / 2.17 | `PUT /admin/stores`（配列）一括 upsert（別経路・各要素 storeId 必須・採番しない） | Integration |
+| | 2.18 | all-or-nothing（1 要素でも不正なら 400・failures 全列挙・イデア不変・部分適用しない） | Edge-case / Integration |
+| | 2.19 | 同一配列再送は同一イデアへ収束（一括の再実行安全性） | Property 5 / Integration |
+| | 2.20 | delete-missing なし（宣言集合の upsert であり全置換ではない） | Integration |
+| | 2.21 | 全要素妥当時は 1 度の commitIdeal（put-first）＋影響全店を収束へ | Integration |
 | 3 イデアモデル | 3.1 / 3.3 | イデア型・KV round-trip | Property 5 |
 | | 3.2 | 個人店＝1 店チェーン（同型） | Property 8（店舗数生成） |
 | | 3.4 | 曖昧割当の入口検出 | Property 6 |

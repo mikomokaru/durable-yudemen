@@ -1,0 +1,9 @@
+{
+  "name": "深夜帯ゆるめ",
+  "chainId": "yamaokaya",
+  "priority": 10,
+  "fields": {
+    "toleranceRatio": { "mode": "default", "value": 5 },
+    "arms": { "mode": "enforced", "value": 2 }
+  }
+}

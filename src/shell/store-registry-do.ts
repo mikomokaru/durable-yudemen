@@ -120,6 +120,21 @@ type CreateStoreResult =
   | { readonly accepted: true; readonly storeId: StoreId }
   | { readonly accepted: false; readonly failure: ProvisionFailure };
 
+/** 一括 upsert の要素ごとの失敗（配列内の位置・対象 storeId・拒否理由）。all-or-nothing 応答で列挙する。 */
+interface BulkStoreFailure {
+  readonly index: number;
+  readonly storeId?: string;
+  readonly failure: ProvisionFailure;
+}
+
+/**
+ * 一括 upsert（PUT /admin/stores・配列）の結果。all-or-nothing——1 つでも不正なら failures を全列挙して
+ * イデアを一切変更しない（要件2.16 系）。受理時は確定した件数を返す。
+ */
+type BulkStoresResult =
+  | { readonly accepted: true; readonly count: number }
+  | { readonly accepted: false; readonly failures: NonEmptyArray<BulkStoreFailure> };
+
 // ── 最小の読み出しビュー（要件2.10・ADMIN_TOKEN と同一認可）──
 //
 // 外部マスタとの突き合わせ・採番スラッグ（storeId）の再確認用の最小 GET。一覧は突き合わせに要る
@@ -437,6 +452,12 @@ export class StoreRegistryDO extends DurableObject<Env> {
       const verdict = validateProvisioningInput({ target: "storeOverride", raw: body.override });
       if (!verdict.accepted) rejections.push(...verdict.rejections);
     }
+    // storeRoster は作成時に同梱してよい（省略時は空名簿）。存在するときのみ Roster の値を拒否型検証する
+    // （updateStore と同一の検証・要件4.6）。店舗の定義と名簿を 1 リクエストで自己完結させる。
+    if (body.storeRoster !== undefined) {
+      const verdict = validateProvisioningInput({ target: "roster", raw: body.storeRoster });
+      if (!verdict.accepted) rejections.push(...verdict.rejections);
+    }
     if (isNonEmpty(rejections)) {
       return { accepted: false, failure: { kind: "validation", rejections } };
     }
@@ -464,7 +485,8 @@ export class StoreRegistryDO extends DurableObject<Env> {
       name: body.name as string,
       policyIds: [], // Phase 2（タスク 9.1）で割当を受ける
       override: (body.override as StoreOverride | undefined) ?? {},
-      storeRoster: [], // 生成時は空名簿。店舗名簿は updateStore（PUT /admin/stores/{id}）で受ける（要件3.5）
+      // storeRoster は作成ボディに同梱可（省略時は空名簿）。以後の改定は updateStore（PUT /admin/stores/{id}）が受ける（要件3.5）
+      storeRoster: (body.storeRoster as Roster | undefined) ?? [],
       active: true,
       ...(typeof body.storeCode === "string" ? { storeCode: body.storeCode } : {}),
       createdAt: now,
@@ -484,12 +506,14 @@ export class StoreRegistryDO extends DurableObject<Env> {
   }
 
   /**
-   * updateStore — 店舗の更新（PUT /admin/stores/{storeId}）。Override・active・name・Policy 割当（policyIds）を更新する。
+   * updateStore — 店舗の作成または更新（PUT /admin/stores/{storeId}・冪等 upsert）。
    *
-   * active=false（閉店）を受けられる。物理削除はしない——非活性化はイデアの更新であり、収束で店舗 DO へ投影
-   * される（要件3.9 / 6.6）。Override の値は validateProvisioningInput で拒否型検証し、違反は 400・イデア不変
-   * （要件4.6）。policyIds は文字列配列であることを検証する（存在しない Policy 参照の整合検証・曖昧割当の 400
-   * 拒否はタスク 9.2 で扱う）。対象店舗が存在しなければ 404。受理時はイデアを put-first で確定してから当該店舗の
+   * 対象店舗が**存在しなければ作成**（createStore へ path の storeId を注入して委譲・create-or-replace）、
+   * **存在すれば更新**する。同 URI への PUT は冪等——同じボディの再送は同じイデアへ収束する（一括投入の再実行安全性）。
+   * 更新では Override・active・name・Policy 割当（policyIds）・storeRoster を受ける。active=false（閉店）を受けられる。
+   * 物理削除はしない——非活性化はイデアの更新であり、収束で店舗 DO へ投影される（要件3.9 / 6.6）。Override の値は
+   * validateProvisioningInput で拒否型検証し、違反は 400・イデア不変（要件4.6）。policyIds は文字列配列であることを
+   * 検証する（存在しない Policy 参照の整合検証・曖昧割当の 400 拒否はタスク 9.2 で扱う）。受理時はイデアを put-first で確定してから当該店舗の
    * 収束を開始する——店舗変更ゆえ影響は当該店のみ（[storeId]）で、recomposeProjection が更新後の policyIds に
    * 割り当てられた Policy 群を composeEffectiveConfig へ渡して投影を再合成する（Policy 割当変更の収束・要件3.7）。
    *
@@ -501,7 +525,16 @@ export class StoreRegistryDO extends DurableObject<Env> {
   async updateStore(storeId: StoreId, raw: unknown): Promise<ProvisionResult> {
     const existing = (await this.ctx.storage.get(storeKey(storeId))) as Store | undefined;
     if (existing === undefined) {
-      return { accepted: false, failure: { kind: "not-found", storeId } };
+      // 冪等 upsert：対象が不在なら「作成」する。同 URI への PUT を create-or-replace とし、同じボディの再送が
+      // 同じイデアへ収束する（冪等性）。作成の検証・既定・storeCode・storeRoster・収束は createStore に一元化し
+      // （二重定義を避ける・設計哲学「重複の根絶」）、path の storeId を注入して委譲する。CreateStoreResult は
+      // storeId を返すが PUT の結果表現は ProvisionResult ゆえ受理/失敗のみへ写す（失敗理由は共通の ProvisionFailure）。
+      const createBody = asRecord(raw);
+      if (createBody === null) {
+        return rejectValidation({ path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" });
+      }
+      const created = await this.createStore({ ...createBody, storeId });
+      return created.accepted ? { accepted: true } : { accepted: false, failure: created.failure };
     }
 
     const body = asRecord(raw);
@@ -565,6 +598,195 @@ export class StoreRegistryDO extends DurableObject<Env> {
     );
     await this.converge();
     return { accepted: true };
+  }
+
+  /**
+   * upsertStores — 店舗の一括冪等 upsert（PUT /admin/stores・配列ボディ）。
+   *
+   * 各要素を storeId をキーに upsert する（不在なら作成・存在すれば更新）。**all-or-nothing**——全要素を
+   * 検証してから確定し、1 つでも不正なら failures を全列挙して 400・イデア不変で拒否する（部分適用しない）。
+   * 「宣言された集合の upsert」であって全置換ではない——列挙外の店舗は削除しない（そもそも削除は持たない）。
+   * 各要素は storeId を必須とする（冪等の鍵。ランダム採番は単発 POST の関心事であり一括では受けない）。
+   * 受理時はイデアを一度の put-first で確定し（commitIdeal）、影響全店を residual に載せて converge を 1 回起こす
+   * （25 件/波の Alarm ドレインは既存機構がそのまま捌く・要件5.8）。検証・合成の純粋ロジックは既存
+   * （validateProvisioningInput / detectAmbiguousAssignment / reverseIndexWrite）を再利用し、新規に足さない。
+   */
+  async upsertStores(raw: unknown): Promise<BulkStoresResult> {
+    if (!Array.isArray(raw)) {
+      return {
+        accepted: false,
+        failures: [
+          {
+            index: -1,
+            failure: {
+              kind: "validation",
+              rejections: [{ path: "", reason: "type-mismatch", detail: "配列である必要がある" }],
+            },
+          },
+        ],
+      };
+    }
+    if (raw.length === 0) return { accepted: true, count: 0 };
+
+    // 既存店舗・チェーンを一度だけ読む（存在判定・逆引き再導出・バッチ内 storeId 重複検出に用いる）。
+    const existingStores = await this.loadStores();
+    const existingByKey = new Map<StoreId, Store>(existingStores.map((s) => [s.storeId, s]));
+    const chains = await this.loadChains();
+
+    const built: Store[] = [];
+    const failures: BulkStoreFailure[] = [];
+    const seenIds = new Set<string>();
+    const now = Date.now();
+
+    for (let index = 0; index < raw.length; index++) {
+      // oxlint-disable-next-line no-await-in-loop
+      const resolved = await this.resolveBulkElement(raw[index], existingByKey, seenIds, now);
+      if (resolved.ok) {
+        built.push(resolved.store);
+        seenIds.add(resolved.store.storeId);
+      } else {
+        failures.push({
+          index,
+          ...(resolved.storeId !== undefined ? { storeId: resolved.storeId } : {}),
+          failure: resolved.failure,
+        });
+      }
+    }
+
+    // all-or-nothing：1 つでも失敗すれば一切書き込まない（イデア不変）。
+    if (isNonEmpty(failures)) {
+      return { accepted: false, failures };
+    }
+
+    // 全要素妥当 → 一度の put-first で全イデア＋逆引きを確定し、影響全店を residual に載せて収束を 1 回起こす。
+    const idealWrites: Record<string, unknown> = {};
+    for (const store of built) idealWrites[storeKey(store.storeId)] = store;
+    const builtIds = new Set(built.map((s) => s.storeId));
+    // post-write の店舗一式（既存 − 置換分 ＋ built）で逆引きを再導出する（要件3.6）。
+    const postStores = [...existingStores.filter((s) => !builtIds.has(s.storeId)), ...built];
+    Object.assign(idealWrites, this.reverseIndexWrite(chains, postStores));
+    await this.commitIdeal(
+      idealWrites,
+      built.map((s) => s.storeId),
+    );
+    await this.converge();
+    return { accepted: true, count: built.length };
+  }
+
+  /**
+   * resolveBulkElement — 一括 upsert の 1 要素を検証して目標 Store を組む（書き込みはしない・all-or-nothing の
+   * 検証フェーズ）。storeId は必須（冪等の鍵）。不在なら作成（name / chainId 必須・storeId は許容文字集合/長さを検証）、
+   * 存在すれば更新（部分更新・省略フィールドは既存を保持）。検証は単発経路と同一の validateProvisioningInput を用いる
+   * （検証の単一の真実を共有し二重定義しない）。曖昧割当検出（要件3.4）も単発 updateStore と同一。
+   */
+  private async resolveBulkElement(
+    element: unknown,
+    existingByKey: ReadonlyMap<StoreId, Store>,
+    seenIds: ReadonlySet<string>,
+    now: number,
+  ): Promise<
+    | { readonly ok: true; readonly store: Store }
+    | { readonly ok: false; readonly storeId?: string; readonly failure: ProvisionFailure }
+  > {
+    const body = asRecord(element);
+    if (body === null) {
+      return {
+        ok: false,
+        failure: {
+          kind: "validation",
+          rejections: [{ path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" }],
+        },
+      };
+    }
+    // storeId は一括の冪等鍵として必須。許容文字集合・長さを検証する（採番はしない）。
+    if (typeof body.storeId !== "string" || !isValidStoreId(body.storeId)) {
+      return { ok: false, failure: { kind: "store-id-invalid", storeId: String(body.storeId) } };
+    }
+    const storeId = body.storeId;
+    if (seenIds.has(storeId)) {
+      return {
+        ok: false,
+        storeId,
+        failure: {
+          kind: "validation",
+          rejections: [{ path: "storeId", reason: "out-of-range", detail: "同一バッチ内で storeId が重複している" }],
+        },
+      };
+    }
+    const existing = existingByKey.get(storeId);
+
+    const rejections: Rejection[] = [];
+    // 作成（不在）時は name / chainId 必須。更新（存在）時は省略可（既存を保持）。
+    if (existing === undefined) {
+      if (typeof body.name !== "string" || body.name.length === 0) {
+        rejections.push({
+          path: "name",
+          reason: body.name === undefined ? "missing-required" : "type-mismatch",
+          detail: "非空の文字列である必要がある",
+        });
+      }
+      if (typeof body.chainId !== "string" || body.chainId.length === 0) {
+        rejections.push({
+          path: "chainId",
+          reason: body.chainId === undefined ? "missing-required" : "type-mismatch",
+          detail: "非空の文字列である必要がある",
+        });
+      }
+    } else if (body.name !== undefined && (typeof body.name !== "string" || body.name.length === 0)) {
+      rejections.push({ path: "name", reason: "type-mismatch", detail: "非空の文字列である必要がある" });
+    }
+    if (body.override !== undefined) {
+      const verdict = validateProvisioningInput({ target: "storeOverride", raw: body.override });
+      if (!verdict.accepted) rejections.push(...verdict.rejections);
+    }
+    if (body.storeRoster !== undefined) {
+      const verdict = validateProvisioningInput({ target: "roster", raw: body.storeRoster });
+      if (!verdict.accepted) rejections.push(...verdict.rejections);
+    }
+    if (body.active !== undefined && typeof body.active !== "boolean") {
+      rejections.push({ path: "active", reason: "type-mismatch", detail: "真偽値である必要がある" });
+    }
+    if (
+      body.policyIds !== undefined &&
+      (!Array.isArray(body.policyIds) || body.policyIds.some((id) => typeof id !== "string"))
+    ) {
+      rejections.push({ path: "policyIds", reason: "type-mismatch", detail: "文字列の配列である必要がある" });
+    }
+    if (isNonEmpty(rejections)) {
+      return { ok: false, storeId, failure: { kind: "validation", rejections } };
+    }
+
+    const policyIds: readonly PolicyId[] = Array.isArray(body.policyIds)
+      ? (body.policyIds as readonly PolicyId[])
+      : (existing?.policyIds ?? []);
+    // 曖昧割当検出（要件3.4・単発 updateStore と同一）。空なら loadAssignedPolicies は [] で自明に無衝突。
+    if (policyIds.length > 0) {
+      const assigned = await this.loadAssignedPolicies(policyIds);
+      const conflicts = detectAmbiguousAssignment(assigned);
+      if (isNonEmpty(conflicts)) {
+        return { ok: false, storeId, failure: { kind: "ambiguous-assignment", conflicts } };
+      }
+    }
+
+    const store: Store = {
+      storeId,
+      chainId: existing ? existing.chainId : (body.chainId as string),
+      name: typeof body.name === "string" && body.name.length > 0 ? body.name : (existing?.name ?? ""),
+      policyIds,
+      override: body.override !== undefined ? (body.override as StoreOverride) : (existing?.override ?? {}),
+      storeRoster:
+        body.storeRoster !== undefined ? (body.storeRoster as Roster) : (existing?.storeRoster ?? []),
+      // 作成時は active:true（単発 createStore と同一・作成では body.active を既定 true に畳む）。更新時は指定を尊重し既存を保持。
+      active: existing ? (typeof body.active === "boolean" ? body.active : existing.active) : true,
+      ...(existing?.storeCode !== undefined
+        ? { storeCode: existing.storeCode }
+        : typeof body.storeCode === "string"
+          ? { storeCode: body.storeCode }
+          : {}),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    return { ok: true, store };
   }
 
   /**
@@ -814,6 +1036,13 @@ export class StoreRegistryDO extends DurableObject<Env> {
       return createStoreResponse(await this.createStore(body.value));
     }
 
+    // PUT /admin/stores — 一括冪等 upsert（配列・all-or-nothing・delete-missing なし・要件2.16 系）
+    if (method === "PUT" && segments.length === 2 && root === "admin" && collection === "stores") {
+      const body = await readJsonBody(request);
+      if (!body.ok) return malformedJson();
+      return bulkStoresResponse(await this.upsertStores(body.value));
+    }
+
     // PUT /admin/stores/{storeId}
     if (method === "PUT" && id !== undefined && root === "admin" && collection === "stores") {
       const body = await readJsonBody(request);
@@ -889,6 +1118,13 @@ function failureResponse(failure: ProvisionFailure): Response {
 /** チェーン更新・店舗更新の結果を HTTP へ写す（受理は 200）。 */
 function provisionResponse(result: ProvisionResult): Response {
   return result.accepted ? jsonResponse({ accepted: true }, 200) : failureResponse(result.failure);
+}
+
+/** 一括 upsert の結果を HTTP へ写す（全受理は 200＋件数、いずれか失敗は 400＋失敗一覧・イデア不変）。 */
+function bulkStoresResponse(result: BulkStoresResult): Response {
+  return result.accepted
+    ? jsonResponse({ accepted: true, count: result.count }, 200)
+    : jsonResponse({ accepted: false, failures: result.failures }, 400);
 }
 
 /** 店舗登録の結果を HTTP へ写す（受理は 201・採番／受理した storeId を返す・要件2.2）。 */
