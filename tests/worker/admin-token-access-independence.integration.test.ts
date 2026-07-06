@@ -33,13 +33,17 @@ declare module "cloudflare:test" {
 const ADMIN_PROBE_PATH = "/admin/chains";
 
 // ACCESS_REQUIRED を任意の値に差し替えた env で `/admin/*` を Worker に通す。
+// テスト用に注入する既知の ADMIN_TOKEN。実 secret（.dev.vars）に依存すると CI（.dev.vars 不在）で env.ADMIN_TOKEN が
+// 空になり検証が無意味化するため、testEnv に既知値を注入して hermetic にする（照合ロジック isAdminAuthorized は不変・再検証しない）。
+const TEST_ADMIN_TOKEN = "test-admin-token-hermetic";
+
 // vars は wrangler types が既定値の literal 型（"0" 等）で生成するため、実行時値の差し替えは unknown 経由で写す
-// （Worker は実行時に env.ACCESS_REQUIRED を string として読む）。ADMIN_TOKEN・DO バインディングは実 env を継承する。
+// （Worker は実行時に env.ACCESS_REQUIRED / ADMIN_TOKEN を string として読む）。ADMIN_TOKEN は既知値を注入し、DO バインディングは実 env を継承する。
 async function callAdmin(accessRequired: string, authorization: string | null): Promise<Response> {
   const headers = new Headers();
   if (authorization !== null) headers.set("Authorization", authorization);
   const request = new Request(`https://admin.invalid${ADMIN_PROBE_PATH}`, { method: "GET", headers });
-  const testEnv = { ...env, ACCESS_REQUIRED: accessRequired } as unknown as Env;
+  const testEnv = { ...env, ACCESS_REQUIRED: accessRequired, ADMIN_TOKEN: TEST_ADMIN_TOKEN } as unknown as Env;
   return worker.fetch(request, testEnv);
 }
 
@@ -48,15 +52,11 @@ describe("worker/admin — ADMIN_TOKEN 認可判定は ACCESS_REQUIRED の切替
     await reset();
   });
 
-  // 実 ADMIN_TOKEN（.dev.vars 由来の secret）を用いる。照合ロジックを再実装せず、実 env の値で駆動する。
-  const adminToken = env.ADMIN_TOKEN ?? "";
-  const matching = `Bearer ${adminToken}`;
-  const mismatching = `Bearer ${adminToken}-not-the-token`;
+  // 注入した既知 ADMIN_TOKEN で駆動する（.dev.vars 非依存・CI でも安定）。照合ロジックは再実装せず実コード経路を通す。
+  const matching = `Bearer ${TEST_ADMIN_TOKEN}`;
+  const mismatching = `Bearer ${TEST_ADMIN_TOKEN}-not-the-token`;
 
   it("ADMIN_TOKEN 一致の Bearer は OFF/ON いずれの構成でも 401 を返さず透過する（同一結果）", async () => {
-    // 前提：secret が読めていること（空だと isAdminAuthorized が常に false になり確認が無意味化する）。
-    expect(adminToken.length).toBeGreaterThan(0);
-
     const off = await callAdmin("0", matching);
     const on = await callAdmin("1", matching);
 
