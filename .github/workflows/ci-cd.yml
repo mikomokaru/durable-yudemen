@@ -82,10 +82,14 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # 本番のみ Access を ON にする。リポジトリ既定（wrangler.jsonc）は ACCESS_REQUIRED="0" を保ち
+      # （テスト環境の既定 OFF を壊さない）、本番デプロイ時にのみ実値を --var で注入する（要件5.6）。
+      # CI に固定することで「オーバーライドを忘れた素のデプロイが認証を黙って OFF に戻す」footgun を消す。
+      # TEAM_DOMAIN / POLICY_AUD は秘匿値ではない（vars 相当）。--var は先頭コロンで key/value 分割ゆえ https:// のコロンは保全される。
       - name: Deploy with Wrangler
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           packageManager: pnpm
-          command: deploy
+          command: "deploy --var ACCESS_REQUIRED:1 --var TEAM_DOMAIN:https://ymoky.cloudflareaccess.com --var POLICY_AUD:c4017121756d26418a54942575babe5c4faf65880e1d9faa2e6c12008741d836"
