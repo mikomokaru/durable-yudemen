@@ -212,6 +212,10 @@ function StoreTimer({ storeId }: { storeId: string }) {
         <h1 className="m-0 text-[clamp(1rem,2.4vw,1.375rem)] leading-none">
           <Logo />
         </h1>
+        {/* 稼働中の店舗を一目で示す（暫定: storeId スラッグ。後日サーバ配信の店名へ差し替える）。 */}
+        <span className="font-mono text-xs text-muted" aria-label={`Store ${storeId}`} title={storeId}>
+          {storeId}
+        </span>
         <div className="flex-1" />
         {connection && <ConnectionStatus connection={connection} />}
         <button
