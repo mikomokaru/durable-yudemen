@@ -69,6 +69,7 @@ export const genAudioView: fc.Arbitrary<ClientView> = genClientView.map(
     offset: view.offset,
     processedIds: view.processedIds,
     connectivity: view.connectivity,
+    unreachableReason: "offline",
     sync: view.sync,
     error: view.error,
     lastResults: new Map(),

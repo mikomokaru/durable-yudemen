@@ -43,6 +43,8 @@
 - **App_Shell**: アプリの起動に必要な静的アセット一式（HTML / JS / CSS）。Service Worker がキャッシュする。
 - **Service_Worker**: App_Shell をキャッシュし、オフライン起動を成立させる PWA の基盤。
 - **standalone 表示モード**: PWA をブラウザ UI なしの全画面で表示する display mode。リロードボタンの非表示・プルリフレッシュの抑止に用いる。
+- **到達不能理由（`unreachableReason`）**: Connectivity が `down` のときにのみ意味を持つ分類結果。取りうる値は `offline`（回線喪失）/ `noAccess`（この店舗の権限なし）/ `signInRequired`（再認証が必要）。型は `UnreachableReason = "offline" | "noAccess" | "signInRequired"`。Connectivity（二値）・Mode（導出）とは独立の付加情報であり、状態へ昇格させない。フィールド名・値名・型名は**確定**（naming.md 確認済み）。
+- **`GET /entry/stores`**: 本 spec 外（`cloudflare-access-enablement` / `per-store-provisioning` 由来）の既存 HTTP エンドポイント。Access ON のとき identity の接続可能店舗を `(storeId, name)[]` で 200 返却、未検証（セッション無効）は 403、Access OFF（パイロット）は 404 を返す。本 spec はこのセマンティクスへ依存するのみで、新設・改変しない（再利用）。到達不能理由の分類（要件15）に用いる。
 
 ## Requirements
 
@@ -211,6 +213,29 @@
 4. WHERE デバッグフラグが無効であるとき（本番の既定）、THE iPad_Client SHALL ping blackhole の切替手段をユーザー向け UI に提示せず、当該フォルトインジェクションのコードを本番バンドルから除外する（dev/test 限定・OBSERVE_DEBUG と同様の規律）。
 5. THE ping blackhole SHALL Mode を独立状態として保持・上書きせず、Connectivity 検知（要件2・3）を唯一のモード決定経路として保つ。
 
+### 要件 15: 到達不能理由の分類と提示（offline / noAccess / signInRequired）
+
+**ユーザーストーリー:** 厨房スタッフ / 店舗運営者として、iPad が「サーバに届かない」ときに、その理由が **回線喪失（オフライン）** なのか、**この店舗の権限がない**のか、**再ログインが必要**なのかを見分けたい。ブラウザ WebSocket API はハンドシェイクの HTTP ステータスを隠すため、権限なし（Store_Timer_DO の接続時拒否）は close code 1006 に潰れ、純粋なオフラインと区別できない。理由が分かれば、単に待てばよいのか、別店舗を開くべきなのか、再ログインすべきなのかを現場が判断できる。
+
+> 分類は degraded 運用への**付加情報**である。分類の成否は、ローカル権限・カウントダウン継続・茹で上がり発火（要件5〜8）を一切妨げない。
+
+#### 受け入れ基準
+
+1. WHEN Connectivity が `down` として確定したとき、THE iPad_Client SHALL 既存の `GET /entry/stores` へ帯域外 HTTP fetch を 1 回発行し、その結果から到達不能理由を分類する（作用の端が担う。新規エンドポイントを設けない）。
+2. IF 到達不能理由の分類 fetch がネットワークエラー（fetch の throw）で失敗したとき、THEN THE iPad_Client SHALL 到達不能理由を `offline`（回線喪失）として分類する。
+3. IF 分類 fetch が HTTP 403 を返したとき、THEN THE iPad_Client SHALL 到達不能理由を `signInRequired`（Access セッション無効・再認証が必要）として分類する。
+4. WHEN 分類 fetch が HTTP 200 を返し、かつ現在の Store_Path の storeId が返却リスト `(storeId, name)[]` に含まれないとき、THE iPad_Client SHALL 到達不能理由を `noAccess`（この店舗の権限なし）として分類する。
+5. WHEN 分類 fetch が HTTP 200 を返し、かつ現在の Store_Path の storeId が返却リスト `(storeId, name)[]` に含まれるとき、THE iPad_Client SHALL 到達不能理由を `offline`（当該店舗の認可はあり WebSocket 断は一過性）として分類する。
+6. IF 分類 fetch が HTTP 404（Access 無効期・分類不能）またはその他の想定外レスポンス（非配列・パース失敗を含む）を返したとき、THEN THE iPad_Client SHALL 到達不能理由を `offline` へ優雅に劣化させる（`fetchStoreChoices` が空配列へ畳む既存作法と同じ思想）。
+7. THE iPad_Client SHALL 到達不能理由の分類結果をタグ付きイベント（暫定 `Classify`）として Client_Decide へ渡し、Client_Decide が当該理由をビューの到達不能理由フィールド（暫定 `unreachableReason`）へ純粋に畳み込む。
+8. THE Client_Decide SHALL 到達不能理由の分類 fetch・HTTP ステータス判定・DOM・時計のいずれにも触れず、分類結果を引数（タグ付きイベント）として受け取る純粋関数の規律（要件4.3）を保つ。
+9. WHILE Mode が `degraded` であり、かつ到達不能理由が `offline` であるとき、THE iPad_Client SHALL 従来のオフライン表示（例: "Offline — running locally"）を英語で提示する。
+10. WHILE Mode が `degraded` であり、かつ到達不能理由が `noAccess` であるとき、THE iPad_Client SHALL この店舗の権限がない旨（例: "No access to this store"）を英語で提示する。
+11. WHILE Mode が `degraded` であり、かつ到達不能理由が `signInRequired` であるとき、THE iPad_Client SHALL 再認証が必要な旨（例: "Sign-in required"）を英語で提示する。
+12. THE iPad_Client SHALL 到達不能理由を Connectivity（`up` / `down`）および Mode（`live` / `degraded`）とは別の、`down` 時にのみ意味を持つ分類結果として扱い、Connectivity の二値・Mode の導出規律（要件3）を一切変えない。
+13. THE iPad_Client SHALL 到達不能理由の分類 fetch を Connectivity が `down` へ確定した契機に限って発行し、常駐ポーリングにせず、Store_Timer_DO を wake させる通常 WebSocket メッセージを送出しない（ホットパス分離・要件1.6 の思想を保つ）。
+14. THE 本機能 SHALL 到達不能理由の分類のために `src/engine/` を変更せず、`ClientMessage` / `ServerMessage` に新たなメッセージ種別やフィールドを追加せず（分類は HTTP fetch であって WebSocket メッセージではない・要件12.2）、既存の `GET /entry/stores` を再利用のみで参照する（新設・改変しない）。
+
 ## 確定事項（旧・未決事項）
 
 > 当初の未決 2 点はユーザー確認により確定し、該当要件へ織り込んだ。
@@ -235,6 +260,11 @@
   - 接続性検出の端（暫定 `Connectivity_Watch`）
   - auto-response の ping 要求文字列 / pong 応答文字列
   - localStorage の保存キー
+  - ビューが持つ到達不能理由フィールド名 `unreachableReason`（**確定**・naming.md 確認済み）
+  - 到達不能理由の取りうる値 `UnreachableReason = "offline" | "noAccess" | "signInRequired"`（**確定**・naming.md 確認済み。暫定だった `unauthorized` / `reauthNeeded` は `noAccess` / `signInRequired` へ確定置換）
+  - 到達不能理由の分類結果を畳むタグ付きイベント種別名 `Classify`（**確定**・naming.md 確認済み）
+  - 到達不能理由の分類 fetch を行う作用の端の関数名 `probeReachability`（**確定**・naming.md 確認済み。汎用語 `check` / `validate` / `process` 等は用いない）
+- **クロス spec 依存（`GET /entry/stores`）**: 到達不能理由の分類（要件15）は本 spec 外の既存エンドポイント `GET /entry/stores`（`cloudflare-access-enablement` / `per-store-provisioning` 由来）の 200 リスト `(storeId, name)[]` / 403 / 404 セマンティクスに依存する。本 spec は当該エンドポイントを新設・改変せず、再利用のみを行う。当該エンドポイントの意味論が変わると本要件の分類判定も追従を要する。
 - **iOS / iPad 制約**: 対象は iPad Safari / standalone PWA。Background Sync 不可のため Service Worker によるバックグラウンド再送は行わない。`beforeunload` は不可信のため依存しない。リロード抑止は standalone PWA ＋ `overscroll-behavior` を主とするが、真の担保は PWA がリロードを生き延びること（App_Shell キャッシュ＋永続化＋再水和）にある。
 - **ツール**: pnpm / TypeScript(strict) / Vite ＋ @cloudflare/vite-plugin / Wrangler v4 / Vitest ＋ fast-check / oxlint。PWA は vite-plugin-pwa / Workbox を許容。npm / yarn / npx は使わない。
 - **言語**: フロントのユーザー向け画面コンテンツは英語、コードコメントは日本語、Kiro 出力は日本語。

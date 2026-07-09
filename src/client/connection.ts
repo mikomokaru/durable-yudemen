@@ -29,6 +29,7 @@ import { clockOffset } from "./clock";
 import {
   isPingBlackholeActive,
   pingBlackholeDebugEnabled,
+  probeReachability,
   watchConnectivity,
   withPingBlackhole,
 } from "./connectivity";
@@ -50,6 +51,16 @@ export type Connectivity = "up" | "down";
 
 /** Mode — Connectivity からの導出値。状態として保持しない（要件3.3）。 */
 export type Mode = "live" | "degraded";
+
+/**
+ * 到達不能理由 — Connectivity が down のときにのみ意味を持つ分類結果（要件15）。
+ *
+ * ブラウザ WebSocket API はハンドシェイクの HTTP ステータスを隠すため、権限なし（接続時拒否）は
+ * close code 1006 に潰れ、純粋なオフラインと区別できない。この分類は帯域外 HTTP fetch（probeReachability）
+ * が導く付加情報であって、Connectivity（二値）・Mode（導出）とは独立の別軸である（要件15.12）。
+ * "offline"（回線喪失・特段の理由なし）が既定。up 時・boot 時・分類前はすべて "offline" に潰す。
+ */
+export type UnreachableReason = "offline" | "noAccess" | "signInRequired";
 
 /** 起源タグ — server-confirmed と Provisional_Timer（unconfirmed）を区別する。 */
 export type TimerOrigin = "server" | "local";
@@ -88,6 +99,8 @@ export interface ClientView {
   readonly lastResults: ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>;
   /** 到達性の事実。Mode の導出元（要件3.1）。 */
   readonly connectivity: Connectivity;
+  /** down 時のみ意味を持つ分類結果。既定 "offline"（要件15.7 / 15.12）。Connectivity(二値)・Mode(導出) とは独立の別軸。 */
+  readonly unreachableReason: UnreachableReason;
   /** 同期フェーズ。 */
   readonly sync: SyncPhase;
   /** 直近のサーバエラー（拒否・失敗）。snapshot 受信で解消する。 */
@@ -117,6 +130,7 @@ export type ClientEvent =
   | { readonly kind: "LocalCancel"; readonly timerId: string; readonly now: number } // 要件7 / 5.2（除去直前の麺種を残滓化）
   | { readonly kind: "LocalComplete"; readonly timerId: string; readonly now: number } // boiled の明示消し込み（degraded）
   | { readonly kind: "Connectivity"; readonly status: Connectivity } // 要件2/3
+  | { readonly kind: "Classify"; readonly reason: UnreachableReason } // 要件15。到達不能理由の分類結果を畳む。fetch は端（probeReachability）が担い、ここには結果だけが届く
   | { readonly kind: "LocalDone"; readonly timerId: string } // 要件8（茹で上がりアラート記録）
   | { readonly kind: "Tick" } // 要件5（ビュー不変）
   | { readonly kind: "Reconcile"; readonly timers: readonly TimerFact[]; readonly receivedAt: number }; // 要件11（決定 B）
@@ -128,6 +142,7 @@ export const EMPTY_VIEW: ClientView = {
   processedIds: new Set<string>(),
   lastResults: new Map<string, { readonly noodleType: string; readonly at: number }>(),
   connectivity: "down",
+  unreachableReason: "offline",
   sync: "connecting",
   error: null,
   unitCount: DEFAULT_UNIT_COUNT,
@@ -177,7 +192,19 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
     case "Connectivity":
       // 到達性の事実だけをセットする。offset は変えない（degraded 中の凍結を維持・要件5.2）。
       // Mode は mode(view) で導出するためここでは更新しない（導出値を状態に昇格させない・要件3.3）。
-      return { ...view, connectivity: event.status };
+      // up 復帰時は unreachableReason を既定 "offline" へ戻す。到達不能理由は down 時のみ意味を持つ分類結果ゆえ、
+      // up に古い noAccess / signInRequired を残さない——「down 時のみ意味を持つ」規律を表示側の条件分岐ではなく
+      // 構造（一方向の流れ）で担保する（要件15.12）。down のときは変えない（次の Classify が上書きするまで直前値を保つ）。
+      return {
+        ...view,
+        connectivity: event.status,
+        unreachableReason: event.status === "up" ? "offline" : view.unreachableReason,
+      };
+
+    case "Classify":
+      // 到達不能理由の分類結果を畳むだけ（純粋・他フィールド不変）。fetch / HTTP ステータス判定 / DOM / 時計に
+      // 一切触れない——それらは端（probeReachability）の責務で、ここには結果 reason だけが届く（要件15.7 / 15.8）。
+      return { ...view, unreachableReason: event.reason };
 
     case "LocalDone":
       // 端が音を鳴らした分を記録するだけ。decideView は音を鳴らさない（計算と作用の分離）。
@@ -543,12 +570,34 @@ export interface StoreChoice {
 }
 
 /**
+ * GET /entry/stores の 200 ボディ（パース済み JSON・unknown）から店舗選択肢 (storeId, name)[] を取り出す純粋関数。
+ *
+ * 配列でなければ空配列、配列なら storeId・name の string を持つ要素のみを受理する（未知形・欠落は静かに除く）。
+ * fetch も status 判定もしない純粋な取り出し部であり、fetchStoreChoices（切替 UI）と probeReachability
+ * （到達不能理由の分類・connectivity.ts）が同一の取り出し規律を共有するために公開する（重複の根絶）。
+ * 「取り出す」という概念そのものを名に据え、汎用語（parse/process 一般ではなく対象を明示）で境界を語る。
+ */
+export function parseStoreChoices(data: unknown): readonly StoreChoice[] {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+  return data.filter(
+    (item): item is StoreChoice =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof (item as { storeId?: unknown }).storeId === "string" &&
+      typeof (item as { name?: unknown }).name === "string",
+  );
+}
+
+/**
  * GET /entry/stores を取得し、複数店舗担当者の切替 UI 用の店舗選択肢を返す（要件7.4）。
  *
  * Access ON のときだけサーバが (storeId, name)[] の JSON を返す。OFF（パイロット）は Entry の行き先解決を
  * 提供しないため 404 となり、ここは空配列へ畳む（切替 UI を出さない）。ネットワーク・パース失敗・想定外の
  * 形もすべて空配列へ優雅に劣化する——切替は複数店舗担当者向けの付加機能であり、タイマー機能の前提では
  * ないため、取得できないときは黙って提示しないのが最も害が少ない（作用の端・window/fetch に触れる）。
+ * 200 ボディからの取り出しは共有純粋ヘルパ parseStoreChoices に委ね、二度書かない（重複の根絶）。
  */
 export async function fetchStoreChoices(): Promise<readonly StoreChoice[]> {
   try {
@@ -557,17 +606,7 @@ export async function fetchStoreChoices(): Promise<readonly StoreChoice[]> {
       return [];
     }
     const data: unknown = await response.json();
-    if (!Array.isArray(data)) {
-      return [];
-    }
-    // 各要素は storeId・name の string を持つもののみ受理する（未知形・欠落は静かに除く）。
-    return data.filter(
-      (item): item is StoreChoice =>
-        typeof item === "object" &&
-        item !== null &&
-        typeof (item as { storeId?: unknown }).storeId === "string" &&
-        typeof (item as { name?: unknown }).name === "string",
-    );
+    return parseStoreChoices(data);
   } catch {
     return [];
   }
@@ -690,8 +729,22 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
     if (status === "up" && prevConnectivity === "down") {
       pendingReconcile = true;
     }
+    // down へ確定した契機に限り（down でない状態＝up / boot(null) からの遷移のみ）、到達不能理由を 1 回だけ
+    // 分類する（要件15.1 / 15.13）。既に down のときは再発火しない——常駐ポーリングにはせず、遷移の一度きり。
+    // prevConnectivity は直後に更新されるため、更新前の値で down 遷移を判定する（ホットパス分離）。
+    const enteredDown = status === "down" && prevConnectivity !== "down";
     prevConnectivity = status;
     update(decideView(view, { kind: "Connectivity", status }));
+    if (enteredDown) {
+      // ベストエフォート。probeReachability は帯域外 HTTP fetch（WS ではない・DO を wake させない）で、
+      // 内部で throw せず offline へ畳む設計ゆえ .catch は付けない。fetch が失敗・遅延しても degraded 運用
+      // （ローカル権限・カウントダウン継続・茹で上がり発火・要件5〜8）を一切妨げない。非同期解決時点の
+      // 最新 view に対して Classify を畳む（クロージャで可変な view を参照する）。
+      // up 復帰時は Connectivity(up) 畳み込みが unreachableReason を "offline" へ戻すため明示クリアは不要。
+      void probeReachability(options.storeId).then((reason) => {
+        update(decideView(view, { kind: "Classify", reason }));
+      });
+    }
   });
 
   // サーバによる接続拒否（未プロビジョニング／Roster 不一致／deactivated）を購読し、端の作用として通知する。

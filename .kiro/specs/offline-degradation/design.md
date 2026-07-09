@@ -2,7 +2,7 @@
 
 ## この設計が拠って立つもの
 
-本設計は `requirements.md`（全13要件・EARS記法・決定 A / B 確定済み）と、ステアリング三点（`design-philosophy.md` / `naming.md` / `tooling.md`）を前提とする。設計判断はすべてこの二つから演繹される。本 spec は既存パイロット `yude-men-timer` の **iPad_Client（React フロント）** に「回線が落ちたときの優雅な劣化」を加える。狙いは「厨房スタッフへの善」——瞬断や回線喪失で表示が死なず、とりわけ**茹で上がりの取りこぼしを防ぐ**ことにある。
+本設計は `requirements.md`（全15要件・EARS記法・決定 A / B 確定済み）と、ステアリング三点（`design-philosophy.md` / `naming.md` / `tooling.md`）を前提とする。設計判断はすべてこの二つから演繹される。本 spec は既存パイロット `yude-men-timer` の **iPad_Client（React フロント）** に「回線が落ちたときの優雅な劣化」を加える。狙いは「厨房スタッフへの善」——瞬断や回線喪失で表示が死なず、とりわけ**茹で上がりの取りこぼしを防ぐ**ことにある。
 
 哲学を本機能の構造へ翻訳した骨格は次の7点である。本設計の全節はこの骨格の展開にすぎない。
 
@@ -173,6 +173,30 @@ sequenceDiagram
   Note over CD: degraded 中にローカル cancel した server-confirmed が snapshot に復活しても<br/>processedIds 登録済みゆえローカル発火は抑止（要件11.7）
 ```
 
+### データフロー（down 確定時の到達不能理由の分類＝degraded への付加情報）
+
+```mermaid
+sequenceDiagram
+  participant CW as Connectivity_Watch
+  participant SM as Sync_Mediator
+  participant PR as probeReachability（端・HTTP）
+  participant ES as GET /entry/stores（既存・再利用）
+  participant CD as Client_Decide（純粋）
+  participant UI as ConnectionStatus（純粋導出）
+
+  CW->>SM: Connectivity(down)（Mode=degraded）
+  Note over SM: down 確定契機に限り 1 回だけ（常駐ポーリングにしない・要件15.13）
+  SM->>PR: probeReachability(storeId)
+  PR->>ES: GET /entry/stores（帯域外 HTTP・1 回・要件15.1）
+  ES-->>PR: throw / 403 / 200(list) / 404 / その他
+  Note over PR: 判定表で UnreachableReason へ分類（要件15.2〜15.6）<br/>想定外はすべて offline へ優雅に劣化
+  PR-->>SM: UnreachableReason（offline / noAccess / signInRequired）
+  SM->>CD: Classify{reason}
+  CD-->>SM: { ...view, unreachableReason: reason }（純粋畳み込み・要件15.7）
+  Note over UI: connectionStatus(view) が degraded を reason で 3 分岐（要件15.9〜15.11）
+  Note over CW,CD: up 復帰時は Connectivity(up) の畳み込みが unreachableReason を offline へ戻す（要件15.12）
+```
+
 ### 確認した Cloudflare の事実（auto-response ＝ shell の唯一の変更点）
 
 - **`state.setWebSocketAutoResponse(new WebSocketRequestResponsePair(request, response))`** — DurableObjectState 上に**所定の ping 要求文字列に対し所定の pong 応答文字列を自動返信する**ペアを登録する。auto-response は**ランタイムが直接応答**するため、`webSocketMessage` ハンドラを起動せず、hibernate からの wake を伴わない（要件1.5・hibernation 互換を保つ・要件12.3）。これは「待つなら寝かせる」規律と完全に整合する——心拍が課金とリソースを浪費しない。
@@ -192,10 +216,10 @@ sequenceDiagram
 
 | 置き場所 | 内容 | 純度 | 理由 |
 | --- | --- | --- | --- |
-| `src/client/connection.ts`（既存を一般化） | `Client_Decide`（`reduceView` の一般化）・`ClientView`・イベント型・`Sync_Mediator`（`openTimerConnection` の拡張） | 純粋（decide）＋端（mediator） | 既存の純粋畳み込みと作用の端の二層構造をそのまま延長する。新ファイルを増やさず、既存の継ぎ目（`Socket` / `SocketOpener`）を再利用する。 |
+| `src/client/connection.ts`（既存を一般化） | `Client_Decide`（`reduceView` の一般化）・`ClientView`（`unreachableReason` 追加）・イベント型（`Classify` 含む）・`UnreachableReason`・`Sync_Mediator`（`openTimerConnection` の拡張）・店舗リスト取り出しの公開純粋ヘルパ（`fetchStoreChoices` と `probeReachability` が共有） | 純粋（decide / codec）＋端（mediator） | 既存の純粋畳み込みと作用の端の二層構造をそのまま延長する。新ファイルを増やさず、既存の継ぎ目（`Socket` / `SocketOpener`）を再利用する。`Classify` 畳み込みと `unreachableReason` は decide と同居させ、fetch（作用）は持たない。 |
 | `src/client/clock.ts`（既存・不変） | `clockOffset` / `correctedNow` / `remainingMs` | 純粋 | degraded 中の残り導出・補正後現在時刻はこの既存純粋関数をそのまま使う（二重定義しない）。 |
 | `src/client/notification.ts`（既存・不変） | `shouldHandleDone` / `markProcessed` | 純粋 | ローカル茹で上がりの冪等性・後続サーバ done の抑止は既存機構をそのまま使う。 |
-| `src/client/connectivity.ts`（新規） | `Connectivity_Watch`（WS 生存検出の端）・ping/pong 定数・閾値 | 端（I/O） | 到達性検出という作用を一点に隔離。WS 開閉・タイマー・ミス計数はここに閉じる。 |
+| `src/client/connectivity.ts`（新規） | `Connectivity_Watch`（WS 生存検出の端）・ping/pong 定数・閾値・`probeReachability`（`GET /entry/stores` を 1 回 fetch し `UnreachableReason` を返す端・要件15.1） | 端（I/O） | 到達性検出という作用を一点に隔離。WS 開閉・タイマー・ミス計数に加え、down 契機の到達不能理由 probe もここに閉じる（いずれも「サーバへ届くか」を観る作用）。店舗リストの取り出しは `connection.ts` の公開純粋ヘルパを import して二重定義を避ける。 |
 | `src/client/persistence.ts`（新規） | `Persistence_Port`・ビューブロブ codec・localStorage 裏側実装 | codec は純粋＋IO は端 | 永続化の抽象境界。ブロブの直列化／解析は純粋（round-trip を property で検証）、localStorage IO は端。 |
 | `src/client/components/slotDisplay.ts`（既存を拡張） | `SlotDisplay` の `running` に未確定フラグを追加 | 純粋 | Provisional_Timer を未確定表示で区別する（要件6.4）。既存の表示導出を最小拡張する。 |
 | `src/shell/store-timer-do.ts`（既存に一点追加） | `setWebSocketAutoResponse(ping→pong)` の登録 | 端 | shell への唯一の追加（要件12.1）。core を呼ばない・既存 Effect 順序を変えない。 |
@@ -218,6 +242,16 @@ type Mode = "live" | "degraded";
 /** 起源タグ — server-confirmed と Provisional_Timer（unconfirmed）を区別する。 */
 type TimerOrigin = "server" | "local";
 
+/**
+ * 到達不能理由 — Connectivity が down のときにのみ意味を持つ分類結果（要件15）。
+ *
+ * ブラウザ WebSocket API はハンドシェイクの HTTP ステータスを隠すため、権限なし（接続時拒否）は
+ * close code 1006 に潰れ、純粋なオフラインと区別できない。この分類は帯域外 HTTP fetch（probeReachability）
+ * が導く付加情報であって、Connectivity（二値）・Mode（導出）とは独立の別軸である（要件15.12）。
+ * "offline"（回線喪失・特段の理由なし）が既定。up 時・boot 時・分類前はすべて "offline" に潰す。
+ */
+type UnreachableReason = "offline" | "noAccess" | "signInRequired";
+
 /** クライアントが保持する Timer。WireTimer に起源タグを足したもの（ワイヤ形式は不変・要件12.2）。 */
 interface ClientTimer {
   readonly id: string;
@@ -233,17 +267,19 @@ interface ClientView {
   readonly offset: number;                       // クロックオフセット。degraded 中は最新値を凍結（要件5.2）
   readonly processedIds: ReadonlySet<string>;    // 茹で上がり/キャンセル処理済み（表示制御用・SSOT のコピーではない）
   readonly connectivity: Connectivity;           // 到達性の事実。Mode の導出元
+  readonly unreachableReason: UnreachableReason; // down 時のみ意味を持つ分類結果。既定 "offline"（要件15.7/15.12）
   readonly sync: SyncPhase;                       // connecting / synced / syncFailed（既存）
   readonly error: { readonly code: string; readonly message: string } | null;
 }
 
-/** タグ付きイベント — Client_Decide が網羅的に分岐する 6 系統（要件4.2）。 */
+/** タグ付きイベント — Client_Decide が網羅的に分岐する系統（要件4.2）。 */
 type ClientEvent =
   | { readonly kind: "Server"; readonly message: ServerMessage; readonly receivedAt: number }      // 既存 reduceView 相当
   | { readonly kind: "LocalStart"; readonly slotId: string; readonly noodleType: string;
       readonly boilSeconds: number; readonly newTimerId: string; readonly correctedNow: number }    // 要件6
   | { readonly kind: "LocalCancel"; readonly timerId: string }                                      // 要件7
   | { readonly kind: "Connectivity"; readonly status: Connectivity }                                 // 要件2/3
+  | { readonly kind: "Classify"; readonly reason: UnreachableReason }                                // 要件15（分類結果の畳み込み）
   | { readonly kind: "LocalDone"; readonly timerId: string }                                         // 要件8
   | { readonly kind: "Tick" }                                                                         // 要件5（ビュー不変）
   | { readonly kind: "Reconcile"; readonly timers: readonly WireTimer[]; readonly receivedAt: number }; // 要件11（決定 B）
@@ -270,10 +306,13 @@ function dueLocalTimers(view: ClientView, correctedNow: number): readonly Client
 | `Server: error` | error をセット | — |
 | `LocalStart` | boilSeconds が 1..1800 内なら `endTime = correctedNow + boilSeconds*1000` の Provisional_Timer（origin=local）を 1 件注入。範囲外なら変更なし | 6.1, 6.2, 6.5 |
 | `LocalCancel` | 対象が origin=local → 除去のみ。origin=server → 除去＋`markProcessed`（ローカル発火抑止） | 7.1, 7.2 |
-| `Connectivity` | `connectivity` をセット（Mode 導出が追随）。offset は変えない（凍結を維持） | 2.1, 2.2, 3.1, 3.2 |
+| `Connectivity` | `connectivity` をセット（Mode 導出が追随）。offset は変えない（凍結を維持）。**`up` のとき `unreachableReason` を `"offline"` へリセット**（down 時のみ意味を持つ規律を構造で担保・要件15.12） | 2.1, 2.2, 3.1, 3.2, 15.12 |
+| `Classify` | `unreachableReason` を `event.reason` にセットするだけ（`{ ...view, unreachableReason: event.reason }`）。fetch も HTTP ステータス判定も時計も触れない純粋畳み込み（要件15.7/15.8） | 15.7, 15.8 |
 | `LocalDone` | `shouldHandleDone` が true のときのみ `markProcessed`（端が音を鳴らした分を記録） | 8.1, 8.2 |
 | `Tick` | ビュー不変（参照同一を返す）。再描画で残りを導出し直させるだけ | 5.1 |
 | `Reconcile` | `snapshot` と同一の `reconcileServerConfirmed` を適用（server-confirmed のみ置換・provisional 保持） | 11.5, 11.6, 11.7 |
+
+> **なぜ `up` の Connectivity で `unreachableReason` を `"offline"` へ戻すのか（down 時のみ意味を持つを構造で担保）:** 到達不能理由は Connectivity が `down` のときにのみ意味を持つ分類結果である（要件15.12）。もし `up` 復帰後も直前の `noAccess` / `signInRequired` がビューに残ると、live 表示に古い分類が漏れ「二つの真実」になりかねない。そこで `Connectivity{status:"up"}` の畳み込みで `unreachableReason` を既定の `"offline"` へリセットし、意味を持つ区間（down）の入り口で `Classify` が上書きする——という一方向の流れに閉じる。表示側で「up のときは reason を無視する」条件分岐を持つ選択肢もあるが、それは表示に判断を漏らす。純粋畳み込みで既定へ潰すほうが、導出値を状態に昇格させない規律に忠実で、`mode(view)` の導出（要件3.3）を一切変えずに済む。
 
 > **なぜローカル茹で上がりの「音」は Client_Decide に無いのか（計算と作用の分離）:** Client_Decide は `(ビュー, イベント) → ビュー` の純粋関数であり、アラート音という作用を持てない。端（Sync_Mediator / Connectivity_Watch の秒読みティック）が `dueLocalTimers` で発火対象を導出し、音を鳴らし、続けて `LocalDone` を dispatch する。Client_Decide は `LocalDone` を `shouldHandleDone` / `markProcessed` で畳み込み、各 timerId を**高々 1 回だけ**処理済みにする。これは既存のサーバ done と同一の冪等機構であり、ローカル発火と後続サーバ done の二重鳴動を構造的に防ぐ（要件8.1 / 8.2）。「音」は `shouldHandleDone` が true を返した分岐の端でのみ起こす。
 
@@ -317,6 +356,7 @@ Sync_Mediator が担う端の責務（純粋判定は持たない）:
 
 - **経路選択** — `start` / `cancel` を受けると `mode(view)` を見て、live なら `Socket.send(ClientMessage)`、degraded なら補正後現在時刻と生成 id を採取して `LocalStart` / `LocalCancel` を `decideView` へ畳み込む（要件4.5）。
 - **Reconcile の契機づけ** — Connectivity_Watch から `up` を受け、直前が `down` だった（down→up 遷移）なら、次に届く全量 snapshot を `Reconcile` イベントとして畳み込む（要件2.4）。
+- **到達不能理由の分類の契機づけ** — Connectivity が `down` へ確定した契機に限り（`onConnectivity` の `down` 遷移）、`probeReachability(options.storeId)` を**1 回だけ**ベストエフォートで呼び、解決した `UnreachableReason` を `Classify` イベントとして `decideView` へ畳み込む（要件15.1 / 15.13）。常駐ポーリングにしない・DO を wake させる通常 WS メッセージを送らない（ホットパス分離・要件1.6 の思想を保つ）。storeId は既存 `ConnectionOptions.storeId` を用いる。fetch が失敗しても degraded 運用（要件5〜8）は続く（`probeReachability` 側が `offline` へ畳む）。`up` 復帰時は `Connectivity` の畳み込みが `unreachableReason` を `"offline"` へ戻すため、明示的な分類クリアは不要。
 - **秒読みティック＋ローカル発火** — `tickMs`（≤1000ms）ごとに `dueLocalTimers(view, Date.now()+offset)` を導出し、各対象のアラートを鳴らして `LocalDone` を dispatch する（要件5.1 / 8.1）。ティック自体は `Tick` でビューを変えず再描画を促す。**この常駐ループは DO を wake させる通常メッセージを送らない**（heartbeats は auto-response 経路に限る・要件1.6）。
 - **永続化** — ビューが変化するたび（タイマー追加・除去・offset 更新・processedIds 更新）に `Persistence_Port.save(view)` を呼ぶ（要件11.1）。
 
@@ -364,6 +404,61 @@ Connectivity 確定規律（二系統を独立に扱い、いずれか一方の�
 | WS close / error（明示的切断） | `down` | 2.1 |
 
 > **二段階検出の理由（厨房スタッフへの善）:** ソケットが明示的に閉じる（close/error）場合だけでなく、無応答で静かに半死（half-open）になる場合もある。auto-response ping/pong の連続未応答を独立系統として持つことで、後者でも速やかに degraded へ切り替えられ、表示と茹で上がりが死なない（要件2.3）。
+
+### 到達不能理由の分類（probeReachability・作用の端・要件15）
+
+Connectivity が `down` へ確定した契機に限り、`GET /entry/stores` へ帯域外 HTTP fetch を 1 回発行し、HTTP ステータスと店舗リストから到達不能理由を分類する作用の端。ブラウザ WebSocket API がハンドシェイクの HTTP ステータスを隠すため、権限なし（DO の接続時拒否）は close code 1006 に潰れて純粋なオフラインと区別できない——この HTTP fetch がその区別を回復する（要件15）。分類は degraded 運用への**付加情報**であり、ローカル権限・カウントダウン継続・茹で上がり発火（要件5〜8）を一切妨げない。
+
+```ts
+// src/client/connectivity.ts — 端。GET /entry/stores を 1 回 fetch し UnreachableReason を返す。
+// HTTP ステータス判定という「世界を観る手続き」に閉じる。decideView（純粋）は一切呼ばない（要件15.8）。
+// 200 のボディから (storeId, name)[] を取り出す純粋部は connection.ts の公開ヘルパを import して共有する。
+
+/** 到達不能理由を分類する（作用の端）。down 契機で 1 回だけ呼ぶ・常駐ポーリングにしない（要件15.13）。 */
+function probeReachability(storeId: string): Promise<UnreachableReason>;
+```
+
+> **`probeReachability` を `connectivity.ts` に置く理由（凝集）:** これは「サーバへ届くか」を観る**到達性検出の作用**であり、WS 生存検出（`Connectivity_Watch`）と同じ関心事——ゆえに到達性検出を一点に隔離する `connectivity.ts` が最も凝集する。純粋な `Classify` 畳み込みと `unreachableReason` フィールドは `decideView` と同居させて `connection.ts` に置き、fetch という作用だけを `connectivity.ts` に寄せる（計算と作用の分離）。
+
+分類判定表（HTTP ステータス → `UnreachableReason`）。既存 `fetchStoreChoices` が「空配列へ優雅に劣化」する作法と同じ思想で、想定外はすべて `offline` へ畳む（要件15.6）:
+
+| fetch の結果 | 分類 | 理由 | 要件 |
+| --- | --- | --- | --- |
+| fetch が throw（ネットワークエラー） | `offline` | 回線喪失。そもそも到達できていない | 15.2 |
+| HTTP 403 | `signInRequired` | Access セッション無効。再ログインが要る | 15.3 |
+| HTTP 200 かつ 現在の storeId が返却リスト `(storeId, name)[]` に**不在** | `noAccess` | 認証は通るがこの店舗の権限がない | 15.4 |
+| HTTP 200 かつ 現在の storeId が返却リストに**在** | `offline` | 当該店舗の認可はあり・WS 断は一過性 | 15.5 |
+| HTTP 404 / 非配列 / パース失敗 / その他想定外 | `offline` | 分類不能。優雅に劣化（`fetchStoreChoices` と同一作法） | 15.6 |
+
+> **既存 `fetchStoreChoices` との取得部共有と、捨ててはならない差分（重複の根絶／真）:** 既存 `fetchStoreChoices`（connection.ts）は同じ `GET /entry/stores` を叩き、`(storeId, name)[]` を取り出す。`probeReachability` は別ファイル（connectivity.ts）に住むが、リスト取得ロジックを二度書かないため、**HTTP レスポンスの 200 ボディから店舗リストを取り出す純粋な取り出し部を `connection.ts` の公開純粋ヘルパへ切り出し**、`fetchStoreChoices` と `probeReachability` の双方がこれを import して使う（重複の根絶）。ただし決定的な差分が一つある——`fetchStoreChoices` は 403 と 404 を区別せず**ともに空配列へ畳む**（切替 UI を出さないだけでよいため）。対して `probeReachability` は **403（`signInRequired`）と 404（`offline`）を見分ける必要がある**（要件15.3 / 15.6）。したがって `probeReachability` は `fetchStoreChoices` を呼び出さず（`fetchStoreChoices` は status を捨てるため使えない）、**自前で fetch して `response.status` を捨てずに分岐**し、共通化するのは「200 のボディからリストを取り出す純粋部」に留める。`fetchStoreChoices` の既存の振る舞い（空配列への畳み込み）は変えない。
+
+> **なぜ端が分類し、`decideView` は結果だけを畳むのか（計算と作用の分離）:** `probeReachability` は fetch・HTTP ステータス判定という作用を持つ。純粋な `decideView` はこれを持てない（要件15.8）。端が分類し終えた `UnreachableReason` を `Classify` イベントとして渡し、`decideView` は `{ ...view, unreachableReason: reason }` と畳むだけ——これは既存の「端が音を鳴らして `LocalDone` を畳む」構造と同型である。分類の成否がローカル権限・秒読み・発火を妨げないのは、`probeReachability` がベストエフォートで、失敗しても `offline` へ畳んで degraded 運用（要件5〜8）をそのまま続けるからである（要件15）。
+
+> **要件15 の不変点（要件12 / 15.14）:** 到達不能理由の分類は **HTTP fetch であって WebSocket メッセージではない**——ゆえに `src/domain/messages.ts` の `ClientMessage` / `ServerMessage` に種別もフィールドも追加しない（要件12.2 / 15.14）。`src/engine/`（core）は一切変更しない（要件12.1）。`GET /entry/stores` は本 spec 外（`cloudflare-access-enablement` / `per-store-provisioning` 由来）の既存エンドポイントであり、**再利用のみ**で新設・改変しない（クロス spec 依存・当該エンドポイントの意味論が変われば分類判定の追従を要する・要件15.14）。追加コードは `connectivity.ts`（`probeReachability`）・`connection.ts`（`UnreachableReason` / `Classify` 畳み込み / `unreachableReason` フィールド）・`ConnectionStatus.tsx`（3 分岐表示）への追記に閉じ、新ファイルを増やさない。
+
+### UI の到達不能理由の提示（ConnectionStatus・純粋導出・要件15.9〜15.11）
+
+既存 `ConnectionStatus.tsx` の純粋導出 `connectionStatus(view)` は、degraded のとき単一の `"Offline — running locally"` を返している。これを `view.unreachableReason` で 3 分岐へ拡張する。状態は持たず view から都度導出する既存規律（保持は全量・表示は導出）をそのまま保つ。
+
+```ts
+// src/client/components/ConnectionStatus.tsx — 純粋導出。degraded を unreachableReason で 3 分岐（要件15.9〜15.11）。
+function connectionStatus(view: ClientView): { readonly label: string; readonly tone: StatusTone } {
+  if (mode(view) === "degraded") {
+    switch (view.unreachableReason) {
+      case "offline":
+        return { label: "Offline — running locally", tone: "offline" };   // 既存文言・要件15.9
+      case "noAccess":
+        return { label: "No access to this store", tone: "denied" };       // 要件15.10
+      case "signInRequired":
+        return { label: "Sign-in required", tone: "denied" };              // 要件15.11
+    }
+  }
+  return { label: SYNC_LABEL[view.sync], tone: view.sync === "synced" ? "live" : "syncing" };
+}
+```
+
+- **文言（英語・UI コンテンツ規律）** — `offline` は既存の `"Offline — running locally"` を据え置く（要件15.9）。`noAccess` は `"No access to this store"`（要件15.10）、`signInRequired` は `"Sign-in required"`（要件15.11）。
+- **tone / 色** — `offline` は既存の `offline` tone（`danger` 系ドット＋淡い danger 枠）を据え置く。`noAccess` / `signInRequired` は「単に待てば直る」ものではなく現場の行動（別店舗を開く／再ログイン）を促す確定的状態のため、既存 `offline` とは区別できる `denied` tone を新設し、既存の `DOT_BY_TONE` へ 1 行足す（`danger` 実線＋やや強いグロー）。過剰な色設計はせず、`StatusTone` に `denied` を 1 つ加えるに留める（引き算）。`mode(view)` の導出（要件3）も `sync` の扱いも変えない。
 
 ### デバッグ用フォルトインジェクション（ping blackhole・dev 限定・要件14）
 
@@ -420,14 +515,14 @@ interface PersistedView {
 
 /** ビュー → ブロブ文字列（純粋）。処理制御外の導出フィールドは含めない。 */
 function serializeView(view: ClientView): string;
-/** ブロブ文字列 → ビュー（純粋）。不正・不在は EMPTY_VIEW を返す。connectivity は boot 時 "down" 起点。 */
+/** ブロブ文字列 → ビュー（純粋）。不正・不在は EMPTY_VIEW を返す。connectivity は boot 時 "down"、unreachableReason は "offline" 起点。 */
 function parsePersistedView(raw: string | null): ClientView;
 
 /** 既定の localStorage 裏側実装。save は同期書き込み、load はページ内同期読み出し（要件11.2/11.4）。 */
 function localStoragePersistence(): PersistencePort;
 ```
 
-> **なぜ Connectivity / sync / error を永続しないか:** これらは「今この瞬間の接続の事実」であって、リロードを跨いで持ち越す事実ではない。boot 時は接続未確立ゆえ Connectivity を `down`（＝degraded）起点とし、Connectivity_Watch の検出で `up` へ確定させる。永続するのは「これ以上分解できない事実」——timers（起源タグ込み）・offset・processedIds——に絞る（導出値・一過性の状態を永続に昇格させない）。
+> **なぜ Connectivity / sync / error / unreachableReason を永続しないか:** これらは「今この瞬間の接続の事実」であって、リロードを跨いで持ち越す事実ではない。boot 時は接続未確立ゆえ Connectivity を `down`（＝degraded）起点とし、Connectivity_Watch の検出で `up` へ確定させる。`unreachableReason` も同様に一過性で、boot 時は既定 `"offline"` 起点とし、次の `down` 確定契機で `probeReachability` → `Classify` が上書きする（要件15.7 / 15.12）。永続するのは「これ以上分解できない事実」——timers（起源タグ込み）・offset・processedIds——に絞る（導出値・一過性の状態を永続に昇格させない）。
 
 ### Shell への唯一の追加（`setWebSocketAutoResponse`）
 
@@ -499,14 +594,14 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 
 逆に、WebSocket の接続・送受信・ping/pong 生存検出・タイムアウト計数（要件1 / 2）、Service Worker / App Shell キャッシュ（要件10）、localStorage の同期 IO（要件11.2 の配線）、実時間ティックと auto-response（要件5.1 の間隔 / 1.5）、Mode による経路選択（要件4.5）は、入力で振る舞いが変わらない／外部依存／実時間依存の**端**であり PBT に不適。これらは Integration / Example / Smoke で確認する（Testing Strategy 参照）。
 
-> 各プロパティは骨格の帰結である。「計算と作用の分離をクライアントへ徹底」が P1〜P9 の純粋性に、「導出値を状態に昇格させない」が P1（Mode 導出）・P6（残りクランプ）に、「SSOT 規律」が P8（Reconcile 保存性）に、「既存資産の延長・二重定義の根絶」が P5（既存通知冪等性の延長）・P9（round-trip）に、そのまま写されている。
+> 各プロパティは骨格の帰結である。「計算と作用の分離をクライアントへ徹底」が P1〜P10 の純粋性に、「導出値を状態に昇格させない」が P1（Mode 導出）・P6（残りクランプ）・P10（到達不能理由を down 時のみ意味を持つ導出軸に閉じる）に、「SSOT 規律」が P8（Reconcile 保存性）に、「既存資産の延長・二重定義の根絶」が P5（既存通知冪等性の延長）・P9（round-trip）に、そのまま写されている。
 
 ### 生成器の前提（すべてのプロパティが共有する入力空間）
 
 - **`genClientTimer`** — `id`（一意）・`slotId`・`noodleType`・`endTime`（過去・現在・未来を広く分布）・`origin`（`"server"` / `"local"` 両方）を持つ `ClientTimer`。同一 `slotId` の衝突、同一 `endTime` の衝突を意図的に含む。
-- **`genClientView`** — 0〜100 件の `ClientTimer`（server / local 混在）・`offset`（負・0・正）・`processedIds`（空／一部が timers と一致／一部が無関係）・`connectivity`（up / down 両方）・`sync`・`error` を持つ `ClientView`。空ビュー・provisional のみ・server のみ・両混在を境界に含む。
+- **`genClientView`** — 0〜100 件の `ClientTimer`（server / local 混在）・`offset`（負・0・正）・`processedIds`（空／一部が timers と一致／一部が無関係）・`connectivity`（up / down 両方）・`unreachableReason`（`offline` / `noAccess` / `signInRequired` の 3 値）・`sync`・`error` を持つ `ClientView`。空ビュー・provisional のみ・server のみ・両混在を境界に含む。
 - **`genCorrectedNow`** — ビュー中の `endTime` 群に対し、すべて過去／すべて未来／一部が補正後現在の前後、の三領域をまたぐ `correctedNow`。`endTime == correctedNow` 境界を必ず含む。
-- **`genEvent`** — 6 系統（Server{snapshot/started/cancelled/done/error} / LocalStart / LocalCancel / Connectivity{up/down} / LocalDone / Tick / Reconcile）を分布。`LocalStart` の `boilSeconds` は範囲内（1..1800）と範囲外（0・負・1801 以上・非整数）を両方生成。`LocalCancel` / `LocalDone` の `timerId` は「ビューに存在（server / local）」「存在しない」を両方。
+- **`genEvent`** — 各系統（Server{snapshot/started/cancelled/done/error} / LocalStart / LocalCancel / Connectivity{up/down} / Classify{offline/noAccess/signInRequired} / LocalDone / Tick / Reconcile）を分布。`LocalStart` の `boilSeconds` は範囲内（1..1800）と範囲外（0・負・1801 以上・非整数）を両方生成。`LocalCancel` / `LocalDone` の `timerId` は「ビューに存在（server / local）」「存在しない」を両方。
 - **`genEventStream`** — 上記イベントの列（`LocalDone` と `Server done` の混在、Connectivity の up/down 往復、`LocalStart`→`LocalCancel` の対を含む）。
 - 非 ASCII・空文字・極端に長い文字列、不正形式の永続ブロブ文字列も織り込み、エッジ（要件11.2 の不在/不正・要件6.5 の範囲外）を構造的に踏む。
 
@@ -564,6 +659,14 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 
 **Validates: Requirements 11.1, 11.2, 11.3**
 
+### Property 10: Classify は到達不能理由だけを畳み、up の Connectivity はそれを offline へ戻す
+
+*任意の* `ClientView` と *任意の* `UnreachableReason`（`offline` / `noAccess` / `signInRequired`）について、`decideView(view, { kind: "Classify", reason })` の結果ビューは `unreachableReason === reason` を満たし、かつ `timers` / `offset` / `processedIds` / `connectivity` / `sync` / `error` を含む他の全フィールドは元ビューと同一（参照または値が不変）である。さらに、*任意の* `ClientView` について、`decideView(view, { kind: "Connectivity", status: "up" })` の結果ビューは `unreachableReason === "offline"` を満たす（down 時にのみ意味を持つ規律を構造で担保）。これらは純粋畳み込みであり、fetch・HTTP ステータス判定・時計・DOM を一切参照しない。
+
+**Validates: Requirements 15.7, 15.8, 15.12**
+
+> **`probeReachability` の HTTP ステータス → `UnreachableReason` マッピングは PBT 不適で Integration/Example が担う。** 分類そのもの（判定表・要件15.2〜15.6）は fetch と `response.status` という作用の端であり、入力で振る舞いが変わらない純粋関数ではない。したがって PBT ではなく、モック fetch で throw / 403 / 200(list 在/不在) / 404 / 非配列 の各分岐を Integration/Example で網羅する（Testing Strategy 参照）。純粋層で検証するのは、端が分類し終えた結果を畳む Property 10 に限る。
+
 ---
 
 ## Error Handling
@@ -604,8 +707,8 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 ### 三層のテスト — 何を property で、何を integration/example/smoke で検証するか
 
 - **Property テスト（純粋層）** — 上記 Correctness Properties をそれぞれ**単一の** property-based テストで実装する。`Client_Decide` も `mode` も `dueLocalTimers` も `remainingMs` も `serializeView` / `parsePersistedView` も決定的純粋関数なので、`Date` モックも faketime も実 WS も localStorage も不要。生成器がビュー・イベント列・時刻・ブロブを吐くだけで、`endTime == correctedNow` 境界・空ビュー・provisional のみ・範囲外 boilSeconds・処理済み id 重複・cancel 済み server の復活といった edge を網羅的に踏む。
-- **Integration テスト（端・配線）** — Connectivity_Watch の二段階検出（pong タイムアウト 2 連続で down・close/error で down・open+snapshot で up：要件1.3 / 1.4 / 2.1 / 2.2）、Sync_Mediator の経路選択（degraded で start が WS 送信されず provisional 注入・live で送信：要件4.5 / 6.3 / 7.3）、down→up での Reconcile 契機づけ（要件2.4）は、モック WS（既存 `SocketOpener` 注入）と faketime で 1〜3 例ずつ確認する。shell の auto-response（要件1.1 / 1.5 / 12.3）は `@cloudflare/vitest-pool-workers` の Workers pool ＋ `hibernation-observability` ハーネスで、ping に対し `webSocketMessage` 継ぎ目が発火せず wake しないことを観測する。**dev 限定の ping blackhole フォルトインジェクション（要件14）** は、`withPingBlackhole` デコレータが送信 ping のみ捨て通常メッセージ・受信を素通しすること、blackhole 有効化で silent-loss 検知（要件1.4）を通じて degraded に入り Mode を直接書き換えないこと（要件14.1 / 14.2 / 14.5）、無効化でランタイム可逆に `up` 復帰し Reconcile を契機づけること（要件14.3）を、モック WS ＋ faketime の 1〜2 例で確認する。本番バンドルからの除外（要件14.4）は静的検査（`import.meta.env.DEV` ゲート・UI 非露出）と、degraded → ローカル権限 → 再接続 → provisional 保持の手動 E2E ライフサイクルを実機で確認する。
-- **Example テスト（具体シナリオ）** — Mode 変化の視認可能な提示（要件3.4）、走行中 Slot に Start の口が現れない（要件9.1 / 9.2）、Provisional_Timer の未確定表示（要件6.4）、degraded 中に serverTime 問い合わせが発生しない（要件5.2）、再水和ビューからのローカル発火（要件11.3 の boot 配線）など、property では捉えにくい具体例を最小限で固める。
+- **Integration テスト（端・配線）** — Connectivity_Watch の二段階検出（pong タイムアウト 2 連続で down・close/error で down・open+snapshot で up：要件1.3 / 1.4 / 2.1 / 2.2）、Sync_Mediator の経路選択（degraded で start が WS 送信されず provisional 注入・live で送信：要件4.5 / 6.3 / 7.3）、down→up での Reconcile 契機づけ（要件2.4）は、モック WS（既存 `SocketOpener` 注入）と faketime で 1〜3 例ずつ確認する。**`probeReachability` の分類（要件15.1〜15.6）** は、モック `fetch` で throw（→`offline`）・403（→`signInRequired`）・200 リスト在（→`offline`）・200 リスト不在（→`noAccess`）・404 / 非配列 / パース失敗（→`offline`）の各分岐と、`fetchStoreChoices` との取得部共有（403/404 を捨てない差分）を Example で網羅する。加えて Sync_Mediator の契機づけ（`down` 確定で 1 回だけ probe、常駐ポーリングにしない、`up` 復帰で `unreachableReason` が `offline` へ戻る：要件15.13 / 15.12）をモック WS ＋ faketime の 1〜2 例で確認する。shell の auto-response（要件1.1 / 1.5 / 12.3）は `@cloudflare/vitest-pool-workers` の Workers pool ＋ `hibernation-observability` ハーネスで、ping に対し `webSocketMessage` 継ぎ目が発火せず wake しないことを観測する。**dev 限定の ping blackhole フォルトインジェクション（要件14）** は、`withPingBlackhole` デコレータが送信 ping のみ捨て通常メッセージ・受信を素通しすること、blackhole 有効化で silent-loss 検知（要件1.4）を通じて degraded に入り Mode を直接書き換えないこと（要件14.1 / 14.2 / 14.5）、無効化でランタイム可逆に `up` 復帰し Reconcile を契機づけること（要件14.3）を、モック WS ＋ faketime の 1〜2 例で確認する。本番バンドルからの除外（要件14.4）は静的検査（`import.meta.env.DEV` ゲート・UI 非露出）と、degraded → ローカル権限 → 再接続 → provisional 保持の手動 E2E ライフサイクルを実機で確認する。
+- **Example テスト（具体シナリオ）** — Mode 変化の視認可能な提示（要件3.4）、`connectionStatus(view)` が degraded を `unreachableReason` で 3 分岐し英語文言を出し分ける（`offline`→"Offline — running locally" / `noAccess`→"No access to this store" / `signInRequired`→"Sign-in required"・要件15.9〜15.11）、走行中 Slot に Start の口が現れない（要件9.1 / 9.2）、Provisional_Timer の未確定表示（要件6.4）、degraded 中に serverTime 問い合わせが発生しない（要件5.2）、再水和ビューからのローカル発火（要件11.3 の boot 配線）など、property では捉えにくい具体例を最小限で固める。
 - **Smoke テスト／静的検査（構造制約と PWA / ツール）** — `src/engine/` 無変更・shell 追加が `setWebSocketAutoResponse` 一点のみ（要件12.1）、既存ワイヤ形式のみ使用（要件12.2）、UI が Socket を直接持たず Sync_Mediator のみ経由（要件4.4）、永続が Persistence_Port 経由で IndexedDB / Background Sync 不使用（要件4.7 / 11.4）、PWA の manifest（`display: standalone`）＋ `overscroll-behavior` ＋ 追加抑止層なし（要件10.3 / 10.4 / 10.5）、App Shell precache 設定（要件10.1）、`tsc --noEmit` / `oxlint` 0/0 / `vitest --run` 失敗 0（要件13.1〜13.3）、property テストに faketime / Date スタブ不在（要件13.4）、vite-plugin-pwa / Workbox 採用・pnpm のみ（要件13.5）、ユーザー向けコンテンツ英語・コメント日本語（要件13.6）。
 
 ### PBT の構成（要件13.3 / 13.4）
@@ -636,7 +739,7 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 
 ## Requirements Traceability
 
-全14要件の各受け入れ基準と、設計要素／検証手段の対応表。**P** はプロパティ番号、**Integration / Example / Smoke** は対応するテスト層を示す。
+全15要件の各受け入れ基準と、設計要素／検証手段の対応表。**P** はプロパティ番号、**Integration / Example / Smoke** は対応するテスト層を示す。
 
 | 要件 | 受け入れ基準 | 設計要素 | 検証 |
 | --- | --- | --- | --- |
@@ -698,7 +801,7 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 | | 12.5 オフライン操作の DO 書き戻しを行わずスコープ外 | 設計記述（write-back なし） | Smoke（記述） |
 | 13 | 13.1 pnpm・TS strict・tsc --noEmit エラー0 | ツール準拠 | Smoke |
 | | 13.2 oxlint エラー0・警告0 | ツール準拠 | Smoke |
-| | 13.3 fast-check 含む Vitest 失敗0 | PBT 構成 | Smoke（P1〜P9 が構成） |
+| | 13.3 fast-check 含む Vitest 失敗0 | PBT 構成 | Smoke（P1〜P10 が構成） |
 | | 13.4 純粋層テストは Date.now スタブ無し・時刻引数 | PBT 構成（時刻引数） | Smoke（静的） |
 | | 13.5 vite-plugin-pwa / Workbox 採用・新 PM 不導入 | ツール準拠 | Smoke |
 | | 13.6 画面コンテンツ英語・コメント日本語 | 言語規律 | Smoke（静的） |
@@ -707,8 +810,22 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 | | 14.3 ランタイム可逆・無効化で ping 再開→`up`→Reconcile 契機 | `withPingBlackhole`（`isEnabled` 切替）+ `Sync_Mediator` | Integration |
 | | 14.4 dev/test 限定・本番 UI 非露出・本番バンドル除外 | デバッグフラグ（`OBSERVE_DEBUG` 規律）/ `import.meta.env.DEV` tree-shaking | Smoke（静的）+ 手動 E2E |
 | | 14.5 Mode を独立状態にせず Connectivity 検知を唯一の決定経路に保つ | `withPingBlackhole`（Mode 非書換）/ `mode` 導出 | Integration + Smoke（記述） |
+| 15 | 15.1 down 確定で `GET /entry/stores` へ 1 回 fetch し分類 | `probeReachability`（connectivity.ts・端）/ `Sync_Mediator` 契機づけ | Integration + Example |
+| | 15.2 fetch throw → `offline` | `probeReachability` 判定表 | Example |
+| | 15.3 HTTP 403 → `signInRequired` | `probeReachability` 判定表（status を捨てない） | Example |
+| | 15.4 200 かつ storeId 不在 → `noAccess` | `probeReachability` 判定表 | Example |
+| | 15.5 200 かつ storeId 在 → `offline` | `probeReachability` 判定表 | Example |
+| | 15.6 404 / 非配列 / パース失敗 / その他 → `offline`（優雅な劣化） | `probeReachability` 判定表 / 取り出し部の共有ヘルパ | Example |
+| | 15.7 分類結果を `Classify` で `unreachableReason` へ純粋に畳む | `decideView` Classify（`{ ...view, unreachableReason: reason }`） | P10 |
+| | 15.8 `decideView` は fetch / HTTP / DOM / 時計非依存・引数受理 | `decideView` 純粋性（`Classify`） | P10 + Smoke（import 不在） |
+| | 15.9 degraded かつ offline で "Offline — running locally" | `connectionStatus`（offline 分岐・既存文言） | Example |
+| | 15.10 degraded かつ noAccess で "No access to this store" | `connectionStatus`（noAccess 分岐・`denied` tone） | Example |
+| | 15.11 degraded かつ signInRequired で "Sign-in required" | `connectionStatus`（signInRequired 分岐・`denied` tone） | Example |
+| | 15.12 到達不能理由は down 時のみ意味を持つ独立軸・up で offline へ戻す | `decideView` Connectivity(up) リセット / `mode` 不変 | P10 |
+| | 15.13 分類 fetch は down 契機のみ・常駐ポーリング不可・wake させない | `Sync_Mediator` 契機づけ（1 回・ホットパス分離） | Integration + Smoke（記述） |
+| | 15.14 core 不変・WS メッセージ不追加・`/entry/stores` 再利用のみ | 配置（HTTP fetch・ワイヤ型不変・クロス spec 依存） | Smoke（静的 / 記述） |
 
-全14要件・全受け入れ基準が、いずれかの設計要素と検証手段に対応している。テスト不可能な性質（WS 生存検出の実時間タイミング・PWA / SW のプラットフォーム挙動・UI の見た目・auto-response の wake 抑止・ツール準拠・スコープ）は Integration / Example / Smoke へ明示的に割り当て、劣化ロジックの核（Mode 導出・遷移・ローカル発火冪等性・Reconcile 保存性・永続 round-trip）は Property で網羅した。
+全15要件・全受け入れ基準が、いずれかの設計要素と検証手段に対応している。テスト不可能な性質（WS 生存検出の実時間タイミング・到達不能理由の HTTP ステータス → 理由マッピング・PWA / SW のプラットフォーム挙動・UI の見た目・auto-response の wake 抑止・ツール準拠・スコープ）は Integration / Example / Smoke へ明示的に割り当て、劣化ロジックの核（Mode 導出・遷移・ローカル発火冪等性・Reconcile 保存性・永続 round-trip・到達不能理由の純粋畳み込み）は Property で網羅した。
 
 ---
 
@@ -761,6 +878,10 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 | ping/pong 文字列 | `PING_REQUEST = "ping"` / `PONG_RESPONSE = "pong"`、**置き場所は `src/transport/`**（client と shell で同一定数を共有。ワイヤ型は不変ゆえ要件12.2 に抵触しない） |
 | localStorage キー | `STORAGE_KEY = "yudemen.offline.view.v1"` |
 | フォルト注入 | デコレータ `withPingBlackhole`、有効化フラグは `OBSERVE_DEBUG` 規律に揃える（dev/test 限定・本番バンドル除外） |
+| 到達不能理由フィールド（要件15） | `unreachableReason`（`ClientView` のフィールド。既定 `offline`・down 時のみ意味を持つ・`PersistedView` に含めず永続しない） |
+| 到達不能理由の値（要件15） | 型 `UnreachableReason = "offline" \| "noAccess" \| "signInRequired"`（暫定だった `unauthorized` / `reauthNeeded` は採らず `noAccess` / `signInRequired` に確定） |
+| 到達不能理由を畳むイベント（要件15） | `Classify`（`{ readonly kind: "Classify"; readonly reason: UnreachableReason }`・`ClientEvent` の判別タグ） |
+| 到達不能理由の分類の端（要件15） | 関数 `probeReachability(storeId: string): Promise<UnreachableReason>`（`src/client/connectivity.ts`・`GET /entry/stores` を 1 回 fetch・`response.status` を捨てず分類・取り出し部は `connection.ts` の公開純粋ヘルパを共有） |
 
 ---
 

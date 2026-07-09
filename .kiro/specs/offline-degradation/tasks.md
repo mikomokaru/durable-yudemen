@@ -199,6 +199,44 @@
   - `tsc --noEmit`（エラー 0・要件13.1）・`oxlint`（エラー 0・警告 0・要件13.2）・`vitest --run`（失敗 0・property テストに faketime / Date スタブ不在・要件13.3 / 13.4）を通し、疑問が生じたらユーザーに確認する。
   - Ensure all tests pass, ask the user if questions arise.
 
+- [x] 15. 到達不能理由の分類と提示（offline / noAccess / signInRequired）
+  - [x] 15.1 純粋層: ClientView に `unreachableReason`・ClientEvent に `Classify` を追加し decideView の Classify / Connectivity(up) 畳み込みを実装する
+    - `src/client/connection.ts`: `UnreachableReason = "offline" | "noAccess" | "signInRequired"` 型を追加し、`ClientView` に `readonly unreachableReason: UnreachableReason` を足す（`EMPTY_VIEW` は `"offline"` 起点）。`ClientEvent` に判別タグ `{ kind: "Classify"; reason: UnreachableReason }` バリアントを追加する
+    - `decideView` の `Classify` 分岐は `{ ...view, unreachableReason: event.reason }` だけを返す（fetch・HTTP ステータス判定・DOM・時計に一切触れない純粋畳み込み）。既存の `Connectivity` 分岐は `up` のとき `unreachableReason` を `"offline"` へリセットし、down 時のみ意味を持つ規律を構造で担保する（offset は従来どおり凍結・変更しない）
+    - `parsePersistedView` の再水和も `unreachableReason: "offline"` 起点にする（`src/client/persistence.ts` の `PersistedView` には**含めない**＝到達不能理由は永続しない）
+    - _Requirements: 15.7, 15.8, 15.12_
+
+  - [ ]* 15.2 Classify 畳み込みの property テストを書く
+    - **Property 10: Classify は到達不能理由だけを畳み、up の Connectivity はそれを offline へ戻す**
+    - `Classify(reason)` 後に `unreachableReason === reason` かつ他フィールド（`timers` / `offset` / `processedIds` / `connectivity` / `sync` / `error`）が不変、`Connectivity{status:"up"}` の畳み込みで `unreachableReason === "offline"` に戻ることを検証する
+    - **Validates: Requirements 15.7, 15.8, 15.12**
+
+  - [x] 15.3 端: probeReachability を connectivity.ts に実装する
+    - `src/client/connectivity.ts`: `probeReachability(storeId: string): Promise<UnreachableReason>` を実装する。`GET /entry/stores` を 1 回 fetch し、`response.status` を捨てずに分類する（判定表: fetch throw→`offline` / 403→`signInRequired` / 200 かつ storeId が返却リストに不在→`noAccess` / 200 かつ在→`offline` / 404・非配列・パース失敗・その他→`offline`）
+    - 200 ボディから `(storeId, name)[]` を取り出す純粋部は `connection.ts` の公開ヘルパを共有し `fetchStoreChoices` と二重定義しない。ただし `fetchStoreChoices` は status を捨てるため、`probeReachability` は自前で fetch し status を保持する（捨ててはならない差分）
+    - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6_
+
+  - [x] 15.4 端: Sync_Mediator（openTimerConnection）で down 確定契機に probeReachability→Classify を配線する
+    - `src/client/connection.ts`: Connectivity が `down` へ確定した契機に**限り**（1 回・常駐ポーリング禁止・DO wake なし・ホットパス分離）`probeReachability(options.storeId)` をベストエフォートで呼び、解決した `UnreachableReason` を `Classify` として `decideView` へ畳み込む。fetch 失敗でも degraded 運用（要件5〜8）を妨げない。`up` 復帰時は `Connectivity(up)` 畳み込みが `unreachableReason` を `"offline"` へ戻すため明示クリアは不要
+    - _Requirements: 15.1, 15.13_
+
+  - [x] 15.5 UI: ConnectionStatus.tsx の degraded 分岐を unreachableReason で 3 分岐に拡張する
+    - `src/client/components/ConnectionStatus.tsx`: `connectionStatus(view)` を純粋導出のまま 3 分岐へ拡張する（`offline`→"Offline — running locally"（既存 `offline` tone 据え置き） / `noAccess`→"No access to this store" / `signInRequired`→"Sign-in required"）
+    - `noAccess` / `signInRequired` 用に `StatusTone` へ `denied` を 1 つ追加し `DOT_BY_TONE` へ 1 行足す（引き算・過剰な色設計をしない）。`mode(view)` の導出も `sync` の扱いも変えない
+    - _Requirements: 15.9, 15.10, 15.11_
+
+  - [ ]* 15.6 probeReachability 分類の example テストを書く（mock fetch）
+    - throw→`offline` / 403→`signInRequired` / 200 リスト在→`offline` / 200 リスト不在→`noAccess` / 404・非配列・パース失敗→`offline` の各分岐を網羅する。加えて、down 確定契機で 1 回だけ probe すること・常駐ポーリングにしないこと・`up` 復帰で `unreachableReason` が `offline` へ戻ることを mock WS ＋ faketime で確認する
+    - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.13_
+
+  - [ ]* 15.7 UI 3 分岐の example テストを書く
+    - `connectionStatus(view)` が `unreachableReason` で英語文言（"Offline — running locally" / "No access to this store" / "Sign-in required"）を出し分けることを確認する
+    - _Requirements: 15.9, 15.10, 15.11_
+
+  - [x] 15.8 チェックポイント — 要件15 追加後に全ゲートが通ることを確認する
+    - `tsc --noEmit` / `oxlint`（0/0） / `vitest --run`（失敗 0）が通ることを確認する。疑問が生じたらユーザーに確認する。
+    - Ensure all tests pass, ask the user if questions arise.
+
 ## Notes
 
 - `*` を付したサブタスクは省略可能（PBT・example・統合・smoke。MVP を急ぐ場合スキップ可）。トップレベルタスクには `*` を付さない。
@@ -209,6 +247,7 @@
 - **core（`src/engine/`）は追加・変更・削除しない。** 変更は `src/client/` 配下と `src/shell/store-timer-do.ts` への `setWebSocketAutoResponse` 一点のみ。既存ワイヤ形式（`ClientMessage` / `ServerMessage`）のみを使う。SSOT 規律（サーバ snapshot が正本・Provisional_Timer は起源タグ付き未確定意図・競合源にしない）と hibernation 規律（heartbeats は auto-response 経路限定・常駐ループは wake させない）を崩さない。書き戻し（reconciliation）はスコープ外。
 - 公開シンボル名は 1.1 で確定してからコードに用いる。本計画中の名前はすべて暫定候補。特に `Sync_Mediator` のパターン名忌避（既存 `TimerConnection` 据え置きが規律に適う）・`Reconcile` の独立性・ping/pong 文字列 / `STORAGE_KEY` の置き場所は実装前に確定する。
 - WS 生存検出の実時間タイミング（ping 間隔・pong タイムアウト・二段階検出）・Mode による経路選択・localStorage の同期 IO・PWA / Service Worker のプラットフォーム挙動・shell の auto-response（wake 抑止）・dev 限定フォルトインジェクションは、入力で振る舞いが変わらない／外部依存／実時間依存の**端**であり、Integration / Example / Smoke（静的検査・実機 E2E）で検証する。degraded → ローカル権限 → 再接続 → provisional 保持の手動 E2E ライフサイクルと「茹で上がりが各 timerId につきちょうど一度鳴る」安全要は iPad 実機で確認する（要件8）。
+- **要件15（到達不能理由）の不変点** — 分類の追加でも core（`src/engine/`）は変更せず、`ClientMessage` / `ServerMessage` に新種別・新フィールドを足さない（分類は HTTP fetch であって WebSocket メッセージではない・要件15.14）。既存 `GET /entry/stores` は**再利用のみ**で新設・改変しない。`unreachableReason`（既定 `offline`）は `down` 時のみ意味を持つ分類結果で、Connectivity（二値）・Mode（導出）とは独立の別軸であり状態へ昇格させない。`Classify` は純粋畳み込み（fetch / HTTP / DOM / 時計に触れない）で、fetch という作用は `probeReachability`（`connectivity.ts` の端）に隔離する（計算と作用の分離）。`unreachableReason` は永続しない（`PersistedView` に含めず再水和は `offline` 起点）。命名（`unreachableReason` / `UnreachableReason` / `Classify` / `probeReachability` / `denied` tone）は naming.md 確認済みの**確定**値で暫定ではない。
 
 ## Task Dependency Graph
 
@@ -222,7 +261,11 @@
     { "id": 4, "tasks": ["2.5", "2.6", "2.7", "2.8", "2.9", "2.10", "2.11", "5.2", "6.3", "7.1", "12.1"] },
     { "id": 5, "tasks": ["7.2", "12.3"] },
     { "id": 6, "tasks": ["7.3", "7.4", "12.2"] },
-    { "id": 7, "tasks": ["13.1"] }
+    { "id": 7, "tasks": ["13.1"] },
+    { "id": 8, "tasks": ["15.1", "15.3"] },
+    { "id": 9, "tasks": ["15.2", "15.4", "15.5"] },
+    { "id": 10, "tasks": ["15.6", "15.7"] },
+    { "id": 11, "tasks": ["15.8"] }
   ]
 }
 ```

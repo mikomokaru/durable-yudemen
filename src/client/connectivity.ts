@@ -18,7 +18,8 @@
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
 import { REJECTION_CLOSE_CODE } from "../transport/rejection";
 import type { ClientMessage, ServerMessage } from "../domain/messages";
-import type { Connectivity, Socket, SocketOpener } from "./connection";
+import { parseStoreChoices } from "./connection";
+import type { Connectivity, Socket, SocketOpener, UnreachableReason } from "./connection";
 
 // 心拍フレーム（PING_REQUEST / PONG_RESPONSE）は client と shell で同一の確定値を共有するため
 // src/transport/heartbeat.ts に一箇所だけ定義する（二重定義の根絶・要件1.1）。ここでは取り込んで
@@ -279,6 +280,64 @@ export function watchConnectivity(
       socket = null;
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// 到達不能理由の分類（probeReachability・要件15）。
+//
+// Connectivity が down へ確定した契機に限り（Sync_Mediator が 1 回だけ呼ぶ・常駐ポーリングにしない・
+// 要件15.13）、既存 GET /entry/stores へ帯域外 HTTP fetch を 1 回発行し、HTTP ステータスと店舗リストから
+// 到達不能理由を分類する作用の端。ブラウザ WebSocket API はハンドシェイクの HTTP ステータスを隠すため、
+// 権限なし（DO の接続時拒否）は close code 1006 に潰れて純粋なオフラインと区別できない——この HTTP fetch が
+// その区別を回復する（要件15）。分類は degraded 運用への付加情報であり、fetch が失敗しても offline へ畳んで
+// ローカル権限・カウントダウン継続・茹で上がり発火（要件5〜8）を一切妨げない。
+//
+// decideView（純粋）は一切呼ばない。ここは fetch と status 判定という「世界を観る手続き」に閉じ、
+// 分類結果 UnreachableReason だけを返す。純粋な Classify 畳み込みは connection.ts の decideView が担う
+// （計算と作用の分離・要件15.8）。
+// ---------------------------------------------------------------------------
+
+/**
+ * 到達不能理由を分類する（作用の端・要件15.1〜15.6）。down 契機で 1 回だけ呼ぶ（要件15.13）。
+ *
+ * GET /entry/stores を自前で 1 回 fetch し、response.status を捨てずに分類する。fetchStoreChoices を
+ * 呼ばないのは、あちらが 403 と 404 をともに空配列へ畳んで status を捨てるため——probeReachability は
+ * 403（signInRequired）と 404（offline）を見分ける必要がある（捨ててはならない差分・要件15.3 / 15.6）。
+ * 共通化するのは「200 ボディから (storeId, name)[] を取り出す純粋部」だけで、connection.ts の共有ヘルパ
+ * parseStoreChoices を import して二重定義を避ける（重複の根絶）。
+ *
+ * 判定表（design.md 準拠。既存 fetchStoreChoices の「空配列へ優雅に劣化」と同じ思想で想定外は offline へ畳む）:
+ *   - fetch が throw（ネットワークエラー）      → "offline"（そもそも到達できていない・要件15.2）
+ *   - HTTP 403                                    → "signInRequired"（Access セッション無効・再ログイン要・要件15.3）
+ *   - HTTP 200 かつ storeId が返却リストに在      → "offline"（当該店舗の認可あり・WS 断は一過性・要件15.5）
+ *   - HTTP 200 かつ storeId が返却リストに不在    → "noAccess"（認証は通るがこの店舗の権限なし・要件15.4）
+ *   - HTTP 404 / その他非 2xx / 非配列 / パース失敗 → "offline"（分類不能・優雅に劣化・要件15.6）
+ */
+export async function probeReachability(storeId: string): Promise<UnreachableReason> {
+  try {
+    // fetchStoreChoices と同じヘッダに倣う。ただし status を捨てず保持して分岐する（捨ててはならない差分）。
+    const response = await fetch("/entry/stores", { headers: { Accept: "application/json" } });
+
+    // 403: Access セッション無効。再認証が要る（要件15.3）。
+    if (response.status === 403) {
+      return "signInRequired";
+    }
+
+    // 200: 店舗リストから当該 storeId の認可有無を判定する。
+    if (response.status === 200) {
+      const data: unknown = await response.json();
+      // 200 ボディの取り出しは共有純粋ヘルパへ委ねる（fetchStoreChoices と同一規律・重複の根絶）。
+      const choices = parseStoreChoices(data);
+      // storeId が返却リストに在れば認可あり＝WS 断は一過性ゆえ offline、不在なら権限なし＝noAccess（要件15.4 / 15.5）。
+      return choices.some((choice) => choice.storeId === storeId) ? "offline" : "noAccess";
+    }
+
+    // 404 / その他の非 2xx はすべて分類不能として offline へ優雅に劣化する（要件15.6）。
+    return "offline";
+  } catch {
+    // ネットワークエラー（fetch の throw）・JSON パース失敗などの想定外はすべて offline へ畳む（要件15.2 / 15.6）。
+    return "offline";
+  }
 }
 
 // ---------------------------------------------------------------------------

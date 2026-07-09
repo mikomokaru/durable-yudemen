@@ -51,6 +51,7 @@ function syncedView(timers: readonly ClientTimer[]): ClientView {
     processedIds: new Set<string>(),
     lastResults: new Map(),
     connectivity: "up",
+    unreachableReason: "offline",
     sync: "synced",
     error: null,
     unitCount: 4,

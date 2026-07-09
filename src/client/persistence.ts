@@ -6,9 +6,10 @@
 // 本ファイル後半にまとめる。コーデック（純粋）と IO（端）を同一ファイル内で明確に分ける。
 //
 // 永続するのは「これ以上分解できない事実」だけ —— timers（起源タグ込み）・クロックオフセット・
-// processedIds。Connectivity / sync / error は導出・一過性のフィールドであり永続しない。
+// processedIds。Connectivity / sync / error / unreachableReason は導出・一過性のフィールドであり永続しない。
 // 再水和後の connectivity は常に "down" 起点（接続未確立 = degraded 起点・要件3）、sync は
-// "connecting"、error は null。これらは EMPTY_VIEW のベース値であり、解析結果へ重ねる。
+// "connecting"、error は null、unreachableReason は "offline" 起点（到達不能理由は一過性・分類前は既定・要件15.7）。
+// これらは EMPTY_VIEW のベース値であり、解析結果へ重ねる。
 
 import type { ClientTimer, ClientView, TimerOrigin } from "./connection";
 import { EMPTY_VIEW } from "./connection";
@@ -20,7 +21,7 @@ import { DEFAULT_FIRMNESS, isFirmness } from "../domain/firmness";
  * 永続ブロブの形（単一 JSON・version 付き・要件11.1）。
  *
  * ClientView から「永続すべき事実」だけを抜き出した射影。processedIds は Set ではなく配列で持つ
- * （JSON は Set を表現できないため）。connectivity / sync / error は導出・一過性ゆえ含めない。
+ * （JSON は Set を表現できないため）。connectivity / sync / error / unreachableReason は導出・一過性ゆえ含めない。
  * version は将来のブロブ形式変更に備えた識別子で、現行は 1 のみを受理する。
  */
 export interface PersistedView {
@@ -100,7 +101,8 @@ export function parsePersistedView(raw: string | null): ClientView {
     }
   }
 
-  // connectivity / sync / error は永続しない。EMPTY_VIEW のベース値（down / connecting / null）へ重ねる。
+  // connectivity / sync / error / unreachableReason は永続しない。EMPTY_VIEW のベース値
+  // （down / connecting / null / "offline"）へ重ねる（unreachableReason は一過性・分類前は既定・要件15.7）。
   return {
     ...EMPTY_VIEW,
     timers,
