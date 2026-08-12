@@ -8,7 +8,7 @@ import type { EpochMillis } from "../engine/types";
 import type { TimerState } from "./state";
 import type { Outcome } from "./effect";
 import { settle } from "./settle";
-import type { SyncParams } from "./sync";
+import type { SettleParams } from "./settle";
 
 /**
  * タイマーキャンセルの状態遷移。対象 Timer を除去し、残り running 集合全体を再同期する（要件6.1 / 6.3 / 6.4 / 6.5・本機能の要件7.2）。
@@ -19,7 +19,7 @@ import type { SyncParams } from "./sync";
  * 権威表現）。Persist を先頭に置くのは SSOT 規律の表明。
  * 残存ゼロなら settle 内の nextAlarmEffect が ClearAlarm を返す（要件6.4）。
  */
-export function cancelTimer(state: TimerState, timerId: string, now: EpochMillis, params: SyncParams): Outcome {
+export function cancelTimer(state: TimerState, timerId: string, now: EpochMillis, params: SettleParams): Outcome {
   // 対象が存在しなければ状態不変で拒否する（要件6.6）。
   if (!state.timers.some((t) => t.id === timerId)) {
     return {
@@ -32,8 +32,8 @@ export function cancelTimer(state: TimerState, timerId: string, now: EpochMillis
   }
   // 対象を除去する。残存は元集合の部分集合であり、除去後は発火対象に現れない（要件6.5）。
   const moved: TimerState = {
+    ...state,
     timers: state.timers.filter((t) => t.id !== timerId),
-    nextSeq: state.nextSeq,
   };
-  return settle(state, moved, params, now);
+  return settle(state, moved, params, now, true);
 }

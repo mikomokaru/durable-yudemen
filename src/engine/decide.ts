@@ -8,25 +8,28 @@
 import type { TimerState } from "./state";
 import type { Event } from "./event";
 import type { Outcome } from "./effect";
-import type { SyncParams } from "./sync";
+import type { SettleParams } from "./settle";
 import { startTimer } from "./start";
 import { cancelTimer } from "./cancel";
 import { completeTimer } from "./complete";
 import { adjustTimer } from "./adjust";
 import { fireDueTimers, reconcile } from "./fire";
+import { arriveOrder, cancelOrder } from "./order";
+import { receivePlan } from "./plan";
 
 /**
  * 唯一の状態遷移関数（要件8.1 / 8.4 / 8.7・本機能の要件7.1 / 7.2）。
  *
  * Start → startTimer / Cancel → cancelTimer / Complete → completeTimer /
- * AlarmFired → fireDueTimers / Reconcile → reconcile。
+ * AlarmFired → fireDueTimers / Reconcile → reconcile /
+ * OrderArrived → arriveOrder / OrderCancelled → cancelOrder / PlanArrived → receivePlan。
  * 網羅は型で保証する（Event は判別共用体であり、未処理の種別は never に落ちて型エラーになる）。
  *
- * params は同期計算の値（arms / toleranceRatio）。engine は StoreConfig 型を知らず、ただの数値の束として
- * 受け取る（非純粋を端へ寄せる規律）。集合や窓を変える Start / Cancel / Complete / Adjust に加え、発火経路の
+ * params は同期計算・採点の値と麺プリセット（SettleParams）。engine は StoreConfig 型を知らず、ただの値の束
+ * として受け取る（非純粋を端へ寄せる規律）。集合や窓を変える Start / Cancel / Complete / Adjust に加え、発火経路の
  * AlarmFired / Reconcile も settle 経由で残り running を全体再同期するため、すべての分岐に params を渡す。
  */
-export function decide(state: TimerState, event: Event, params: SyncParams): Outcome {
+export function decide(state: TimerState, event: Event, params: SettleParams): Outcome {
   switch (event.type) {
     case "Start":
       return startTimer(state, event, params);
@@ -40,5 +43,14 @@ export function decide(state: TimerState, event: Event, params: SyncParams): Out
       return fireDueTimers(state, event.now, params);
     case "Reconcile":
       return reconcile(state, event.now, params);
+    case "OrderArrived":
+      return arriveOrder(state, event, params);
+    case "OrderCancelled":
+      return cancelOrder(state, event.externalOrderId, event.now, params);
+    // 計画受領は Acceptance_Gate を通す（採用があれば mayRequestPlan = false で settle・全棄却なら無変化）。
+    // 産み手は復路の deliverPlan RPC ただ一つ——Solver_Worker（src/solver/index.ts）が計算完了時に呼び、
+    // shell がスキーマ検証を通してからこの分岐へ流す（engine は検証済みの型だけを受ける）。
+    case "PlanArrived":
+      return receivePlan(state, event, params);
   }
 }

@@ -9,7 +9,7 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { decide } from "../../src/engine/decide";
 import type { Event } from "../../src/engine/event";
-import type { SyncParams } from "../../src/engine/sync";
+import type { SettleParams } from "../../src/engine/settle";
 import { MAX_TIMERS } from "../../src/engine/types";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { ServerMessage } from "../../src/domain/messages";
@@ -18,9 +18,10 @@ import type { Firmness } from "../../src/domain/firmness";
 import { genState, nowArbFor } from "./generators";
 import type { TimerState } from "../../src/engine/state";
 import { nonEmpty } from "../nonEmpty";
+import { settleParams } from "../settleParams";
 
 /** 固定の同期パラメータ（既定域内・arms=2 / toleranceRatio=10%）。settle が残り running を再同期する。 */
-const PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
+const PARAMS: SettleParams = settleParams({ arms: 2, toleranceRatio: 10 });
 
 /** 全 Firmness（茹で加減の安定 id）。 */
 const FIRMNESS: readonly Firmness[] = ["extraHard", "hard", "normal", "soft"];
@@ -90,7 +91,8 @@ const genBoundedWireTimer: fc.Arbitrary<TimerFact> = fc.record({
 
 /** snapshot メッセージの UTF-8 バイト長（文字数ではなくエンコード後のバイト数で測る）。 */
 function snapshotByteLength(serverTime: number, timers: readonly TimerFact[]): number {
-  const message: ServerMessage = { type: "snapshot", serverTime, timers };
+  // 待ち行列・推奨の同乗（タスク 14.2）はこの計測の関心事ではないため空で載せる。
+  const message: ServerMessage = { type: "snapshot", serverTime, timers, pendingOrders: [], recommendations: [] };
   return new TextEncoder().encode(JSON.stringify(message)).length;
 }
 

@@ -6,11 +6,12 @@ import { cancelTimer } from "../../src/engine/cancel";
 import { fireDueTimers } from "../../src/engine/fire";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
-import type { SyncParams } from "../../src/engine/sync";
+import type { SettleParams } from "../../src/engine/settle";
 import { genState, nowArbFor } from "./generators";
+import { settleParams } from "../settleParams";
 
 /** 固定の同期パラメータ（既定域内・arms=2 / toleranceRatio=10%）。cancel は settle 経由で残余を再同期する。 */
-const PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
+const PARAMS: SettleParams = settleParams({ arms: 2, toleranceRatio: 10 });
 
 /** adjustment を除いた Timer のアンカー恒等（id・startTime・endTime・seq・boiledAt・slotIds 等）。 */
 function anchorOf(t: Timer): unknown {

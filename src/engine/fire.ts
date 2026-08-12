@@ -25,8 +25,8 @@ import type { TimerState } from "./state";
 import type { Timer } from "./timer";
 import type { Outcome } from "./effect";
 import { settle } from "./settle";
+import type { SettleParams } from "./settle";
 import { synchronize } from "./sync";
-import type { SyncParams } from "./sync";
 import { adjustedEndTime } from "./project";
 
 /**
@@ -43,7 +43,7 @@ import { adjustedEndTime } from "./project";
  * 内部でもう一度 running を synchronize するが、固定点に到達済みゆえ結果は一致する（冪等・Property 9）。
  * 新規 boiled が無く再同期でも確定結果が変わらない no-op のときは settle が Effect 空を返す（要件7.7）。
  */
-export function fireDueTimers(state: TimerState, now: EpochMillis, params: SyncParams): Outcome {
+export function fireDueTimers(state: TimerState, now: EpochMillis, params: SettleParams): Outcome {
   // ε 許容窓。境界に位置する Timer を取りこぼさず一括で茹で上げる閾値（要件2.3 / 2.10 / 3.3）。
   const dueThreshold = (now as number) + EPSILON_MS;
 
@@ -79,12 +79,12 @@ export function fireDueTimers(state: TimerState, now: EpochMillis, params: SyncP
   }
 
   // 固定点に到達した状態（全 due を boiled 化・残り running は最終再同期済み）。nextSeq は発火では変えない。
-  const moved: TimerState = { timers: working, nextSeq: state.nextSeq };
+  const moved: TimerState = { ...state, timers: working };
 
   // settle が Persist 先頭の Effect 列・no-op 抑止・実効最早 Alarm を担う。moved は固定点ゆえ settle 内の
   // 再同期は no-op 的に一致する（synchronize 冪等）。既 boiled は再通知しないため多重発火に安定。茹で上がりの
   // 通知は snapshot 単一表現に畳まれ、client が snapshot の endTime から boiled をローカル導出する。
-  return settle(state, moved, params, now);
+  return settle(state, moved, params, now, true);
 }
 
 /**
@@ -94,6 +94,6 @@ export function fireDueTimers(state: TimerState, now: EpochMillis, params: SyncP
  * 同じ概念を二度書かず fireDueTimers に委ねることで、実効最早算出・発火処理の重複を根絶する。残存最早が
  * 必ず now + ε より未来になる保証も fireDueTimers（と settle）がそのまま担う。
  */
-export function reconcile(state: TimerState, now: EpochMillis, params: SyncParams): Outcome {
+export function reconcile(state: TimerState, now: EpochMillis, params: SettleParams): Outcome {
   return fireDueTimers(state, now, params);
 }

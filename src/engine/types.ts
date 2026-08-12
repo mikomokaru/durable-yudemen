@@ -33,5 +33,7 @@ export const EPSILON_MS = 500 as const;
  *  v3: Timer に boiled フェーズの事実 boiledAt を追加（発火＝除去をやめ、明示完了まで残す）。
  *  v4: Timer に startTime（茹で開始の絶対時刻）を追加。進捗リングの導出元（旧データは endTime で埋める）。
  *  v5: Timer に firmness（茹で加減）を追加。旧データは "normal" で埋める。
- *  v6: Timer に engine 専用の adjustment（同期用の符号付きオフセット）を追加。欠如は 0 で埋める。 */
-export const CURRENT_SCHEMA_VERSION = 6 as const;
+ *  v6: Timer に engine 専用の adjustment（同期用の符号付きオフセット）を追加。欠如は 0 で埋める。
+ *  v7: pendingOrders / acceptedSlices / requestedDigest を追加（調理順スケジューリング）。単一キーは維持する。
+ *      Timer には engine 専用の orderItem（由来する注文品目）が乗る。欠如は null で埋める。 */
+export const CURRENT_SCHEMA_VERSION = 7 as const;

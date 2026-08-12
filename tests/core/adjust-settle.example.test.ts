@@ -9,12 +9,13 @@ import { describe, it, expect } from "vitest";
 import { decide } from "../../src/engine/decide";
 import { createTimer } from "../../src/engine/timer";
 import type { Timer } from "../../src/engine/timer";
-import type { TimerState } from "../../src/engine/state";
+import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { EpochMillis, SlotId, NoodleType, TimerId } from "../../src/engine/types";
 import type { ServerMessage } from "../../src/domain/messages";
 import { nonEmpty } from "../nonEmpty";
+import { settleParams } from "../settleParams";
 
-const params = { arms: 2, toleranceRatio: 10 };
+const params = settleParams({ arms: 2, toleranceRatio: 10 });
 
 /** 単独 running（normal・60s・adjustment 0）。 */
 function singleRunning(): TimerState {
@@ -27,7 +28,7 @@ function singleRunning(): TimerState {
     endTime: 60_000 as EpochMillis,
     seq: 0,
   });
-  return { timers: [timer], nextSeq: 1 };
+  return { ...EMPTY_STATE, timers: [timer], nextSeq: 1 };
 }
 
 describe("adjust — settle no-op 判定は endTime/firmness を確定変化とみなす", () => {

@@ -6,11 +6,12 @@ import { startTimer } from "../../src/engine/start";
 import type { Event } from "../../src/engine/event";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
-import type { SyncParams } from "../../src/engine/sync";
+import type { SettleParams } from "../../src/engine/settle";
 import { genState, genStateExact } from "./generators";
+import { settleParams } from "../settleParams";
 
 /** 固定の同期パラメータ（既定域内・arms=2 / toleranceRatio=10%）。start は settle 経由で全体再同期する。 */
-const PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
+const PARAMS: SettleParams = settleParams({ arms: 2, toleranceRatio: 10 });
 
 /** Start イベントを組み立てる（startTimer は Start 種別だけを受け取る）。 */
 function startEvent(input: {

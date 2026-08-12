@@ -12,7 +12,8 @@ import type { Event } from "./event";
 import type { Outcome } from "./effect";
 import type { Rejection } from "./rejection";
 import { settle } from "./settle";
-import type { SyncParams } from "./sync";
+import type { SettleParams } from "./settle";
+import { consumeOrder } from "./pending";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS } from "../domain/firmness";
@@ -78,8 +79,14 @@ export function validateStart(input: {
  * [Persist, SetAlarm, Broadcast(snapshot)]（snapshot は他 Timer の調整変化も含む全量・実効 endTime を載せる
  * 唯一の権威表現）。Persist を先頭に置くのは SSOT 規律の表明。
  * 拒否時（InvalidBoilSeconds / InvalidSlotOrNoodle / CapacityExceeded）は状態を一切変更せず Rejection を返す。
+ *
+ * **注文品目から始まったときは、その品目を待ち行列から除く**（AC 8.4）。`orderItem` は Timer にも写して
+ * 「どの品目から始まったか」を残す——生きた Timer を持つ品目が modification の再送で待ち行列へ復活するのを
+ * upsertOrder が防ぐための唯一の手掛かりである（engine/timer.ts の Ordered）。
+ * **拒否事由は増やさない**（AC 8.3）。推奨と異なる品目・釜・タイミングで開始しても通す。開始済みの品目を
+ * 再び開始する要求も拒否しない——推奨の一致を検査しないことと同じ立場で、現場の判断に委ねる。
  */
-export function startTimer(state: TimerState, args: StartEvent, params: SyncParams): Outcome {
+export function startTimer(state: TimerState, args: StartEvent, params: SettleParams): Outcome {
   const validated = validateStart(args);
   if (!validated.ok) {
     return { ok: false, rejection: validated.rejection };
@@ -97,6 +104,8 @@ export function startTimer(state: TimerState, args: StartEvent, params: SyncPara
   // endTime は「操作受信時刻 + 茹で時間」の絶対エポックミリ秒（要件1.2）。startTime は操作受信時刻（事実）。
   // 残り秒・進捗・総時間は持たず、この2つの時刻事実から導出する。
   const endTime = (args.now + validated.boilSeconds * 1000) as EpochMillis;
+  // 省略時はアドホック麺茹で（POS を経ない開始）。null か組かの二値へ先に畳み、以降の分岐を一つに保つ。
+  const orderItem = args.orderItem ?? null;
   const timer = createTimer({
     id: args.newTimerId,
     slotIds: validated.slotIds,
@@ -105,11 +114,18 @@ export function startTimer(state: TimerState, args: StartEvent, params: SyncPara
     startTime: args.now,
     endTime,
     seq: state.nextSeq,
+    orderItem,
   });
-  // 基底の集合変更（Timer を adjustment=0 で追加）。同期・no-op 検出・Effect 列組み立ては settle に委ねる。
+  // 基底の集合変更（Timer を adjustment=0 で追加し、由来した品目を待ち行列から除く）。
+  // 同期・no-op 検出・Effect 列組み立ては settle に委ねる。
   const moved: TimerState = {
+    ...state,
     timers: [...state.timers, timer],
     nextSeq: state.nextSeq + 1,
+    pendingOrders:
+      orderItem === null
+        ? state.pendingOrders
+        : consumeOrder(state.pendingOrders, orderItem.externalOrderId, orderItem.itemIndex),
   };
-  return settle(state, moved, params, args.now);
+  return settle(state, moved, params, args.now, true);
 }

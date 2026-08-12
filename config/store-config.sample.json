@@ -7,5 +7,24 @@
     { "noodleType": "つけ", "boilSeconds": { "extraHard": 160, "hard": 180, "normal": 200, "soft": 230 } },
     { "noodleType": "朝麺", "boilSeconds": { "extraHard": 240, "hard": 270, "normal": 300, "soft": 340 } },
     { "noodleType": "限定", "boilSeconds": { "extraHard": 330, "hard": 365, "normal": 400, "soft": 450 } }
+  ],
+  "orderSyncWeight": 3,
+  "tableSyncWeight": 2,
+  "affinityWeight": 1,
+  "orderSyncToleranceSeconds": 30,
+  "tableSyncToleranceSeconds": 60,
+  "affinityToleranceDistance": 14,
+  "unitOrigins": [
+    { "x": 0, "y": 0 },
+    { "x": 4, "y": 0 },
+    { "x": 8, "y": 0 }
+  ],
+  "slotOffsets": [
+    { "x": 0, "y": 0 },
+    { "x": 1, "y": 0 },
+    { "x": 0, "y": 1 },
+    { "x": 1, "y": 1 },
+    { "x": 0, "y": 2 },
+    { "x": 1, "y": 2 }
   ]
 }

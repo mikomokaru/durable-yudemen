@@ -10,11 +10,12 @@ import { describe, expect, it } from "vitest";
 import { fireDueTimers, reconcile } from "../../src/engine/fire";
 import { adjustedEndTime } from "../../src/engine/project";
 import { EPSILON_MS } from "../../src/engine/types";
-import type { SyncParams } from "../../src/engine/sync";
+import type { SettleParams } from "../../src/engine/settle";
 import { genStateAndNow } from "./generators";
+import { settleParams } from "../settleParams";
 
 /** 固定の同期パラメータ（既定域内・arms=2 / toleranceRatio=10%）。発火後の残り running を settle が再同期する。 */
-const PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
+const PARAMS: SettleParams = settleParams({ arms: 2, toleranceRatio: 10 });
 
 describe("core/fire", () => {
   // Feature: yude-men-timer, Property 4: 一括ドレイン後、走行中は実効 endTime が now+ε より未来のみ・期限到来分は boiled として残る。

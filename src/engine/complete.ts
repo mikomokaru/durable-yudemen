@@ -10,7 +10,7 @@ import type { EpochMillis } from "../engine/types";
 import type { TimerState } from "./state";
 import type { Outcome } from "./effect";
 import { settle } from "./settle";
-import type { SyncParams } from "./sync";
+import type { SettleParams } from "./settle";
 
 /**
  * タイマー明示完了の状態遷移。対象 Timer を除去し、残り running 集合全体を再同期する（本機能の要件7.2）。
@@ -20,7 +20,7 @@ import type { SyncParams } from "./sync";
  * [Persist, (SetAlarm|ClearAlarm), Broadcast(snapshot)]（snapshot は残余 Timer の調整変化を含む全量・唯一の
  * 権威表現）。Persist を先頭に置くのは SSOT 規律の表明。
  */
-export function completeTimer(state: TimerState, timerId: string, now: EpochMillis, params: SyncParams): Outcome {
+export function completeTimer(state: TimerState, timerId: string, now: EpochMillis, params: SettleParams): Outcome {
   // 対象が存在しなければ状態不変で拒否する。
   if (!state.timers.some((t) => t.id === timerId)) {
     return {
@@ -33,8 +33,8 @@ export function completeTimer(state: TimerState, timerId: string, now: EpochMill
   }
   // 対象を除去する。残存は元集合の部分集合。
   const moved: TimerState = {
+    ...state,
     timers: state.timers.filter((t) => t.id !== timerId),
-    nextSeq: state.nextSeq,
   };
-  return settle(state, moved, params, now);
+  return settle(state, moved, params, now, true);
 }

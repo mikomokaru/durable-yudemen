@@ -2,7 +2,7 @@
 // cloudflare:workers にも storage にも触れない純粋モジュール。
 //
 // ここは「型のない永続層」と「型のある core」の境界。storage.get が返す unknown を、
-// version を検査したうえで現行スキーマの ActiveTimersSnapshot へ写す。失敗は例外ではなく
+// version を検査したうえで現行スキーマの StoreSnapshot へ写す。失敗は例外ではなく
 // 戻り値（ShellFailure）で表し、いずれの失敗時も入力 raw を一切変更しない（移行を確定しない）。
 
 import { CURRENT_SCHEMA_VERSION } from "../engine/types";
@@ -11,8 +11,11 @@ import { EMPTY_STATE } from "./state";
 import { createTimer } from "./timer";
 import type { Timer } from "./timer";
 import type { ShellFailure } from "./rejection";
-import type { ActiveTimersSnapshot } from "./snapshot";
+import type { StoreSnapshot } from "./snapshot";
 import { toSnapshot } from "./snapshot";
+import type { AcceptedSlice, Placement } from "./schedule";
+import type { InputDigest } from "./digest";
+import type { PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness, type Firmness } from "../domain/firmness";
@@ -24,7 +27,7 @@ import { DEFAULT_FIRMNESS, isFirmness, type Firmness } from "../domain/firmness"
  * 失敗時に snapshot を持たないことが型で保証され、移行未確定のまま先へ進めない。
  */
 export type MigrationOutcome =
-  | { readonly ok: true; readonly snapshot: ActiveTimersSnapshot }
+  | { readonly ok: true; readonly snapshot: StoreSnapshot }
   | { readonly ok: false; readonly failure: ShellFailure };
 
 /**
@@ -69,11 +72,135 @@ export function migrate(raw: unknown): MigrationOutcome {
   if (timers === null || !isNonNegativeInteger(nextSeq)) {
     return { ok: false, failure: { code: "MigrationFailed" } };
   }
+  // v7 で追加した 3 フィールド。欠如（v6 以前）は空値／null で埋める（design.md の移行表）。
+  const pendingOrders = revivePendingOrders(record.pendingOrders);
+  const acceptedSlices = reviveAcceptedSlices(record.acceptedSlices);
+  if (pendingOrders === null || acceptedSlices === null) {
+    return { ok: false, failure: { code: "MigrationFailed" } };
+  }
 
   return {
     ok: true,
-    snapshot: { version: CURRENT_SCHEMA_VERSION, timers, nextSeq },
+    snapshot: {
+      version: CURRENT_SCHEMA_VERSION,
+      timers,
+      nextSeq,
+      pendingOrders,
+      acceptedSlices,
+      // 指紋は「直前に要求した時点の値」でしかなく、失えば次の状態変化で 1 回余分に要求が出るだけ。
+      // 壊れた値を移行失敗にする代償（店舗が起動しない）に見合わないため null へ畳む。
+      requestedDigest: reviveRequestedDigest(record.requestedDigest),
+    },
   };
+}
+
+/**
+ * Pending_Order 集合として解釈する（v7 で追加）。
+ * - 欠如 / null（v6 以前は待ち行列を持たない）→ 空集合。POS 連携前の稼働店に未着手オーダーは存在しない。
+ * - 配列 → 全要素を検証して写す。**一件でも形を満たさなければ全体を移行失敗**（null）。
+ *   reviveTimers と同じ規律であり、domain の toPendingOrders が部分受理を許さないのと同じ理由——
+ *   不正要素を落とせば「注文の一部だけが待ち行列に在る」嘘が生まれ、現場が欠品に気づけない。
+ * - 配列でない → 壊れたデータ（null）。
+ */
+function revivePendingOrders(value: unknown): readonly PendingOrder[] | null {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) return null;
+  const orders: PendingOrder[] = [];
+  for (const element of value) {
+    const order = revivePendingOrder(element);
+    if (order === null) return null;
+    orders.push(order);
+  }
+  return orders;
+}
+
+/**
+ * 一件の raw を PendingOrder へ写す。永続値ゆえ noodleType はプリセットと突き合わせない
+ * （突き合わせは受理時の関心事で、移行時に設定を要求すれば永続層が設定に依存してしまう）。形だけを見る。
+ */
+function revivePendingOrder(value: unknown): PendingOrder | null {
+  if (typeof value !== "object" || value === null) return null;
+  const o = value as Record<string, unknown>;
+  if (typeof o.externalOrderId !== "string" || o.externalOrderId.length === 0) return null;
+  if (!isNonNegativeInteger(o.itemIndex)) return null;
+  if (typeof o.noodleType !== "string" || o.noodleType.length === 0) return null;
+  if (!isFirmness(o.firmness)) return null;
+  // tableId は「無い」ことに意味がある（単独グループ）。欠如／null は null、空文字と非文字列は壊れたデータ。
+  if (o.tableId !== undefined && o.tableId !== null && (typeof o.tableId !== "string" || o.tableId.length === 0)) {
+    return null;
+  }
+  if (typeof o.arrivalTime !== "number" || !Number.isFinite(o.arrivalTime)) return null;
+  return {
+    externalOrderId: o.externalOrderId,
+    itemIndex: o.itemIndex,
+    noodleType: o.noodleType,
+    firmness: o.firmness,
+    tableId: typeof o.tableId === "string" ? o.tableId : null,
+    arrivalTime: o.arrivalTime,
+  };
+}
+
+/**
+ * 採用済み PlanSlice 列として解釈する（v7 で追加）。
+ * 欠如は空集合（採用済み外部計画なし＝Committed_Plan は Baseline のみ）。
+ * 不正要素は revivePendingOrders と同じく全体を移行失敗にする——採用は再計算で復元できない事実であり、
+ * 一部を黙って落とせば「この店が採用した計画」が静かに書き換わる。
+ */
+function reviveAcceptedSlices(value: unknown): readonly AcceptedSlice[] | null {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) return null;
+  const slices: AcceptedSlice[] = [];
+  for (const element of value) {
+    const slice = reviveAcceptedSlice(element);
+    if (slice === null) return null;
+    slices.push(slice);
+  }
+  return slices;
+}
+
+/** 一件の raw を AcceptedSlice へ写す。score は整数（目的関数値は整数で閉じる）。 */
+function reviveAcceptedSlice(value: unknown): AcceptedSlice | null {
+  if (typeof value !== "object" || value === null) return null;
+  const s = value as Record<string, unknown>;
+  if (typeof s.tableKey !== "string" || s.tableKey.length === 0) return null;
+  if (typeof s.score !== "number" || !Number.isInteger(s.score)) return null;
+  if (!Array.isArray(s.placements)) return null;
+  const placements: Placement[] = [];
+  for (const element of s.placements) {
+    const placement = revivePlacement(element);
+    if (placement === null) return null;
+    placements.push(placement);
+  }
+  return { tableKey: s.tableKey, placements, score: s.score };
+}
+
+/** 一件の raw を Placement へ写す。slotIds は Timer と同じ非空配列の規律に従う。 */
+function revivePlacement(value: unknown): Placement | null {
+  if (typeof value !== "object" || value === null) return null;
+  const p = value as Record<string, unknown>;
+  if (typeof p.externalOrderId !== "string" || p.externalOrderId.length === 0) return null;
+  if (!isNonNegativeInteger(p.itemIndex)) return null;
+  const slotIds = reviveSlotIds(p.slotIds, undefined);
+  if (slotIds === null) return null;
+  if (typeof p.startAt !== "number" || !Number.isFinite(p.startAt)) return null;
+  if (typeof p.serveAt !== "number" || !Number.isFinite(p.serveAt)) return null;
+  return {
+    externalOrderId: p.externalOrderId,
+    itemIndex: p.itemIndex,
+    slotIds: slotIds as NonEmptyArray<SlotId>,
+    startAt: p.startAt as EpochMillis,
+    serveAt: p.serveAt as EpochMillis,
+  };
+}
+
+/**
+ * 永続の requestedDigest を現行 v7 形へ写す（v7 で追加）。
+ * 欠如 / null（v6 以前）と数値でない値はいずれも null（未要求扱い）。指紋は等値比較しかされず、
+ * 失った代償は「次の状態変化で 1 回余分に要求が出る」だけで無害である。
+ */
+function reviveRequestedDigest(value: unknown): InputDigest | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value as InputDigest;
+  return null;
 }
 
 /** Timer の配列として解釈する。一件でも形を満たさなければ全体を移行失敗扱いにする（null）。 */
@@ -121,6 +248,8 @@ function reviveTimer(value: unknown): Timer | null {
   // adjustment は v6 で追加。欠如/null（v5 以前）は 0 で埋める（移行後の reconcile が running を再同期する）。非有限は移行失敗。
   const adjustment = reviveAdjustment(t.adjustment);
   if (adjustment === null) return null;
+  // orderItem は v7 で追加。欠如/null（v6 以前・アドホック麺茹で）と形を満たさない値は null へ畳む。
+  const orderItem = reviveOrderItem(t.orderItem);
   return createTimer({
     id: t.id as TimerId,
     slotIds: slotIds as NonEmptyArray<SlotId>,
@@ -131,7 +260,27 @@ function reviveTimer(value: unknown): Timer | null {
     seq: t.seq,
     boiledAt,
     adjustment,
+    orderItem,
   });
+}
+
+/**
+ * 永続の orderItem 表現を現行 v7 形へ写す（v7 で追加）。
+ * - 欠如 / null（v6 以前は注文紐づけを持たない）→ null（アドホック麺茹で扱い）。
+ * - { externalOrderId: 非空文字列; itemIndex: 0 以上の整数 } → その参照。
+ * - それ以外 → null へ畳む（移行失敗にしない）。
+ *
+ * 移行失敗にしないのは、この参照の用途が「開始済み品目を Pending_Order の置換から除く」ひとつであり、
+ * 失っても起きるのは二重調理の防止が効かない可能性だけで、Timer 自体の計時は完全に保たれるためである。
+ * 壊れた紐づけで店舗全体を起動不能にする代償の方が大きい（adjustment を移行失敗にする判断とは、
+ * 失われる事実の重さが違う——あちらは実効 endTime、すなわち計時そのものを歪める）。
+ */
+function reviveOrderItem(value: unknown): { readonly externalOrderId: string; readonly itemIndex: number } | null {
+  if (typeof value !== "object" || value === null) return null;
+  const item = value as Record<string, unknown>;
+  if (typeof item.externalOrderId !== "string" || item.externalOrderId.length === 0) return null;
+  if (!isNonNegativeInteger(item.itemIndex)) return null;
+  return { externalOrderId: item.externalOrderId, itemIndex: item.itemIndex };
 }
 
 /**

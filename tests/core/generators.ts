@@ -13,7 +13,7 @@ import { EPSILON_MS, MAX_TIMERS } from "../../src/engine/types";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { Firmness } from "../../src/domain/firmness";
 import type { Timer } from "../../src/engine/timer";
-import type { TimerState } from "../../src/engine/state";
+import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import { nonEmpty } from "../nonEmpty";
 
 /** 一件の Timer を組み立てるための素データ（id・seq はビルド時に決定的に付与する）。 */
@@ -51,7 +51,7 @@ function buildState(specs: readonly TimerSpec[], extraSeq: number): TimerState {
     }),
   );
   // nextSeq は既存 seq（0..length-1）と整合し、かつ未使用の余白を持ちうる。
-  return { timers, nextSeq: specs.length + extraSeq };
+  return { ...EMPTY_STATE, timers, nextSeq: specs.length + extraSeq };
 }
 
 /** 0〜maxLength 件の TimerState を生成する。 */

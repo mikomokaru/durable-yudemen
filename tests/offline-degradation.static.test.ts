@@ -56,16 +56,30 @@ const PERSISTENCE_FILE = "src/client/persistence.ts";
 /** core が持つべき純粋変換ファイルの確定集合（ここに増減があれば core が触られた証跡）。 */
 const EXPECTED_CORE_FILES = [
   "src/engine/adjust.ts",
+  "src/engine/admit.ts",
   "src/engine/alarm.ts",
   "src/engine/cancel.ts",
+  "src/engine/commit.ts",
   "src/engine/complete.ts",
   "src/engine/decide.ts",
+  // admit.ts / commit.ts / digest.ts / schedule.ts / objective.ts / order.ts / pending.ts / plan.ts /
+  // recommend.ts は調理順スケジューリング（online-cook-scheduling）が足した engine の型・採点・合成・
+  // 受け入れゲート・オーダー到着の遷移・待ち行列の集合操作・計画受領の遷移・推奨の導出。
+  // この確定集合が守るのは「オフライン劣化由来の変更が core に無い」ことで、他 spec の正当な追加は追随させる
+  // （追随させても後続の禁止トークン検査・import 検査は新ファイルにも掛かる）。
+  "src/engine/digest.ts",
   "src/engine/effect.ts",
   "src/engine/event.ts",
   "src/engine/fire.ts",
   "src/engine/migrate.ts",
+  "src/engine/objective.ts",
+  "src/engine/order.ts",
+  "src/engine/pending.ts",
+  "src/engine/plan.ts",
   "src/engine/project.ts",
+  "src/engine/recommend.ts",
   "src/engine/rejection.ts",
+  "src/engine/schedule.ts",
   "src/engine/settle.ts",
   "src/engine/snapshot.ts",
   "src/engine/start.ts",

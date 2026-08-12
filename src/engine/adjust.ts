@@ -17,7 +17,7 @@ import type { TimerState } from "./state";
 import type { Timer } from "./timer";
 import type { Outcome } from "./effect";
 import { settle } from "./settle";
-import type { SyncParams } from "./sync";
+import type { SettleParams } from "./settle";
 
 /**
  * 茹で加減変更の状態遷移。対象 Timer のオリジナル endTime（アンカー）を新しい茹で秒で引き直し、
@@ -35,7 +35,7 @@ export function adjustTimer(
   firmness: Firmness,
   boilSeconds: number,
   now: EpochMillis,
-  params: SyncParams,
+  params: SettleParams,
 ): Outcome {
   const target = state.timers.find((t) => t.id === timerId);
   if (target === undefined) {
@@ -59,8 +59,8 @@ export function adjustTimer(
   const updated: Timer = { ...target, firmness, endTime };
   // 基底の集合変更（対象のアンカーと firmness を差し替え）。同期・no-op 検出・Effect 列組み立ては settle に委ねる。
   const moved: TimerState = {
+    ...state,
     timers: state.timers.map((t) => (t.id === timerId ? updated : t)),
-    nextSeq: state.nextSeq,
   };
-  return settle(state, moved, params, now);
+  return settle(state, moved, params, now, true);
 }

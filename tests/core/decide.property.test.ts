@@ -6,11 +6,12 @@ import { decide } from "../../src/engine/decide";
 import type { Event } from "../../src/engine/event";
 import type { TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
-import type { SyncParams } from "../../src/engine/sync";
+import type { SettleParams } from "../../src/engine/settle";
 import { genNow, genState } from "./generators";
+import { settleParams } from "../settleParams";
 
 /** 固定の同期パラメータ（既定域内・arms=2 / toleranceRatio=10%）。decide は Start/Cancel/Complete を settle 経由で再同期する。 */
-const PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
+const PARAMS: SettleParams = settleParams({ arms: 2, toleranceRatio: 10 });
 
 /** 妥当寄りの Start イベント（ok:true を多く踏ませ、Effect 列の構造を検証可能にする）。 */
 const genStartEvent: fc.Arbitrary<Event> = fc
@@ -83,9 +84,11 @@ describe("core/decide", () => {
           if (outcome.ok) state = outcome.state;
         }
         for (const timer of state.timers) {
-          // 状態が保持する事実は id/slotIds/noodleType/startTime/endTime/firmness/seq/boiledAt/adjustment のみ。remaining は存在しない（要件10.1）。
+          // 状態が保持する事実は id/slotIds/noodleType/startTime/endTime/firmness/seq/boiledAt/adjustment/orderItem のみ。
+          // remaining は存在しない（要件10.1）。
           // startTime/endTime は開始・終了の絶対時刻（事実）。firmness は茹で加減の共有事実。boiledAt は発火を記録した
           // engine 専用の事実（null=running・非null=boiled）。adjustment は同期のための engine 専用オフセット（初期値 0）。
+          // orderItem は由来する注文品目への engine 専用の紐づけ（null=アドホック麺茹で）。
           // いずれも残り秒・進捗の昇格ではない（それらは導出）。
           expect(Object.keys(timer).sort()).toEqual([
             "adjustment",
@@ -94,6 +97,7 @@ describe("core/decide", () => {
             "firmness",
             "id",
             "noodleType",
+            "orderItem",
             "seq",
             "slotIds",
             "startTime",
