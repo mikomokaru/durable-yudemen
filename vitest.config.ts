@@ -27,6 +27,12 @@ export default defineConfig({
             "tests/offline-degradation.static.test.ts",
             // 撤去・不変・漏洩不能の静的検査（タスク7.3）。node:fs でソースを読むため node 環境で実行する。
             "tests/per-store-provisioning.static.test.ts",
+            // Operation History O1〜O3 の no-wake/no-storage 検査。node:fs と TypeScript AST を使う。
+            "tests/operation-history/no-wake.static.test.ts",
+            // Operation History の Timer モデル規律。node:fs で導出ソースを読むため node 環境で実行する。
+            "tests/operation-history/timer-model.static.test.ts",
+            // Operation History の設定キー確認（タスク11.1）。node:fs で導入済み Wrangler schema を読む。
+            "tests/operation-history/wrangler-config-keys.static.test.ts",
             // Wake_Lock マウントの依存確認（タスク6.1）。node:fs で App.tsx を読むため node 環境で実行する。
             "tests/client/audioWakeLock.example.test.ts",
           ],
@@ -78,11 +84,34 @@ export default defineConfig({
         plugins: [
           cloudflareTest({
             wrangler: { configPath: "./wrangler.jsonc" },
+            // SOLVER（Solver_Worker への Service binding）の相手先を補助 Worker として立てる。
+            // workerd は binding が指す service が定義されていないと起動そのものを拒むため、
+            // wrangler.jsonc に services を書いた時点でテスト環境にも相手先が要る。
+            //
+            // **実体（src/solver/index.ts）は置けない。** 補助 Worker は Vite のビルドを経ず、TypeScript の
+            // エントリをそのまま渡せないためである（実体のデプロイは wrangler.solver.jsonc の担当）。
+            // ゆえに往路の受理（202）だけを返す。これは骨格 Solver の観測可能な振る舞いと一致し、
+            // 復路（deliverPlan）はテストから直接呼ぶ（design の Integration 表・tasks.md 20.6）。
+            miniflare: {
+              workers: [
+                {
+                  name: "yude-men-solver",
+                  modules: true,
+                  script: "export default { fetch: () => new Response(null, { status: 202 }) };",
+                },
+              ],
+            },
           }),
         ],
         test: {
           name: "workers",
           include: ["tests/**/*.test.ts"],
+          // DO 統合テストの時間予算はプロジェクト単位で決める。個別の it(..., { timeout }) にしない
+          // のは、同種の DO 統合テストが増えるたびに書き足す形を避け、概念を 1 箇所へ収めるためである。
+          // 20 秒の根拠：100 店 fan-out（tests/shell/registry-fanout.integration.test.ts）の実測が
+          // 全量実行時 4.3〜5.2s で、既定 5s をほぼ使い切る。4 倍の余裕を持たせつつ、真の hang は
+          // 依然検出できる幅に留める。
+          testTimeout: 20_000,
           // 静的検査と、observe の純粋層テスト（node project が担当）は Workers pool から除外する。
           // observe の統合テスト（*.integration.test.ts）はここに残し Workers pool で実行する。
           exclude: [
@@ -90,6 +119,9 @@ export default defineConfig({
             "tests/offline-degradation.static.test.ts",
             // node:fs でソースを読む静的検査は static プロジェクト（node）が担当する。
             "tests/per-store-provisioning.static.test.ts",
+            "tests/operation-history/no-wake.static.test.ts",
+            "tests/operation-history/timer-model.static.test.ts",
+            "tests/operation-history/wrangler-config-keys.static.test.ts",
             "tests/client/audioWakeLock.example.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
