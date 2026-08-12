@@ -1,0 +1,34 @@
+{
+  // Solver_Worker（要件12）。Service binding は別 Worker を要するため、リポジトリ内の 2 つ目の Worker として
+  // 独立した設定を持つ。root（wrangler.jsonc）が Timer 本体の正本であり、こちらは計画計算だけの端である。
+  // デプロイは `wrangler deploy --config wrangler.solver.jsonc`（root の deploy とは独立）。
+  "name": "yude-men-solver",
+  "main": "src/solver/index.ts",
+  // root と同一の日付に揃える（tooling.md の確定値）。二つの Worker で挙動の既定が食い違わないようにする。
+  "compatibility_date": "2026-06-26",
+  "observability": {
+    "enabled": true
+  },
+  // limits.cpu_ms は**書かない**（既定のまま据え置く・AC 12.4）。実効の壁は invocation 終了後の
+  // ctx.waitUntil に掛かる 30 秒の上限であり、cpu_ms を上げてもこの壁は伸びない。打ち切りは自前の
+  // 予算 5 秒（src/solver/index.ts の SOLVE_BUDGET_MS）で行う。
+  //
+  // ネットワークへ露出させない。この Worker への正当な到達経路は root の SOLVER Service binding ただ一つで、
+  // routes も custom domain も持たず、workers.dev / preview URL も閉じる。ゆえに往路に独自のトークンを
+  // 置かない——binding を引けることが認可そのものである（ORDER_INGRESS_TOKEN が要るのは POS が
+  // インターネット越しに叩く経路だからで、ここは内部経路である）。
+  "workers_dev": false,
+  "preview_urls": false,
+  // 復路 RPC のための DO バインディング（AC 12.1）。クラスの所有者は root の Worker ゆえ script_name で
+  // 指す（cross-script binding）。migrations はこちらに置かない——クラスを定義しない Worker は
+  // ストレージの持ち主ではない（持ち主を二箇所にすると SSOT が割れる）。
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STORE_TIMER_DO",
+        "class_name": "StoreTimerDO",
+        "script_name": "yude-men-timer"
+      }
+    ]
+  }
+}
