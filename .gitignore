@@ -13,6 +13,11 @@ worker-configuration.d.ts
 # Workers のローカル secret（ADMIN_TOKEN 等）。機微情報のため追跡しない。
 .dev.vars
 
+# graphify の生成物（graph.json / graph.html / GRAPH_REPORT.md / 抽出キャッシュ）。
+# ソースから再生成できる派生物であり、履歴に載せる価値がない。
+# 除外設定 .graphifyignore と抽出プロンプト .graphify/ は生成物ではないため追跡する。
+/graphify-out/
+
 # 観測ハーネスの実行時アーティファクト（Operation_Log / Instrumentation_Log の収集物）。
 # シナリオ定義（tools/observe/scenarios/）はフィクスチャとして追跡する。
 /operation-log.jsonl
