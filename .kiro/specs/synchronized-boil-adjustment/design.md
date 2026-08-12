@@ -34,7 +34,7 @@
 ### スコープ外（design 判断として固定）
 
 - **バッチ membership の最適化** — どの Timer を同一 Sync_Set にまとめるかは、オリジナル `endTime` 昇順チャンク（先頭から arms 本ずつ）で固定する。membership 自体を最適化対象にすることは将来検討とし、本設計では扱わない（要件2 の申し送りどおり）。
-- **client への調整パラメータ配信** — arms・Tolerance_Ratio は client へ送らない（client は実効 `endTime` だけで足りる）。理由は Components「client 変更不要の担保」を参照。
+- **client への調整パラメータ配信** — arms・Tolerance_Ratio は client へ送らない（client は実効 `endTime` だけで足りる）。理由は Components「client 変更不要の担保」を参照。**（改訂: 本方針は online-cook-scheduling design で StoreConfig 全配信へ改めた。あちらの記録が現行の正本）**
 
 ---
 
@@ -272,7 +272,7 @@ export function adjustedEndTime(timer: Timer): EpochMillis {
 ### StoreConfig の拡張と設定ロード（shell）
 
 - **`StoreConfig` に `arms` / `toleranceRatio` を追加**（`domain/store.ts`）。検証関数 `toArms` / `toToleranceRatio` を足し、不正値は**当該パラメータのみ**既定へ畳む（要件6.4：他の妥当なパラメータは保持）。
-- **shell（`store-timer-do.ts`）** — `ensureConfigLoaded` が env シード（`STORE_ARMS` / `STORE_TOLERANCE_RATIO`）または永続値から `arms` / `toleranceRatio` を確立し、`this.arms` / `this.toleranceRatio` に保持する（`unitCount` / `noodlePresets` と同じ系統）。`applyStoreConfig`（PUT /admin/config）も同様に全体置換する。`decide` 呼び出し時に `{ arms: this.arms, toleranceRatio: this.toleranceRatio }` を渡す。**client への `config` 配信対象には含めない。**
+- **shell（`store-timer-do.ts`）** — `ensureConfigLoaded` が env シード（`STORE_ARMS` / `STORE_TOLERANCE_RATIO`）または永続値から `arms` / `toleranceRatio` を確立し、`this.arms` / `this.toleranceRatio` に保持する（`unitCount` / `noodlePresets` と同じ系統）。`applyStoreConfig`（PUT /admin/config）も同様に全体置換する。`decide` 呼び出し時に `{ arms: this.arms, toleranceRatio: this.toleranceRatio }` を渡す。**client への `config` 配信対象には含めない。（改訂: 本方針は online-cook-scheduling design で `StoreConfig` 全配信へ改めた。あちらの記録が現行の正本。理由は「設計判断の要点」の同項を参照）**
 
 ---
 
