@@ -6,7 +6,8 @@
 import type { TimerFact } from "../../domain/timer";
 import type { ClientTimer, ClientView } from "../connection";
 import { correctedNow, remainingMs } from "../clock";
-import { assignedTimers, slotOf, slotsOfUnits } from "../assignment";
+import { assignedTimers, slotsOfUnits } from "../assignment";
+import { slotOf } from "../../domain/store";
 
 /**
  * 担当スロット 1 つの表示状態。

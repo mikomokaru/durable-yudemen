@@ -47,6 +47,9 @@ function timerOnSlot(slot: number, id: string): ClientTimer {
 function syncedView(timers: readonly ClientTimer[]): ClientView {
   return {
     timers,
+    // 待ち行列と推奨は担当絞り込みの主張に関与しないため空に据える。
+    pendingOrders: [],
+    recommendations: [],
     offset: 0,
     processedIds: new Set<string>(),
     lastResults: new Map(),

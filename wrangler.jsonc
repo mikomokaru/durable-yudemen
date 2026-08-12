@@ -6,6 +6,8 @@
     "enabled": true
   },
   // 観測ハーネスの debug flag。"1" で計装ログ出力が有効・既定は無効（"0"）。
+  // Operation History は独立した OPERATION_HISTORY_ENABLED で切り替え、debug 計装と共有しない。
+  // 既定 OFF（"0"）とし、"1" のときだけ確定差分の同期 console 出力を試行する。
   // 本番での有効化はデプロイ時オーバーライドで行う（要件4.10/8.3/8.4）。
   // ACCESS_REQUIRED: Cloudflare Access 統合の有効化フラグ（パイロットスイッチ・要件8.7）。
   //   既定 OFF（"0"）= 合鍵 URL（推測困難な Store_Path の直叩き）のみで接続。JWT 検証・Roster 判定・Entry 行き先解決は休眠。
@@ -19,8 +21,12 @@
   // 設定投入は Provisioning_API → StoreRegistryDO → StoreTimerDO の一本に統一する（要件2.7 / 9.3）。
   // ADMIN_TOKEN（運用エンドポイントの Bearer トークン）は秘密のため vars に置かず secret で投入する:
   //   本番: `wrangler secret put ADMIN_TOKEN`／ローカル dev: `.dev.vars` に ADMIN_TOKEN=... を置く。
+  // ORDER_INGRESS_TOKEN（Order_Ingress `POST /s/{storeId}/orders` の Bearer トークン）も同様に secret で投入する:
+  //   本番: `wrangler secret put ORDER_INGRESS_TOKEN`／ローカル dev: `.dev.vars` に ORDER_INGRESS_TOKEN=... を置く。
+  //   ADMIN_TOKEN とは別の鍵にする（POS は設定を投入する主体ではなく、運用系の書き込み口を開かない）。
   "vars": {
     "OBSERVE_DEBUG": "0",
+    "OPERATION_HISTORY_ENABLED": "0",
     "ACCESS_REQUIRED": "0",
     "TEAM_DOMAIN": "https://<team>.cloudflareaccess.com",
     "POLICY_AUD": "<access-app-aud>"
@@ -37,6 +43,19 @@
       }
     ]
   },
+  // Solver_Worker への Service binding（online-cook-scheduling 要件12.1）。往路（RequestPlan の送出）はこの
+  // binding ただ一つを通り、shell は受理応答（202）のみを await する（AC 5.2 / 12.2）。復路は Solver_Worker が
+  // STORE_TIMER_DO.deliverPlan を呼ぶ RPC で、こちら側に受け口の設定は要らない。
+  // 対象 Worker の設定は wrangler.solver.jsonc（`wrangler deploy --config wrangler.solver.jsonc`）。
+  // **binding が唯一の到達経路である**（あちらは routes も workers.dev も持たない）ため、往路に独自の
+  // secret は置かない。不達・エラーはすべて「何も起きない」に収束し、Timer 本体は自前解だけで成立し続ける
+  // （AC 10.1 / 10.2）。
+  "services": [
+    {
+      "binding": "SOLVER",
+      "service": "yude-men-solver"
+    }
+  ],
   // SQLite ストレージバックエンド（非同期 KV API のみ使用。SQL API は使わない）
   "migrations": [
     {
@@ -48,6 +67,27 @@
       "new_sqlite_classes": ["StoreRegistryDO"]
     }
   ],
+  // Operation History の Tail attachment。root は Producer 設定の SSOT であり、ここに置くのは
+  // Tail Worker を指す tail_consumers attachment だけである（要件4.1 / 4.9）。
+  // Queue producer／consumer、R2、Consumer への binding、観測用 DO・storage・Alarm は root へ置かない。
+  // StoreTimerDO の env から下流（Queue / Consumer / R2 / Snowpipe / Snowflake）へ到達できないことを、
+  // 生成 Env 型に当該能力が現れないという形で設定構造が保証する（要件1.3 / 1.7 / 1.9 / 4.10 / 4.13 / 4.14）。
+  //
+  // 形はタスク11.1 で導入済み Wrangler v4 の config-schema.json と公式 Tail Workers 資料に照合済み。
+  // service だけが必須。named environment へは継承されないため、環境を分けるときは環境ごとに書く。
+  //
+  // 段階的有効化（無効のままコミットする理由）:
+  //   tail_consumers に挙げた Worker は tail() handler を持つ実在 script でなければならず、未デプロイの
+  //   service を指すと wrangler deploy が失敗する。main への push は CI が wrangler deploy を自動実行する
+  //   ため、Tail Worker のデプロイ前に有効化すると本番デプロイを壊す。有効化の順序は
+  //   「下流疎通（Queue / Consumer / R2）→ Tail fixture 検証 → Producer attachment」に固定する（tasks.md 15.4）。
+  //
+  // 有効化手順: タスク11.3 で確定する Tail Worker の実 script 名を <TAIL_WORKER_SCRIPT_NAME> へ入れ、
+  //   下の3行のコメントを外す。無効化（切戻し）は再コメント化だけで済み、Timer の state migration、
+  //   backfill、Producer 再出力、DO 再起動をいずれも必要としない（要件4.8）。
+  // "tail_consumers": [
+  //   { "service": "<TAIL_WORKER_SCRIPT_NAME>" }
+  // ],
   // React 静的アセットを同一オリジンで配信。SPA フォールバック。
   "assets": {
     "binding": "ASSETS",

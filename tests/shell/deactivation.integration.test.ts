@@ -20,7 +20,8 @@ import type { StoreProjection } from "../../src/registry/projection";
 import type { ServerMessage } from "../../src/domain/messages";
 import type { StoreConfig } from "../../src/domain/store";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
-import type { ActiveTimersSnapshot } from "../../src/engine/snapshot";
+import type { StoreSnapshot } from "../../src/engine/snapshot";
+import { schedulingDefaults } from "../storeConfigDefaults";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO バインディングを型付きで引く）。
 declare module "cloudflare:test" {
@@ -46,6 +47,7 @@ const CONFIG: StoreConfig = {
   arms: 2,
   toleranceRatio: 10,
   noodlePresets: DEFAULT_NOODLE_PRESETS,
+  ...schedulingDefaults(3),
 };
 
 /** 活性/非活性・version を差し替えて投影を組む。roster はワイヤに出ない内部値ゆえ空でよい。 */
@@ -194,7 +196,7 @@ describe("非活性化（deactivated）時の接続閉鎖と拒否・状態保�
       expect(storedProjection!.version).toBe(2);
 
       // タイマー SSOT は保持される（deleteAll していない）。開始した 1 本が残る。
-      const snapshot = (await state.storage.get(SNAPSHOT_KEY)) as ActiveTimersSnapshot | undefined;
+      const snapshot = (await state.storage.get(SNAPSHOT_KEY)) as StoreSnapshot | undefined;
       expect(snapshot).toBeDefined();
       expect(snapshot!.timers.length).toBe(1);
 

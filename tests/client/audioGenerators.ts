@@ -66,6 +66,9 @@ export const genUnits: fc.Arbitrary<readonly number[]> = fc.uniqueArray(fc.integ
 export const genAudioView: fc.Arbitrary<ClientView> = genClientView.map(
   (view): ClientView => ({
     timers: view.timers,
+    // 待ち行列と推奨は boiled 導出（音声キューの入力）に影響しないため空に据える。
+    pendingOrders: [],
+    recommendations: [],
     offset: view.offset,
     processedIds: view.processedIds,
     connectivity: view.connectivity,

@@ -15,6 +15,16 @@ export interface AdminAuthEnv {
 }
 
 /**
+ * Order_Ingress の認可が依存する env の最小面。ADMIN_TOKEN とは**別の secret** である（要件1 の確定注記）。
+ *
+ * POS は設定を投入する主体ではない。Provisioning_API の鍵を POS ベンダへ渡せば、オーダーを届けるだけの
+ * 相手に運用系の書き込み口（チェーン・Policy・店舗イデアの全置換）まで開いてしまう。ゆえに鍵を分ける。
+ */
+export interface OrderIngressAuthEnv {
+  readonly ORDER_INGRESS_TOKEN?: string;
+}
+
+/**
  * 定数時間の文字列比較。タイミング差から正解トークンを推測されないよう、長さの一致・不一致に関わらず
  * 全文字を走査して差分を畳む。認証トークンの照合という、漏れたら全店舗設定を奪われる経路で用いる。
  */
@@ -28,14 +38,32 @@ export function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /**
- * 運用エンドポイントの認可。env シークレット ADMIN_TOKEN と Authorization: Bearer <token> を定数時間で照合する。
+ * `Authorization: Bearer <token>` を期待値と定数時間で照合する芯。公開しない。
+ *
  * トークン未設定（空）の環境では常に不許可（誤って無認証で公開しない安全側の既定）。
+ * 抽出の判断（design-philosophy「抽象は重複が実在してから入れる」）：鍵の異なる 2 経路
+ * （Provisioning_API と Order_Ingress）が同じ照合を要し、重複が実在した時点で芯を寄せた。公開シンボルは
+ * 経路ごとの述語のまま残す——呼び出し側が「どの鍵で守られた経路か」を名前で読めることが認可の可読性の芯である。
  */
-export function isAdminAuthorized(request: Request, env: AdminAuthEnv): boolean {
-  const expected = env.ADMIN_TOKEN ?? "";
+function isBearerAuthorized(request: Request, expected: string): boolean {
   if (expected.length === 0) return false;
   const header = request.headers.get("Authorization") ?? "";
   const prefix = "Bearer ";
   if (!header.startsWith(prefix)) return false;
   return timingSafeEqual(header.slice(prefix.length), expected);
+}
+
+/**
+ * 運用エンドポイントの認可。env シークレット ADMIN_TOKEN と Authorization: Bearer <token> を定数時間で照合する。
+ */
+export function isAdminAuthorized(request: Request, env: AdminAuthEnv): boolean {
+  return isBearerAuthorized(request, env.ADMIN_TOKEN ?? "");
+}
+
+/**
+ * Order_Ingress の認可（AC 1.1）。env シークレット ORDER_INGRESS_TOKEN と Bearer トークンを定数時間で照合する。
+ * 不一致・欠如は呼び出し側が 401 に写し、店舗 DO へ一切到達させない（認可されない要求は状態を変更しない）。
+ */
+export function isOrderIngressAuthorized(request: Request, env: OrderIngressAuthEnv): boolean {
+  return isBearerAuthorized(request, env.ORDER_INGRESS_TOKEN ?? "");
 }

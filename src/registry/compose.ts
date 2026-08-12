@@ -4,6 +4,14 @@
 
 import type { Policy, PolicyFields, StoreOverride } from "./ideal";
 import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_AFFINITY_WEIGHT,
+  DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
+  DEFAULT_ORDER_SYNC_WEIGHT,
+  DEFAULT_SLOT_OFFSETS,
+  DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
+  DEFAULT_TABLE_SYNC_WEIGHT,
+  defaultUnitOrigins,
   type StoreConfig,
   toUnitCount,
   toArms,
@@ -11,11 +19,21 @@ import {
   toNoodlePresets,
 } from "../domain/store";
 
-/** StoreConfig と対応する合成対象フィールド名（PolicyFields / StoreOverride が主張しうる集合）。 */
-type ConfigField = keyof StoreConfig;
+/**
+ * 合成が畳むフィールドの正準列挙。PolicyFields・StoreOverride・StoreConfig の三者で共通の語彙。
+ *
+ * StoreConfig の全フィールドではない（重み・許容幅・レイアウトはイデアの主張対象に入っていない）。
+ * satisfies で「StoreConfig のキーであること」だけを型で縛り、集合そのものはここが正本。
+ */
+const CONFIG_FIELDS = [
+  "unitCount",
+  "arms",
+  "toleranceRatio",
+  "noodlePresets",
+] as const satisfies readonly (keyof StoreConfig)[];
 
-/** 合成が畳むフィールドの正準列挙。PolicyFields・StoreOverride・StoreConfig の三者で共通の語彙。 */
-const CONFIG_FIELDS: readonly ConfigField[] = ["unitCount", "arms", "toleranceRatio", "noodlePresets"];
+/** 合成対象フィールド名（PolicyFields / StoreOverride が主張しうる集合）。 */
+type ConfigField = (typeof CONFIG_FIELDS)[number];
 
 /**
  * composeEffectiveConfig — Policy 群（priority 昇順に畳む）と Store_Override から完全な StoreConfig を合成する。
@@ -70,11 +88,21 @@ export function composeEffectiveConfig(
   }
 
   // 出口で検証関数を通し、値域内・完全性を構造で保証する（未主張フィールドは undefined → DEFAULT_* へ畳む）。
+  const unitCount = toUnitCount(acc.unitCount);
   return {
-    unitCount: toUnitCount(acc.unitCount),
+    unitCount,
     arms: toArms(acc.arms),
     toleranceRatio: toToleranceRatio(acc.toleranceRatio),
     noodlePresets: toNoodlePresets(acc.noodlePresets),
+    // 重み・許容幅・レイアウトはイデアの主張対象ではないため、常に既定を供給する（出力完全性）。
+    orderSyncWeight: DEFAULT_ORDER_SYNC_WEIGHT,
+    tableSyncWeight: DEFAULT_TABLE_SYNC_WEIGHT,
+    affinityWeight: DEFAULT_AFFINITY_WEIGHT,
+    orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
+    tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
+    affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+    unitOrigins: defaultUnitOrigins(unitCount),
+    slotOffsets: DEFAULT_SLOT_OFFSETS,
   };
 }
 

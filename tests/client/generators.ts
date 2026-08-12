@@ -23,6 +23,18 @@ import * as fc from "fast-check";
 import type { ServerMessage } from "../../src/domain/messages";
 import type { TimerFact, NonEmptyArray } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
+import {
+  DEFAULT_ARMS,
+  DEFAULT_TOLERANCE_RATIO,
+  DEFAULT_ORDER_SYNC_WEIGHT,
+  DEFAULT_TABLE_SYNC_WEIGHT,
+  DEFAULT_AFFINITY_WEIGHT,
+  DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
+  DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+} from "../../src/domain/store";
 import { nonEmpty } from "../nonEmpty";
 
 // ── 確定命名に沿ったローカル型（2.1 / 3.1 の公開型が定義され次第 import へ差し替える） ──────────────
@@ -223,24 +235,45 @@ const genWireTimers: fc.Arbitrary<readonly TimerFact[]> = fc.uniqueArray(genWire
  * 意味論メッセージ（started / cancelled / boiled / completed / adjusted）は snapshot 単一表現へ畳まれ撤去済み。
  * 状態変化は snapshot（server-confirmed の全量 TimerFact 列）だけで伝わる。 */
 export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
-  fc.record({ type: fc.constant("snapshot" as const), serverTime: genReceivedAt, timers: genWireTimers }),
+  // pendingOrders / recommendations は client の畳み込みが読まない（後続タスクで受ける）。要らない次元へ
+  // 生成の分散を広げず空で固定する。
   fc.record({
-    type: fc.constant("config" as const),
+    type: fc.constant("snapshot" as const),
     serverTime: genReceivedAt,
-    unitCount: fc.integer({ min: 1, max: 4 }),
-    noodlePresets: fc.array(
-      fc.record({
-        noodleType: fc.string({ minLength: 1, maxLength: 12 }),
-        boilSeconds: fc.record({
-          extraHard: fc.integer({ min: 1, max: 1800 }),
-          hard: fc.integer({ min: 1, max: 1800 }),
-          normal: fc.integer({ min: 1, max: 1800 }),
-          soft: fc.integer({ min: 1, max: 1800 }),
-        }),
-      }),
-      { minLength: 1, maxLength: 6 },
-    ),
+    timers: genWireTimers,
+    pendingOrders: fc.constant([]),
+    recommendations: fc.constant([]),
   }),
+  // 重み・許容幅・レイアウトも同様に既定値で固定する（unitOrigins だけは生成した unitCount と整合させる）。
+  fc.integer({ min: 1, max: 4 }).chain((unitCount) =>
+    fc.record({
+      type: fc.constant("config" as const),
+      serverTime: genReceivedAt,
+      unitCount: fc.constant(unitCount),
+      noodlePresets: fc.array(
+        fc.record({
+          noodleType: fc.string({ minLength: 1, maxLength: 12 }),
+          boilSeconds: fc.record({
+            extraHard: fc.integer({ min: 1, max: 1800 }),
+            hard: fc.integer({ min: 1, max: 1800 }),
+            normal: fc.integer({ min: 1, max: 1800 }),
+            soft: fc.integer({ min: 1, max: 1800 }),
+          }),
+        }),
+        { minLength: 1, maxLength: 6 },
+      ),
+      arms: fc.constant(DEFAULT_ARMS),
+      toleranceRatio: fc.constant(DEFAULT_TOLERANCE_RATIO),
+      orderSyncWeight: fc.constant(DEFAULT_ORDER_SYNC_WEIGHT),
+      tableSyncWeight: fc.constant(DEFAULT_TABLE_SYNC_WEIGHT),
+      affinityWeight: fc.constant(DEFAULT_AFFINITY_WEIGHT),
+      orderSyncToleranceSeconds: fc.constant(DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS),
+      tableSyncToleranceSeconds: fc.constant(DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS),
+      affinityToleranceDistance: fc.constant(DEFAULT_AFFINITY_TOLERANCE_DISTANCE),
+      unitOrigins: fc.constant(defaultUnitOrigins(unitCount)),
+      slotOffsets: fc.constant(DEFAULT_SLOT_OFFSETS),
+    }),
+  ),
   fc.record({
     type: fc.constant("error" as const),
     serverTime: genReceivedAt,

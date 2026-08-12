@@ -20,7 +20,8 @@
 // ティックはビューを変えない。再描画を促して remaining を導出し直させるためだけにある（要件10.5）。
 
 import { BOIL_SECONDS_MAX, BOIL_SECONDS_MIN } from "../engine/types";
-import type { ServerMessage } from "../domain/messages";
+import type { CookRecommendation, ServerMessage } from "../domain/messages";
+import type { PendingOrder } from "../domain/order";
 import type { TimerFact, NonEmptyArray } from "../domain/timer";
 import { DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS } from "../domain/store";
 import type { NoodlePreset } from "../domain/store";
@@ -86,6 +87,20 @@ export type ClientTimer = TimerFact & {
 export interface ClientView {
   /** アクティブな全 Timer（全量保持・起源タグ付き）。snapshot で server-confirmed を全置換する（要件4.2 / 4.5）。 */
   readonly timers: readonly ClientTimer[];
+  /**
+   * 未着手オーダーの全量（計画対象の上限を超える分も含む）。snapshot の写しに留める（online-cook-scheduling AC 2.4）。
+   *
+   * 到着順の並び・担当範囲での絞り込みは表示時の導出であって、ここには保持しない（保持は全量・表示は導出）。
+   * Timer と違い provisional の対概念を持たない——待ち行列はサーバだけが確定させる事実なので、全置換で足りる。
+   */
+  readonly pendingOrders: readonly PendingOrder[];
+  /**
+   * サーバが Committed_Plan から導いた開始推奨の写し（online-cook-scheduling AC 8.1 / 8.5）。
+   *
+   * client 側でも状態を増やさず表示のためだけに読む。推奨開始時刻の到来では何も起こさない
+   * （自動開始しない・AC 8.2）——ゆえにここに時刻起動の仕掛けを持たない。
+   */
+  readonly recommendations: readonly CookRecommendation[];
   /** 最新のクロックオフセット。serverTime を伴う受信のたびに再確立する（要件10.3 / 10.6）。 */
   readonly offset: number;
   /** done / cancelled を処理済みとして記録した timerId 集合（表示制御用・SSOT のコピーではない）。 */
@@ -133,11 +148,21 @@ export type ClientEvent =
   | { readonly kind: "Classify"; readonly reason: UnreachableReason } // 要件15。到達不能理由の分類結果を畳む。fetch は端（probeReachability）が担い、ここには結果だけが届く
   | { readonly kind: "LocalDone"; readonly timerId: string } // 要件8（茹で上がりアラート記録）
   | { readonly kind: "Tick" } // 要件5（ビュー不変）
-  | { readonly kind: "Reconcile"; readonly timers: readonly TimerFact[]; readonly receivedAt: number }; // 要件11（決定 B）
+  | {
+      readonly kind: "Reconcile"; // 要件11（決定 B）
+      readonly timers: readonly TimerFact[];
+      // 待ち行列と推奨も運ぶ。Timer と違い provisional の対概念を持たないため snapshot と同じ全置換で足りる。
+      // 運ばないと再接続後の最初の snapshot だけ待ち行列が更新されず、他端末との一致（AC 2.4）が破れる。
+      readonly pendingOrders: readonly PendingOrder[];
+      readonly recommendations: readonly CookRecommendation[];
+      readonly receivedAt: number;
+    };
 
 /** 初期ビュー。まだ何も受信しておらず接続中。boot 時は接続未確立 = degraded 起点（要件3）。 */
 export const EMPTY_VIEW: ClientView = {
   timers: [],
+  pendingOrders: [],
+  recommendations: [],
   offset: 0,
   processedIds: new Set<string>(),
   lastResults: new Map<string, { readonly noodleType: string; readonly at: number }>(),
@@ -177,7 +202,12 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
       // snapshot と同一規律（server-confirmed 全置換・provisional 保持・差分残滓・processedIds 刈り取り・要件4.1〜4.7）。
       // Reconcile イベントは serverTime を運ばないため offset は凍結する（reconcileServerConfirmed は offset を
       // 触らず、接続中に確立した最新値を維持・要件5.2）。残滓記録時刻 at には受信時刻 receivedAt を渡す。
-      return reconcileServerConfirmed(view, event.timers, event.receivedAt);
+      // 待ち行列と推奨は snapshot 分岐と同じ全置換（サーバだけが確定させる事実ゆえ保持すべきローカル分が無い）。
+      return {
+        ...reconcileServerConfirmed(view, event.timers, event.receivedAt),
+        pendingOrders: event.pendingOrders,
+        recommendations: event.recommendations,
+      };
 
     case "LocalStart":
       return decideLocalStart(view, event);
@@ -353,12 +383,27 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
       // 初回 hydration では prevServer / provisional が空ゆえ全置換に縮退する。offset 再確立・同期確定・
       // エラー解消を重ねる。残滓記録時刻 at には受信時刻 receivedAt を渡す（要件4.2 / 5.1）。
       const reconciled = reconcileServerConfirmed(view, message.timers, receivedAt);
-      return { ...reconciled, offset, sync: "synced", error: null };
+      // 待ち行列と推奨も同じ snapshot が運ぶ（種別を増やさない・online-cook-scheduling AC 2.3 / 2.4）。
+      // Timer と違い起源の区別が無いため全置換で足りる。導出（到着順の並び・担当範囲での絞り込み・
+      // 開始に要る茹で秒）は表示時に行い、ここでは写すだけに留める。
+      return {
+        ...reconciled,
+        pendingOrders: message.pendingOrders,
+        recommendations: message.recommendations,
+        offset,
+        sync: "synced",
+        error: null,
+      };
     }
 
     case "config":
       // 店舗設定の一方向受信（サーバ権威・クライアント不変）。ユニット総数と麺種プリセットを確定し offset も最新化する。
       // 稼働中の差し替え（運用エンドポイント発の再配信）も同じ経路で反映される（要件2.3）。
+      //
+      // 計画のパラメータ（重み・許容幅・slot のグリッド座標）は読まない。それらは計画の採点（サーバ側の
+      // 計算）にのみ効く事実で、client の表示・導出のどこからも参照されない。読み手の無い写しをビューへ
+      // 置けば、サーバ設定の第二の真実を抱えるだけになる（online-cook-scheduling AC 3.4 の「表示・導出にのみ
+      // 用い変更要求を送らない」を、最小の形——受け取っても持たない——で満たす）。
       return { ...view, offset, unitCount: message.unitCount, noodlePresets: message.noodlePresets };
 
     case "error":
@@ -467,8 +512,19 @@ export interface TimerConnection {
   getView(): ClientView;
   /** ビュー更新（受信・接続状態変化・秒読みティック）を購読する。戻り値で解除する。 */
   subscribe(listener: () => void): () => void;
-  /** タイマー開始操作を送る（担当スコープの制限は UI の責務）。1 Timer は 1 つ以上のスロットを駆動する（非空）。 */
-  start(slotIds: NonEmptyArray<string>, noodleType: string, boilSeconds: number): void;
+  /**
+   * タイマー開始操作を送る（担当スコープの制限は UI の責務）。1 Timer は 1 つ以上のスロットを駆動する（非空）。
+   *
+   * orderItem は「どの Pending_Order の品目から始めたか」。推奨から開始する経路だけが添え、サーバが
+   * 待ち行列から当該品目を除く手がかりにする（online-cook-scheduling AC 8.3 / 8.4）。省略時はアドホック
+   * 麺茹で（POS を経ない開始）で、推奨と異なる操作も従来どおりこの経路を通る。
+   */
+  start(
+    slotIds: NonEmptyArray<string>,
+    noodleType: string,
+    boilSeconds: number,
+    orderItem?: { readonly externalOrderId: string; readonly itemIndex: number },
+  ): void;
   /** タイマーキャンセル操作を送る。 */
   cancel(timerId: string): void;
   /** 茹で上がりの明示完了（消し込み）を送る。boiled な Timer を除去する。 */
@@ -761,7 +817,16 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       if (pendingReconcile) {
         // down→up 後の最初の全量 snapshot。server-confirmed のみ置換し provisional は保持する（決定 B・要件11.5）。
         pendingReconcile = false;
-        update(decideView(view, { kind: "Reconcile", timers: message.timers, receivedAt }));
+        update(
+          decideView(view, {
+            kind: "Reconcile",
+            timers: message.timers,
+            // 待ち行列と推奨は provisional の対概念を持たないため、再接続直後も通常の snapshot と同じ全置換。
+            pendingOrders: message.pendingOrders,
+            recommendations: message.recommendations,
+            receivedAt,
+          }),
+        );
         return;
       }
     }
@@ -783,13 +848,29 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    start: (slotIds, noodleType, boilSeconds) => {
+    start: (slotIds, noodleType, boilSeconds, orderItem) => {
       if (mode(view) === "live") {
-        // live: 既存どおり ClientMessage を WS へ送る。
-        watch.send({ type: "start", slotIds, noodleType, boilSeconds });
+        // live: 既存どおり ClientMessage を WS へ送る。推奨から開始したときだけ注文品目を添える
+        // （ワイヤは平坦な兄弟フィールドで運ぶ・domain/messages.ts の規律）。
+        watch.send(
+          orderItem === undefined
+            ? { type: "start", slotIds, noodleType, boilSeconds }
+            : {
+                type: "start",
+                slotIds,
+                noodleType,
+                boilSeconds,
+                externalOrderId: orderItem.externalOrderId,
+                itemIndex: orderItem.itemIndex,
+              },
+        );
         return;
       }
       // degraded: 補正後現在時刻と生成 id を端で採取し、LocalStart を畳む。WS へは送らない（要件6.3）。
+      //
+      // orderItem はここでは捨てる。Provisional_Timer はサーバが知らないローカル意図であり、添える先の
+      // start メッセージがそもそも出ない——保持しても届く経路が無い。ゆえに Pending_Order は（更新が
+      // 止まった）待ち行列に残り続ける。サーバが知らない開始を「待ち行列から消えた」と見せる方が嘘になる。
       update(
         decideView(view, {
           kind: "LocalStart",

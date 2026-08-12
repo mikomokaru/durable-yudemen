@@ -14,7 +14,9 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { TimerConnection } from "../connection";
 import { assignedSlotDisplays } from "./slotDisplay";
+import { orderQueueEntries } from "./queueDisplay";
 import { SlotCard } from "./SlotCard";
+import { OrderQueue } from "./OrderQueue";
 import { RadialMenu } from "./RadialMenu";
 import { noodleColors } from "./noodleColor";
 
@@ -63,6 +65,9 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   const now = Date.now();
   // 保持は全量・表示は導出。担当外スロットはここで構造的に除外される（要件12.2）。
   const displays = assignedSlotDisplays(view, units, now);
+  // 待ち行列も同じ規律で毎描画導出する（到着順の並び・待ち時間・担当範囲内の提案）。
+  // 件数は絞らない——計画対象の上限を超える分も並び、提案が付かないだけである。
+  const queue = orderQueueEntries(view, units, now);
   // ラジアルメニューの開閉。ボード内で一つだけ持ち、RadialMenu も一つだけ描画する。
   const [picker, setPicker] = useState<PickerAnchor | null>(null);
   // 麺色の resolver。メニュー順に重複なく色を割り当てる（config 受信時のみ再構築・毎ティックでは作り直さない）。
@@ -84,6 +89,20 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
           {view.error.message}
         </p>
       )}
+      {/* 待ち行列と提案の帯。未着手オーダーが無い店（POS 連携前）では何も描かれず、盤面は従来のままになる。 */}
+      <OrderQueue
+        entries={queue}
+        noodleColor={colorOf}
+        onStart={(order, suggestion) => {
+          // 提案から開始する経路。注文品目を添えてサーバに待ち行列から除く手がかりを渡す（AC 8.3 / 8.4）。
+          // 提案と異なる開始（スロットのラジアル）は従来どおり注文品目を持たずに通る。
+          connection.start(suggestion.slotIds, order.noodleType, suggestion.boilSeconds, {
+            externalOrderId: order.externalOrderId,
+            itemIndex: order.itemIndex,
+          });
+          playTouchCue();
+        }}
+      />
       {/* ユニットごとに 2col×3row のブロックを作り、ユニットを横並び（縦画面=1ユニットは単独ブロック、
           横画面=2ユニットは左右に並ぶ）。外枠 grid-flow-col + auto-cols-fr が各ユニットを等幅の列にする。 */}
       <div className="grid min-h-0 flex-1 auto-cols-fr grid-flow-col gap-[clamp(0.75rem,1.8vw,1.375rem)]">

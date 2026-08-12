@@ -17,6 +17,7 @@ import { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
+import { schedulingDefaults } from "../storeConfigDefaults";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO バインディングを型付きで引く）。
 declare module "cloudflare:test" {
@@ -52,13 +53,15 @@ const genNoodlePresets: fc.Arbitrary<NonEmptyArray<NoodlePreset>> = fc
   .tuple(genNoodlePreset, fc.array(genNoodlePreset, { maxLength: 2 }))
   .map(([head, tail]) => [head, ...tail] as NonEmptyArray<NoodlePreset>);
 
-/** 値域内の完全な StoreConfig。 */
-const genConfig: fc.Arbitrary<StoreConfig> = fc.record({
-  unitCount: fc.integer({ min: 1, max: 4 }),
-  arms: fc.integer({ min: 1, max: 10 }),
-  toleranceRatio: fc.integer({ min: 1, max: 50 }),
-  noodlePresets: genNoodlePresets,
-});
+/** 値域内の完全な StoreConfig（重み・許容幅・レイアウトは本テストの関心外ゆえ既定で埋める）。 */
+const genConfig: fc.Arbitrary<StoreConfig> = fc
+  .record({
+    unitCount: fc.integer({ min: 1, max: 4 }),
+    arms: fc.integer({ min: 1, max: 10 }),
+    toleranceRatio: fc.integer({ min: 1, max: 50 }),
+    noodlePresets: genNoodlePresets,
+  })
+  .map((fields) => ({ ...fields, ...schedulingDefaults(fields.unitCount) }));
 
 /** Roster（identity 集合）。非 ASCII・重複に近い文字列も含めて振る（ワイヤに出ない内部値）。 */
 const genRoster = fc.array(fc.string({ maxLength: 12 }), { maxLength: 4 });

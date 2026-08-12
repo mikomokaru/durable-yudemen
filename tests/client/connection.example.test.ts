@@ -258,7 +258,13 @@ describe("client/connection — provisional への操作は origin で経路分�
     const { connection, send, setConnectivity, receiveMessage } = setupWithWatch();
 
     setConnectivity("up");
-    receiveMessage({ type: "snapshot", serverTime: START_NOW, timers: [makeTimer("S")] });
+    receiveMessage({
+      type: "snapshot",
+      serverTime: START_NOW,
+      timers: [makeTimer("S")],
+      pendingOrders: [],
+      recommendations: [],
+    });
     expect(mode(connection.getView())).toBe("live");
 
     connection.cancel("S");

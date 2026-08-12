@@ -12,14 +12,15 @@ import { startTimer } from "../../src/engine/start";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Event } from "../../src/engine/event";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
-import type { SyncParams } from "../../src/engine/sync";
+import type { SettleParams } from "../../src/engine/settle";
 import type { Effect } from "../../src/engine/effect";
 import { DEFAULT_ARMS, DEFAULT_TOLERANCE_RATIO } from "../../src/domain/store";
 import { decideView, EMPTY_VIEW, type ClientView } from "../../src/client/connection";
 import type { ServerMessage } from "../../src/domain/messages";
+import { settleParams } from "../settleParams";
 
 /** 実運用の既定同期パラメータ（arms=2 / toleranceRatio=10%）。近接 start が synchronize で調整される。 */
-const PARAMS: SyncParams = { arms: DEFAULT_ARMS, toleranceRatio: DEFAULT_TOLERANCE_RATIO };
+const PARAMS: SettleParams = settleParams({ arms: DEFAULT_ARMS, toleranceRatio: DEFAULT_TOLERANCE_RATIO });
 
 type SnapshotMessage = Extract<ServerMessage, { type: "snapshot" }>;
 type StartEvent = Extract<Event, { type: "Start" }>;

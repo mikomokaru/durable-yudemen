@@ -5,19 +5,9 @@
 // クライアントへそのまま延長したものである。
 
 import type { TimerFact } from "../domain/timer";
-
-// ユニット 1 つが担当する連続スロット数。unit u は slot 6u..6u+5（要件12.5）。
-const SLOTS_PER_UNIT = 6;
-
-/**
- * slotId をスロット番号へ写す恒等対応。
- *
- * 本パイロットでは slotId をそのまま 0 始まりのスロット番号として解釈する（要件12.5）。
- * slotId が連番文字列でない運用へ将来移行する場合のみ写像を差し込むが、現時点では恒等で足りる。
- */
-export function slotOf(slotId: string): number {
-  return Number(slotId);
-}
+// ユニット 1 つが担当する連続スロット数と、slotId → スロット番号の写像（unit u は slot 6u..6u+5・要件12.5）。
+// 同じ事実を slot レイアウト・slot 解放表（engine）も用いるため、正本を domain に置き二度定義しない。
+import { SLOTS_PER_UNIT, slotOf } from "../domain/store";
 
 /** 担当ユニット集合 → 担当スロット番号の集合。unit u は slot 6u..6u+5。 */
 export function slotsOfUnits(units: readonly number[]): Set<number> {
@@ -66,16 +56,34 @@ export function unitsForCount(
 }
 
 /**
+ * スロット集合を持つ要素を担当スロット範囲で絞る唯一の実装（any-overlap）。
+ *
+ * 絞り込みが要求するのは `slotIds` ひとつだけであり、Timer であることは要らない。Timer（走行中の計時）と
+ * Cook_Recommendation（まだ始まっていない品目への提案）は別概念だが、「担当範囲に触れるか」の判定は同一の
+ * 事実に対する同一の問いである。ゆえに判定はここ一箇所に置き、概念ごとの入口（assignedTimers）から呼ぶ
+ * ——同じ概念を二度書かない。
+ *
+ * 1 要素は複数スロットに関わりうるため、いずれか 1 つでも担当範囲に入れば担当対象とする。
+ */
+export function assignedBySlots<T extends { readonly slotIds: readonly string[] }>(
+  items: readonly T[],
+  units: readonly number[],
+): readonly T[] {
+  const assigned = slotsOfUnits(units);
+  return items.filter((item) => item.slotIds.some((slotId) => assigned.has(slotOf(slotId))));
+}
+
+/**
  * 受信した全量 Timer から担当スロットに属するものだけを射影する（表示用導出）。
  *
  * TimerFact を芯に持つ要素型 T を保ったまま絞り込む。ClientTimer（= TimerFact & { origin }）を
  * 渡せば origin タグを失わずに射影でき、呼び出し側が起源（未確定か否か）を導出できる。
- * 1 Timer は複数スロットを駆動しうるため、いずれか 1 つでも担当範囲に入れば担当対象とする（any-overlap）。
+ * 判定そのものは assignedBySlots に委ね、ここは芯を TimerFact に固定する入口として残す
+ * （Timer を渡すべき箇所へ別概念が紛れ込むのを型で防ぐ）。
  */
 export function assignedTimers<T extends TimerFact>(
   allTimers: readonly T[],
   units: readonly number[],
 ): readonly T[] {
-  const assigned = slotsOfUnits(units);
-  return allTimers.filter((timer) => timer.slotIds.some((slotId) => assigned.has(slotOf(slotId))));
+  return assignedBySlots(allTimers, units);
 }

@@ -3,7 +3,8 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { assignedTimers, isAssigned, slotOf, slotsOfUnits } from "../../src/client/assignment";
+import { assignedTimers, isAssigned, slotsOfUnits } from "../../src/client/assignment";
+import { slotOf } from "../../src/domain/store";
 import type { TimerFact } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
 

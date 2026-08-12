@@ -1,22 +1,44 @@
 import { DurableObject } from "cloudflare:workers";
 import { decide } from "../engine/decide";
 import type { Effect } from "../engine/effect";
+import type { Event } from "../engine/event";
 import { migrate } from "../engine/migrate";
 import type { ShellFailure } from "../engine/rejection";
 import { fromSnapshot } from "../engine/snapshot";
 import { EMPTY_STATE, type TimerState } from "../engine/state";
-import { toWireTimer } from "../engine/project";
+import { toCookSchedule } from "../engine/schedule";
+import { toWireSnapshot, type SettleParams } from "../engine/settle";
+import type { ScheduleParams } from "../engine/objective";
+import type { Ordered } from "../engine/timer";
 import type { EpochMillis, TimerId } from "../engine/types";
 import { buildSeamEntry, type InstrumentationLogEntry } from "../observe/log";
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
 import { REJECTION_CLOSE_CODE } from "../transport/rejection";
 import type { ClientMessage, ServerMessage } from "../domain/messages";
 import { isFirmness } from "../domain/firmness";
+import { toPendingOrders, type PendingOrder } from "../domain/order";
+import type { NonEmptyArray } from "../domain/timer";
 import type { StoreConfig, NoodlePreset } from "../domain/store";
-import { DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS, DEFAULT_ARMS, DEFAULT_TOLERANCE_RATIO } from "../domain/store";
+import {
+  DEFAULT_UNIT_COUNT,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_ARMS,
+  DEFAULT_TOLERANCE_RATIO,
+  DEFAULT_ORDER_SYNC_WEIGHT,
+  DEFAULT_TABLE_SYNC_WEIGHT,
+  DEFAULT_AFFINITY_WEIGHT,
+  DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
+  DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+} from "../domain/store";
 import type { StoreProjection } from "../registry/projection";
 import type { Roster } from "../registry/ideal";
 import { normalize } from "../registry/authz";
+import { tryWriteOperationLines } from "../operation-history/producer";
+import type { OperationObservation } from "../operation-history/derive";
+import type { PlanRequest } from "../solver/request";
 
 /**
  * 内部 identity ヘッダ名 — Worker が JWKS 検証済みの identity を店舗 DO へ運ぶ唯一の内部ヘッダ（要件6.3 / 8.6）。
@@ -93,6 +115,24 @@ class InitError extends Error {
 }
 
 /**
+ * ワイヤの平坦な 2 フィールドから、engine が持つ注文品目の組（`Ordered["orderItem"]`）を成す（AC 8.4）。
+ *
+ * **両方が揃って妥当なときだけ組を成し、それ以外は null（アドホック麺茹で）とする。** ワイヤは未検証の
+ * 生値ゆえ片方だけ届く形を型で禁じられず（domain/messages.ts の規律）、片方だけで組を作れば
+ * 「どの品目か」を指せない組が待ち行列の消し込み（consumeOrder）へ流れる。妥当性の条件は
+ * domain/order.ts の PendingOrder と同じ——非空の externalOrderId と 0 以上の整数 itemIndex。
+ *
+ * 検証と組み立てをこの一関数に閉じ、`parseClientMessage`（ワイヤ形の検証）と Start イベントの組み立てが
+ * 同じ条件を二度書かないようにする。
+ */
+function toOrderItem(raw: { readonly externalOrderId?: unknown; readonly itemIndex?: unknown }): Ordered["orderItem"] {
+  const { externalOrderId, itemIndex } = raw;
+  if (typeof externalOrderId !== "string" || externalOrderId.length === 0) return null;
+  if (typeof itemIndex !== "number" || !Number.isInteger(itemIndex) || itemIndex < 0) return null;
+  return { externalOrderId, itemIndex };
+}
+
+/**
  * 受信した文字列を ClientMessage として防御的に解釈する。core を呼ぶ前段の検証はここに集約する。
  *
  * JSON parse 失敗・未知の type・必須フィールドの欠如や型不一致はすべて undefined を返し、
@@ -122,6 +162,9 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
           slotIds: candidate.slotIds as readonly string[],
           noodleType: candidate.noodleType,
           boilSeconds: candidate.boilSeconds,
+          // 注文品目は組を成せたときだけ平坦形へ載せ直す。欠落・不正は載せずアドホック麺茹でとして通す
+          // （start 自体は拒否しない——POS を経ない開始は正当な経路である）。
+          ...(toOrderItem(candidate) ?? {}),
         };
       }
       return undefined;
@@ -143,6 +186,57 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
     default:
       return undefined;
   }
+}
+
+/**
+ * Order_Ingress のボディが表す意図（要件1）。到着とキャンセルを 1 経路で受け、形で判別する。
+ *
+ * 到着は `{ items: [...] }`、キャンセルは `{ cancelledOrderId: "..." }`。1 ボディ 1 意図とし、両方載る形も
+ * どちらも載らない形も拒否する——「何を要求しているのか」が定まらない到着を推測で受ければ、待ち行列の
+ * 正本が POS の書き方に依存する。
+ */
+type OrderIntent =
+  | { readonly kind: "arrival"; readonly arrival: NonEmptyArray<PendingOrder> }
+  | { readonly kind: "cancellation"; readonly externalOrderId: string };
+
+/**
+ * Order_Ingress の生ボディを OrderIntent へ解釈する。不正・判別不能はすべて null（呼び出し側が 400 に写す）。
+ *
+ * 品目の検証は domain の `toPendingOrders` に委ね、ここでは書かない（同じ検証を二度書かない）。必須属性の
+ * 欠落・未知の品目種別・型違反はあちらが 1 品目でも見つけた時点で全体を null へ落とす——部分受理は
+ * 現場が欠品に気づけない嘘になる（AC 1.4）。arrivalTime は shell が採る受け手側の事実で、POS の主張ではない。
+ */
+function toOrderIntent(
+  body: unknown,
+  presets: readonly NoodlePreset[],
+  arrivalTime: EpochMillis,
+): OrderIntent | null {
+  if (typeof body !== "object" || body === null) return null;
+  const candidate = body as Record<string, unknown>;
+  const cancelledOrderId = candidate.cancelledOrderId;
+  // 意図の判別はキーの有無で行い、値の妥当性はその後に見る（不正な値を「別の意図」へ読み替えない）。
+  if ((candidate.items === undefined) === (cancelledOrderId === undefined)) return null;
+  if (cancelledOrderId !== undefined) {
+    return typeof cancelledOrderId === "string" && cancelledOrderId.length > 0
+      ? { kind: "cancellation", externalOrderId: cancelledOrderId }
+      : null;
+  }
+  const arrival = toPendingOrders(candidate.items, presets, arrivalTime);
+  return arrival === null ? null : { kind: "arrival", arrival };
+}
+
+/**
+ * 往路（Solver_Worker への計画要求）の宛先 URL。
+ *
+ * 宛先を決めるのは Service binding（`env.SOLVER`）であり、この URL のホスト名はどこも指さない。指さないことを
+ * 名前で示すため予約 TLD（`.invalid`）を使う——実在しうるホスト名を書くと、binding を通らない経路が
+ * どこかに在るように読める。`fetch` が絶対 URL を要求するために置くだけの値である。
+ */
+const SOLVER_REQUEST_URL = "https://solver.invalid/plan";
+
+/** 不正な到着ボディへの応答（AC 1.4）。集合は変わっていないという事実をそのまま 400 で伝える。 */
+function rejectedOrder(): Response {
+  return Response.json({ accepted: false, error: "malformed-order" }, { status: 400 });
 }
 
 /**
@@ -210,6 +304,26 @@ export class StoreTimerDO extends DurableObject<Env> {
   private toleranceRatio: number = DEFAULT_TOLERANCE_RATIO;
 
   /**
+   * 計画の採点パラメータ（StoreConfig の重み 3・許容幅 3・レイアウト 2）。サーバ権威設定。
+   *
+   * unitCount と同じ系統で投影 config から反映し、decide 呼び出し時に settleParams へ載せ、config として
+   * 配信する（全項目配信へ方針転換した・design の中心的判断 10）。8 値を個別フィールドに散らさず 1 つの
+   * 束で持つのは、これが engine の採点関数がちょうど要する入力の全体（ScheduleParams）であり、
+   * 意味を定めているのが目的関数の側だからである（`arms` のように shell が単独で読む値ではない）。
+   * 既定は投影未受領（未プロビジョニング）時の安全網。
+   */
+  private scheduleParams: ScheduleParams = {
+    orderSyncWeight: DEFAULT_ORDER_SYNC_WEIGHT,
+    tableSyncWeight: DEFAULT_TABLE_SYNC_WEIGHT,
+    affinityWeight: DEFAULT_AFFINITY_WEIGHT,
+    orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
+    tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
+    affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+    unitOrigins: defaultUnitOrigins(DEFAULT_UNIT_COUNT),
+    slotOffsets: DEFAULT_SLOT_OFFSETS,
+  };
+
+  /**
    * プロビジョニング状態のキャッシュ。ensureProvisioned が一度読んだ判定を保持し、fetch 経路が参照する。
    * 既定は未プロビジョニング（安全側）。applyProjection の押し込み確定時にも provisioned へ更新される。
    */
@@ -241,6 +355,31 @@ export class StoreTimerDO extends DurableObject<Env> {
    */
   private get instrumentationEnabled(): boolean {
     return (this.env.OBSERVE_DEBUG as string) === "1";
+  }
+
+  /** Operation History の同期 Producer を有効にする独立ゲート。debug 計装とは共有しない。 */
+  private get operationHistoryEnabled(): boolean {
+    return (this.env.OPERATION_HISTORY_ENABLED as string) === "1";
+  }
+
+  /** Persist を含む既存作用列が通常完了した確定差分だけを、入口の終端で同期出力試行する。 */
+  private tryWriteCommittedOperation(
+    eventKind: OperationObservation["eventKind"],
+    eventTime: EpochMillis,
+    before: TimerState,
+    effects: readonly Effect[],
+    result: RunResult,
+  ): void {
+    if (!result.persisted || !effects.some((effect) => effect.type === "Persist")) return;
+    const storeId = this.ctx.id.name;
+    if (storeId === undefined || storeId.length === 0) return;
+    tryWriteOperationLines(this.operationHistoryEnabled, {
+      storeId,
+      eventTime,
+      eventKind,
+      before,
+      after: this.workingCopy,
+    });
   }
 
   /**
@@ -306,15 +445,14 @@ export class StoreTimerDO extends DurableObject<Env> {
       await this.ensureProvisioned();
       // ロード後の整合（要件7.6 / 7.2 / 7.7）。now は shell が採取して core へ渡す（core は時計を持たない）。
       const now = Date.now() as EpochMillis;
-      // arms / toleranceRatio は ensureProvisioned が投影 config から確立した確定値を synchronize へ注入する。
-      const outcome = decide(this.workingCopy, { type: "Reconcile", now }, {
-        arms: this.arms,
-        toleranceRatio: this.toleranceRatio,
-      });
+      const before = this.workingCopy;
+      // 同期・採点のパラメータは settleParams が一箇所で組む（投影 config から確立した確定値を注入する）。
+      const outcome = decide(before, { type: "Reconcile", now }, this.settleParams());
       // reconcile は常に成功する（fireDueTimers と同形）。Persist 先頭の Effect 列を runEffects が実行し、
       // 即時発火による状態変化は put 成功時にのみ確定する（SSOT 規律）。
       if (outcome.ok) {
-        await this.runEffects(outcome.effects);
+        const result = await this.runEffects(outcome.effects);
+        this.tryWriteCommittedOperation("Reconcile", now, before, outcome.effects, result);
       }
     });
   }
@@ -393,6 +531,52 @@ export class StoreTimerDO extends DurableObject<Env> {
     this.arms = config.arms;
     this.toleranceRatio = config.toleranceRatio;
     this.noodlePresets = config.noodlePresets;
+    // 採点パラメータは投影 config が正本。投影（StoreConfig）は既定を合成済みで届くため（registry の compose）、
+    // ここで再度 DEFAULT_* へ畳まない——畳めば「どちらが既定を決めるのか」が二箇所になる。
+    this.scheduleParams = {
+      orderSyncWeight: config.orderSyncWeight,
+      tableSyncWeight: config.tableSyncWeight,
+      affinityWeight: config.affinityWeight,
+      orderSyncToleranceSeconds: config.orderSyncToleranceSeconds,
+      tableSyncToleranceSeconds: config.tableSyncToleranceSeconds,
+      affinityToleranceDistance: config.affinityToleranceDistance,
+      unitOrigins: config.unitOrigins,
+      slotOffsets: config.slotOffsets,
+    };
+  }
+
+  /**
+   * 配信する config メッセージを組む唯一の場所（接続時の単送と押し込み時の再配信が同じ形を共有する）。
+   *
+   * StoreConfig の全項目を載せる（要件3.4・design の中心的判断 10）。値はいずれも投影 config から確立した
+   * 確定値で、項目ごとに配信対象を選び直さない——選び直せば「client がどれを知っているか」が項目数だけ
+   * 分岐し、設定が増えるたびにその表が伸びる。
+   */
+  private configMessage(): ServerMessage {
+    return {
+      type: "config",
+      serverTime: Date.now(),
+      unitCount: this.unitCount,
+      noodlePresets: this.noodlePresets,
+      arms: this.arms,
+      toleranceRatio: this.toleranceRatio,
+      ...this.scheduleParams,
+    };
+  }
+
+  /**
+   * decide へ注入する値の束を組む唯一の場所（engine は StoreConfig 型を知らない・非純粋を端へ寄せる規律）。
+   *
+   * arms / toleranceRatio / noodlePresets / 採点パラメータのいずれも ensureProvisioned（または
+   * applyProjection）が投影 config から確立した確定値。
+   */
+  private settleParams(): SettleParams {
+    return {
+      arms: this.arms,
+      toleranceRatio: this.toleranceRatio,
+      noodlePresets: this.noodlePresets,
+      ...this.scheduleParams,
+    };
   }
 
   /**
@@ -433,13 +617,7 @@ export class StoreTimerDO extends DurableObject<Env> {
     if (projection.active) {
       // 活性: サーバ権威設定を config で再配信する（クライアントは制御できず受信して従うのみ）。
       // roster は載せない — config ServerMessage に表現する場所が無い（要件5.3）。
-      const config: ServerMessage = {
-        type: "config",
-        serverTime: Date.now(),
-        unitCount: this.unitCount,
-        noodlePresets: this.noodlePresets,
-      };
-      const payload = JSON.stringify(config);
+      const payload = JSON.stringify(this.configMessage());
       for (const ws of this.ctx.getWebSockets()) {
         ws.send(payload);
       }
@@ -459,6 +637,14 @@ export class StoreTimerDO extends DurableObject<Env> {
     // プロビジョニング状態を確定する（投影の有無を判定し、在れば config を在メモリへ反映する）。
     // 非活性化閉鎖（要件6.6）はこの状態を読む後続タスク（4.4）が担う。
     const provision = await this.ensureProvisioned();
+
+    // Order_Ingress（POST /s/{storeId}/orders・要件1）。認可（ORDER_INGRESS_TOKEN の定数時間照合）は
+    // worker.ts が済ませており、不一致・欠如は 401 で DO へ到達しない（AC 1.1）。どのパスがこの DO へ届くかは
+    // worker.ts の関心事ゆえ、ここではパスを再解釈せず method で分岐する（WS 昇格が Upgrade ヘッダで判るのと
+    // 同じ置き方）。WS 昇格の判定より前に置くのは、この経路が Upgrade を持たない通常の HTTP だからである。
+    if (request.method === "POST") {
+      return this.receiveOrder(request, provision);
+    }
 
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket", { status: 426 });
@@ -503,27 +689,106 @@ export class StoreTimerDO extends DurableObject<Env> {
 
     // 店舗設定の一方向配信（サーバ権威・クライアント不変）。snapshot より先に送り、クライアントが
     // ユニット総数（担当範囲のクランプ元）を先に確定できるようにする。クライアントは変更できない。
-    const config: ServerMessage = {
-      type: "config",
-      serverTime: Date.now(),
-      unitCount: this.unitCount,
-      noodlePresets: this.noodlePresets,
-    };
-    server.send(JSON.stringify(config));
+    server.send(JSON.stringify(this.configMessage()));
 
-    // Hydration（要件4.1 / 9.2 / 5.4）。接続確立の一環として、収容直後にこの WS だけへ
-    // 現在のアクティブ Timer 全量を snapshot として送る（差分ではなく全量）。
-    // 射影は engine の唯一の関数 toWireTimer に委譲する（重複の根絶・SSOT）。これにより endTime は
-    // 実効値（オリジナル + adjustment）として載り、broadcast 経路（settle）と同一の射影で一致する。
+    // Hydration（要件4.1 / 9.2 / 5.4・AC 2.4）。接続確立の一環として、収容直後にこの WS だけへ現在の確定状態の
+    // 全量を snapshot として送る（差分ではなく全量）。組み立ては engine の唯一の射影 toWireSnapshot に委ねる
+    // ——broadcast 経路（settle）と同一の関数を通ることが、再取得完了時点で他端末と同一の内容を持つことの根拠
+    // である。shell は状態と時計を渡すだけで、確定計画・推奨の導出を持たない。
     // serverTime は送信時点のサーバ現在時刻（残り秒は送らず endTime から各クライアントが導出する）。
-    const snapshot: ServerMessage = {
-      type: "snapshot",
-      serverTime: Date.now(),
-      timers: this.workingCopy.timers.map(toWireTimer),
-    };
-    server.send(JSON.stringify(snapshot));
+    server.send(JSON.stringify(toWireSnapshot(this.workingCopy, this.settleParams(), Date.now() as EpochMillis)));
 
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  /**
+   * receiveOrder — Order_Ingress の受け口（要件1・design の命名節）。到着とキャンセルを decide へ写す。
+   *
+   * **受理を応答するのは永続が確定した後だけである**（AC 1.2 / 1.5）。runEffects が返す `persisted` を見て
+   * 応答を決め、put 失敗なら受理も broadcast も出さない——put 前に 200 を返せば、POS 側は届いたと信じ、
+   * こちらは何も確定していないという最悪の食い違いが生まれる。broadcast は Effect 列の中で put 成功の上に
+   * のみ立つ（runEffects の規律）ため、この一点を守れば両者の順序は自動的に揃う。
+   *
+   * 冪等（AC 1.3）は engine 側で閉じる。同一内容の再送は upsertOrder が同じ集合を返し、settle が Effect を
+   * 出さないため、put も broadcast も起きずに 200 を返す（初回受理と同一の確定状態へ収束する）。存在しない
+   * オーダーのキャンセルも同じ形で no-op になり、開始済み Timer には触れない（AC 1.6）。
+   *
+   * Operation History へは何も出さない。到着・キャンセルは Timer 状態の差分を持たず、あちらの Producer の
+   * 出力対象（Timer_Persist が確定させた Timer 状態の差分だけ）に当たらないためである（tasks.md 21.3）。
+   */
+  private async receiveOrder(request: Request, provision: ProvisionState): Promise<Response> {
+    // 接続と同じゲート（要件2.6 / 6.6）。未プロビジョニングの DO には麺種プリセットが確立しておらず、
+    // 既定のプリセットに照らして到着を検証すれば、店舗が提供しない品目を待ち行列へ通しうる。
+    // 判定を put の前に置くことで、書き込みゼロの DO は痕跡を残さないまま拒否される。
+    if (!provision.provisioned) {
+      return new Response("Not provisioned", { status: 403 });
+    }
+    if (!provision.projection.active) {
+      return new Response("Store deactivated", { status: 403 });
+    }
+
+    // arrivalTime は「Order_Ingress が受理した絶対時刻」という受け手側の事実（Wait_Time の起点）。
+    // 当該遷移の時計（settle の再同期と snapshot の serverTime）と同じ値を用いる。
+    const now = Date.now() as EpochMillis;
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return rejectedOrder();
+    }
+    const intent = toOrderIntent(body, this.noodlePresets, now);
+    // 不正ボディは 400 で、Pending_Order 集合と Timer 集合をいずれも変更しない（AC 1.4）——decide を
+    // 呼ばずに戻るため、集合が変わる経路に一切入らない。
+    if (intent === null) {
+      return rejectedOrder();
+    }
+
+    const event: Event =
+      intent.kind === "arrival"
+        ? { type: "OrderArrived", arrival: intent.arrival, now }
+        : { type: "OrderCancelled", externalOrderId: intent.externalOrderId, now };
+    const outcome = decide(this.workingCopy, event, this.settleParams());
+    if (!outcome.ok) {
+      // 到着・キャンセルの遷移は拒否経路を持たない（engine/order.ts）。型の網羅のためだけの分岐であり、
+      // 到達したら engine 側の不変が破れた合図ゆえ、受理を主張せずサーバ側の失敗として返す。
+      return new Response(outcome.rejection.message, { status: 500 });
+    }
+    const result = await this.runEffects(outcome.effects);
+    if (!result.persisted) {
+      // put 失敗＝何も確定していない。受理も broadcast も出さず、POS の再送に委ねる（再送は冪等）。
+      return Response.json({ accepted: false, error: "persist-failed" }, { status: 503 });
+    }
+    return Response.json({ accepted: true });
+  }
+
+  /**
+   * deliverPlan — Solver_Worker からの計画受領（復路・AC 6.1 / 10.3 / 12.3）。受領を PlanArrived として decide へ流す。
+   *
+   * **DO の公開 RPC ゆえ Service binding 経由でしか到達しない。** ネットワークからは URL を持たず、Worker の
+   * ルーティング（worker.ts）にもこの経路は無い。ゆえに受け口自身がトークンを持たない——境界の認可は
+   * 「誰がこの DO の stub を引けるか」で既に閉じている（`applyProjection` がレジストリからの押し込みだけを
+   * 受けるのと同じ構図）。
+   *
+   * **生値の検証はここで行う**（AC 10.3）。解析不能・スキーマ不正は `toCookSchedule` が全体を null へ落とし、
+   * このメソッドは何もせずに戻る——engine の受け口が事象を起こさないという形で全体棄却が成立する。
+   *
+   * **受領を新たな要求の契機にしない**（AC 5.7）。`receivePlan` が `settle` へ `mayRequestPlan = false` を渡すため、
+   * 採用しても要求の連鎖は生まれない。全棄却なら `Persist` も `Broadcast` も出ない（AC 6.6）。
+   *
+   * 戻り値を持たない。採否を呼び出し元へ返せば、Solver_Worker が結果を見て何かを決める余地が生まれる
+   * ——採否は DO 側のゲートだけが決める（AC 6.7）。in-flight の追跡状態も応答監視の Alarm も持たない（AC 10.4）。
+   */
+  async deliverPlan(plan: unknown): Promise<void> {
+    await this.ensureLoaded();
+    const validated = toCookSchedule(plan);
+    if (validated === null) return;
+    const now = Date.now() as EpochMillis;
+    const outcome = decide(this.workingCopy, { type: "PlanArrived", plan: validated, now }, this.settleParams());
+    // 受領の遷移は拒否経路を持たない（engine/plan.ts）。型の網羅のためだけの分岐である。
+    if (!outcome.ok) return;
+    // 採用があれば Persist 先頭の Effect 列が実行され、broadcast は put 成功の上に立つ（SSOT 規律）。
+    // Operation History へは何も出さない——採用/棄却は Timer 状態の差分ではない（tasks.md 21.3）。
+    await this.runEffects(outcome.effects);
   }
 
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -556,9 +821,10 @@ export class StoreTimerDO extends DurableObject<Env> {
         ws.send(JSON.stringify(error));
         return;
       }
-      // arms / toleranceRatio は ensureProvisioned が投影 config から確立した確定値を synchronize へ注入する。
+      // 同期・採点のパラメータは settleParams が一箇所で組む（投影 config から確立した確定値を注入する）。
+      const before = this.workingCopy;
       const outcome = decide(
-        this.workingCopy,
+        before,
         {
           type: "Adjust",
           timerId: command.timerId,
@@ -566,10 +832,11 @@ export class StoreTimerDO extends DurableObject<Env> {
           boilSeconds: preset.boilSeconds[command.firmness],
           now,
         },
-        { arms: this.arms, toleranceRatio: this.toleranceRatio },
+        this.settleParams(),
       );
       if (outcome.ok) {
-        await this.runEffects(outcome.effects);
+        const result = await this.runEffects(outcome.effects);
+        this.tryWriteCommittedOperation("Adjust", now, before, outcome.effects, result);
         return;
       }
       const error: ServerMessage = {
@@ -590,18 +857,23 @@ export class StoreTimerDO extends DurableObject<Env> {
             noodleType: command.noodleType,
             boilSeconds: command.boilSeconds,
             newTimerId: crypto.randomUUID() as TimerId,
+            // 推奨からの開始はここで組を得て、engine 側で consumeOrder を踏む（AC 8.4）。組が無ければ
+            // アドホック麺茹でで、待ち行列には触れない。
+            orderItem: toOrderItem(command),
             now,
           }
         : command.type === "cancel"
           ? { type: "Cancel" as const, timerId: command.timerId, now }
           : { type: "Complete" as const, timerId: command.timerId, now };
 
-    // arms / toleranceRatio は ensureProvisioned が投影 config から確立した確定値を synchronize へ注入する。
-    const outcome = decide(this.workingCopy, event, { arms: this.arms, toleranceRatio: this.toleranceRatio });
+    // 同期・採点のパラメータは settleParams が一箇所で組む（投影 config から確立した確定値を注入する）。
+    const before = this.workingCopy;
+    const outcome = decide(before, event, this.settleParams());
     if (outcome.ok) {
       // Persist 先頭の Effect 列を runEffects が実行する（SSOT 規律）。確定変化は全 WS へ snapshot を
       // broadcast し、要求元も他 client と同一の snapshot を受ける（Reply を使わない・bug#1 の構造的消滅）。
-      await this.runEffects(outcome.effects);
+      const result = await this.runEffects(outcome.effects);
+      this.tryWriteCommittedOperation(event.type, now, before, outcome.effects, result);
       return;
     }
     // 拒否は Effect 列を生まない（outcome.ok === false）。要求元の WS だけへ error を返す（要件1.5 / 3.8 / 6.6）。
@@ -632,17 +904,18 @@ export class StoreTimerDO extends DurableObject<Env> {
     this.emitSeam(buildSeamEntry({ seam: "alarm", at: Date.now(), instanceId: this.instanceId }));
     // now は shell が採取して core へ渡す（core は時計を持たない＝純粋）。
     const now = Date.now() as EpochMillis;
+    const before = this.workingCopy;
     // AlarmFired は fireDueTimers と同形で常に成功する（拒否経路を持たない）。
-    // arms / toleranceRatio は ensureProvisioned が投影 config から確立した確定値を synchronize へ注入する。
-    const outcome = decide(this.workingCopy, { type: "AlarmFired", now }, {
-      arms: this.arms,
-      toleranceRatio: this.toleranceRatio,
-    });
+    // 同期・採点のパラメータは settleParams が一箇所で組む（投影 config から確立した確定値を注入する）。
+    const outcome = decide(before, { type: "AlarmFired", now }, this.settleParams());
     if (!outcome.ok) return;
     // Persist 先頭の Effect 列を runEffects が実行する。SetAlarm/ClearAlarm は applySideEffect が
     // storage.setAlarm/deleteAlarm へ写し、done の Broadcast は put 成功の上にのみ立つ（SSOT 規律）。
     const result = await this.runEffects(outcome.effects);
-    if (result.persisted) return;
+    if (result.persisted) {
+      this.tryWriteCommittedOperation("AlarmFired", now, before, outcome.effects, result);
+      return;
+    }
     // ここに来たら Persist 失敗 = 何も確定していない（Working_Copy も put 前のまま据え置き）。
     // 原則は throw して Cloudflare Alarm の at-least-once 自動リトライに委ねる。ただし retryCount が
     // 上限近傍のときは throw せず新規 Alarm を張り直し、リトライ枯渇による取りこぼしを防ぐ（公式推奨）。
@@ -681,7 +954,11 @@ export class StoreTimerDO extends DurableObject<Env> {
         this.workingCopy = fromSnapshot(effect.snapshot);
       } else {
         // Persist 成功の後でのみ到達する。put 成功の上に broadcast / alarm が立つ。
-        this.applySideEffect(effect);
+        // 逐次 await は列の順序を守るためで、待ちを持つのは RequestPlan の受理応答（202）ひとつだけである
+        // （他の作用は同期に済む）。202 を待つのは「送ったことを確かめてから event 処理を終える」ためで、
+        // 計算完了は待たない（AC 5.2 / 12.2）。
+        // oxlint-disable-next-line no-await-in-loop
+        await this.applySideEffect(effect);
       }
     }
     return { persisted: true };
@@ -692,8 +969,12 @@ export class StoreTimerDO extends DurableObject<Env> {
    *
    * これらは永続済み状態から再構成可能な派生作用であり、Persist のように完了を await しない
    * （欠落は Alarm なら次回起動の reconcile、Broadcast なら再接続時の全量 hydration が回収する）。
+   *
+   * **RequestPlan だけが待ちを持つ。** 外部への送出は完了を確かめないと、event 処理の終了で invocation ごと
+   * 打ち切られて要求が届かないことがある。ゆえに受理応答（202）までを await する——計算完了は待たない
+   * （AC 5.2 / 12.2）。この一点のために署名が Promise を返す。
    */
-  private applySideEffect(effect: Exclude<Effect, { readonly type: "Persist" }>): void {
+  private async applySideEffect(effect: Exclude<Effect, { readonly type: "Persist" }>): Promise<void> {
     switch (effect.type) {
       case "SetAlarm":
         void this.ctx.storage.setAlarm(effect.at);
@@ -721,6 +1002,57 @@ export class StoreTimerDO extends DurableObject<Env> {
         }
         break;
       }
+      case "RequestPlan":
+        // 唯一の待ち。受理応答（202）までを await して「送ったことを確かめてから」event 処理を終える。
+        // 計算完了は待たない（AC 5.2 / 12.2）。送出失敗は requestPlan が内で握る（AC 10.2）。
+        await this.requestPlan(effect);
+        break;
+      default: {
+        // 網羅を型で強制する。Effect へ新しい種別が入ると effect が never へ落ちず、この代入が型エラーに
+        // なる——「宣言なく黙って落とす」穴が二度と開かない（design の「網羅性は switch が型で保証する」）。
+        const unhandled: never = effect;
+        return unhandled;
+      }
+    }
+  }
+
+  /**
+   * 外部（Solver_Worker）へ計画を要求する（AC 5.2 / 10.2 / 12.2）。往路の唯一の送出点。
+   *
+   * **受理応答（202）だけを await する。** 計算完了を待てば、改善の投機のために DO が起きたまま外部の計算を
+   * 抱えることになる（「待つなら寝かせる、抱えると漏れる」）。完了は Solver_Worker 側が `ctx.waitUntil` で
+   * 抱え、復路の `deliverPlan` が DO を wake させる——その wake が正当な起動である。
+   *
+   * **送出失敗を Timer 本体へ伝播させない**（AC 10.2）。送出は確定の一部ではなく投機ゆえ、Effect 列の末尾に
+   * 置かれている。ここで throw を通せば、既に確定した Persist / Broadcast の後で呼び出し元（event 入口）へ
+   * 失敗が伝わり、計時と無関係な失敗が現場の応答を壊す。応答の status も見ない——不到達・エラー応答・
+   * タイムアウトはすべて「何も起きない」に収束し（AC 10.1）、取り逃した機会は次の状態変化の要求が回収する。
+   * **DO 内で再試行を抱えず、in-flight の追跡状態も応答監視の Alarm も持たない**（AC 10.4）。
+   *
+   * storeId は shell が付ける（engine は storeId を知らない・構造の主権）。名前を持たない DO——`idFromName`
+   * 以外で引かれた stub——は復路の宛先を持てないため、要求そのものを出さない。
+   */
+  private async requestPlan(effect: Extract<Effect, { readonly type: "RequestPlan" }>): Promise<void> {
+    const storeId = this.ctx.id.name;
+    if (storeId === undefined || storeId.length === 0) return;
+    // 麺プリセットは在メモリの確定値（投影 config）から載せる。Effect が宣言して運ぶのは採点パラメータの
+    // 8 値までで、茹で時間は engine 側でも算出の引数として別に渡される値である（solver/request.ts の注記）。
+    const body: PlanRequest = {
+      storeId,
+      pending: effect.pending,
+      running: effect.running,
+      params: effect.params,
+      noodlePresets: this.noodlePresets,
+      digest: effect.digest,
+    };
+    try {
+      await this.env.SOLVER.fetch(SOLVER_REQUEST_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // 送出失敗は握って落とす（上記のとおり伝播させない・再試行も抱えない）。
     }
   }
 }

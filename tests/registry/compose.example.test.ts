@@ -25,6 +25,7 @@ import {
   DEFAULT_NOODLE_PRESETS,
 } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
+import { schedulingDefaults } from "../storeConfigDefaults";
 
 // ── フィクスチャ補助 ──
 
@@ -51,6 +52,7 @@ describe("composeEffectiveConfig — 縮退（空入力）", () => {
       arms: DEFAULT_ARMS,
       toleranceRatio: DEFAULT_TOLERANCE_RATIO,
       noodlePresets: DEFAULT_NOODLE_PRESETS,
+      ...schedulingDefaults(DEFAULT_UNIT_COUNT),
     };
     expect(result).toEqual(expected);
   });
@@ -73,7 +75,8 @@ describe("composeEffectiveConfig — Override のみ（Policy なし）", () => 
       noodlePresets: presets(preset("Store-Special", 90)),
     };
     const result = composeEffectiveConfig([], override);
-    expect(result).toEqual(override);
+    // 重み・許容幅・レイアウトは Override の主張対象ではなく、常に既定で埋まる。
+    expect(result).toEqual({ ...override, ...schedulingDefaults(2) });
   });
 });
 

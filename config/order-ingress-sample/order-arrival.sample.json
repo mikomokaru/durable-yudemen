@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "externalOrderId": "order-20260626-0001",
+      "itemIndex": 0,
+      "noodleType": "Medium",
+      "firmness": "normal",
+      "tableId": "T-3"
+    },
+    {
+      "externalOrderId": "order-20260626-0001",
+      "itemIndex": 1,
+      "noodleType": "Thin",
+      "firmness": "hard",
+      "tableId": "T-3"
+    }
+  ]
+}

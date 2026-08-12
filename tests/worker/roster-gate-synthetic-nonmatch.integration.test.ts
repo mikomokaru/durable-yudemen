@@ -35,9 +35,10 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import worker from "../../src/worker";
 import type { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
-import type { ActiveTimersSnapshot } from "../../src/engine/snapshot";
+import type { StoreSnapshot } from "../../src/engine/snapshot";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
+import { schedulingDefaults } from "../storeConfigDefaults";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO を型付きで引く）。
 declare module "cloudflare:test" {
@@ -163,6 +164,7 @@ function config(): StoreConfig {
     noodlePresets: [
       { noodleType: "thin", boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
     ] as NonEmptyArray<NoodlePreset>,
+    ...schedulingDefaults(3),
   };
 }
 
@@ -203,7 +205,7 @@ async function expectStoreUnchanged(storeId: string): Promise<void> {
     expect(projection?.version).toBe(1);
     expect(projection?.roster).toEqual([...SYNTHETIC_ROSTER]);
 
-    const snapshot = (await state.storage.get(SNAPSHOT_KEY)) as ActiveTimersSnapshot | undefined;
+    const snapshot = (await state.storage.get(SNAPSHOT_KEY)) as StoreSnapshot | undefined;
     expect(snapshot).toBeUndefined();
 
     expect(await state.storage.getAlarm()).toBeNull();

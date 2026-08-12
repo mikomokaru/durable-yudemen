@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { isValidStoreId } from "./registry/slug";
 import type { Identity } from "./registry/ideal";
-import { isAdminAuthorized } from "./worker-auth";
+import { isAdminAuthorized, isOrderIngressAuthorized } from "./worker-auth";
 import { type EntryDestination, resolveEntryDestination } from "./worker-entry";
 import { REGISTRY_NAME, StoreRegistryDO } from "./shell/store-registry-do";
 import { IDENTITY_HEADER, StoreTimerDO } from "./shell/store-timer-do";
@@ -13,7 +13,10 @@ export { StoreRegistryDO, StoreTimerDO };
 //   /s/{storeId}/ws  … WebSocket 接続
 //   /s/{storeId}/    … 画面・SPA（配下の client ルートを含む）
 // storeId 断片は生のまま切り出し、ルーティング前段で isValidStoreId により検証する。
+// Order_Ingress（POST /s/{storeId}/orders・online-cook-scheduling 要件1）。POS がオーダーの到着・キャンセルを
+// 届ける認可付き経路。画面パターンより前に照合する（STORE_SCREEN_PATTERN はこのパスにも当たるため）。
 const STORE_WS_PATTERN = /^\/s\/([^/]+)\/ws$/;
+const STORE_ORDERS_PATTERN = /^\/s\/([^/]+)\/orders$/;
 const STORE_SCREEN_PATTERN = /^\/s\/([^/]+)(?:\/.*)?$/;
 
 // 認可の純粋ロジック（isAdminAuthorized / timingSafeEqual）は src/worker-auth.ts へ隔離した。
@@ -129,6 +132,34 @@ export default {
       const id = env.STORE_TIMER_DO.idFromName(storeId);
       const stub = env.STORE_TIMER_DO.get(id, { locationHint: "apac-ne" });
       return stub.fetch(forwardedRequest);
+    }
+
+    // Order_Ingress（POST /s/{storeId}/orders・online-cook-scheduling AC 1.1）。POS からのオーダー到着・
+    // キャンセルを受ける。Worker は認可（ORDER_INGRESS_TOKEN の定数時間照合）だけを担い、ボディの解釈・
+    // 検証・400 応答は店舗 DO の receiveOrder に閉じる（Worker 極薄・/admin/* と同じ置き方）。
+    // 鍵は ADMIN_TOKEN とは別の secret である——POS へ運用系の書き込み口（Provisioning_API）を開かない。
+    // 不一致・欠如は 401 で DO へ到達させず、状態を一切変更しない。
+    const ordersMatch = STORE_ORDERS_PATTERN.exec(url.pathname);
+    if (ordersMatch) {
+      if (!isOrderIngressAuthorized(request, env)) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      if (request.method !== "POST") {
+        return new Response("Expected POST", { status: 405 });
+      }
+      const storeId = ordersMatch[1] ?? "";
+      if (!isValidStoreId(storeId)) {
+        return new Response("Invalid storeId", { status: 400 });
+      }
+      // 内部 identity ヘッダは、この経路でも無条件で除去する（per-store-provisioning 要件8.6）。
+      // POS は identity を運ばないため付け直しもしない。「クライアント由来の同名ヘッダを決して透過しない」は
+      // 経路ごとの例外を作らないことで守られる不変であり、店舗 DO へ委譲するすべての経路がこれに従う。
+      const forwarded = new Headers(request.headers);
+      forwarded.delete(IDENTITY_HEADER);
+      // WS 経路と同じく idFromName → get（locationHint）で APAC 北東へ配置を寄せる。
+      const id = env.STORE_TIMER_DO.idFromName(storeId);
+      const stub = env.STORE_TIMER_DO.get(id, { locationHint: "apac-ne" });
+      return stub.fetch(new Request(request, { headers: forwarded }));
     }
 
     // 店舗宛先（新経路・要件1.1 / 1.3）: /s/{storeId}/（画面・SPA）。storeId を検証し、不正は 400。
