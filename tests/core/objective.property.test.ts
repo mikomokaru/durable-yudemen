@@ -133,6 +133,7 @@ const genPlan: fc.Arbitrary<PlanSeed> = fc
               firmness: "normal",
               tableId: tableKey,
               arrivalTime: serveAt - item.waitMillis,
+              slotSpan: 1,
             });
           }
           return {

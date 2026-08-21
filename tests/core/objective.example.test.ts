@@ -71,7 +71,15 @@ function placement(input: { orderId: string; itemIndex: number; slot: number; se
 
 /** Pending_Order 1 件（Wait_Time の起点を与える）。麺種・硬さ・卓は採点に寄与しない。 */
 function pendingItem(orderId: string, itemIndex: number, arrivalTime: number): PendingOrder {
-  return { externalOrderId: orderId, itemIndex, noodleType: "Thin", firmness: "normal", tableId: "table-1", arrivalTime };
+  return {
+    externalOrderId: orderId,
+    itemIndex,
+    noodleType: "Thin",
+    firmness: "normal",
+    tableId: "table-1",
+    arrivalTime,
+    slotSpan: 1,
+  };
 }
 
 describe("scoreSchedule — 確定式の内訳", () => {

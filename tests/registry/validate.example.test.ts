@@ -27,6 +27,8 @@ import {
   ARMS_MAX,
   TOLERANCE_RATIO_MIN,
   TOLERANCE_RATIO_MAX,
+  SLOT_SPAN_MIN,
+  SLOT_SPAN_MAX,
 } from "../../src/domain/store";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
 
@@ -318,5 +320,263 @@ describe("validateProvisioningInput — 必須欠落の拒否", () => {
         "missing-required",
       );
     }
+  });
+});
+
+// ── firmnessCodes / menuItems（pos-order-ingress タスク8.3）──
+//
+// 2 枚の対応表は domain の to*（不正を黙って既定へ畳む）と対を成す拒否型検証であり、ここで確かめるのは
+// 「畳まずに拒否する」ことである。とくに次の 4 点——値域外がクランプされない・sizes が空なら拒否される・
+// 未知フィールドが拒否される・拒否理由が短絡せず全件集約される。
+
+/** 妥当な FirmnessCode。 */
+const validFirmnessCode = () => ({ code: 10011, firmness: "normal" });
+
+/** 妥当な MenuItem（サイズ 2 件）。 */
+const validMenuItem = () => ({
+  productCode: 11421,
+  noodleType: "Thin",
+  sizes: [
+    { code: 19401, slotSpan: SLOT_SPAN_MIN },
+    { code: 19603, slotSpan: SLOT_SPAN_MAX },
+  ],
+});
+
+describe("validateProvisioningInput — firmnessCodes", () => {
+  it("妥当な対応表を受理する", () => {
+    const raw = { firmnessCodes: [validFirmnessCode(), { code: 10010, firmness: "hard" }] };
+    expect(validateProvisioningInput({ target: "storeOverride", raw })).toEqual({ accepted: true });
+  });
+
+  it("空配列を受理する（既定が空であり「まだ投入していない」は正直な状態）", () => {
+    expect(validateProvisioningInput({ target: "storeOverride", raw: { firmnessCodes: [] } })).toEqual({
+      accepted: true,
+    });
+  });
+
+  it("配列でなければ type-mismatch で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({ target: "storeOverride", raw: { firmnessCodes: {} } }),
+      "firmnessCodes",
+      "type-mismatch",
+    );
+  });
+
+  it("code が 0 以下なら out-of-range で拒否する（正の整数へクランプしない）", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { firmnessCodes: [{ code: 0, firmness: "normal" }] },
+      }),
+      "firmnessCodes[0].code",
+      "out-of-range",
+    );
+  });
+
+  it("code が非整数なら type-mismatch で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { firmnessCodes: [{ code: 10011.5, firmness: "normal" }] },
+      }),
+      "firmnessCodes[0].code",
+      "type-mismatch",
+    );
+  });
+
+  it("未知の firmness を out-of-range で拒否する（既定 normal へ畳まない）", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { firmnessCodes: [{ code: 10011, firmness: "veryHard" }] },
+      }),
+      "firmnessCodes[0].firmness",
+      "out-of-range",
+    );
+  });
+
+  it("firmness 欠落を missing-required で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({ target: "storeOverride", raw: { firmnessCodes: [{ code: 10011 }] } }),
+      "firmnessCodes[0].firmness",
+      "missing-required",
+    );
+  });
+
+  it("未知フィールドの混入を unknown-field で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { firmnessCodes: [{ ...validFirmnessCode(), boilSeconds: 60 }] },
+      }),
+      "firmnessCodes[0].boilSeconds",
+      "unknown-field",
+    );
+  });
+
+  it("PolicyFields では ModedValue で包まれた値を検証する", () => {
+    const accepted = validateProvisioningInput({
+      target: "policyFields",
+      raw: { firmnessCodes: { mode: "enforced", value: [validFirmnessCode()] } },
+    });
+    expect(accepted).toEqual({ accepted: true });
+
+    expectRejection(
+      validateProvisioningInput({
+        target: "policyFields",
+        raw: { firmnessCodes: { mode: "enforced", value: [{ code: -1, firmness: "normal" }] } },
+      }),
+      "firmnessCodes.value[0].code",
+      "out-of-range",
+    );
+  });
+});
+
+describe("validateProvisioningInput — menuItems", () => {
+  it("妥当なメニュー表を受理する", () => {
+    expect(
+      validateProvisioningInput({ target: "storeOverride", raw: { menuItems: [validMenuItem()] } }),
+    ).toEqual({ accepted: true });
+  });
+
+  it("空配列を受理する（茹で対象が 0 件になるだけで構造は成立する）", () => {
+    expect(validateProvisioningInput({ target: "storeOverride", raw: { menuItems: [] } })).toEqual({
+      accepted: true,
+    });
+  });
+
+  it("sizes が空配列なら out-of-range で拒否する（サイズ 0 個のメニューを通さない）", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { menuItems: [{ ...validMenuItem(), sizes: [] }] },
+      }),
+      "menuItems[0].sizes",
+      "out-of-range",
+    );
+  });
+
+  it("sizes 欠落を missing-required で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { menuItems: [{ productCode: 11421, noodleType: "Thin" }] },
+      }),
+      "menuItems[0].sizes",
+      "missing-required",
+    );
+  });
+
+  it("noodleType が空文字列なら out-of-range で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { menuItems: [{ ...validMenuItem(), noodleType: "" }] },
+      }),
+      "menuItems[0].noodleType",
+      "out-of-range",
+    );
+  });
+
+  it(`slotSpan: 境界内（${SLOT_SPAN_MIN}・${SLOT_SPAN_MAX}）は受理、境界外は out-of-range で拒否する（クランプしない）`, () => {
+    for (const slotSpan of [SLOT_SPAN_MIN, SLOT_SPAN_MAX]) {
+      const raw = { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan }] }] };
+      expect(validateProvisioningInput({ target: "storeOverride", raw })).toEqual({ accepted: true });
+    }
+    for (const slotSpan of [SLOT_SPAN_MIN - 1, SLOT_SPAN_MAX + 1]) {
+      const raw = { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan }] }] };
+      expectRejection(
+        validateProvisioningInput({ target: "storeOverride", raw }),
+        "menuItems[0].sizes[0].slotSpan",
+        "out-of-range",
+      );
+    }
+  });
+
+  it("slotSpan が非整数なら type-mismatch で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan: 1.5 }] }] },
+      }),
+      "menuItems[0].sizes[0].slotSpan",
+      "type-mismatch",
+    );
+  });
+
+  it("sizes 要素の未知フィールドを unknown-field で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan: 1, label: "大盛" }] }] },
+      }),
+      "menuItems[0].sizes[0].label",
+      "unknown-field",
+    );
+  });
+
+  it("MenuItem の未知フィールドを unknown-field で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { menuItems: [{ ...validMenuItem(), itemType: 1 }] },
+      }),
+      "menuItems[0].itemType",
+      "unknown-field",
+    );
+  });
+
+  it("noodlePresets に無い noodleType を拒否しない（横断整合は入口で見ない）", () => {
+    const raw = {
+      noodlePresets: [validPreset()],
+      menuItems: [{ ...validMenuItem(), noodleType: "存在しない麺種" }],
+    };
+    expect(validateProvisioningInput({ target: "storeOverride", raw })).toEqual({ accepted: true });
+  });
+});
+
+describe("validateProvisioningInput — 拒否理由の全件集約（短絡しない）", () => {
+  it("2 枚の表に散らばる 5 つの拒否を 1 度の検証で全件返す", () => {
+    const verdict = validateProvisioningInput({
+      target: "storeOverride",
+      raw: {
+        firmnessCodes: [{ code: 0, firmness: "veryHard" }],
+        menuItems: [
+          { productCode: 11421, noodleType: "", sizes: [{ code: 19401, slotSpan: SLOT_SPAN_MAX + 1 }] },
+        ],
+      },
+    });
+    const paths = expectRejected(verdict).map((r) => r.path);
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "firmnessCodes[0].code",
+        "firmnessCodes[0].firmness",
+        "menuItems[0].noodleType",
+        "menuItems[0].sizes[0].slotSpan",
+      ]),
+    );
+    expect(paths).toHaveLength(4);
+  });
+
+  it("既存フィールドの拒否と新フィールドの拒否が同時に集約される", () => {
+    const paths = expectRejected(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: {
+          unitCount: UNIT_COUNT_MAX + 1,
+          surprise: true,
+          firmnessCodes: "not-an-array",
+          menuItems: [{ ...validMenuItem(), sizes: [] }],
+        },
+      }),
+    ).map((r) => r.path);
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "storeOverride.surprise",
+        "unitCount",
+        "firmnessCodes",
+        "menuItems[0].sizes",
+      ]),
+    );
   });
 });

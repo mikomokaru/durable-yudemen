@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+// `?raw` の default は vite/client の `declare module '*?raw'` が与えるため tsc は通る。oxlint の resolver はその宣言を
+// 読まず `?raw` を落として実ファイルへ解決するので、実在する .ts を指すときだけ default 無しと誤判定する。
+// oxlint-disable-next-line import/default
 import deriveSource from "../../src/operation-history/derive.ts?raw";
 import { recordsFromCommittedDiff, type OperationObservation } from "../../src/operation-history/derive";
 import { createTimer } from "../../src/engine/timer";

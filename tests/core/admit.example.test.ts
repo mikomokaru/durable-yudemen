@@ -55,7 +55,7 @@ const BLOCKED: readonly Timer[] = [1, 2, 3, 4, 5].map((slot) =>
 
 /** 待ち行列の 1 品目（1 注文 1 品目・卓は注文ごとに別）。 */
 function order(externalOrderId: string, noodleType: string, tableId: string): PendingOrder {
-  return { externalOrderId, itemIndex: 0, noodleType, firmness: "normal", tableId, arrivalTime: NOW };
+  return { externalOrderId, itemIndex: 0, noodleType, firmness: "normal", tableId, arrivalTime: NOW, slotSpan: 1 };
 }
 
 /** 長い麺の A（卓 t-a）と短い麺の B（卓 t-b）。到着は同時ゆえ自前解は卓 id 順に A → B と置く。 */

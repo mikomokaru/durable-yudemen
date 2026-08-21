@@ -16,13 +16,15 @@ import { adjustTimer } from "./adjust";
 import { fireDueTimers, reconcile } from "./fire";
 import { arriveOrder, cancelOrder } from "./order";
 import { receivePlan } from "./plan";
+import { arriveRecords } from "./receive";
 
 /**
  * 唯一の状態遷移関数（要件8.1 / 8.4 / 8.7・本機能の要件7.1 / 7.2）。
  *
  * Start → startTimer / Cancel → cancelTimer / Complete → completeTimer /
  * AlarmFired → fireDueTimers / Reconcile → reconcile /
- * OrderArrived → arriveOrder / OrderCancelled → cancelOrder / PlanArrived → receivePlan。
+ * OrderArrived → arriveOrder / OrderCancelled → cancelOrder / PlanArrived → receivePlan /
+ * RecordsReceived → arriveRecords。
  * 網羅は型で保証する（Event は判別共用体であり、未処理の種別は never に落ちて型エラーになる）。
  *
  * params は同期計算・採点の値と麺プリセット（SettleParams）。engine は StoreConfig 型を知らず、ただの値の束
@@ -52,5 +54,9 @@ export function decide(state: TimerState, event: Event, params: SettleParams): O
     // shell がスキーマ検証を通してからこの分岐へ流す（engine は検証済みの型だけを受ける）。
     case "PlanArrived":
       return receivePlan(state, event, params);
+    // 受領は 1 イベントで畳む（Record ごとに分ければ Persist が件数だけ生じる）。重複の読み飛ばしも
+    // 判定材料の更新も arriveRecords の内側に閉じ、decide は素通しに徹する。
+    case "RecordsReceived":
+      return arriveRecords(state, event, params);
   }
 }

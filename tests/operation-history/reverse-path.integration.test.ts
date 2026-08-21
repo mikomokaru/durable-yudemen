@@ -21,7 +21,8 @@ import rawArrivalConsumer, {
 } from "../../src/data-platform/raw-arrival-consumer";
 import { nonEmpty } from "../nonEmpty";
 
-const PRODUCER_SCRIPT = "yude-men-timer-prod";
+// root wrangler.jsonc の "name" と一致する、現存するただ一つの Producer script。
+const PRODUCER_SCRIPT = "yude-men-timer";
 const EVENT_TIME = 1_700_000_100_000;
 const START_TIME = 1_700_000_000_000;
 

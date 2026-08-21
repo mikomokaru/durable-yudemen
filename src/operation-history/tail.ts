@@ -1,11 +1,11 @@
 import { parseOperationLines, printCanonicalOperationLine } from "./codec";
 import type { OperationLineFailure } from "./codec";
 
-const PRODUCER_SCRIPTS: ReadonlySet<string> = new Set([
-  "yude-men-timer-dev",
-  "yude-men-timer-stage",
-  "yude-men-timer-prod",
-]);
+// 想定 Producer script 名。tail event の scriptName はデプロイ済み Worker の実名であり、
+// root wrangler.jsonc の "name" ただ一つ（= "yude-men-timer"）が現存する Producer である。
+// 環境別 script（-dev / -stage / -prod）は未導入で、実在しない名前を挙げると本番の tail が
+// 全て filter で落ちる。環境を実際に分けた日に、その環境の実 script 名をここへ足す。
+const PRODUCER_SCRIPTS: ReadonlySet<string> = new Set(["yude-men-timer"]);
 
 /** 想定 Producer の canonical Operation Record と codec 失敗を観測側で分離する。 */
 export function operationLinesFromTailEvents(events: readonly {

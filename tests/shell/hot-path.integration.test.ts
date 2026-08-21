@@ -32,7 +32,7 @@ import type { ServerMessage } from "../../src/domain/messages";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
 import { DEFAULT_UNIT_COUNT } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import { configResidualDefaults } from "../storeConfigDefaults";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO / STORE_REGISTRY_DO を型付きで引く）。
 declare module "cloudflare:test" {
@@ -52,7 +52,7 @@ const hotPathConfig: StoreConfig = {
   noodlePresets: [
     { noodleType: HOTPATH_NOODLE, boilSeconds: { extraHard: 70, hard: 85, normal: 100, soft: 130 } },
   ] as NonEmptyArray<NoodlePreset>,
-  ...schedulingDefaults(5),
+  ...configResidualDefaults(5),
 };
 
 /** 活性・識別可能 config を持つ「最後に受領した投影」。version は任意の正値でよい。 */

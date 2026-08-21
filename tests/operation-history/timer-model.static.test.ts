@@ -24,13 +24,28 @@ type ModelShapeAssertions = [
   Assert<Equal<keyof Timer, keyof TimerFact | "seq" | "boiledAt" | "adjustment" | "orderItem">>,
   // 調理順スケジューリング（online-cook-scheduling タスク 5.1）が 3 フィールドを足した。この主張の眼目は
   // 「Operation History が Timer モデルへフィールドを足さないこと」であり、他 spec による正当な拡張は追随させる。
+  // POS オーダー取り込み（pos-order-ingress タスク 10）が重複排除の判定材料を 1 つ足した。
   Assert<
-    Equal<keyof TimerState, "timers" | "nextSeq" | "pendingOrders" | "acceptedSlices" | "requestedDigest">
+    Equal<
+      keyof TimerState,
+      "timers" | "nextSeq" | "pendingOrders" | "acceptedSlices" | "requestedDigest" | "lastSequenceByTerminal"
+    >
   >,
   // 永続スキーマ v7（online-cook-scheduling タスク 6.2）が同じ 3 フィールドを永続へ載せ、型名を
   // ActiveTimersSnapshot から StoreSnapshot へ改めた。ストレージキー "activeTimers" は据え置き。
+  // v8（pos-order-ingress タスク 12）が判定材料を永続へ載せた——別キーにすれば注文と別の put になり、
+  // 「判定材料だけ進んで注文が無い」欠落が生じるため、同じスナップショットに乗る。
   Assert<
-    Equal<keyof StoreSnapshot, "version" | "timers" | "nextSeq" | "pendingOrders" | "acceptedSlices" | "requestedDigest">
+    Equal<
+      keyof StoreSnapshot,
+      | "version"
+      | "timers"
+      | "nextSeq"
+      | "pendingOrders"
+      | "acceptedSlices"
+      | "requestedDigest"
+      | "lastSequenceByTerminal"
+    >
   >,
   // 調理順スケジューリング（online-cook-scheduling タスク 12.2）が Effect 語彙へ RequestPlan を足した。
   // 上と同じ眼目——Operation History 自身が Effect を増やさないことを主張し、他 spec の正当な拡張は追随させる。
@@ -96,6 +111,7 @@ describe("Operation History の Timer モデル規律", () => {
       {
         "snapshot": {
           "acceptedSlices": [],
+          "lastSequenceByTerminal": {},
           "nextSeq": 42,
           "pendingOrders": [],
           "requestedDigest": null,
@@ -116,7 +132,7 @@ describe("Operation History の Timer モデル規律", () => {
               "startTime": 1700000000000,
             },
           ],
-          "version": 7,
+          "version": 8,
         },
         "type": "Persist",
       }

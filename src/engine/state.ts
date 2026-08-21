@@ -33,13 +33,49 @@ export interface TimerState {
   readonly acceptedSlices: readonly AcceptedSlice[];
   /** 直前に外部計画を要求した時点の入力の指紋。null は「まだ一度も要求していない」。 */
   readonly requestedDigest: InputDigest | null;
+  /**
+   * 端末ごとの「最後に受理した sequence_number」。取り込みの重複排除の判定材料（AC 10.5〜10.8）。
+   *
+   * **別キーに置かない。** `Persist` と別の `put` になれば「判定材料だけ進んで注文が無い」欠落が生じ、
+   * その注文は再送でも重複として弾かれて永久に失われる。単一の `put` で状態ごと確定すれば起きない。
+   *
+   * 受理済みの `sequence_number` の台帳を持たず端末ごとに 1 つだけ持つのは、同一端末のレコードが到着順で
+   * 届く（同一端末は必ず同一 store_id に属し、上流のパーティションキーが store_id）ため、単調性だけで
+   * 重複が弾けるからである。台帳なら 168 時間分で 1,200 万件、単調性なら端末数分で足りる。
+   *
+   * engine が POS の語彙を知ることにはならない。`sequence_number` は上流が付与する不透明な順序の印であり、
+   * ここが持つのは比較可能な文字列という一事だけである（`noodleType` のように意味を解釈しない）。
+   */
+  readonly lastSequenceByTerminal: Readonly<Record<string, string>>;
 }
 
-/** 空の初期状態。Timer なし・seq は 0 から・待ち行列も採用済み計画も空・未要求。 */
+/** 空の初期状態。Timer なし・seq は 0 から・待ち行列も採用済み計画も空・未要求・判定材料なし。 */
 export const EMPTY_STATE: TimerState = {
   timers: [],
   nextSeq: 0,
   pendingOrders: [],
   acceptedSlices: [],
   requestedDigest: null,
+  lastSequenceByTerminal: {},
 };
+
+/**
+ * 届いた `sequence_number` が、その端末について最後に受理した値より新しいか（AC 10.8）。
+ *
+ * 判定を単一の関数に閉じるのは、新旧の基準が二箇所に分かれれば「どちらで見たかによって結論が変わる」
+ * 余地が生まれるからである。重複の読み飛ばしも判定材料の更新も、この一つの述語から出る。
+ *
+ * 比較は桁数を揃えた文字列比較で行う。KDS の sequence number は 56 桁の数値文字列で、桁数が同じなら
+ * 辞書順が数値順に一致し、桁数が違えば短い方が小さい。`BigInt` へ写さないのは、比較にしか使わない値を
+ * 数値へ変換する理由がないためである（桁溢れの検討も要らない）。
+ *
+ * 未知の端末（`undefined`）は常に新しい。ここで畳むのは、初回受理の扱いを呼び出し側へ出せば同じ判断が
+ * 二箇所に現れるためである。
+ */
+export function isNewerSequence(sequenceNumber: string, lastSequenceNumber: string | undefined): boolean {
+  if (lastSequenceNumber === undefined) return true;
+  if (sequenceNumber.length !== lastSequenceNumber.length) {
+    return sequenceNumber.length > lastSequenceNumber.length;
+  }
+  return sequenceNumber > lastSequenceNumber;
+}

@@ -12,7 +12,7 @@
 // mode/値）の双方が再利用する。判定の対象（target）だけが異なり、値域・型・未知フィールドの検査ロジックは
 // 一箇所に集約する。target はルートから導かれる信頼済みタグ、raw のみが untrusted。
 
-import { FIRMNESS_ORDER } from "../domain/firmness";
+import { FIRMNESS_ORDER, isFirmness } from "../domain/firmness";
 import {
   UNIT_COUNT_MIN,
   UNIT_COUNT_MAX,
@@ -20,6 +20,8 @@ import {
   ARMS_MAX,
   TOLERANCE_RATIO_MIN,
   TOLERANCE_RATIO_MAX,
+  SLOT_SPAN_MIN,
+  SLOT_SPAN_MAX,
 } from "../domain/store";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
 
@@ -78,8 +80,24 @@ const NUMERIC_FIELD_RANGE = {
   toleranceRatio: { min: TOLERANCE_RATIO_MIN, max: TOLERANCE_RATIO_MAX },
 } as const;
 
-/** 主張してよいフィールド集合（数値 3 種＋配列 1 種）。これ以外は未知フィールドとして拒否する。 */
-const ALLOWED_CONFIG_FIELDS: readonly string[] = [...Object.keys(NUMERIC_FIELD_RANGE), "noodlePresets"];
+/**
+ * StoreConfig 由来の配列フィールドと、その要素検証。
+ *
+ * 同形の分岐が 3 枚に達して重複が実在したため表へ寄せた。フィールド名と検証の対応が一箇所に収まり、
+ * 許可集合（ALLOWED_CONFIG_FIELDS）もここから導ける——表へ足せば許可集合と検証の双方が同時に追随し、
+ * 「許可はしたが検証していない」ずれが生じない。
+ */
+const ARRAY_FIELD_VALIDATOR = {
+  noodlePresets: validateNoodlePresets,
+  firmnessCodes: validateFirmnessCodes,
+  menuItems: validateMenuItems,
+} as const;
+
+/** 主張してよいフィールド集合（数値 3 種＋配列 3 種）。これ以外は未知フィールドとして拒否する。 */
+const ALLOWED_CONFIG_FIELDS: readonly string[] = [
+  ...Object.keys(NUMERIC_FIELD_RANGE),
+  ...Object.keys(ARRAY_FIELD_VALIDATOR),
+];
 
 const POLICY_MODES: readonly string[] = ["enforced", "default"];
 
@@ -113,11 +131,13 @@ function validateStoreConfigFields(
     }
   }
 
-  if ("noodlePresets" in object) {
+  for (const field of Object.keys(ARRAY_FIELD_VALIDATOR) as (keyof typeof ARRAY_FIELD_VALIDATOR)[]) {
+    if (!(field in object)) continue; // optional — 欠落は拒否しない
+    const validateElements = ARRAY_FIELD_VALIDATOR[field];
     if (target === "policyFields") {
-      rejections.push(...validateModed(object.noodlePresets, "noodlePresets", validateNoodlePresets));
+      rejections.push(...validateModed(object[field], field, validateElements));
     } else {
-      rejections.push(...validateNoodlePresets(object.noodlePresets, "noodlePresets"));
+      rejections.push(...validateElements(object[field], field));
     }
   }
 
@@ -200,15 +220,8 @@ function validateNoodlePreset(raw: unknown, path: string): Rejection[] {
 
   const rejections: Rejection[] = [
     ...unknownFieldRejections(object, ["noodleType", "boilSeconds"], path),
+    ...validateNonEmptyString(object, "noodleType", path),
   ];
-
-  if (!("noodleType" in object)) {
-    rejections.push({ path: `${path}.noodleType`, reason: "missing-required", detail: "noodleType は必須" });
-  } else if (typeof object.noodleType !== "string") {
-    rejections.push({ path: `${path}.noodleType`, reason: "type-mismatch", detail: "文字列である必要がある" });
-  } else if (object.noodleType.length === 0) {
-    rejections.push({ path: `${path}.noodleType`, reason: "out-of-range", detail: "空文字列は不可" });
-  }
 
   if (!("boilSeconds" in object)) {
     rejections.push({ path: `${path}.boilSeconds`, reason: "missing-required", detail: "boilSeconds は必須" });
@@ -247,6 +260,139 @@ function validateBoilSeconds(raw: unknown, path: string): Rejection[] {
   return rejections;
 }
 
+/**
+ * firmnessCodes を検証する。配列で、各要素が { code: 正の整数, firmness: 既知の Firmness } であることを
+ * 要求する（toFirmnessCodes が黙って落とす条件を、畳まず拒否として表明する）。
+ *
+ * 空配列は拒否しない。既定そのものが空であり「まだ投入していない」は正直な状態である——noodlePresets が
+ * 非空を要求するのは開始 UI が 1 つ以上の選択肢を要するためで、この表にその読み手が無い。
+ */
+function validateFirmnessCodes(raw: unknown, path: string): Rejection[] {
+  if (!Array.isArray(raw)) {
+    return [{ path, reason: "type-mismatch", detail: "配列である必要がある" }];
+  }
+
+  const rejections: Rejection[] = [];
+  raw.forEach((item, index) => {
+    rejections.push(...validateFirmnessCode(item, `${path}[${index}]`));
+  });
+  return rejections;
+}
+
+/** 単一の FirmnessCode を検証する。 */
+function validateFirmnessCode(raw: unknown, path: string): Rejection[] {
+  const object = asRecord(raw);
+  if (object === null) {
+    return [{ path, reason: "type-mismatch", detail: "オブジェクトである必要がある" }];
+  }
+
+  const rejections: Rejection[] = [
+    ...unknownFieldRejections(object, ["code", "firmness"], path),
+    ...validateProductCode(object, "code", path),
+  ];
+
+  const firmnessPath = `${path}.firmness`;
+  if (!("firmness" in object)) {
+    rejections.push({ path: firmnessPath, reason: "missing-required", detail: "firmness は必須" });
+  } else if (typeof object.firmness !== "string") {
+    rejections.push({ path: firmnessPath, reason: "type-mismatch", detail: "文字列である必要がある" });
+  } else if (!isFirmness(object.firmness)) {
+    rejections.push({
+      path: firmnessPath,
+      reason: "out-of-range",
+      detail: `${FIRMNESS_ORDER.join(" | ")} のいずれか（受領: ${object.firmness}）`,
+    });
+  }
+
+  return rejections;
+}
+
+/**
+ * menuItems を検証する。配列で、各要素が { productCode: 正の整数, noodleType: 非空文字列, sizes: 非空配列 }
+ * であることを要求する（sizes は入れ子ゆえ validateNoodlePresets が boilSeconds を委譲検証する形に倣う）。
+ *
+ * **横断整合（noodleType ∈ noodlePresets）はここで見ない。** 3 層の合成後でしか判定できず、Policy が
+ * メニューを配り店舗が noodlePresets を上書きする段階的投入が正当である。入口で拒めばその形が不可能になる。
+ */
+function validateMenuItems(raw: unknown, path: string): Rejection[] {
+  if (!Array.isArray(raw)) {
+    return [{ path, reason: "type-mismatch", detail: "配列である必要がある" }];
+  }
+
+  const rejections: Rejection[] = [];
+  raw.forEach((item, index) => {
+    rejections.push(...validateMenuItem(item, `${path}[${index}]`));
+  });
+  return rejections;
+}
+
+/** 単一の MenuItem を検証する。 */
+function validateMenuItem(raw: unknown, path: string): Rejection[] {
+  const object = asRecord(raw);
+  if (object === null) {
+    return [{ path, reason: "type-mismatch", detail: "オブジェクトである必要がある" }];
+  }
+
+  const rejections: Rejection[] = [
+    ...unknownFieldRejections(object, ["productCode", "noodleType", "sizes"], path),
+    ...validateProductCode(object, "productCode", path),
+    ...validateNonEmptyString(object, "noodleType", path),
+  ];
+
+  if (!("sizes" in object)) {
+    rejections.push({ path: `${path}.sizes`, reason: "missing-required", detail: "sizes は必須" });
+  } else {
+    rejections.push(...validateNoodleSizes(object.sizes, `${path}.sizes`));
+  }
+
+  return rejections;
+}
+
+/**
+ * sizes を検証する。非空配列であることを要求する。
+ *
+ * 空配列を拒否するのは、麺量を持たない品目は茹でないためである——「サイズ 0 個のメニュー」は茹でるのか
+ * 茹でないのか判らない状態であり、入口で通せば型（NonEmptyArray）が守る不変を投入値が破る。
+ */
+function validateNoodleSizes(raw: unknown, path: string): Rejection[] {
+  if (!Array.isArray(raw)) {
+    return [{ path, reason: "type-mismatch", detail: "配列である必要がある" }];
+  }
+  if (raw.length === 0) {
+    return [{ path, reason: "out-of-range", detail: "1 つ以上の麺量が必要" }];
+  }
+
+  const rejections: Rejection[] = [];
+  raw.forEach((item, index) => {
+    rejections.push(...validateNoodleSize(item, `${path}[${index}]`));
+  });
+  return rejections;
+}
+
+/** 単一の NoodleSize を検証する。slotSpan は値域の正本（SLOT_SPAN_MIN〜MAX）でクランプ前に拒否する。 */
+function validateNoodleSize(raw: unknown, path: string): Rejection[] {
+  const object = asRecord(raw);
+  if (object === null) {
+    return [{ path, reason: "type-mismatch", detail: "オブジェクトである必要がある" }];
+  }
+
+  const rejections: Rejection[] = [
+    ...unknownFieldRejections(object, ["code", "slotSpan"], path),
+    ...validateProductCode(object, "code", path),
+  ];
+
+  const spanPath = `${path}.slotSpan`;
+  if (!("slotSpan" in object)) {
+    rejections.push({ path: spanPath, reason: "missing-required", detail: "slotSpan は必須" });
+  } else {
+    rejections.push(
+      ...validateNumeric(object.slotSpan, { min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }, spanPath),
+    );
+  }
+
+  return rejections;
+}
+
 // ── Roster の検証（Chain / Store 双方の名簿値）──
 
 /** Roster = 非空 identity 文字列の配列。要素の順序・重複には意味を持たせない（検証は型のみ）。 */
@@ -267,6 +413,54 @@ function validateRoster(raw: unknown, path: string): Rejection[] {
 }
 
 // ── 共通ヘルパ ──
+
+/**
+ * 商品コードのフィールド（正の整数）を検証する。
+ *
+ * 3 箇所（firmnessCodes[].code / menuItems[].productCode / sizes[].code）が同一の条件を要求するため芯を
+ * 一箇所に置く。値域の上限を持たないため validateNumeric へは畳めない（券売機の採番に上限が無い）。
+ */
+function validateProductCode(
+  object: Record<string, unknown>,
+  field: string,
+  path: string,
+): Rejection[] {
+  const fieldPath = `${path}.${field}`;
+  if (!(field in object)) {
+    return [{ path: fieldPath, reason: "missing-required", detail: `${field} は必須` }];
+  }
+  const value = object[field];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return [{ path: fieldPath, reason: "type-mismatch", detail: "有限の数値である必要がある" }];
+  }
+  if (!Number.isInteger(value)) {
+    return [{ path: fieldPath, reason: "type-mismatch", detail: "整数である必要がある" }];
+  }
+  if (value <= 0) {
+    return [{ path: fieldPath, reason: "out-of-range", detail: `正の商品コード（受領: ${value}）` }];
+  }
+  return [];
+}
+
+/** 非空文字列のフィールドを検証する（noodleType が 2 枚の表に現れるため芯を一箇所に置く）。 */
+function validateNonEmptyString(
+  object: Record<string, unknown>,
+  field: string,
+  path: string,
+): Rejection[] {
+  const fieldPath = `${path}.${field}`;
+  if (!(field in object)) {
+    return [{ path: fieldPath, reason: "missing-required", detail: `${field} は必須` }];
+  }
+  const value = object[field];
+  if (typeof value !== "string") {
+    return [{ path: fieldPath, reason: "type-mismatch", detail: "文字列である必要がある" }];
+  }
+  if (value.length === 0) {
+    return [{ path: fieldPath, reason: "out-of-range", detail: "空文字列は不可" }];
+  }
+  return [];
+}
 
 /** 許可集合に無いキーを未知フィールドとして拒否列にする。 */
 function unknownFieldRejections(

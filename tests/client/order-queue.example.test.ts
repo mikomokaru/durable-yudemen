@@ -29,6 +29,7 @@ function order(
     firmness: "normal",
     tableId: null,
     arrivalTime,
+    slotSpan: 1,
     ...overrides,
   };
 }
@@ -127,6 +128,8 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
           { x: 0, y: 2 },
           { x: 1, y: 2 },
         ],
+        firmnessCodes: [{ code: 10010, firmness: "hard" }],
+        menuItems: [{ productCode: 11421, noodleType: "Thin", sizes: [{ code: 19401, slotSpan: 1 }] }],
       },
       receivedAt: T,
     });

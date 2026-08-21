@@ -11,7 +11,7 @@ import type { OperationObservation } from "../../src/operation-history/derive";
 import type { StoreProjection } from "../../src/registry/projection";
 import { StoreTimerDO } from "../../src/shell/store-timer-do";
 import { nonEmpty } from "../nonEmpty";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import { configResidualDefaults } from "../storeConfigDefaults";
 
 declare module "cloudflare:test" { interface ProvidedEnv extends Env {} }
 
@@ -108,7 +108,7 @@ const projection: StoreProjection = {
     noodlePresets: [
       { noodleType: "Thin", boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
     ],
-    ...schedulingDefaults(3),
+    ...configResidualDefaults(3),
   },
 };
 
@@ -618,6 +618,7 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
       pendingOrders: off.timer.finalSnapshot?.pendingOrders,
       acceptedSlices: off.timer.finalSnapshot?.acceptedSlices,
       requestedDigest: off.timer.finalSnapshot?.requestedDigest,
+      lastSequenceByTerminal: off.timer.finalSnapshot?.lastSequenceByTerminal,
     });
     expect(off.timer.finalAlarm).toBeNull();
     expect(off.timer.existingException).toEqual({

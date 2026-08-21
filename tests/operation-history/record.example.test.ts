@@ -30,7 +30,8 @@ const records = [
   { ...common, operationKind: "cancelled" },
 ] satisfies readonly OperationRecord[];
 
-if (false) {
+// 不正な Operation_Record が型として構築できないことの検証。実行はせず、型検査だけが目的である。
+const rejectedByType = (): void => {
   // @ts-expect-error completed は endTime を許可しない。
   const completedWithEndTime: OperationRecord = { ...common, operationKind: "completed", endTime: timestamp(1) };
   // @ts-expect-error boiled は boiledAt を必須とする。
@@ -44,7 +45,9 @@ if (false) {
   // @ts-expect-error 採番属性は既知契約に含めない。
   const withSequence: OperationRecord = { ...common, operationKind: "cancelled", seq: 1 };
   void [completedWithEndTime, boiledWithoutBoiledAt, emptySlots, unverifiedTimestamp, withPerson, withSequence];
-}
+};
+void rejectedByType;
+
 describe("OperationRecord", () => {
   it("kind ごとの既知属性だけを持つ", () => {
     expect(records.map((record) => Object.keys(record))).toEqual([

@@ -1,11 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
 import { decide } from "../engine/decide";
 import type { Effect } from "../engine/effect";
-import type { Event } from "../engine/event";
+import type { Event, ReceivedOrder } from "../engine/event";
 import { migrate } from "../engine/migrate";
 import type { ShellFailure } from "../engine/rejection";
 import { fromSnapshot } from "../engine/snapshot";
-import { EMPTY_STATE, type TimerState } from "../engine/state";
+import { EMPTY_STATE, isNewerSequence, type TimerState } from "../engine/state";
 import { toCookSchedule } from "../engine/schedule";
 import { toWireSnapshot, type SettleParams } from "../engine/settle";
 import type { ScheduleParams } from "../engine/objective";
@@ -18,10 +18,12 @@ import type { ClientMessage, ServerMessage } from "../domain/messages";
 import { isFirmness } from "../domain/firmness";
 import { toPendingOrders, type PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
-import type { StoreConfig, NoodlePreset } from "../domain/store";
+import type { StoreConfig, NoodlePreset, FirmnessCode, MenuItem } from "../domain/store";
 import {
   DEFAULT_UNIT_COUNT,
   DEFAULT_NOODLE_PRESETS,
+  DEFAULT_FIRMNESS_CODES,
+  DEFAULT_MENU_ITEMS,
   DEFAULT_ARMS,
   DEFAULT_TOLERANCE_RATIO,
   DEFAULT_ORDER_SYNC_WEIGHT,
@@ -33,6 +35,10 @@ import {
   DEFAULT_SLOT_OFFSETS,
   defaultUnitOrigins,
 } from "../domain/store";
+import type { ArrivalRecord } from "../ingress/batch";
+import { readDeclaredText } from "../ingress/declared-text";
+import { toNoodleSpec, type NoodleLookup } from "../ingress/noodle-spec";
+import { toUniqueKey } from "../ingress/unique-key";
 import type { StoreProjection } from "../registry/projection";
 import type { Roster } from "../registry/ideal";
 import { normalize } from "../registry/authz";
@@ -226,6 +232,155 @@ function toOrderIntent(
 }
 
 /**
+ * ReceiveCounts — 1 回の受領のうち、**この DO の内側でしか判らない**件数（AC 12.15）。
+ *
+ * 他の 10 カウンタ（毒・未知 `path`・破棄・認可失敗ほか）はいずれも Worker が自身で数えられる値ゆえ
+ * ここに含めない。含めれば同じ件数を Worker と DO の二箇所で数える形になり、どちらが正かが曖昧になる。
+ * `deactivatedStore` も含めない——`ReceiveOutcome` の種別そのものが数える材料である。
+ */
+export interface ReceiveCounts {
+  /** 単調性で読み飛ばした Record 数（重複吸収）。判定材料は engine 状態に属し、外からは見えない。 */
+  readonly doDedupeSkipped: number;
+  /** 麺として解釈できたが `noodlePresets` に麺種が無く、待ち行列へ写せなかった品目数（AC 6.28）。 */
+  readonly unknownNoodleType: number;
+}
+
+/**
+ * ReceiveOutcome — 受領の結末。
+ *
+ * **RPC ゆえ HTTP ステータスでは分類を運べない。** 呼び出し元（Worker の fan-out と保留の再生）は種別で
+ * 挙動を分ける必要がある——一時的失敗なら Arrival_Batch 全体を落として上流の再送に委ね、恒久的失敗なら
+ * 飛ばして数える。判別可能な和型だけがその分岐を型で表せる。
+ *
+ * **`unprovisioned` と `deactivated` を分ける。** 既存のゲート（`fetch` / `receiveOrder`）はどちらも 403 で
+ * 返すため区別できないが、性質が正反対である。`createStore` が `commitIdeal` を終えた時点で Code_Index には
+ * 店舗が載るが、投影の押し込みは `converge` の Alarm 継続で非同期に進むため、Code_Index に載った直後の
+ * 到着は投影未達で拒まれうる——これは時間が解消する一時的な状態である。`deactivated` と同じく
+ * 「飛ばして数える」にすれば、店舗開設の瞬間に届いた注文が消える（Property 15）。
+ */
+export type ReceiveOutcome =
+  /** 確定した。件数は Worker が 1 バッチ 1 行のログにまとめるために返す。 */
+  | { readonly kind: "settled"; readonly counts: ReceiveCounts }
+  /** 投影未受領。一時的な状態ゆえ再試行に値する（Property 15）。集合は一切変えていない。 */
+  | { readonly kind: "unprovisioned" }
+  /** 非活性。時間が経っても解消しない（再活性化は運用の判断）ゆえ飛ばして数える。 */
+  | { readonly kind: "deactivated" }
+  /** `Persist` が失敗した。何も確定していない（受理も broadcast も出していない）。 */
+  | { readonly kind: "persist-failed" };
+
+/** 翻訳の結果。`received` は engine へ渡す形そのままで、件数は DO 内でしか判らない観測値である。 */
+interface RecordTranslation {
+  readonly received: readonly ReceivedOrder[];
+  readonly unknownNoodleType: number;
+}
+
+/**
+ * 受領した Record 群を `ReceivedOrder` 列へ翻訳する純粋関数（AC 6.5 / 6.26〜6.28 / 6.34）。
+ *
+ * **`toPendingOrders` の全体拒否をここへ持ち込まない**（AC 6.27）。あちらは「1 つのオーダーの品目群」の
+ * 原子性を守るために 1 品目でも不正なら全体を落とすが、本経路では翻訳できない品目が正常に起こる
+ * ——非麺の品目（丼・餃子・飲料）がそれで、実データ 3 件すべてに含まれる。全体拒否を適用すれば、
+ * 丼が付いたラーメンの注文がまるごと弾かれる。ゆえに品目単位で扱い、翻訳できた品目のみを写す。
+ *
+ * **対応表に無い麺種はここで弾いて数える**（AC 6.28）。`boilSeconds` を引けない品目を待ち行列へ入れれば、
+ * 計画にも表示にも現れない項目が正本に溜まる。整合を入口（`validate.ts`）で見ないのは、3 層の合成後で
+ * しか判定できず、Policy がメニューを配り店舗が `noodlePresets` を上書きする段階的投入が正当だからである。
+ *
+ * **`itemIndex` は `order_items` の元の位置とする**（AC 6.34）。茹で対象でない品目の位置は欠番として残る
+ * ——詰め直せば、対応表の改定で判定が変わった際に既存の待ち行列の番号がずれる。
+ */
+function toReceivedOrders(
+  records: readonly ArrivalRecord[],
+  lookup: NoodleLookup,
+  presets: readonly NoodlePreset[],
+): RecordTranslation {
+  const received: ReceivedOrder[] = [];
+  let unknownNoodleType = 0;
+  for (const record of records) {
+    const externalOrderId = toUniqueKey(record.payload);
+    const terminalId = readDeclaredText(record.payload.terminal_id);
+    // 到達しない分岐である——Worker は同一の `toUniqueKey` で毒を分類済みで、その 4 要素に `terminal_id` が
+    // 含まれる。ここで数えないのは毒の件数が Worker の関心事だからで、飛ばすのは識別子を持たない受領を
+    // engine へ渡せないためである（`externalOrderId` は置換・除去の鍵そのものである）。
+    if (externalOrderId === null || terminalId === null) continue;
+    const tableId = toTableId(record.payload.table_no);
+    const items: PendingOrder[] = [];
+    const rawItems = record.payload.order_items;
+    if (Array.isArray(rawItems)) {
+      for (let itemIndex = 0; itemIndex < rawItems.length; itemIndex += 1) {
+        const rawItem: unknown = rawItems[itemIndex];
+        if (typeof rawItem !== "object" || rawItem === null) continue;
+        const spec = toNoodleSpec(rawItem as Record<string, unknown>, lookup);
+        // 麺量を持たない品目は茹でない（AC 6.21・6.22）。非麺は正常な入力ゆえ数えない。
+        if (spec === null) continue;
+        if (!presets.some((preset) => preset.noodleType === spec.noodleType)) {
+          unknownNoodleType += 1;
+          continue;
+        }
+        items.push({
+          externalOrderId,
+          itemIndex,
+          noodleType: spec.noodleType,
+          firmness: spec.firmness,
+          tableId,
+          // Order_Arrival_Time の起点は上流の観測時刻。受理時刻は再送ごとに動き、`payload.datetime` は
+          // 券売機の時計に依存する申告値である（AC 8.1〜8.4）。
+          arrivalTime: record.arrivalTimestampMs,
+          slotSpan: spec.slotSpan,
+        });
+      }
+    }
+    // 品目 0 件も受領として渡す。空は「キャンセル、または麺を含まない注文」という正常な入力であり、
+    // 除去（既存あり）または無変更（既存なし）へ engine が写す（AC 6.11 / 6.12）。
+    received.push({ externalOrderId, terminalId, sequenceNumber: record.sequenceNumber, items });
+  }
+  return { received, unknownNoodleType };
+}
+
+/**
+ * `payload.table_no` を Table_Group の識別子へ写す（AC 6.26）。欠落・`0` は卓に紐づかない品目ゆえ null。
+ *
+ * 読み出しは `readDeclaredText` に委ねる——実データでは卓番が数値で届き、Unique_Key の要素と同じ
+ * 「申告値を文字列として読む」規則に従うのが素直である。`0` の除外を文字列化の後に置くのは、数値の `0` と
+ * 文字列の `"0"` が同じ意味（卓なし）を表すためで、型によって扱いが分かれる形を作らない。
+ */
+function toTableId(raw: unknown): string | null {
+  const text = readDeclaredText(raw);
+  return text === null || text === "0" ? null : text;
+}
+
+/**
+ * 単調性で読み飛ばされる Record 数を数える（`ReceiveCounts.doDedupeSkipped`）。
+ *
+ * **判定するのは engine であって、ここは数えるだけである。** 重複の判定は `arriveRecords` の内側にあり
+ * （判定材料が engine 状態に属する・AC 6.10）、engine の遷移は件数を返さない——`Outcome` は全遷移が
+ * 共有する形ゆえ、受領だけのために件数を載せれば他の 7 遷移の契約まで動く。件数は観測値であって
+ * 状態でも作用でもないため、同じ入力を同じ述語で走り直して得る。
+ *
+ * **新旧の基準は `isNewerSequence` ただ一つを通す。** 桁数を揃えた文字列比較の規則が二箇所に分かれれば、
+ * 繰り上がりの瞬間に片方だけが誤る。述語が同一で、走る列も開始状態も順序も同一であるため、engine の
+ * 読み飛ばしとこの計数が食い違うことはない。
+ *
+ * 突き合わせるのは**畳んだ途中の値**である（`arriveRecords` と同じ理由）。遷移前の値と比べれば、同一受領に
+ * 含まれる同一端末の後着がすべて「新しい」と見えてしまう。
+ */
+function countDedupeSkipped(
+  received: readonly ReceivedOrder[],
+  lastSequenceByTerminal: Readonly<Record<string, string>>,
+): number {
+  const advanced: Record<string, string> = { ...lastSequenceByTerminal };
+  let skipped = 0;
+  for (const order of received) {
+    if (!isNewerSequence(order.sequenceNumber, advanced[order.terminalId])) {
+      skipped += 1;
+      continue;
+    }
+    advanced[order.terminalId] = order.sequenceNumber;
+  }
+  return skipped;
+}
+
+/**
  * 往路（Solver_Worker への計画要求）の宛先 URL。
  *
  * 宛先を決めるのは Service binding（`env.SOLVER`）であり、この URL のホスト名はどこも指さない。指さないことを
@@ -286,6 +441,23 @@ export class StoreTimerDO extends DurableObject<Env> {
    * （レジストリのイデアから合成された投影が正本）。既定は安全網。
    */
   private noodlePresets: readonly NoodlePreset[] = DEFAULT_NOODLE_PRESETS;
+
+  /**
+   * 硬さの商品コード → Firmness の対応表（StoreConfig.firmnessCodes）。サーバ権威・クライアント不変の店舗設定。
+   *
+   * noodlePresets と同じ系統で投影 config から反映し、config として配信する（項目ごとに配信対象を選び直さない）。
+   * 既定は投影未受領時の安全網で、空の表は「まだ投入していない」という正直な状態である。
+   */
+  private firmnessCodes: readonly FirmnessCode[] = DEFAULT_FIRMNESS_CODES;
+
+  /**
+   * メニュー（親品目の商品コード）→ 麺種と麺量群の対応表（StoreConfig.menuItems）。サーバ権威設定。
+   *
+   * firmnessCodes と 1 つの束に畳まないのは、更新の主体と頻度が異なる 2 枚を StoreConfig が分けて持つ理由が
+   * そのまま在メモリの写しにも当てはまるためである（scheduleParams が束なのは engine の採点関数が要する
+   * 入力の全体だからで、こちらにそのような読み手はまだ無い）。
+   */
+  private menuItems: readonly MenuItem[] = DEFAULT_MENU_ITEMS;
 
   /**
    * 腕の本数（StoreConfig.arms）。同時に上げられる本数の上限＝1 Sync_Set の最大本数。サーバ権威設定。
@@ -531,6 +703,8 @@ export class StoreTimerDO extends DurableObject<Env> {
     this.arms = config.arms;
     this.toleranceRatio = config.toleranceRatio;
     this.noodlePresets = config.noodlePresets;
+    this.firmnessCodes = config.firmnessCodes;
+    this.menuItems = config.menuItems;
     // 採点パラメータは投影 config が正本。投影（StoreConfig）は既定を合成済みで届くため（registry の compose）、
     // ここで再度 DEFAULT_* へ畳まない——畳めば「どちらが既定を決めるのか」が二箇所になる。
     this.scheduleParams = {
@@ -561,6 +735,8 @@ export class StoreTimerDO extends DurableObject<Env> {
       arms: this.arms,
       toleranceRatio: this.toleranceRatio,
       ...this.scheduleParams,
+      firmnessCodes: this.firmnessCodes,
+      menuItems: this.menuItems,
     };
   }
 
@@ -759,6 +935,67 @@ export class StoreTimerDO extends DurableObject<Env> {
       return Response.json({ accepted: false, error: "persist-failed" }, { status: 503 });
     }
     return Response.json({ accepted: true });
+  }
+
+  /**
+   * receiveRecords — 取り込み経路（POS_Ingress）の受け口。1 店舗分の Record 群を単一の遷移へ畳む。
+   *
+   * `receiveOrder`（宛先を URL で直指定する既存 Order_Ingress）と別に立てるのは、届く形も冪等の鍵も違う
+   * ためである。あちらは 1 意図 1 ボディで受け手側の受理時刻を起点に採り、こちらは複数オーダーを到着順に
+   * 運び端末ごとの `sequence_number` で重複を弾く。RPC ゆえ HTTP ステータスを持たず、結末は
+   * `ReceiveOutcome` が運ぶ。
+   *
+   * **`decide` は 1 回だけ呼ぶ**（Property 20）。Record ごとに呼べば `Persist` が件数だけ生じ、1 受領につき
+   * 単一の `put`（AC 5.5）と単一遷移がいずれも破れる。engine 側の `arriveRecords` が集合と判定材料を先に
+   * 畳み切り、確定をただ一度に閉じることでこれが成立する。
+   *
+   * **受理も broadcast も `Persist` の成功の上にのみ立つ**（Property 8 / AC 5.6 / 5.7）。`runEffects` が返す
+   * `persisted` を見て `settled` か `persist-failed` を決める——確定の前に受理を返せば、上流は届いたと信じ、
+   * こちらは何も確定していないという最悪の食い違いが生まれる。broadcast は Effect 列の中で put 成功の後に
+   * しか実行されないため、この一点を守れば両者の順序は自動的に揃う。
+   *
+   * **前提（本メソッドが検査しないこと）。** ここへ届くのは Worker が `KNOWN_RECORD_PATHS` で Order_Path と
+   * 分類し、Unique_Key を導け、Order_Arrival_Time が値域窓（受理時刻の 2 時間前から受理時刻まで）の内側に
+   * ある Record だけである。窓の検査を Worker に置くのは、`now` を純粋関数の引数として渡す既存の規律に
+   * 従うためで（時計を純粋関数の内側に持ち込まない）、ここで二度目の検査を置けば判定基準が二箇所に分かれる。
+   *
+   * Operation History へは何も出さない。受領は Timer 状態の差分を持たず、あちらの出力対象（Timer_Persist が
+   * 確定させた Timer 状態の差分）に当たらない——`receiveOrder` と同じ判断である。
+   */
+  async receiveRecords(records: readonly ArrivalRecord[]): Promise<ReceiveOutcome> {
+    await this.ensureLoaded();
+    const provision = await this.ensureProvisioned();
+    // 既存ゲートと同じ順・同じ位置（put の前）に置く。書き込みゼロの DO は痕跡を残さないまま拒む。
+    // 応答が 403 の 1 種でなく 2 種に分かれるのは、呼び出し元が再試行と読み飛ばしを分ける必要があるためで
+    // ある（`ReceiveOutcome` の注記）。
+    if (!provision.provisioned) return { kind: "unprovisioned" };
+    if (!provision.projection.active) return { kind: "deactivated" };
+
+    // 翻訳は純粋関数へ委ね、shell は作用だけを担う。対応表 2 枚は投影 config から確立した在メモリの確定値で、
+    // engine へは渡さない（engine は StoreConfig を知らない・AC 6.13）。
+    const { received, unknownNoodleType } = toReceivedOrders(
+      records,
+      { firmnessCodes: this.firmnessCodes, menuItems: this.menuItems },
+      this.noodlePresets,
+    );
+    // 計数は遷移の前に採る。遷移後の状態からは「どの Record が読み飛ばされたか」を復元できない
+    // （判定材料は端末ごとに 1 つしか残らない）。
+    const doDedupeSkipped = countDedupeSkipped(received, this.workingCopy.lastSequenceByTerminal);
+
+    // now は当該遷移の時計（settle の再同期と snapshot の serverTime が用いる）。各品目の arrivalTime は
+    // 上流の観測時刻ゆえ別の値であり、役割が別だから両方を運ぶ。
+    const now = Date.now() as EpochMillis;
+    const outcome = decide(this.workingCopy, { type: "RecordsReceived", received, now }, this.settleParams());
+    if (!outcome.ok) {
+      // 受領の遷移は拒否経路を持たない（engine/receive.ts）。型の網羅のためだけの分岐であり、到達したら
+      // engine 側の不変が破れた合図である。受理を主張せず「何も確定していない」として返す——呼び出し元は
+      // 一時的失敗として扱い、上流の再送に委ねる。
+      return { kind: "persist-failed" };
+    }
+    const result = await this.runEffects(outcome.effects);
+    // put 失敗＝何も確定していない。受理も broadcast も出ず、集合は直前の確定状態のまま据え置かれる。
+    if (!result.persisted) return { kind: "persist-failed" };
+    return { kind: "settled", counts: { doDedupeSkipped, unknownNoodleType } };
   }
 
   /**

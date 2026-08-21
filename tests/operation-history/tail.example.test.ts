@@ -12,6 +12,8 @@ const line = printCanonicalOperationLine({
   noodleType: "Thin",
   firmness: "normal",
 });
+// root wrangler.jsonc の "name" と一致する、現存するただ一つの Producer script。
+const PRODUCER_SCRIPT = "yude-men-timer";
 const event = (scriptName: string | null, logs: readonly {
   readonly level: string;
   readonly message: readonly unknown[];
@@ -19,11 +21,11 @@ const event = (scriptName: string | null, logs: readonly {
 
 // Requirements 4.3, 4.4, 4.13, 4.14
 describe("operationLinesFromTailEvents", () => {
-  it("確定した三環境のProducerから妥当な候補を入力順で抽出する", () => {
+  it("実在するProducer scriptのeventから妥当な候補を入力順で抽出する", () => {
     const events = [
-      event("yude-men-timer-dev", [{ level: "log", message: [line] }]),
-      event("yude-men-timer-stage", [{ level: "log", message: [line] }]),
-      event("yude-men-timer-prod", [{ level: "log", message: [line] }]),
+      event(PRODUCER_SCRIPT, [{ level: "log", message: [line] }]),
+      event(PRODUCER_SCRIPT, [{ level: "log", message: [line] }]),
+      event(PRODUCER_SCRIPT, [{ level: "log", message: [line] }]),
     ];
     expect(operationLinesFromTailEvents(events)).toEqual({
       candidates: [line, line, line],
@@ -33,11 +35,12 @@ describe("operationLinesFromTailEvents", () => {
 
   it.each([
     ["未知script", event("other-worker", [{ level: "log", message: [line] }])],
-    ["log以外", event("yude-men-timer-dev", [{ level: "warn", message: [line] }])],
-    ["複数引数", event("yude-men-timer-dev", [{ level: "log", message: [line, "extra"] }])],
-    ["非string", event("yude-men-timer-dev", [{ level: "log", message: [42] }])],
-    ["複数行", event("yude-men-timer-dev", [{ level: "log", message: [`${line}\n${line}`] }])],
-    ["非canonical JSON", event("yude-men-timer-dev", [{ level: "log", message: [` ${line}`] }])],
+    ["未導入の環境別script", event("yude-men-timer-prod", [{ level: "log", message: [line] }])],
+    ["log以外", event(PRODUCER_SCRIPT, [{ level: "warn", message: [line] }])],
+    ["複数引数", event(PRODUCER_SCRIPT, [{ level: "log", message: [line, "extra"] }])],
+    ["非string", event(PRODUCER_SCRIPT, [{ level: "log", message: [42] }])],
+    ["複数行", event(PRODUCER_SCRIPT, [{ level: "log", message: [`${line}\n${line}`] }])],
+    ["非canonical JSON", event(PRODUCER_SCRIPT, [{ level: "log", message: [` ${line}`] }])],
   ])("%sをQueue候補にもcodec失敗にも含めない", (_label, candidate) => {
     expect(operationLinesFromTailEvents([candidate])).toEqual({
       candidates: [],
@@ -48,7 +51,7 @@ describe("operationLinesFromTailEvents", () => {
   it("codecへ到達した候補の1始まり位置と解析失敗種別を保持する", () => {
     const missingRequired = '{"storeId":"store-1"}';
     const events = [
-      event("yude-men-timer-dev", [
+      event(PRODUCER_SCRIPT, [
         { level: "warn", message: ["not-json"] },
         { level: "log", message: ["not-json"] },
         { level: "log", message: [line, "extra"] },
@@ -70,7 +73,7 @@ describe("operationLinesFromTailEvents", () => {
     const debugLine = '{"seq":1,"at":1,"atIso":"x","direction":"send","messageType":"snapshot","payload":{}}';
 
     expect(operationLinesFromTailEvents([
-      event("yude-men-timer-dev", [{ level: "log", message: [debugLine] }]),
+      event(PRODUCER_SCRIPT, [{ level: "log", message: [debugLine] }]),
     ])).toEqual({
       candidates: [],
       failures: [{ lineNumber: 1, failure: "missing-required-attribute" }],

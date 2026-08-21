@@ -8,7 +8,7 @@
 // engine 専用の seq やブランド型はワイヤに出さない（既定の生表現に縮退する）。
 
 import type { TimerFact } from "./timer";
-import type { GridPoint, NoodlePreset, UnitOrigin } from "./store";
+import type { FirmnessCode, GridPoint, MenuItem, NoodlePreset, UnitOrigin } from "./store";
 import type { PendingOrder } from "./order";
 import type { Firmness } from "./firmness";
 
@@ -87,5 +87,13 @@ export type ServerMessage =
       readonly affinityToleranceDistance: number;
       readonly unitOrigins: readonly UnitOrigin[];
       readonly slotOffsets: readonly GridPoint[];
+      readonly firmnessCodes: readonly FirmnessCode[];
+      // MenuItem をワイヤ専用の形へ写し替えず StoreConfig の型のまま運ぶ。sizes の NonEmptyArray は JSON を
+      // 跨げないが、縮退のために MenuItem を二度定義すれば同じ概念が二つの型で語られる——MenuItem は店舗設定の
+      // 概念であり、CookRecommendation のようにワイヤだけに在る概念ではない。列挙が縮退させるのは列挙した項目
+      // 自身の基数であって（noodlePresets の NonEmptyArray・slotOffsets の 6 要素タプルがそれ）、この 2 項目は
+      // StoreConfig 側も readonly T[] ゆえ縮退させる基数を持たない。入れ子の非空は受け手が toMenuItems で
+      // 改めて確立する（snapshot の TimerFact.slotIds が NonEmptyArray のまま運ばれるのと同じ扱い）。
+      readonly menuItems: readonly MenuItem[];
     }
   | { readonly type: "error"; readonly serverTime: number; readonly code: string; readonly message: string }; // 各拒否・失敗（要求元へ直接 ws.send）

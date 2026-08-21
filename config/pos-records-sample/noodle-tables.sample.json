@@ -1,0 +1,33 @@
+{
+  "override": {
+    "unitCount": 2,
+    "arms": 2,
+    "toleranceRatio": 3,
+    "noodlePresets": [
+      { "noodleType": "REG", "boilSeconds": { "extraHard": 120, "hard": 240, "normal": 360, "soft": 480 } },
+      { "noodleType": "つけ", "boilSeconds": { "extraHard": 270, "hard": 390, "normal": 510, "soft": 630 } },
+      { "noodleType": "プレ", "boilSeconds": { "extraHard": 30, "hard": 150, "normal": 210, "soft": 330 } },
+      { "noodleType": "朝麺", "boilSeconds": { "extraHard": 20, "hard": 40, "normal": 50, "soft": 90 } },
+      { "noodleType": "なんこつ", "boilSeconds": { "extraHard": 90, "hard": 210, "normal": 330, "soft": 450 } }
+    ],
+    "firmnessCodes": [
+      { "code": 10010, "firmness": "hard" },
+      { "code": 10011, "firmness": "normal" }
+    ],
+    "menuItems": [
+      {
+        "productCode": 11421,
+        "noodleType": "REG",
+        "sizes": [
+          { "code": 19401, "slotSpan": 1 },
+          { "code": 19603, "slotSpan": 2 }
+        ]
+      },
+      {
+        "productCode": 116051,
+        "noodleType": "プレ",
+        "sizes": [{ "code": 19401, "slotSpan": 1 }]
+      }
+    ]
+  }
+}

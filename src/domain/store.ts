@@ -10,7 +10,7 @@
 // 詳細は yude-men-timer/design.md「店舗設定の配信（StoreConfig）」を参照。
 
 import { isNonEmpty, type NonEmptyArray } from "./timer";
-import { FIRMNESS_ORDER, type Firmness } from "./firmness";
+import { FIRMNESS_ORDER, isFirmness, type Firmness } from "./firmness";
 
 /** 1 ユニット（釜の台）が担当する連続スロット数。unit u は slot 6u..6u+5。番号と slot の対応の正本。 */
 export const SLOTS_PER_UNIT = 6;
@@ -183,6 +183,68 @@ export const DEFAULT_NOODLE_PRESETS: NonEmptyArray<NoodlePreset> = [
   { noodleType: "Thick", boilSeconds: { extraHard: 100, hard: 110, normal: 120, soft: 140 } },
 ];
 
+/** 1 品目がスロット軸上で占める幅（slotSpan）の下限。0 や負値は「占有しない麺」ゆえ表現させない。 */
+export const SLOT_SPAN_MIN = 1;
+
+/**
+ * slotSpan の上限（= 1 ユニットのスロット数）。
+ *
+ * 1 品目がユニットを跨いで占有する形は現実の釜の構造に無い。ゆえに上限は SLOTS_PER_UNIT に一致し、
+ * 別の数として二度書かない。
+ */
+export const SLOT_SPAN_MAX = SLOTS_PER_UNIT;
+
+/**
+ * FirmnessCode — 硬さの商品コードと Firmness の対応 1 件。券売機の語彙をドメインの安定 id へ写す。
+ *
+ * **茹で秒を持たない。** 秒は noodlePresets が noodleType × firmness で保つ唯一の出所であり、ここに
+ * 秒を置けば同じ真実が二箇所に生まれ、かつ麺種ごとの差が表現できなくなる。
+ */
+export interface FirmnessCode {
+  /** 硬さの選択肢を表す商品コード（正の整数）。 */
+  readonly code: number;
+  /** 当該コードが指す茹で加減。 */
+  readonly firmness: Firmness;
+}
+
+/**
+ * NoodleSize — 麺量の商品コードと、その麺量が要するスロット幅の対応 1 件。
+ *
+ * 麺量は茹で時間を変えず、占有するスロット数だけを変える（ゆえに秒はここにも無い）。
+ */
+export interface NoodleSize {
+  /** 麺量を表す商品コード（正の整数）。この有無が茹で対象かどうかの判定でもある。 */
+  readonly code: number;
+  /** 当該麺量が占めるスロット幅（SLOT_SPAN_MIN〜SLOT_SPAN_MAX の整数）。 */
+  readonly slotSpan: number;
+}
+
+/**
+ * MenuItem — 親品目の商品コードと、その品目の麺種・麺量群の対応 1 件。
+ *
+ * sizes を NonEmptyArray とするのは、麺量を持たない品目は茹でないためである。「サイズ 0 個のメニュー」＝
+ * 茹でるのか茹でないのか判らない状態を、構築不能にする。
+ */
+export interface MenuItem {
+  /** メニュー（親品目）の商品コード（正の整数）。 */
+  readonly productCode: number;
+  /** 当該メニューの麺種（noodlePresets のキー。横断整合は合成後の実行時に判定する）。 */
+  readonly noodleType: string;
+  /** 当該メニューが取りうる麺量（型で非空を強制）。 */
+  readonly sizes: NonEmptyArray<NoodleSize>;
+}
+
+/**
+ * 硬さ対応表の既定（空）。表が空なら硬さの指定が解釈されず既定の茹で加減へ畳まれるだけで、構造は成立する。
+ *
+ * noodlePresets が非空を要求するのとは異なり、この表は空でよい——開始 UI のように「1 つ以上の選択肢」を
+ * 要求する読み手が無く、空は「まだ投入していない」という正直な状態である。
+ */
+export const DEFAULT_FIRMNESS_CODES: readonly FirmnessCode[] = [];
+
+/** メニュー対応表の既定（空）。表が空なら茹で対象が 0 件になるだけで、構造は成立する。 */
+export const DEFAULT_MENU_ITEMS: readonly MenuItem[] = [];
+
 /**
  * StoreConfig — 店舗のサーバ権威設定（ユニット総数・麺種プリセット・同期の重みと許容幅・slot レイアウト）。
  *
@@ -214,6 +276,20 @@ export interface StoreConfig {
   readonly unitOrigins: readonly UnitOrigin[];
   /** ユニット内 slot のオフセット（全ユニット共通・既定 DEFAULT_SLOT_OFFSETS）。 */
   readonly slotOffsets: SlotOffsets;
+  /**
+   * 硬さの商品コード → Firmness の対応表（既定 DEFAULT_FIRMNESS_CODES）。
+   *
+   * 券売機の商品コードは定数的に見えるが店舗によって異なりうるため、コードに埋め込まず設定として注入する
+   * （埋め込めば店舗差が現れた時点でデプロイを要する）。
+   */
+  readonly firmnessCodes: readonly FirmnessCode[];
+  /**
+   * メニュー（親品目の商品コード）→ 麺種と麺量群の対応表（既定 DEFAULT_MENU_ITEMS）。
+   *
+   * firmnessCodes と 1 枚に畳まない。硬さの選択肢は増減せず、メニューはメニュー 1 件につきサイズの組で
+   * 増える——更新の主体と頻度が異なるものを混ぜれば、硬さコードを直すためにメニュー全体の再投入が要る。
+   */
+  readonly menuItems: readonly MenuItem[];
 }
 
 /**
@@ -436,6 +512,98 @@ function toFirmnessSeconds(value: unknown): FirmnessSeconds | null {
     seconds[firmness] = sec;
   }
   return seconds;
+}
+
+/**
+ * 任意の生値（env の JSON 文字列・永続配列・運用投入のボディなど）を、硬さ対応表へ写す純粋関数。
+ *
+ * toNoodlePresets と同形（文字列は JSON として解釈し、配列でなければ既定へ、要素ごとの構造検証に通ったものだけを
+ * 正規化して残す）。結果が空でも既定へ畳み直さない——既定そのものが空であり、「1 件も妥当でなかった」と
+ * 「投入されていない」は同じ状態である。
+ */
+export function toFirmnessCodes(raw: unknown): readonly FirmnessCode[] {
+  const source = typeof raw === "string" ? parseJson(raw) : raw;
+  if (!Array.isArray(source)) {
+    return DEFAULT_FIRMNESS_CODES;
+  }
+  const codes: FirmnessCode[] = [];
+  for (const item of source) {
+    const code = toFirmnessCode(item);
+    if (code !== null) codes.push(code);
+  }
+  return codes;
+}
+
+/** 生値を FirmnessCode へ正規化する。正の整数コードと既知の Firmness を満たさなければ null。 */
+function toFirmnessCode(value: unknown): FirmnessCode | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  if (!isProductCode(candidate.code)) return null;
+  if (!isFirmness(candidate.firmness)) return null;
+  // 余剰フィールドを落として正規化する（store config に混ぜ物を残さない）。
+  return { code: candidate.code, firmness: candidate.firmness };
+}
+
+/**
+ * 任意の生値（env の JSON 文字列・永続配列・運用投入のボディなど）を、メニュー対応表へ写す純粋関数。
+ *
+ * toFirmnessCodes と同形。sizes は入れ子ゆえ toNoodlePresets が boilSeconds を検証する形に倣い、
+ * 妥当な麺量が 1 件も無いメニューは当該要素ごと落とす（サイズ 0 個のメニューを構築させない）。
+ */
+export function toMenuItems(raw: unknown): readonly MenuItem[] {
+  const source = typeof raw === "string" ? parseJson(raw) : raw;
+  if (!Array.isArray(source)) {
+    return DEFAULT_MENU_ITEMS;
+  }
+  const items: MenuItem[] = [];
+  for (const item of source) {
+    const menuItem = toMenuItem(item);
+    if (menuItem !== null) items.push(menuItem);
+  }
+  return items;
+}
+
+/** 生値を MenuItem へ正規化する。正の整数コード・非空の noodleType・非空の麺量群を満たさなければ null。 */
+function toMenuItem(value: unknown): MenuItem | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  if (!isProductCode(candidate.productCode)) return null;
+  if (typeof candidate.noodleType !== "string" || candidate.noodleType.length === 0) return null;
+  const sizes = toNoodleSizes(candidate.sizes);
+  if (sizes === null) return null;
+  return { productCode: candidate.productCode, noodleType: candidate.noodleType, sizes };
+}
+
+/** 生値を非空の麺量群へ。妥当な麺量が 1 件も無ければ null（呼び出し側がメニューごと落とす）。 */
+function toNoodleSizes(value: unknown): NonEmptyArray<NoodleSize> | null {
+  if (!Array.isArray(value)) return null;
+  const sizes: NoodleSize[] = [];
+  for (const item of value) {
+    const size = toNoodleSize(item);
+    if (size !== null) sizes.push(size);
+  }
+  return isNonEmpty(sizes) ? sizes : null;
+}
+
+/**
+ * 生値を NoodleSize へ正規化する。正の整数コードと妥当域内の整数 slotSpan を満たさなければ null。
+ *
+ * 値域外の slotSpan はクランプせず拒否する。スカラー設定（重み・許容幅）が境界へ寄せるのに対し、こちらは
+ * 「この商品コードが何スロット要るか」という対応そのものであり、勝手に寄せれば投入されていない対応を作る。
+ */
+function toNoodleSize(value: unknown): NoodleSize | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  if (!isProductCode(candidate.code)) return null;
+  const { slotSpan } = candidate;
+  if (typeof slotSpan !== "number" || !Number.isInteger(slotSpan)) return null;
+  if (slotSpan < SLOT_SPAN_MIN || slotSpan > SLOT_SPAN_MAX) return null;
+  return { code: candidate.code, slotSpan };
+}
+
+/** 商品コードとして妥当か（正の整数）。券売機の商品コードは採番された正の整数である。 */
+function isProductCode(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
 /** JSON 文字列を解釈する。解釈不能は undefined（呼び出し側が既定へ畳む）。 */

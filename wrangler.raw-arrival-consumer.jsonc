@@ -1,0 +1,52 @@
+{
+  // Queue Consumer（operation-history-log 要件4.5 / 4.11 / 4.12）。Tail Worker が送った canonical 一行を
+  // raw arrival として R2 へ保存し、put 成功後だけ Queue へ ack する。
+  //
+  // 所有者は Data Platform である。Queue consumer と R2 binding、再配送／dead-letter 方針の正本はここで
+  // あり、root（wrangler.jsonc = Producer 設定の SSOT）へは置かない。これにより StoreTimerDO の env から
+  // Queue / R2 へ到達できないことを設定構造が保証する（要件1.9 / 4.13 / 4.14。
+  // design.md「Deployment and Configuration Ownership」）。
+  //
+  // デプロイは `wrangler deploy --config wrangler.raw-arrival-consumer.jsonc`（root の deploy とは独立）。
+  // rollout 順序は「下流（Queue / Consumer / R2）→ Tail fixture → Producer attachment」に固定する
+  // （tasks.md 15.4）。
+  "name": "yude-men-raw-arrival-consumer",
+  "main": "src/data-platform/raw-arrival-consumer.ts",
+  // root と同一の日付に揃える（tooling.md の確定値）。Worker 間で挙動の既定が食い違わないようにする。
+  "compatibility_date": "2026-06-26",
+  "observability": {
+    "enabled": true
+  },
+  // ネットワークへ露出させない。この Worker への正当な到達経路は Queue delivery だけであり、fetch handler も
+  // route も持たない。Producer を起動できる経路（route、Service binding、DO namespace／stub、
+  // STORE_TIMER_DO）をここへ一切置かない。ack は Consumer → Queue に閉じ、Producer へは返さない
+  // （要件4.13 / 4.14 / 4.15）。
+  "workers_dev": false,
+  "preview_urls": false,
+  // Queue consumer と再配送／dead-letter 方針。形はタスク11.1 で導入済み Wrangler v4 の
+  // config-schema.json と公式 Queues 資料に照合済み（queue だけが必須で、再配送方針は同じ item に置く）。
+  //
+  // max_retries: 5 — put 失敗の message は ack されず（要件4.5）、Queue 側の方針で再配送される。
+  // dead_letter_queue: 再配送を尽くしても保存できなかった message の行き先。待機・再試行判断・失敗状態の
+  //   保持を StoreTimerDO の実行外だけで完結させるため、DLQ も Data Platform 内に置く（要件4.11）。
+  //   Producer へ再出力を要求する経路は構成しない。
+  // retry_delay / max_batch_size は既定のまま据え置く（要る事実が現れるまで書かない）。
+  "queues": {
+    "consumers": [
+      {
+        "queue": "operation-records",
+        "max_retries": 5,
+        "dead_letter_queue": "operation-records-dlq"
+      }
+    ]
+  },
+  // raw arrival の保存先。binding 名はタスク1 で確定済み。object key は delivery identity だけから決まり、
+  // 重複配送でも既存 object を消さず上書きもしない（要件5.5 / 5.7。src/data-platform/raw-arrival-consumer.ts）。
+  // 90日の保持期限は R2 bucket の lifecycle policy 側で構成する（要件6.7・タスク13.5）。
+  "r2_buckets": [
+    {
+      "binding": "OPERATION_RAW_ARRIVALS",
+      "bucket_name": "operation-raw-arrivals"
+    }
+  ]
+}

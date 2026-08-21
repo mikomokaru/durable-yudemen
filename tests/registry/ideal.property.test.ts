@@ -9,7 +9,7 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { FIRMNESS_ORDER, type Firmness } from "../../src/domain/firmness";
 import type { NonEmptyArray } from "../../src/domain/timer";
-import type { NoodlePreset } from "../../src/domain/store";
+import type { FirmnessCode, MenuItem, NoodlePreset, NoodleSize } from "../../src/domain/store";
 import type {
   Chain,
   Identity,
@@ -45,6 +45,35 @@ const genNoodlePresets: fc.Arbitrary<NonEmptyArray<NoodlePreset>> = fc
   .array(genNoodlePreset, { minLength: 1, maxLength: 5 })
   .map((presets) => presets as unknown as NonEmptyArray<NoodlePreset>);
 
+/** FirmnessCode — 硬さの商品コード（正の整数）と既知の Firmness の対応 1 件。 */
+const genFirmnessCode: fc.Arbitrary<FirmnessCode> = fc.record({
+  code: fc.integer({ min: 1, max: 999_999 }),
+  firmness: fc.constantFrom(...FIRMNESS_ORDER),
+});
+
+/** 硬さ対応表。既定が空ゆえ空配列も妥当な値である（noodlePresets と異なり非空を要求しない）。 */
+const genFirmnessCodes: fc.Arbitrary<readonly FirmnessCode[]> = fc.array(genFirmnessCode, {
+  maxLength: 5,
+});
+
+/** NoodleSize — 麺量の商品コードと妥当域内の slotSpan（1〜6）。 */
+const genNoodleSize: fc.Arbitrary<NoodleSize> = fc.record({
+  code: fc.integer({ min: 1, max: 999_999 }),
+  slotSpan: fc.integer({ min: 1, max: 6 }),
+});
+
+/** MenuItem — 親品目の商品コード・麺種・非空の麺量群（入れ子ゆえ往復で要素まで保存されるべき）。 */
+const genMenuItem: fc.Arbitrary<MenuItem> = fc.record({
+  productCode: fc.integer({ min: 1, max: 999_999 }),
+  noodleType: fc.string({ minLength: 1, maxLength: 16 }),
+  sizes: fc
+    .array(genNoodleSize, { minLength: 1, maxLength: 3 })
+    .map((sizes) => sizes as unknown as NonEmptyArray<NoodleSize>),
+});
+
+/** メニュー対応表。既定が空ゆえ空配列も妥当な値である。 */
+const genMenuItems: fc.Arbitrary<readonly MenuItem[]> = fc.array(genMenuItem, { maxLength: 4 });
+
 /** identity — 不透明な文字列。非 ASCII・空に近い・重複を含みうる（Roster の要素）。 */
 const genIdentity: fc.Arbitrary<Identity> = fc.string({ maxLength: 32 });
 
@@ -66,6 +95,8 @@ const genPolicyFields: fc.Arbitrary<PolicyFields> = fc.record(
     arms: genModedValue(fc.integer({ min: 1, max: 10 })),
     toleranceRatio: genModedValue(fc.integer({ min: 1, max: 50 })),
     noodlePresets: genModedValue(genNoodlePresets),
+    firmnessCodes: genModedValue(genFirmnessCodes),
+    menuItems: genModedValue(genMenuItems),
   },
   { requiredKeys: [] },
 );
@@ -86,6 +117,8 @@ const genStoreOverride: fc.Arbitrary<StoreOverride> = fc.record(
     arms: fc.integer({ min: 1, max: 10 }),
     toleranceRatio: fc.integer({ min: 1, max: 50 }),
     noodlePresets: genNoodlePresets,
+    firmnessCodes: genFirmnessCodes,
+    menuItems: genMenuItems,
   },
   { requiredKeys: [] },
 );

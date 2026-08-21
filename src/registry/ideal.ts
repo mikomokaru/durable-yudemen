@@ -7,7 +7,7 @@
 // StoreOverride は composeEffectiveConfig（compose.ts）が、Roster は projection.ts が依存する。
 
 import type { NonEmptyArray } from "../domain/timer";
-import type { NoodlePreset } from "../domain/store";
+import type { FirmnessCode, MenuItem, NoodlePreset } from "../domain/store";
 
 /** storeId — 店舗 DO の名前（idFromName のキー）かつ URL 宛先。グローバル一意のスラッグ。 */
 export type StoreId = string;
@@ -42,6 +42,10 @@ export interface PolicyFields {
   readonly arms?: ModedValue<number>;
   readonly toleranceRatio?: ModedValue<number>;
   readonly noodlePresets?: ModedValue<NonEmptyArray<NoodlePreset>>; // 配列は丸ごと置換の単位（要件4.4）
+  // POS の対応表 2 枚も Policy が主張できる形にする（硬さコードとメニューはチェーン共通の可能性が高く、
+  // 統制で配れなければ全店へ同じ表を個別投入することになる）。noodlePresets と同じく丸ごと置換の単位。
+  readonly firmnessCodes?: ModedValue<readonly FirmnessCode[]>;
+  readonly menuItems?: ModedValue<readonly MenuItem[]>;
 }
 
 /** Policy — 名前・priority・フィールドごとの mode/値。地域差・業態差は Policy の割当で表現する（要件3.3）。 */
@@ -59,6 +63,9 @@ export interface StoreOverride {
   readonly arms?: number;
   readonly toleranceRatio?: number;
   readonly noodlePresets?: NonEmptyArray<NoodlePreset>;
+  // 店舗が主張する対応表（券売機の商品コードは店舗によって異なりうる）。店舗の主張ゆえ mode は持たない。
+  readonly firmnessCodes?: readonly FirmnessCode[];
+  readonly menuItems?: readonly MenuItem[];
 }
 
 /** Chain — 店舗を束ねる組織単位。個人店も店舗 1 のチェーンとして表す（同型・要件3.2）。 */

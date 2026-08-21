@@ -10,6 +10,9 @@ worker-configuration.d.ts
 # Kiro ローカル設定（MCP の認証トークン等の機微情報を含むため追跡しない）
 .kiro/settings/
 
+# Claude Code のローカル設定（この機械の絶対パスと許可キャッシュを含むため追跡しない）
+.claude/
+
 # Workers のローカル secret（ADMIN_TOKEN 等）。機微情報のため追跡しない。
 .dev.vars
 

@@ -19,6 +19,7 @@ import type { PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness, type Firmness } from "../domain/firmness";
+import { SLOT_SPAN_MAX, SLOT_SPAN_MIN } from "../domain/store";
 
 /**
  * migrate の結果。成功なら現行スキーマのスナップショット、失敗なら ShellFailure。
@@ -90,8 +91,31 @@ export function migrate(raw: unknown): MigrationOutcome {
       // 指紋は「直前に要求した時点の値」でしかなく、失えば次の状態変化で 1 回余分に要求が出るだけ。
       // 壊れた値を移行失敗にする代償（店舗が起動しない）に見合わないため null へ畳む。
       requestedDigest: reviveRequestedDigest(record.requestedDigest),
+      lastSequenceByTerminal: reviveLastSequenceByTerminal(record.lastSequenceByTerminal),
     },
   };
+}
+
+/**
+ * 端末ごとの判定材料として解釈する（v8 で追加）。
+ * - 欠如 / null（v7 以前は取り込み経路が存在せず、判定材料を持つ端末が無い）→ 空。
+ * - 全エントリが「非空文字列のキー → 非空文字列の値」→ そのまま。
+ * - それ以外 → 空へ畳む（移行失敗にしない）。
+ *
+ * 待ち行列や採用済み計画と規律を分けるのは、失われる事実の重さが違うからである。判定材料の喪失が生むのは
+ * 重複だけで（弾けなくなった Record が再度受理され、`upsertOrder` が吸収する）、欠落は生じない。一方で
+ * 移行失敗は店舗を起動不能にし、その間に届く Record は再送の果てに失われる。欠落と重複の分岐では重複を
+ * 選ぶ（Duplicate_Bias）。
+ *
+ * 一部のエントリだけを落とさないのは、規則を 1 つに保つためである（全体が形を満たすか、空か）。
+ */
+function reviveLastSequenceByTerminal(value: unknown): Readonly<Record<string, string>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.some(([terminalId, seq]) => terminalId.length === 0 || typeof seq !== "string" || seq.length === 0)) {
+    return {};
+  }
+  return Object.fromEntries(entries as readonly [string, string][]);
 }
 
 /**
@@ -130,6 +154,9 @@ function revivePendingOrder(value: unknown): PendingOrder | null {
     return null;
   }
   if (typeof o.arrivalTime !== "number" || !Number.isFinite(o.arrivalTime)) return null;
+  // slotSpan は v8 で追加。欠如は 1、値域外・非整数は壊れたデータ（呼び出し側が全体を移行失敗にする）。
+  const slotSpan = reviveSlotSpan(o.slotSpan);
+  if (slotSpan === null) return null;
   return {
     externalOrderId: o.externalOrderId,
     itemIndex: o.itemIndex,
@@ -137,7 +164,25 @@ function revivePendingOrder(value: unknown): PendingOrder | null {
     firmness: o.firmness,
     tableId: typeof o.tableId === "string" ? o.tableId : null,
     arrivalTime: o.arrivalTime,
+    slotSpan,
   };
+}
+
+/**
+ * 永続の slotSpan を現行 v8 形へ写す（v8 で追加）。
+ * - 欠如 / null（v7 以前は麺量の語彙を持たない）→ SLOT_SPAN_MIN。v7 以前の待ち行列は現に 1 品目 1 スロット
+ *   で計画されており、埋めた値が当時の実際の挙動に一致する。
+ * - 値域内の整数 → その値。
+ * - それ以外（非整数・値域外）→ 壊れたデータ（null）。
+ *
+ * 値域外をクランプしないのは、どこにも要求されていない占有幅を新たに作らないためである（domain の
+ * toSlotSpan / toNoodleSize と同じ判断）。
+ */
+function reviveSlotSpan(value: unknown): number | null {
+  if (value === undefined || value === null) return SLOT_SPAN_MIN;
+  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  if (value < SLOT_SPAN_MIN || value > SLOT_SPAN_MAX) return null;
+  return value;
 }
 
 /**

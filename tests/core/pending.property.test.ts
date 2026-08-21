@@ -101,6 +101,7 @@ function toPendingOrder(
     firmness: item.firmness,
     tableId: item.tableId,
     arrivalTime,
+    slotSpan: 1,
   };
 }
 

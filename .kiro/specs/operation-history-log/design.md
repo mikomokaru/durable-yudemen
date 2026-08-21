@@ -619,9 +619,9 @@ Workers pool で観測 OFF と ON を同じ初期 snapshot、イベント列、�
 | Producer本体、DO、`tail_consumers` attachment | root `wrangler.jsonc` | Timer application | Tail attachmentのみ。Queue/R2なし |
 | Tail Worker、Queue producer binding | Data Platform側 Worker設定 | Data Platform | なし |
 | Queue consumer、R2 binding、再配送/dead-letter | Data Platform側 Worker設定 | Data Platform | なし |
-| Logpush job と R2 destination | Cloudflare account設定 | Data Platform | なし |
+| Logpush job と R2 destination | Cloudflare account設定 | Data Platform | なし（構成対象環境0件のため現時点で作らない） |
 | R2 lifecycle 90日 | R2 bucket policy | Data Platform | なし |
-| Snowpipe、Snowflake table/view、25 UTC月保持 | Snowflake設定 | Data Platform | なし |
+| Snowpipe、Snowflake table/view、25 UTC月保持 | `config/operation-history-snowflake/*.sql`（宣言的正本）＋ Snowflake 側の適用状態 | Data Platform | なし |
 | 品質閾値、15分SLO、30/60分通知、access role | Data Platform運用設定 | Data Platform | なし |
 
 root `wrangler.jsonc` は Producer 設定の SSOT であり、実装時に公式 schema で検証した `tail_consumers` attachment を持つ。Tail、Queue、Consumer、R2 の設定を root Producer 設定へ同居させず、Data Platform 側の設定正本へ置く。これにより `StoreTimerDO` の env から Queue/R2/Consumer へ到達できないことを設定構造でも保証する。
@@ -634,12 +634,259 @@ root `wrangler.jsonc` は Producer 設定の SSOT であり、実装時に公式
 
 Logpush縮退は観測できたログだけを R2 へ送る best-effort 経路である。Tail unavailable 期間の欠落を後から埋めず、Producer に Queue、outbox、再送、再出力入口を追加しない。対象 Workers logs dataset と R2 destination の利用可否は環境ごとに Data Platform が確認する。
 
+### 環境別搬送の確定結果（タスク1.2 / 1.3 の承認記録）
+
+- 対象環境はいずれも Tail Workers を利用できる。全環境で第一経路（Producer → structured console log → Tail Worker → Queue → Consumer → R2 → Snowpipe → Snowflake）を用いる。
+- Logpush縮退の構成対象環境は0件である。ゆえに Logpush job と R2 destination を Cloudflare account 設定として作らない。要件4.7 / 4.8 の前件「Tail_Worker を利用できない環境である」は成立しない。
+- 将来 Tail Workers を利用できない環境が現れた場合は、構成の前にタスク1.3 の確認（対象環境、Workers logs dataset、R2 destination、観測不能期間の欠落許容）をやり直す。縮退を足すときも Producer 設定の SSOT（root `wrangler.jsonc`）へ Queue／R2 binding と再出力入口を置かず、Data Platform 所有の account 設定として分離する。
+- Logpush 固有の smoke fixture は作らない。両経路に共通する不変点、すなわち「観測できた canonical line だけが R2 へ到達する」「未観測分を補完しない」「観測できた lifecycle 内欠落は測るが console log 自体の完全未観測率は測定不能として分けて表示する」を、実在する第一経路の上で `tests/operation-history/unobserved-telemetry.integration.test.ts` が検証する（タスク12.3・要件4.7 / 4.8 / 5.8 / 5.14）。
+- Tail unavailable と structured console log 未観測のいずれの期間についても、補完機構を持たない。backfill job、Producer への再出力要求、outbox、DO 再起動、観測目的の rehydrate／Reconcile／Persist はいずれも0件であり、欠落は欠落のまま残す（要件1.8 / 1.9 / 2.15 / 4.8 / 4.13 / 4.14）。この0件は `tests/operation-history/no-backfill.static.test.ts` が全 Wrangler 設定、`src` 全体、CI、Producer 側の搬送経路分岐、root 設定の切戻し手順に対して機械検査する（タスク12.2）。
+
+### Snowflake 取込の確定結果（タスク13.1）
+
+Snowflake は外部サービスゆえリポジトリからは適用できない。リポジトリに置くのは Data Platform 所有の宣言的定義（`config/operation-history-snowflake/01-raw-arrival-ingest.sql`・`02-first-arrival-association.sql`）と、ユーザーが実行する手順（`docs/operation-history/snowflake-ingest-procedure.md`）である。object 名は `OPERATION_HISTORY.RAW` の下に `CANONICAL_OPERATION_LINE`（file format）、`OPERATION_RAW_ARRIVALS`（stage）、`OPERATION_RAW_ARRIVAL`（table）、`OPERATION_RAW_ARRIVAL_PIPE`（pipe）、`OPERATION_TELEMETRY_FIRST_ARRIVAL`（view）とする。
+
+- **canonical と観測側 metadata の分離**: 一到達一行の table で、canonical 一行を `CANONICAL_LINE` に文字列のまま持ち、観測側 metadata を別の列に持つ。VARIANT へ parse しないのは属性順の正規化で canonical bytes が失われるためである（要件3.19 / 5.4 / 5.7）。
+- **object の user metadata は Snowflake から読めない**。stage object について読めるのは `METADATA$FILENAME` / `FILE_ROW_NUMBER` / `FILE_CONTENT_KEY` / `FILE_LAST_MODIFIED` / `START_SCAN_TIME` だけで、R2 `customMetadata`（S3 の `x-amz-meta-*` も同様）は含まれない。ゆえに `firstObservedAt` / `queueMessageId` / `deliveryAttempt` は object key（文法の正本は `src/data-platform/raw-arrival-consumer.ts`）から読み、`arrivedAt` は `METADATA$FILE_LAST_MODIFIED`（R2 put 時刻）で代え、`canonicalHash` は canonical 一行から再計算する。いずれも補助情報であって identity ではない（要件5.3 / 5.4）。key を作る側と読む側の文法の一致は `tests/operation-history/snowflake-ingest.static.test.ts` が検査する。
+- **S3 互換 stage は Snowpipe auto-ingest に対応しない**。pipe は `AUTO_INGEST = FALSE` とし、Snowpipe REST の `insertFiles` で駆動する。`ALTER PIPE ... REFRESH` は7日以内の復旧用途に限る。`insertFiles` を定期的に呼ぶ駆動主体は未実装であり、タスク13.7 / 15.2 へ引き渡す。駆動主体を足すときも Producer 設定（root `wrangler.jsonc`）へ Snowflake credential と binding を置かない（要件4.13 / 4.14）。
+- **責務の分離**: タスク13.1 が作るのは raw arrival 層と要件6.1 の関連付け（`firstObservedAt` ↔ `firstSnowflakeAt`）だけである。到達数、重複数、欠落／孤児／競合、品質率、SLO 判定、保持、access 制御はタスク13.2〜13.6 が別の責務として足し、`correlation.ts`・`quality.ts`・`slo.ts` の定義を SQL 側で読み替えない。raw arrival は判定の前後で削除しない。
+
+### Snowflake 品質配線の確定結果（タスク13.2）
+
+相関、重複収束、四品質状態、四品質率、信頼済み分析の範囲を
+`config/operation-history-snowflake/03-correlation-and-convergence.sql`・`04-quality-rates-and-trusted-analysis.sql`
+の宣言的定義として置き、適用手順は `docs/operation-history/snowflake-quality-procedure.md` に置く。判定は
+raw を読むだけの view で行い、`RAW` schema（取込と raw 保持）と `ANALYSIS` schema（判定）を分ける。
+
+- **object 名**: `OPERATION_HISTORY.ANALYSIS` の下に `OPERATION_ARRIVAL`（raw 一到達を canonical 既知属性と
+  観測側補助 metadata に開く）、`OPERATION_CONVERGED_RECORD`（収束後 record・`ARRIVAL_COUNT` /
+  `DUPLICATE_COUNT` / `IS_ORPHAN`）、`OPERATION_CORRELATION_CANDIDATE`（一次相関候補・`TIMER_FACTS_CONSISTENT`）、
+  `OPERATION_EXPECTED_LIFECYCLE_RECORD`（期待 lifecycle 記録・`IS_MISSING`）、`OPERATION_QUALITY_THRESHOLD`
+  （運用者が定める四閾値の table）、`OPERATION_QUALITY_COUNT`（八集計）、`OPERATION_QUALITY_RATE`（四品質率）、
+  `OPERATION_TRUSTED_ANALYSIS_SCOPE`（included / excluded と除外理由）。
+- **定義の一意性**: 率の名前（`lifecycleMissingRate` / `duplicateRate` / `orphanRate` / `conflictRate`）、集計の
+  名前（`quality.ts` の `counts` と同名同義）、状態の語（`calculated` / `not-calculable` /
+  `denominator-is-zero` / `rate-not-calculable` / `threshold-exceeded` / `included` / `excluded`）を純粋層と
+  共有し、SQL 側で別の語や別定義を作らない。一致は `tests/operation-history/snowflake-quality.static.test.ts`
+  が機械検査する（要件5.1〜5.7 / 5.9〜5.13 / 5.15）。
+- **一次相関 key と収束 key**: 候補 key は Store Id、Timer Id、Operation Kind、Event Time の四つだけ。収束 key は
+  それに record 本体の Timer 事実（`slotIds` / `noodleType` / `firmness` と kind 別時刻）を足したものである。
+  canonical 表現が既知属性だけを固定順で表すため、この収束 key の一致は canonical bytes の一致と同値になる。
+  hash・object key・queue message id・delivery attempt は補助情報であり、どちらの key にも入れない（要件5.3 / 5.4）。
+- **期間（period）の粒度**: Operation Record 内の `eventTime`（期待記録は復元された Event Time）の UTC 暦日。
+  観測側時刻を期間の根拠にしない（要件5.4）。欠落と孤児の**判定自体**は店舗×timer 単位で観測全体に対して
+  行い、期間は集計の割り当てにしか使わない。日境界を跨ぐ lifecycle を人工的に孤児にしないためである。暦月の
+  集計は本 view を上位で丸める（期間の定義を二つ作らない）。
+- **期待 lifecycle 記録の復元規則**: 観測できた boil-started 一件から boiled 一件（Event Time = `endTime`）の
+  存在を復元する。既存の表明（`tests/operation-history/unobserved-telemetry.integration.test.ts` の
+  `recoverableLifecycleRecords`）と同じ規則であり、SQL 側で新しい規則を発明しない。completed / cancelled は
+  running からも到達し得るため、その存在から他の記録を復元しない。復元元は収束後 record ゆえ、重複到達を
+  期待記録へ二重計上しない。復元可能な開始事実は観測できた boil-started に限る（`correlation.ts` の
+  `recoverableStarts` 既定が空であり、この経路に他の出所がない）。
+- **分母 0**: `NULLIF` で `VALUE` を NULL に保ち、`STATUS = 'not-calculable'`・
+  `NOT_CALCULABLE_REASON = 'denominator-is-zero'` を持たせる。数値 0 で埋めない（要件5.13）。
+- **閾値**: 実値は運用判断ゆえ SQL 正本に持たず、運用者が手順書に従って四行を入れる。四行が揃わない品質率は
+  `threshold-not-configured` として除外側へ倒す。これは五つ目の品質状態ではなく、四閾値が揃うことを要求する
+  `quality.ts` の型を SQL で表せないことへの構成上の guard であり、信頼を主張できない場合に fail closed する。
+- **raw 保持**: `03` / `04` は view（と閾値 table）だけで、`DELETE` / `TRUNCATE` / `DROP` / `UPDATE` / `MERGE` /
+  `INSERT` を持たない。判定の根拠 raw arrival は判定の前後で削除しない（要件5.7）。canonical bytes は
+  VARIANT から再直列化せず、そのまま持ち回る。
+- **責務境界**: この層は best-effort 表示と完全未観測率（タスク13.3）、到達 SLO と通知（13.4）、保持（13.5）、
+  access 制御（13.6）へ踏み込まない。
+
+### Snowflake best-effort 表示の確定結果（タスク13.3）
+
+分析値へ付ける表示と、console log 自体の完全未観測率の測定不能表示を
+`config/operation-history-snowflake/05-best-effort-disclosure.sql` の宣言的定義として置き、適用手順は
+`docs/operation-history/snowflake-disclosure-procedure.md` に置く。定義の正本は
+`src/operation-history/quality.ts` の `analysisDisclosure` と `consoleLogCompleteMissingRate` であり、
+SQL は語と表示文をそのまま写す。
+
+- **object 名**: `OPERATION_HISTORY.ANALYSIS` の下に `OPERATION_CONSOLE_LOG_COMPLETE_MISSING_RATE`
+  （測定不能表示の一行 view）、`OPERATION_ANALYSIS_DISCLOSURE`（店舗・期間ごとの表示。`BASIS` /
+  `ESTIMATION` / `DISPLAY` と、`04` から連れてくる `TRUSTED_ANALYSIS_STATUS` / `EXCLUSIONS`、および
+  `CONSOLE_LOG_COMPLETE_MISSING_RATE_*` を持つ）。
+- **生産能力指標そのものは定義しない**。何を能力として数えるかは requirements にも本設計にも無いため、この段で
+  発明しない。指標を作る側が `OPERATION_ANALYSIS_DISCLOSURE` を Store Id と期間で join し、分析値と表示を
+  分離できない形で出す（要件5.8）。ゆえに `05` は集計関数も `GROUP BY` も持たない。
+- **測定不能は算出不能ではない**。Producer telemetry の総数を下流から観測できないため、完全未観測率は
+  `unmeasurable` / `producer-telemetry-total-unobservable` として持ち、件数・分子・分母・率の列を一切持たない。
+  数を置けば観測できなかった分を推定したことになる。分母0の `denominator-is-zero`（要件5.13）と語を共有しない。
+- **lifecycle 内欠落率との分離**（要件5.14）: 欠落率は `04` の `OPERATION_QUALITY_RATE` の
+  `lifecycleMissingRate` 行が正本で、`05` は再計算しない。表示では `CONSOLE_LOG_COMPLETE_MISSING_RATE_*` の
+  接頭辞と `DISTINCT_FROM = 'lifecycleMissingRate'` で二つが混ざらないようにする。
+- **期間の定義を増やさない**。`PERIOD` は `03` / `04` の定義（Operation Record 内 `eventTime` の UTC 暦日）を
+  連れてくるだけで、`05` は暦日を作り直さない。
+- **責務境界**: この層は到達 SLO と通知（13.4）、保持（13.5）、access 制御（13.6）へ踏み込まず、raw arrival を
+  読まない・削除しない（要件5.7）。純粋層との一致とこれらの境界は
+  `tests/operation-history/snowflake-disclosure.static.test.ts` が機械検査する。
+
+### Snowflake 到達 SLO・通知の確定結果（タスク13.4）
+
+UTC 暦月の到達 SLO と 30／60分通知を `config/operation-history-snowflake/06-arrival-slo-and-notification.sql`
+の宣言的定義として置き、適用と起動の手順は `docs/operation-history/snowflake-slo-procedure.md` に置く。定義の
+正本は `src/operation-history/slo.ts` の `operationArrivalSloByUtcMonth` と
+`snowflakeArrivalNotificationTransition` であり、SQL は判定値（15 / 30 / 60 / 5分、目標率0.99）と語
+（`met` / `missed` / `not-applicable`、三つの帯、`warning` / `critical`）と表示文をそのまま写す。
+
+- **object 名**: `OPERATION_HISTORY.ANALYSIS` の下に table function `OPERATION_ARRIVAL_SLO(月)`、view
+  `OPERATION_PENDING_ARRIVAL` と `OPERATION_ARRIVAL_LAG_TRANSITION`、table
+  `OPERATION_ARRIVAL_NOTIFICATION_STATE`（帯の記憶・一行）と `OPERATION_ARRIVAL_NOTIFICATION_TARGET`
+  （通知先・運用設定）、procedure `SEND_ARRIVAL_LAG_NOTIFICATION`、alert `OPERATION_ARRIVAL_LAG_ALERT`。
+- **月の集合は入力である**（要件6.2 / 6.4）: 月次 SLO を view ではなく月を引数に取る table function にした。
+  どの月を見るかは呼ぶ側が決める（純粋層の `utcMonths` と同じ）。SQL 側に月軸を持たせると、保持期間や観測
+  範囲に依存した二つ目の定義が生まれる。母集団0件の月も一行として返り、率は NULL のまま `not-applicable`
+  になる（0で埋めない）。重複除外と初回到達の関連付けは13.1 の `OPERATION_TELEMETRY_FIRST_ARRIVAL` を使い、
+  収束を作り直さない（要件6.1）。
+- **未到達は stage を読むしかない**（要件6.5 / 6.6）: 取込済みの `OPERATION_RAW_ARRIVAL` は
+  `SNOWFLAKE_ARRIVED_AT` を必ず持つため、「Snowflake 未到達」は取込済みの表からは原理的に見えない。
+  `OPERATION_PENDING_ARRIVAL` は stage（Consumer が put した R2 object）を読み、**canonical bytes 単位の**
+  anti-join で未取込分を出す。object key 単位で引くと、重複配送のうち一件が取込済みの record を未到達に
+  数える（`slo.ts` の収束は一件でも到達すれば未到達にしない）。通知に必要な Store Id / Timer Id /
+  Operation Kind / Event Time は未取込 object の中身にしか無いため、stage の内容を読む。
+- **費用と覆う範囲の限界を偽らない**: stage の全 object を読むため実行費用は object 数に比例する。path で
+  刈ると最古の未到達 record を見失い、帯が誤って戻って同じ遷移を二度通知するため刈らない。また見えるのは
+  R2 まで到達した未取込分だけであり、Queue／Consumer 間の滞留は属性の出所が Snowflake から読めないため
+  現れない（その滞留は Consumer の再配送方針と dead-letter が扱う）。観測できない分を推定しない。
+- **連続状態につき一回**（要件6.5 / 6.6）: `OPERATION_ARRIVAL_NOTIFICATION_STATE` の一行が `slo.ts` の
+  `previousBand` である。alert の条件は「帯が変わったこと」であり、通知を伴う遷移は必ず帯の変化を含む。
+  帯が下がる遷移と未到達0件への復帰は帯だけを記録する。通知先が未設定なら帯を進めない（fail closed。
+  通知しないまま通知済みにすると、その連続状態の通知が永久に失われる）。
+- **5分以内**（要件6.5 / 6.6）: alert の周期は1分である。5分間隔では検出時刻が窓の端に張り付く。実際に窓を
+  満たしたかは `OPERATION_ARRIVAL_LAG_TRANSITION.WITHIN_FIVE_MINUTE_WINDOW` で可視化する。alert は作成時
+  停止状態であり、`RESUME` と通知先設定はユーザー手順に置く（Snowflake は外部サービスゆえリポジトリから
+  適用できない）。
+- **責務境界**: この層は保持（13.5）と access 制御（13.6）へ踏み込まず、品質率と信頼判定（13.2）も
+  best-effort 表示（13.3）も作り直さない。raw arrival を削除も上書きもせず、書くのは帯の記憶だけである
+  （要件5.7）。純粋層との一致とこれらの境界は
+  `tests/operation-history/snowflake-slo.static.test.ts` が機械検査する。
+
+### 保持の確定結果（タスク13.5）
+
+R2 の 90 日と Snowflake の 25 UTC 暦月は**別の期限**である。起点も実行主体も違うため、正本を分けて置き、
+一方から他方を導かない。適用手順は `docs/operation-history/retention-procedure.md` に置く。
+
+| 対象 | 期限 | 起点 | 削除の実行主体 | 宣言的正本 |
+| --- | --- | --- | --- | --- |
+| R2 object | 90日（要件6.7） | R2 保存成功時刻（object の upload 時刻） | R2 の object lifecycle | `config/operation-history-r2/raw-arrival-lifecycle.json` |
+| Snowflake 記録 | 25 UTC暦月（要件6.8） | 初回 Snowflake 到達月を第1月とする25か月の終了時点 | task `OPERATION_RAW_ARRIVAL_RETENTION_TASK` | `config/operation-history-snowflake/07-retention.sql` |
+
+- **R2 lifecycle は Wrangler 設定ファイルに書けない**。lifecycle は bucket 単位の設定であって Worker の
+  binding ではなく、実装時点で導入済みの Wrangler v4（4.105.0）の `config-schema.json` に該当キーは存在
+  しない。ゆえに `wrangler r2 bucket lifecycle set --file` が読む JSON をリポジトリの正本として持つ
+  （形は Cloudflare の put object lifecycle configuration API の request body と同じ）。Producer 設定の
+  SSOT（root `wrangler.jsonc`）にも Consumer 設定にも保持を置かない（要件4.10 / 4.13 / 4.14）。
+- **削除を早める条件を一つも置かない**（要件6.9）。R2 側の rule は `Age = 90日` の expire 一つだけで、
+  storage class transition もより短い expire も持たない。`set` は既存 rule を全部置き換えるため bucket 既定の
+  「incomplete multipart upload を7日で中止」も消えるが、Consumer は一回の `put` だけを使い multipart upload
+  を作らないため中止対象は存在しない。存在しないものへの rule を置かない。
+- **prefix は key を作る側に従う**。lifecycle の `raw/` は `src/data-platform/raw-arrival-consumer.ts` が必ず
+  付ける接頭辞である。深い prefix にすると日付の刻みが変わった key を刈り残す。
+- **Snowflake の期限は月単位である**（要件6.8）。第1月の初日 + 25か月の 00:00 UTC が削除の開始点であり、月内
+  のどの時刻に到達しても同じ期限になる。日時単位の期限を発明しない。初回到達時刻は13.1 の
+  `OPERATION_TELEMETRY_FIRST_ARRIVAL` から取り、収束を作り直さない（要件6.1）。
+- **削除の述語は期限だけであり、対象は record 単位である**（要件6.9 / 5.7）。`07` だけが raw arrival の
+  `DELETE` を持ち、`03`〜`06` は view と帯の記憶しか持たない。ゆえに期限前の「保持期限を理由とする削除」は
+  0件である。期限に達した record は canonical bytes 単位で全到達行を消す（一到達だけ残すと到達数と重複数が
+  期限後に別の値を主張し始める）。
+- **Time Travel を保持の抜け道にしない**（要件6.8）。`OPERATION_RAW_ARRIVAL` の
+  `DATA_RETENTION_TIME_IN_DAYS` を0にする。正の値なら `DELETE` 後も `AT` / `BEFORE` で読めてしまい、24時間
+  以内の削除完了と両立しない。誤削除からの復旧手段を失う代わりに、保持期限の主張を偽らない方を採る。
+  Fail-safe（永続 table の7日・設定不可）はどの role からも query できない Snowflake 内部の領域であり、消す
+  には table を `TRANSIENT` で作り直すしかない。作り直しは既存 raw を捨てるため行わず、この性質を手順書に
+  明記する。
+- **24時間以内の完了**（要件6.8）。R2 は Cloudflare の documented behavior（expire 条件を満たしてから通常24
+  時間以内）をそのまま使う。Snowflake は task の周期を1時間にする。期限自体は常に UTC 暦月の初日 00:00 ゆえ
+  月一回でも「期限に達したら開始」は満たせるが、一度の失敗が24時間の完了期限を破らないよう窓の中に再試行の
+  機会を残す。
+- **責務境界**: この層は access 制御（13.6）へ踏み込まず、品質率・表示・到達 SLO を作り直さない。R2 object が
+  90日で消えると `OPERATION_PENDING_ARRIVAL`（13.4）から90日より古い未取込分が見えなくなるが、これは覆う
+  範囲の縮小であって未到達の推定でも補完でもない（要件4.8）。上の不変点は
+  `tests/operation-history/retention.static.test.ts` が機械検査し、時刻境界の clock-controlled test は
+  `tests/operation-history/snowflake-operations.integration.test.ts`（タスク13.7）が担う。
+
+### access 制御の確定結果（タスク13.6）
+
+分類、許可、拒否を `config/operation-history-snowflake/08-access-control.sql` に置く。適用手順は
+`docs/operation-history/snowflake-access-procedure.md`。`08` が持つのは次の三つだけである。
+
+| 項目 | 実体 | 要件 |
+| --- | --- | --- |
+| 分類 | tag `OPERATION_HISTORY.GOVERNANCE.DATA_CLASSIFICATION`（許可値 `confidential-business-non-personal` 一つ） | 6.10 |
+| 許可 | role `OPERATION_HISTORY_ANALYST` への database 単位の `SELECT` / `USAGE` | 6.11 |
+| 拒否 | Snowflake の既定拒否（`08` に拒否のための文は無い） | 6.12 |
+
+- **分類の語は一つである**（要件6.10）。tag の `ALLOWED_VALUES` を一値にすることが要点で、値を自由文字列に
+  すると `confidential` / `internal` / `PII` のような第二・第三の語が後から付き、どれが正本か分からなくなる。
+  値は「個人情報ではない」（自然人属性を record が持たない。要件2.16 / 2.17）と「機密業務データである」の
+  両方を一語で言う。前者だけなら保護が緩む方向へ、後者だけなら個人情報の手続きを持ち込む方向へ読み違えられる。
+  tag は database へ一度だけ付ける。継承で `RAW` と `ANALYSIS` の全 object と後続層の object へ降りるため、
+  object ごとに付け直さない（付け忘れた object だけが分類の外へ落ちる）。**object tagging は Enterprise
+  Edition 以上を要する**。使えない account では分類の第二の正本（COMMENT や独自 table）を発明せず、手順書 §1
+  で停止してユーザーへ確認する（fail closed）。
+- **role は一つである**（要件6.11）。要件が承認の単位を「Operation_Record、品質指標、または分析結果への
+  アクセス」と一つに定めているため、record 用・指標用・分析結果用に役を分けない。分ければ承認状態が三つに
+  なり、どれが承認済みかの答えが割れる。
+- **読める範囲を object で列挙しない**（要件6.11）。grant は database 単位の `ALL` と `FUTURE` だけである。
+  列挙すると層を足すたびに追記漏れが起き、承認済み分析担当者から見えない object が生まれる。`FUTURE` は
+  database 単位だけに置く。schema 単位の future grant を併置すると Snowflake はそちらを優先し、database 側の
+  宣言が無視されて覆う範囲が静かに縮む。到達 SLO は table function ゆえ `FUNCTIONS` の `USAGE` も与える。通知を
+  送る procedure には与えない。
+- **与える権限は `SELECT` と `USAGE` だけである**（要件6.12）。ゆえに承認済みであっても record、品質指標、
+  分析結果を変えられない。閾値（`OPERATION_QUALITY_THRESHOLD`）と通知先
+  （`OPERATION_ARRIVAL_NOTIFICATION_TARGET`）の投入、task と alert の起動、通知の送信は運用者の権限として
+  分けたままにする。
+- **拒否のための文を一つも書かない**（要件6.12）。拒否は Snowflake の既定拒否そのものである。`08` は DML を
+  持たず、task も alert も procedure も作らないため、アクセス要求を契機に走る文が存在しない。ゆえに拒否で
+  Operation Record、品質指標、分析結果、アクセス承認状態のいずれも変わらない。拒否の記録を table へ書き足すと
+  拒否が write になるため行わない（監査は Snowflake 側の query history が持つ）。
+- **アクセス承認状態をリポジトリに置かない**（要件6.11）。承認状態は role member
+  （`GRANT ROLE ... TO USER`）であり、credential と同じ規律で運用者が与える。`08` に実名も member も無い。
+  リポジトリが誰を承認済みか知らないことは制御の欠落ではなく、承認状態の正本が Snowflake 側にあることの表明
+  である。
+- **同じ record の R2 複製にも同じ分類が及ぶ**（要件6.10）。分類は保存先で変わらない。R2 側の読み手は Consumer
+  の binding と運用者の API token だけであり、公開経路（`r2.dev` URL・custom domain）を持たないことを手順書 §5
+  で確認する。token は credential ゆえリポジトリに置かない。
+- **責務境界**: この層は取込、相関、品質率、表示、到達 SLO、保持を作り直さず、view も table も作らない。逆に
+  `01`〜`07` は `GRANT` / `REVOKE` / `CREATE ROLE` を持たない（access の正本は `08` 一つ）。上の不変点は
+  `tests/operation-history/snowflake-access.static.test.ts` が機械検査し、承認済み／未承認アクセスと拒否後
+  不変の integration は `tests/operation-history/snowflake-access.integration.test.ts`（タスク13.7）が担う。
+
+### Snowflake 側 integration の確定結果（タスク13.7）
+
+Snowpipe、Snowflake の SQL、R2 lifecycle はいずれも外部サービスが実行する。ゆえに13.7 は「実行できない層を
+跨いだ後に、純粋層と宣言的正本の値でどう見えるか」を検証する。SQL 実行を要する疎通確認は既存の
+`docs/operation-history/*.md`（ユーザー実行手順）とタスク15.2 が担い、ここへ持ち込まない。
+
+| 検証 | 実体 | 対象要件 |
+| --- | --- | --- |
+| R2 fixture の取込、初回時刻の関連付け、重複 raw 保持、四品質状態、四品質率、分母0、信頼除外、best-effort 表示、完全未観測率 | `tests/operation-history/snowflake-pipeline.integration.test.ts` | 4.6、5.4〜5.15、6.1 |
+| 15分境界、空月、30／60分通知、R2 90日、Snowflake 25 UTC 暦月、24時間の削除窓 | `tests/operation-history/snowflake-operations.integration.test.ts` | 5.7、6.1〜6.9、6.13 |
+| 承認済み／未承認アクセスと拒否後不変 | `tests/operation-history/snowflake-access.integration.test.ts` | 6.10〜6.12 |
+
+- **取込は R2 fixture から始める**。完了済み Producer が実際に書いた canonical 一行を Tail Worker → Queue →
+  Consumer → R2（いずれも実物）へ通し、`tests/operation-history/support/snowpipe.ts` が R2 object を一到達一行
+  へ写す。object key から観測側 metadata を読む文法はテスト側に書かず `01` の正規表現をそのまま使う（key を
+  作る側の正本は `src/data-platform/raw-arrival-consumer.ts`）。三つ目の文法を作らない。
+- **判定は純粋層だけが持つ**。support は canonical bytes と観測側 metadata を分離して並べるだけで、相関・品質・
+  SLO の判定を持たない（要件5.4）。取込時刻は入力であり、clock が決める（要件6.1）。
+- **判定値をテスト側に書かない**。15／30／60／5分は `06`、保持月数と削除完了期限は `07`、R2 の90日は
+  `config/operation-history-r2/raw-arrival-lifecycle.json` から読む。値を四箇所（要件・純粋層・SQL・テスト）に
+  持つとどれが正本か分からなくなる。
+- **access は宣言の突き合わせである**。`01`〜`07` が作る object の目録と `08` の grant を突き合わせ、読む対象が
+  すべて覆われること、`PUBLIC` などの未承認主体が一つも読めないこと、拒否の前後で record・品質指標・分析結果・
+  許可の集合が変わらないことを見る。実 role member への適用と実際の拒否は
+  `docs/operation-history/snowflake-access-procedure.md` のユーザー実行手順が確かめる。
+- **実接続を要して未検証の範囲**: Snowpipe REST `insertFiles` の駆動、pipe と COPY の実行、view・table function・
+  task・alert の実行、通知の送達、R2 lifecycle と Snowflake task による実削除、Snowflake の access 評価。いずれも
+  credential を要するためタスク15.2 / 15.4 のユーザー実行手順に残る。
+
 ### Rollout order
 
 1. R2、Queue、Consumer、Snowpipe、Snowflake、保持、access role を下流だけで検証する。
 2. Tail Worker と Queue 送信を fixture で検証する。
 3. plan が満たされる環境では Producer の `tail_consumers` attachment を有効化する。
-4. plan が満たされない環境では Logpush→R2 を有効化する。
+4. plan が満たされない環境では Logpush→R2 を有効化する（該当環境0件。将来現れた場合の手順）。
 5. 品質率と15分 SLOを観測し、閾値を満たす店舗・期間だけを信頼済み分析へ入れる。
 
 attachment の無効化または Logpush job の停止は Timer 本体 state の migration や rollback を必要としない。Operation Record は best-effort なので、停止期間の backfill は行わない。
@@ -649,4 +896,4 @@ attachment の無効化または Logpush job の停止は Timer 本体 state の
 実装開始前の確認事項は次の二点だけである。旧設計由来の追加 blocker は置かない。
 
 1. **公開命名確認**: `OperationObservation`、`OperationRecord`、`recordsFromCommittedDiff`、`printCanonicalOperationLine`、`parseOperationLines`、`tryWriteOperationLines`、`operationLinesFromTailEvents`、観測 ON/OFF 設定名、各 Worker/binding/Queue 名の候補を実装前にユーザーへ提示し、概念境界と共に確定する。
-2. **Tail 利用プラン確認**: 対象 dev/stage/prod account が Workers Paid / Enterprise で Tail Workers を利用可能か確認する。不可の環境は Logpush縮退とし、対象 dataset と R2 destination の可用性を確認する。
+2. **Tail 利用プラン確認**（解消済み・タスク1.2 / 1.3）: 対象環境はいずれも Tail Workers を利用できる。Logpush縮退の構成対象環境は0件であり、Logpush job と R2 destination を作らない（「環境別搬送の確定結果」）。

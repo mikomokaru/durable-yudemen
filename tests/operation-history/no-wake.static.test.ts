@@ -593,7 +593,8 @@ describe("Operation History O6 — Reconcile の一方向因果", () => {
 });
 
 /** Validates: Requirements 1.3, 1.8, 1.10 */
-describe("Operation History O7 — hibernation debug harness (src/observe) との非共有", () => {
+// O 番号は付けない。design.md の O7 は runtime の比較 trace であり、こちらは非共有の静的検査である。
+describe("Operation History — hibernation debug harness (src/observe) との非共有", () => {
   const observeRoot = "src/observe";
   const observeFiles = projectFiles(observeRoot).filter((path) => /\.(?:ts|tsx)$/.test(path));
 

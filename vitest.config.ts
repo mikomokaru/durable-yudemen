@@ -27,12 +27,22 @@ export default defineConfig({
             "tests/offline-degradation.static.test.ts",
             // 撤去・不変・漏洩不能の静的検査（タスク7.3）。node:fs でソースを読むため node 環境で実行する。
             "tests/per-store-provisioning.static.test.ts",
+            // Pass_Through の適用層の静的検査（pos-order-ingress タスク24）。TypeScript AST でソースを読む。
+            "tests/pos-order-ingress.static.test.ts",
             // Operation History O1〜O3 の no-wake/no-storage 検査。node:fs と TypeScript AST を使う。
             "tests/operation-history/no-wake.static.test.ts",
             // Operation History の Timer モデル規律。node:fs で導出ソースを読むため node 環境で実行する。
             "tests/operation-history/timer-model.static.test.ts",
             // Operation History の設定キー確認（タスク11.1）。node:fs で導入済み Wrangler schema を読む。
             "tests/operation-history/wrangler-config-keys.static.test.ts",
+            // Operation History の設定 graph（タスク11.4）。node:fs で三つの wrangler.jsonc を読む。
+            "tests/operation-history/config-graph.static.test.ts",
+            // Operation History の縮退経路の不在（タスク12.2）。全設定・src 全体・CI をソースから読む。
+            "tests/operation-history/no-backfill.static.test.ts",
+            // Operation History の Snowflake 取込 SQL（タスク13.1）。SQL テキストを読む静的検査ゆえ node で実行する。
+            "tests/operation-history/snowflake-ingest.static.test.ts",
+            // Operation History の相関・品質率 SQL（タスク13.2）。同じく SQL テキストを読む静的検査。
+            "tests/operation-history/snowflake-quality.static.test.ts",
             // Wake_Lock マウントの依存確認（タスク6.1）。node:fs で App.tsx を読むため node 環境で実行する。
             "tests/client/audioWakeLock.example.test.ts",
           ],
@@ -53,6 +63,17 @@ export default defineConfig({
           name: "registry",
           environment: "node",
           include: ["tests/registry/**/*.property.test.ts", "tests/registry/**/*.example.test.ts"],
+        },
+      },
+      {
+        // 上流ペイロード解釈の純粋層テスト。src/ingress/ は cloudflare:workers・storage に触れず
+        // domain へ一方向に依存するだけの純粋関数群ゆえ Workers pool 不要。node 環境（既定 pool）で
+        // 実行する（design.md「src/ingress/ と src/registry/ の純粋層は workerd 不要」）。
+        // 取り込み経路の統合テストは tests/shell/ に置き、置き場を pool の境界と一致させる。
+        test: {
+          name: "ingress",
+          environment: "node",
+          include: ["tests/ingress/**/*.property.test.ts", "tests/ingress/**/*.example.test.ts"],
         },
       },
       {
@@ -119,15 +140,23 @@ export default defineConfig({
             "tests/offline-degradation.static.test.ts",
             // node:fs でソースを読む静的検査は static プロジェクト（node）が担当する。
             "tests/per-store-provisioning.static.test.ts",
+            "tests/pos-order-ingress.static.test.ts",
             "tests/operation-history/no-wake.static.test.ts",
             "tests/operation-history/timer-model.static.test.ts",
             "tests/operation-history/wrangler-config-keys.static.test.ts",
+            "tests/operation-history/config-graph.static.test.ts",
+            "tests/operation-history/no-backfill.static.test.ts",
+            "tests/operation-history/snowflake-ingest.static.test.ts",
+            "tests/operation-history/snowflake-quality.static.test.ts",
             "tests/client/audioWakeLock.example.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
             // src/registry/ の純粋層テストは registry プロジェクト（node）が担当する。
             "tests/registry/**/*.property.test.ts",
             "tests/registry/**/*.example.test.ts",
+            // src/ingress/ の純粋層テストは ingress プロジェクト（node）が担当する。
+            "tests/ingress/**/*.property.test.ts",
+            "tests/ingress/**/*.example.test.ts",
             // src/worker-auth.ts の純粋層テストは worker プロジェクト（node）が担当する。
             "tests/worker/**/*.property.test.ts",
             // worker の純粋 example テスト（entry.example.test.ts）も worker プロジェクト（node）が担当する。

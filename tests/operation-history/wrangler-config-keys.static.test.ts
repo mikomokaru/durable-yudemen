@@ -5,8 +5,8 @@
 // Queue consumer と R2）は、ここで検査に通った fragment 形をそのまま設定へ写す。
 // 公式資料（Wrangler configuration / Tail Workers / Queues / R2）と照合した差分は下のコメントに残す。
 //
-// 名前の扱い: binding 名と Queue 名はタスク 1 で確定した実名を使う。Tail Worker script 名と
-// R2 bucket 名は本タスクで確定していないため placeholder のままにし、推測で固定しない。
+// 名前の扱い: binding 名と Queue 名はタスク 1 で確定した実名、Tail Worker script 名・R2 bucket 名・
+// dead-letter Queue 名はタスク 11.3 で確定した実名を使う。推測で置いた値は残さない。
 //
 // _Requirements: 4.1, 4.3, 4.5, 4.12, 4.13_
 
@@ -82,7 +82,7 @@ const rawConfig = schema.definitions.RawConfig!;
 
 // タスク 11.2 が root `wrangler.jsonc` へ写す fragment。Tail attachment だけを持つ。
 const producerFragment = {
-  tail_consumers: [{ service: "<TAIL_WORKER_SCRIPT_NAME>" }],
+  tail_consumers: [{ service: "yude-men-telemetry-tail" }],
 } as const;
 
 // タスク 11.3 が Data Platform 側 Tail Worker 設定へ写す fragment。Queue producer だけを持つ。
@@ -104,7 +104,7 @@ const consumerFragment = {
       },
     ],
   },
-  r2_buckets: [{ binding: "OPERATION_RAW_ARRIVALS", bucket_name: "<R2_BUCKET_NAME>" }],
+  r2_buckets: [{ binding: "OPERATION_RAW_ARRIVALS", bucket_name: "operation-raw-arrivals" }],
 } as const;
 
 describe("Wrangler v4 schema で確認した Operation History の設定キー", () => {

@@ -142,6 +142,8 @@ export function toPending(orders: readonly OrderSpec[]): readonly PendingOrder[]
       firmness: item.firmness,
       tableId: item.tableId,
       arrivalTime: order.arrivalTime,
+      // 本 spec は割り当ての算術を変えず 1 品目 1 スロットで計画する。ゆえに場面も占有幅 1 で組む。
+      slotSpan: 1,
     })),
   );
 }
@@ -200,7 +202,7 @@ export function shortestFirstPlan(
   params: ScheduleParams,
 ): CookSchedule {
   const byBoil = [...pending].sort((order, other) => boilSecondsOf(order) - boilSecondsOf(other));
-  // 置き換えるのは arrivalTime だけ（他の 5 属性はそのまま写す）。
+  // 置き換えるのは arrivalTime だけ（他の 6 属性はそのまま写す）。
   const resequenced: readonly PendingOrder[] = byBoil.map((order, index) => ({
     externalOrderId: order.externalOrderId,
     itemIndex: order.itemIndex,
@@ -208,6 +210,7 @@ export function shortestFirstPlan(
     firmness: order.firmness,
     tableId: order.tableId,
     arrivalTime: NOW - byBoil.length + index,
+    slotSpan: order.slotSpan,
   }));
   return baselineSchedule(resequenced, initialRelease(running, NOW, slotCount), DEFAULT_NOODLE_PRESETS, params);
 }

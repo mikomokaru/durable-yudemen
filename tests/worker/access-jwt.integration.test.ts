@@ -32,7 +32,7 @@ import type { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import { configResidualDefaults } from "../storeConfigDefaults";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO を型付きで引く）。
 declare module "cloudflare:test" {
@@ -143,7 +143,7 @@ function config(): StoreConfig {
     noodlePresets: [
       { noodleType: "thin", boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
     ] as NonEmptyArray<NoodlePreset>,
-    ...schedulingDefaults(3),
+    ...configResidualDefaults(3),
   };
 }
 

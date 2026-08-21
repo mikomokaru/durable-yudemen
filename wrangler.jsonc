@@ -82,11 +82,11 @@
   //   ため、Tail Worker のデプロイ前に有効化すると本番デプロイを壊す。有効化の順序は
   //   「下流疎通（Queue / Consumer / R2）→ Tail fixture 検証 → Producer attachment」に固定する（tasks.md 15.4）。
   //
-  // 有効化手順: タスク11.3 で確定する Tail Worker の実 script 名を <TAIL_WORKER_SCRIPT_NAME> へ入れ、
-  //   下の3行のコメントを外す。無効化（切戻し）は再コメント化だけで済み、Timer の state migration、
-  //   backfill、Producer 再出力、DO 再起動をいずれも必要としない（要件4.8）。
+  // 有効化手順: Tail Worker（yude-men-telemetry-tail・設定正本は wrangler.telemetry-tail.jsonc）を
+  //   デプロイしてから、下の3行のコメントを外す。無効化（切戻し）は再コメント化だけで済み、
+  //   Timer の state migration、backfill、Producer 再出力、DO 再起動をいずれも必要としない（要件4.8）。
   // "tail_consumers": [
-  //   { "service": "<TAIL_WORKER_SCRIPT_NAME>" }
+  //   { "service": "yude-men-telemetry-tail" }
   // ],
   // React 静的アセットを同一オリジンで配信。SPA フォールバック。
   "assets": {

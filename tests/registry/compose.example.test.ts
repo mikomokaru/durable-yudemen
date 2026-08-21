@@ -10,6 +10,8 @@
 //   5. default 上書き → default フィールドは後の層・Override が上書きできる。
 //   6. 配列丸ごと置換 → 勝った層の noodlePresets が要素まで完全一致する（層をまたぐマージなし・要件4.4）。
 //   7. Store_Override 復活 → enforced がある間は Override を無視し、統制を外すと保持された Override が復活する（要件4.7）。
+//   8. POS の対応表 2 枚（firmnessCodes / menuItems）→ 3 層の合成規則に従い、層ごとの丸ごと置換で決まり、
+//      出口の検証関数（toFirmnessCodes / toMenuItems）を通る（pos-order-ingress 要件13.13 / 13.14）。
 //
 // 値域の正本は src/domain/store.ts の DEFAULT_* 定数。数値はすべて対応検証関数の値域内に収める（出口クランプに依存しない例示）。
 
@@ -17,15 +19,22 @@ import { describe, expect, it } from "vitest";
 import { composeEffectiveConfig } from "../../src/registry/compose";
 import type { Policy, PolicyFields, StoreOverride } from "../../src/registry/ideal";
 import {
+  type FirmnessCode,
+  type MenuItem,
   type NoodlePreset,
   type StoreConfig,
   DEFAULT_UNIT_COUNT,
   DEFAULT_ARMS,
   DEFAULT_TOLERANCE_RATIO,
   DEFAULT_NOODLE_PRESETS,
+  DEFAULT_FIRMNESS_CODES,
+  DEFAULT_MENU_ITEMS,
+  SLOT_SPAN_MAX,
 } from "../../src/domain/store";
+import type { Firmness } from "../../src/domain/firmness";
 import type { NonEmptyArray } from "../../src/domain/timer";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import { nonEmpty } from "../nonEmpty";
+import { configResidualDefaults } from "../storeConfigDefaults";
 
 // ── フィクスチャ補助 ──
 
@@ -44,6 +53,16 @@ function presets(...items: NoodlePreset[]): NonEmptyArray<NoodlePreset> {
   return items as unknown as NonEmptyArray<NoodlePreset>;
 }
 
+/** 硬さ対応 1 件（商品コード → Firmness）。 */
+function firmnessCode(code: number, firmness: Firmness): FirmnessCode {
+  return { code, firmness };
+}
+
+/** メニュー 1 件（親商品コード → 麺種と麺量 1 件）。層ごとに区別できるよう麺種と麺量を引数化する。 */
+function menuItem(productCode: number, noodleType: string, sizeCode: number, slotSpan: number): MenuItem {
+  return { productCode, noodleType, sizes: nonEmpty([{ code: sizeCode, slotSpan }]) };
+}
+
 describe("composeEffectiveConfig — 縮退（空入力）", () => {
   it("空 Policy 群・空 Override は全フィールドが DEFAULT_*", () => {
     const result = composeEffectiveConfig([], {});
@@ -52,7 +71,7 @@ describe("composeEffectiveConfig — 縮退（空入力）", () => {
       arms: DEFAULT_ARMS,
       toleranceRatio: DEFAULT_TOLERANCE_RATIO,
       noodlePresets: DEFAULT_NOODLE_PRESETS,
-      ...schedulingDefaults(DEFAULT_UNIT_COUNT),
+      ...configResidualDefaults(DEFAULT_UNIT_COUNT),
     };
     expect(result).toEqual(expected);
   });
@@ -75,8 +94,8 @@ describe("composeEffectiveConfig — Override のみ（Policy なし）", () => 
       noodlePresets: presets(preset("Store-Special", 90)),
     };
     const result = composeEffectiveConfig([], override);
-    // 重み・許容幅・レイアウトは Override の主張対象ではなく、常に既定で埋まる。
-    expect(result).toEqual({ ...override, ...schedulingDefaults(2) });
+    // 重み・許容幅・レイアウト・POS 対応表は Override の主張対象ではなく、常に既定で埋まる。
+    expect(result).toEqual({ ...override, ...configResidualDefaults(2) });
   });
 });
 
@@ -144,5 +163,67 @@ describe("composeEffectiveConfig — Store_Override 復活（要件4.7）", () =
     // 統制解除（当該フィールドの enforced 主張を取り除く）：保持されていた Override が復活する。
     const unenforced = policy("p1", 1, {});
     expect(composeEffectiveConfig([unenforced], override).unitCount).toBe(4);
+  });
+});
+
+describe("composeEffectiveConfig — POS の対応表 2 枚（要件13.13 / 13.14）", () => {
+  it("どの層も主張しなければ既定（空表）になる", () => {
+    // 他フィールドだけを主張する Policy を置き、2 枚が「合成対象に載っているが誰も主張していない」状態を作る。
+    const result = composeEffectiveConfig([policy("p1", 1, { unitCount: { mode: "default", value: 3 } })], {});
+    expect(result.firmnessCodes).toEqual(DEFAULT_FIRMNESS_CODES);
+    expect(result.menuItems).toEqual(DEFAULT_MENU_ITEMS);
+    expect(result.firmnessCodes).toHaveLength(0);
+    expect(result.menuItems).toHaveLength(0);
+  });
+
+  it("Policy の default を Store_Override が丸ごと置換する（要素マージなし）", () => {
+    const chainMenu = [menuItem(11421, "Thin", 19401, 1), menuItem(116051, "Medium", 19603, 2)];
+    const storeMenu = [menuItem(11421, "Thick", 19401, 3)];
+    const chainCodes = [firmnessCode(10010, "hard"), firmnessCode(10011, "normal")];
+    const chain = policy("p1", 1, {
+      menuItems: { mode: "default", value: chainMenu },
+      firmnessCodes: { mode: "default", value: chainCodes },
+    });
+    const result = composeEffectiveConfig([chain], { menuItems: storeMenu });
+    // 有効なメニュー表は店舗が主張した 1 件だけ（Policy の 2 件と混ざらない）。
+    expect(result.menuItems).toEqual(storeMenu);
+    expect(result.menuItems).toHaveLength(1);
+    // 店舗が主張しない硬さ表は Policy の表がそのまま残る（フィールドごとに層が決まる）。
+    expect(result.firmnessCodes).toEqual(chainCodes);
+  });
+
+  it("同一フィールドを default 主張する 2 層は、priority が大きい（後に畳む）層が勝つ", () => {
+    const low = policy("p-low", 1, { firmnessCodes: { mode: "default", value: [firmnessCode(10010, "hard")] } });
+    const high = policy("p-high", 2, {
+      firmnessCodes: { mode: "default", value: [firmnessCode(10011, "normal"), firmnessCode(10012, "soft")] },
+    });
+    for (const input of [[low, high], [high, low]]) {
+      const result = composeEffectiveConfig(input, {});
+      expect(result.firmnessCodes).toEqual([firmnessCode(10011, "normal"), firmnessCode(10012, "soft")]);
+    }
+  });
+
+  it("enforced の Policy が在れば店舗の主張が無視され、統制を外すと復活する（要件4.7）", () => {
+    const enforcedMenu = [menuItem(11421, "Thin", 19401, 1)];
+    const storeMenu = [menuItem(116051, "Thick", 19603, 2)];
+    const enforced = policy("p1", 1, { menuItems: { mode: "enforced", value: enforcedMenu } });
+    expect(composeEffectiveConfig([enforced], { menuItems: storeMenu }).menuItems).toEqual(enforcedMenu);
+    // 店舗の主張はイデアに保持されており、統制を外すと有効な表として復活する。
+    expect(composeEffectiveConfig([policy("p1", 1, {})], { menuItems: storeMenu }).menuItems).toEqual(storeMenu);
+  });
+
+  it("出口の検証関数を通る（値域外の麺量・不正な商品コードは落ち、妥当な表は素通しする）", () => {
+    // slotSpan 0 は「占有しない麺」ゆえ落ち、麺量が 1 件も残らないメニューは当該要素ごと落ちる。
+    const foldedMenu = [{ productCode: 11421, noodleType: "Thin", sizes: nonEmpty([{ code: 19401, slotSpan: 0 }]) }];
+    const foldedCodes = [firmnessCode(0, "hard")]; // 商品コードは正の整数ゆえ 0 は落ちる
+    const folded = composeEffectiveConfig([], { menuItems: foldedMenu, firmnessCodes: foldedCodes });
+    expect(folded.menuItems).toEqual(DEFAULT_MENU_ITEMS);
+    expect(folded.firmnessCodes).toEqual(DEFAULT_FIRMNESS_CODES);
+
+    const validMenu = [menuItem(11421, "Thin", 19401, SLOT_SPAN_MAX)];
+    const validCodes = [firmnessCode(10010, "extraHard")];
+    const passed = composeEffectiveConfig([], { menuItems: validMenu, firmnessCodes: validCodes });
+    expect(passed.menuItems).toEqual(validMenu);
+    expect(passed.firmnessCodes).toEqual(validCodes);
   });
 });

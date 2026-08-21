@@ -18,7 +18,7 @@ import type { PendingOrder } from "../domain/order";
  * 世代管理は version が担い、キー名は永続層の内部詳細で外に漏れていない（design.md）。
  */
 export interface StoreSnapshot {
-  /** スキーマバージョン。現行は v7（CURRENT_SCHEMA_VERSION）。 */
+  /** スキーマバージョン。現行は v8（CURRENT_SCHEMA_VERSION）。 */
   readonly version: typeof CURRENT_SCHEMA_VERSION;
   /** アクティブな全 Timer。engine 専用の adjustment / orderItem を含む（欠如は migrate が埋める）。 */
   readonly timers: readonly Timer[];
@@ -30,6 +30,13 @@ export interface StoreSnapshot {
   readonly acceptedSlices: readonly AcceptedSlice[];
   /** 直前に外部計画を要求した時点の入力の指紋（v7）。null は未要求。 */
   readonly requestedDigest: InputDigest | null;
+  /**
+   * 端末ごとの「最後に受理した sequence_number」（v8）。
+   *
+   * 別キーに置かないのは、Pending_Order 集合と別の `put` になれば「判定材料だけ進んで注文が無い」欠落が
+   * 生じ、その注文は再送でも重複として弾かれて永久に失われるためである（state.ts と同じ根拠）。
+   */
+  readonly lastSequenceByTerminal: Readonly<Record<string, string>>;
 }
 
 /**
@@ -48,6 +55,7 @@ export function toSnapshot(state: TimerState): StoreSnapshot {
     pendingOrders: state.pendingOrders,
     acceptedSlices: state.acceptedSlices,
     requestedDigest: state.requestedDigest,
+    lastSequenceByTerminal: state.lastSequenceByTerminal,
   };
 }
 
@@ -64,5 +72,6 @@ export function fromSnapshot(snapshot: StoreSnapshot): TimerState {
     pendingOrders: snapshot.pendingOrders,
     acceptedSlices: snapshot.acceptedSlices,
     requestedDigest: snapshot.requestedDigest,
+    lastSequenceByTerminal: snapshot.lastSequenceByTerminal,
   };
 }

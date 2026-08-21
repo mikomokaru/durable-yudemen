@@ -5,15 +5,17 @@ import type { OperationRecord } from "../../src/operation-history/record";
 import { operationLinesFromTailEvents } from "../../src/operation-history/tail";
 
 const NUM_RUNS = 200;
-const PRODUCER_SCRIPTS = [
-  "yude-men-timer-dev",
-  "yude-men-timer-stage",
-  "yude-men-timer-prod",
-] as const;
+// 現存する Producer script は root wrangler.jsonc の "name" ただ一つ。
+const PRODUCER_SCRIPTS = ["yude-men-timer"] as const;
+// filter が落とすべき script 名。環境別 script は未導入ゆえ実在せず、ここに属する。
+const OTHER_SCRIPTS = ["other-worker", "yude-men-timer-prod"] as const;
 
 type CandidateBlueprint = {
   readonly token: number;
-  readonly scriptName: (typeof PRODUCER_SCRIPTS)[number] | "other-worker" | null;
+  readonly scriptName:
+    | (typeof PRODUCER_SCRIPTS)[number]
+    | (typeof OTHER_SCRIPTS)[number]
+    | null;
   readonly level: "log" | "warn" | "error";
   readonly argumentCount: 0 | 1 | 2;
   readonly argumentType: "string" | "number" | "object";
@@ -22,7 +24,11 @@ type CandidateBlueprint = {
 
 const genCandidateBlueprint: fc.Arbitrary<CandidateBlueprint> = fc.record({
   token: fc.integer({ min: 0, max: 1_000_000 }),
-  scriptName: fc.constantFrom(...PRODUCER_SCRIPTS, "other-worker", null),
+  // 想定 Producer が一つに減った分だけ重みで補い、Queue 候補が現れる密度を保つ。
+  scriptName: fc.oneof(
+    { weight: 3, arbitrary: fc.constantFrom(...PRODUCER_SCRIPTS) },
+    { weight: 2, arbitrary: fc.constantFrom(...OTHER_SCRIPTS, null) },
+  ),
   level: fc.constantFrom("log", "warn", "error"),
   argumentCount: fc.constantFrom(0, 1, 2),
   argumentType: fc.constantFrom("string", "number", "object"),
