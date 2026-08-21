@@ -26,7 +26,7 @@ import { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import { configResidualDefaults } from "../storeConfigDefaults";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO バインディングを型付きで引く）。
 declare module "cloudflare:test" {
@@ -55,7 +55,11 @@ function config(unitCount: number, noodleType: string): StoreConfig {
     noodlePresets: [
       { noodleType, boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
     ] as NonEmptyArray<NoodlePreset>,
-    ...schedulingDefaults(unitCount),
+    ...configResidualDefaults(unitCount),
+    // POS の対応表 2 枚は既定が空ゆえ、既定のままでは「配信に乗っている」と「空が乗っている」が区別できない。
+    // 麺種を noodlePresets と共有させ、どちらの投影由来かを判別できる値を置く。
+    firmnessCodes: [{ code: 10010, firmness: "hard" }],
+    menuItems: [{ productCode: 11421, noodleType, sizes: [{ code: 19401, slotSpan: 1 }] }],
   };
 }
 
@@ -142,6 +146,9 @@ describe("shell/applyProjection — 永続・config 再配信・version エコ�
     // (b) 接続中クライアントが新 config を受領する（unitCount / noodlePresets が新投影を反映・要件5.2）。
     const reConfig = await client.waitFor((m) => m.type === "config" && m.unitCount === 4);
     expect(reConfig.noodlePresets).toEqual(next.config.noodlePresets);
+    // POS の対応表 2 枚も同じ config に乗る（項目ごとに配信対象を選び直さない・design §6 末尾の判断）。
+    expect(reConfig.firmnessCodes).toEqual(next.config.firmnessCodes);
+    expect(reConfig.menuItems).toEqual(next.config.menuItems);
 
     // (a) 投影が永続される（config + roster + active + version が丸ごと projection キーへ）。
     await runInDurableObject(stub, async (_instance, state) => {

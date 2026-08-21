@@ -1,6 +1,6 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { FIRMNESS_ORDER, isFirmness, type Firmness } from "../../src/domain/firmness";
+import { FIRMNESS_ORDER, isFirmness } from "../../src/domain/firmness";
 import { recordsFromCommittedDiff, type OperationObservation } from "../../src/operation-history/derive";
 import type { OperationRecord } from "../../src/operation-history/record";
 import { isValidStoreId } from "../../src/registry/slug";

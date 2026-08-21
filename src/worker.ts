@@ -1,10 +1,19 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { isValidStoreId } from "./registry/slug";
-import type { Identity } from "./registry/ideal";
+import type { Identity, StoreId } from "./registry/ideal";
+import { type ArrivalRecord, toArrivalBatch } from "./ingress/batch";
+import { readDeclaredText } from "./ingress/declared-text";
+import { type PoisonReason, toRecordOutcome } from "./ingress/outcome";
+import { groupByStoreCode } from "./ingress/store-code";
 import { isAdminAuthorized, isOrderIngressAuthorized } from "./worker-auth";
 import { type EntryDestination, resolveEntryDestination } from "./worker-entry";
-import { REGISTRY_NAME, StoreRegistryDO } from "./shell/store-registry-do";
-import { IDENTITY_HEADER, StoreTimerDO } from "./shell/store-timer-do";
+import { type HeldCounts, REGISTRY_NAME, StoreRegistryDO } from "./shell/store-registry-do";
+import {
+  IDENTITY_HEADER,
+  type ReceiveCounts,
+  type ReceiveOutcome,
+  StoreTimerDO,
+} from "./shell/store-timer-do";
 
 // Durable Object クラスは Worker から re-export してランタイムに公開する（登録の唯一の出所）
 export { StoreRegistryDO, StoreTimerDO };
@@ -18,6 +27,325 @@ export { StoreRegistryDO, StoreTimerDO };
 const STORE_WS_PATTERN = /^\/s\/([^/]+)\/ws$/;
 const STORE_ORDERS_PATTERN = /^\/s\/([^/]+)\/orders$/;
 const STORE_SCREEN_PATTERN = /^\/s\/([^/]+)(?:\/.*)?$/;
+
+// POS_Ingress（POST /pos/records・pos-order-ingress AC 1.1）。宛先を Store_Code でも StoreId でも URL に
+// 載せない単一のパスである（上流は設定値の 1 URL へ投げ、1 バッチに複数店舗が混在する）。受け口を
+// `orders` と名付けないのは、この経路が Order_Path と Status_Path の双方を含む Record 群を受けるためで、
+// `orders` と名付ければ Status_Path を受けることが名前と矛盾する。
+const POS_RECORDS_PATH = "/pos/records";
+
+/**
+ * 1 リクエストに含められる Record 件数の上限（AC 1.13）。**この値の単一の出所である。**
+ *
+ * 超過は一時的失敗として応答し、上流の bisect による分割で通過させる（何も確定させない）。100 店規模なら
+ * 1 バッチに全店が混在しても数百 Record であり、宛先 DO への RPC は店舗ごとに 1 回ゆえ Worker の
+ * subrequest 上限に収まる。実測で調整する前提の値である。
+ */
+const POS_RECORDS_LIMIT = 1000;
+
+/**
+ * resolvedStoreIds — Store_Code → StoreId の isolate-local メモ（Code_Memo・AC 4.1〜4.6）。
+ *
+ * 写像が不変（Provisioning が Store_Code の変更・再利用を拒む）ゆえ TTL も無効化も世代管理も持たない。
+ * **持つ必要が無いことが、この形の正しさである。**
+ *
+ * **未知（不在）は載せない**（AC 4.4）。不在は不変ではない——後の店舗登録で既知に転じるうえ、保留が
+ * 非空の間はレジストリが意図的に未知を返す（design §8-a・タスク 19）。載せれば、その isolate は保留が
+ * 空になった後も未知を返し続け、届くはずの注文が保留へ積まれ続ける。
+ *
+ * 用途は宛先解決の高速化のみで、認可の判定には用いない（AC 4.6）。格納先は isolate 内のメモリだけで、
+ * Cache API・KV・DO のいずれも用いない（AC 4.5）。
+ *
+ * NOTE: モジュールスコープゆえテスト間で持ち越される（テストは isolate を共有する）。memo の状態に
+ * 依存する検証（Property 7）は forgetResolvedStoreIds で明示的に空へ戻す。
+ */
+const resolvedStoreIds = new Map<string, StoreId>();
+
+/**
+ * forgetResolvedStoreIds — Code_Memo を空へ戻す。**Property 7（memo は結果を変えない）の検証が要する。**
+ *
+ * 本番の経路はこれを呼ばない——無効化を持たないことが Code_Memo の設計そのものである（AC 4.3）。
+ */
+export function forgetResolvedStoreIds(): void {
+  resolvedStoreIds.clear();
+}
+
+/**
+ * RecordTally — 1 リクエストの観測カウンタ。**フィールド名がそのままログの JSON キーであり、
+ * design「観測値の出力先」の 12 カウンタの単一の出所である**（宣言順もあの表の順に揃える）。
+ *
+ * 12 のうち 11 をここに持つ。`replayWindowExpired`（再生時に値域窓の外へ出た Record の破棄）だけは
+ * リクエストの文脈に乗らない——再生は Alarm 由来でも起き、そのときリクエストは存在しない。ゆえに
+ * あのカウンタは StoreRegistryDO が再生の地点で出す（`replayUnrouted`）。ここに 0 として並べれば、
+ * 「このリクエストでは起きなかった」と「そもそもこの経路では数えていない」が同じ 0 に見える。
+ *
+ * 由来は 3 つに分かれる。Worker が自身で数えるもの（分類・宛先解決の結末）、宛先 DO の内側でしか判らず
+ * `ReceiveOutcome.counts` で運ばれるもの（`doDedupeSkipped` / `unknownNoodleType`）、レジストリの保持の
+ * 書き込みが返すもの（`heldExpired` / `heldOverflow`）。**いずれも出力は Worker が 1 行に畳む**——DO が
+ * 個別に出せば 1 バッチで最大 1000 行が店舗ごとに分散して読めなくなる（AC 12.15）。
+ */
+interface RecordTally {
+  /** 毒レコード件数（AC 9.4）。上流と同名のカウンタで突き合わせる。 */
+  poisonRecord: number;
+  /** 既知 `path` のいずれでもない Record（AC 7.3）。 */
+  unknownPath: number;
+  /** Status_Path の破棄件数（AC 7.6）。未知 `path` と別に数える（AC 7.9）。 */
+  statusDiscarded: number;
+  /** 宛先未解決ゆえ保留へ回った Record 数。 */
+  unknownStorePending: number;
+  /** 単調性で弾いた重複（宛先 DO が数え、`ReceiveOutcome.counts` で運ぶ）。上流の `dedupeSkipped` とは別名。 */
+  doDedupeSkipped: number;
+  /** 上流の契約違反（型違反・値域窓の外）。起こらないはずの事象として可視化する（AC 8.9）。 */
+  upstreamContractViolation: number;
+  /**
+   * 認可失敗の件数（AC 12.8）。数えるのは**リクエスト**であって Record ではない——鍵が合わなければボディを
+   * 読まないため、捨てた Record の件数は原理的に判らない。上流の `workerRejected` にアラームが無いゆえ、
+   * 鍵の不一致に気づく手段はこちら側のこの値だけである。
+   */
+  unauthorized: number;
+  /** 非活性店舗宛ての Record 数（恒久的失敗ゆえ飛ばして数える）。 */
+  deactivatedStore: number;
+  /** 対応表に無い麺種で写せなかった品目数（宛先 DO が数え、`ReceiveOutcome.counts` で運ぶ・AC 6.28）。 */
+  unknownNoodleType: number;
+  /** 保持期間（2 時間）を過ぎて破棄された件数。登録の遅れを示す。 */
+  heldExpired: number;
+  /** 件数上限の超過で破棄された件数。不正送信または大量の登録漏れを示す。 */
+  heldOverflow: number;
+}
+
+/** 数える前の 0。1 リクエストにつき 1 つだけ作る（401 の経路も含む）。 */
+function emptyTally(): RecordTally {
+  return {
+    poisonRecord: 0,
+    unknownPath: 0,
+    statusDiscarded: 0,
+    unknownStorePending: 0,
+    doDedupeSkipped: 0,
+    upstreamContractViolation: 0,
+    unauthorized: 0,
+    deactivatedStore: 0,
+    unknownNoodleType: 0,
+    heldExpired: 0,
+    heldOverflow: 0,
+  };
+}
+
+/**
+ * tallyHeldDiscards — 保留・隔離が返した破棄件数を数に足す。
+ *
+ * 2 つの受け口（`holdUnrouted` / `quarantineContractViolations`）は同一の規律で破棄するため、数え方も 1 つに
+ * 保つ（破棄の 3 つを 1 つに畳まないのとは層が違う——ここは同じ 2 種を 2 箇所から集める）。
+ */
+function tallyHeldDiscards(tally: RecordTally, counts: HeldCounts): void {
+  tally.heldExpired += counts.heldExpired;
+  tally.heldOverflow += counts.heldOverflow;
+}
+
+/** tallyReceiveCounts — 宛先 DO の内側でしか判らない 2 件を数に足す（AC 12.15）。 */
+function tallyReceiveCounts(tally: RecordTally, counts: ReceiveCounts): void {
+  tally.doDedupeSkipped += counts.doDedupeSkipped;
+  tally.unknownNoodleType += counts.unknownNoodleType;
+}
+
+/**
+ * DiscardReason — 診断ログの理由（AC 9.3・9.12）。**閉じた集合の名で「なぜ捨てたか」を残す。**
+ *
+ * ペイロード本体をログへ出さないため、捨てた事実の内容はこの名と `sequence_number` の 2 項目に尽きる。
+ * 毒の 4 事由（`PoisonReason`）に 2 つを足す——隔離の置き場が無い契約違反と、認可失敗である。いずれも
+ * 「捨てたことが件数以外に何も残らない」経路であり、そこにだけ診断を出す。破棄という挙動が同じでも
+ * Status_Path と未知 `path` には出さない（前者は配線待ちの既知経路、後者は件数だけで足りる想定外の到着で、
+ * どちらも毎秒届きうる——1 件ずつ行を出せば診断が定常のノイズに沈む）。
+ */
+type DiscardReason = PoisonReason | "store-code-unreadable" | "unauthorized";
+
+/**
+ * IngressDiagnostic — 診断ログ 1 行の内容。**`sequence_number` と理由の 2 項目のみ**（AC 9.3）。
+ *
+ * seq を持たないのは、seq を読めない Record（構造が破れた毒）と認可失敗（ボディを読まない）である。
+ * `exactOptionalPropertyTypes` ゆえ、無い場合はフィールドを省く。
+ */
+interface IngressDiagnostic {
+  readonly reason: DiscardReason;
+  readonly sequenceNumber?: string;
+}
+
+/** 分類の結果。届ける Record 列・隔離へ回す生値・届かなかったものの件数と診断に分かれる。 */
+interface ClassifiedRecords {
+  readonly deliverable: readonly ArrivalRecord[];
+  /**
+   * 隔離へ回す検証前の生値（Store_Code ごと・到着順）。
+   *
+   * `Map` で持つのは、同一 Store_Code の隔離が 1 回の書き込みに畳まれることである（同じキーへの並行な
+   * 読み書きを作らない）。Store_Code を読めなかった契約違反は組に属せず、`upstreamContractViolation` に
+   * 数えて破棄する（`contractViolationStoreCode` の注記）。
+   */
+  readonly violations: ReadonlyMap<string, readonly unknown[]>;
+  readonly tally: RecordTally;
+  /**
+   * 捨てた Record ごとの診断（到着順）。**溜めてから出す**——分類の内側で `console.log` を呼べば、観測点が
+   * 解釈の途中に作用を持ち込むことになる（観測は観測点であって作用点ではない）。出力の地点は 1 つに保つ。
+   */
+  readonly diagnostics: readonly IngressDiagnostic[];
+}
+
+/**
+ * contractViolationStoreCode — 隔離のキーに要る Store_Code を検証前の生値から読む。
+ *
+ * 契約違反の Record は `ArrivalRecord` を構築できないため（`arrival_timestamp_ms` が型を満たさない Record が
+ * 実在する）、検証済みの Record を畳む `groupByStoreCode` を通せない。ゆえに宛先の値だけをここで読む
+ * ——読み出しの規則は `readDeclaredText`（申告値の唯一の関門）に委ね、可否の規則を二箇所に置かない。
+ *
+ * **Store_Code を読めない契約違反は隔離せず、数えて破棄する。** キーが `contract-violation:{storeCode}` である
+ * 以上、宛先の値を読めない Record には置き場が無い。宛先不明用の別キーへ落とせば、失効と件数上限の単位が
+ * Store_Code でなくなり（上限 2000 の根拠は 1 店舗 2 時間分の到着量である）、全店の異常が 1 箇所へ集まって
+ * 上限が意味を失う。隔離は再生されない証跡ゆえ、破棄で待ち行列から失われるものは無く、上流のバグは
+ * `upstreamContractViolation` の件数と診断ログの `sequence_number`（`store-code-unreadable`）で気づける。
+ */
+function contractViolationStoreCode(raw: unknown): string | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const payload = (raw as Record<string, unknown>).payload;
+  if (typeof payload !== "object" || payload === null) return null;
+  return readDeclaredText((payload as Record<string, unknown>).store_id);
+}
+
+/**
+ * classifyRecords — Arrival_Batch の各要素を分類し、宛先へ届ける Record 列と件数に分ける。
+ *
+ * 分類そのものは純粋関数 `toRecordOutcome` に閉じており（AC 1.8）、ここが持つのは結末ごとの分岐だけで
+ * ある。Record 間に原子性は無いため、1 件の異常でバッチを落とさず飛ばして数えて進む（AC 9.2・9.5）。
+ */
+function classifyRecords(records: readonly unknown[], now: number): ClassifiedRecords {
+  const deliverable: ArrivalRecord[] = [];
+  const violations = new Map<string, unknown[]>();
+  const diagnostics: IngressDiagnostic[] = [];
+  const tally = emptyTally();
+  for (const raw of records) {
+    const outcome = toRecordOutcome(raw, now);
+    switch (outcome.kind) {
+      case "order":
+        deliverable.push(outcome.record);
+        break;
+      case "status":
+        // 意図的な破棄先（blackhole）。届いていること自体は件数で観測できる形に保つ（AC 7.5・7.6）。
+        tally.statusDiscarded += 1;
+        break;
+      case "unknown-path":
+        tally.unknownPath += 1;
+        break;
+      case "poison":
+        // 診断は seq と理由の 2 項目のみ（AC 9.3）。ペイロード本体はログへ出さない——毒の事由は構造の欠落
+        // であり、中身を出しても直す手がかりにならない一方、個票の内容がログに残り続ける。
+        tally.poisonRecord += 1;
+        diagnostics.push(diagnose(outcome.reason, outcome.sequenceNumber));
+        break;
+      case "contract-violation": {
+        // 起こらないはずの事象として件数を残す（AC 8.9）。件数が 0 でないことが上流の修正を促す契機になる。
+        tally.upstreamContractViolation += 1;
+        // 隔離（`contract-violation:{storeCode}` へ 2 時間・**再生しない**・AC 8.8・8.11）。生値のまま運ぶ
+        // ——起点を推測で埋めない（受理時刻も `payload.datetime` も代替の起点に用いない・AC 8.10）。
+        const storeCode = contractViolationStoreCode(outcome.raw);
+        if (storeCode === null) {
+          // 置き場が無いゆえ破棄する（`contractViolationStoreCode` の注記）。証跡が隔離に残らないこの 1 経路
+          // だけは診断で seq を残す——さもなければ上流のバグが件数以外に何も手がかりを残さない。
+          diagnostics.push(diagnose("store-code-unreadable", outcome.sequenceNumber));
+          break;
+        }
+        const arrived = violations.get(storeCode);
+        if (arrived === undefined) {
+          violations.set(storeCode, [outcome.raw]);
+        } else {
+          arrived.push(outcome.raw);
+        }
+        break;
+      }
+    }
+  }
+  return { deliverable, violations, tally, diagnostics };
+}
+
+// seq を読めない Record が実在するため、`exactOptionalPropertyTypes` の下ではフィールドを省く形が要る
+// （`sequenceNumber: undefined` は「値が無い」ではなく「undefined という値がある」ことになる）。
+function diagnose(reason: DiscardReason, sequenceNumber: string | undefined): IngressDiagnostic {
+  return sequenceNumber === undefined ? { reason } : { reason, sequenceNumber };
+}
+
+/**
+ * logPosIngress — 1 リクエスト分の観測を出す。**構造化 `console.log` ただ一つで、新しい binding を持たない**
+ * （AC 12.13・12.14。`wrangler.jsonc` の `observability.enabled` により Workers Logs へ入る）。
+ *
+ * **既存の Instrumentation_Log（`src/observe/log.ts` の `buildSeamEntry`）とは別の経路である。** あちらは
+ * `OBSERVE_DEBUG` ゲートの既定 OFF で 4 継ぎ目に閉じた計装であり、常時数えるカウンタには向かない。
+ * Operation_History にも載せない——あちらの出力対象は Timer 状態の確定差分であって取り込みの件数ではない。
+ * ゆえに `posIngress` を行の判別子に持つ独立の形とし、既存 2 系統の codec を共有しない。
+ *
+ * **カウンタは 1 リクエストにつき 1 行、診断は捨てた Record ごとに 1 行。** 同じ行に畳まないのは 2 つの理由に
+ * よる——毒が複数あれば診断は複数件になり、1 行へ詰めれば行の長さが件数に比例して伸びて上限で切られる
+ * （観測が黙って落ちる）。かつ AC 9.3 は Record ごとに 1 行を求めている。カウンタ行を最後に出すのは、
+ * それがそのリクエストの締めであり、診断の後に読める形にするためである。
+ *
+ * カウンタは 0 でも省かない。欠けたキーは「起きなかった」と「数えていない」の区別を失う——形が毎行同じ
+ * であることが、上流の数と突き合わせられる形そのものである。
+ */
+function logPosIngress(tally: RecordTally, diagnostics: readonly IngressDiagnostic[]): void {
+  for (const diagnostic of diagnostics) {
+    console.log(JSON.stringify({ posIngress: "diagnostic", ...diagnostic }));
+  }
+  console.log(JSON.stringify({ posIngress: "counts", ...tally }));
+}
+
+/**
+ * StoreDelivery — 1 店舗への委譲の結末。
+ *
+ * `unresolved` は Code_Index に宛先が無いことで、DO へは一切到達していない（`ReceiveOutcome` の 4 種は
+ * いずれも DO に届いた上での結末である）。両者を同じ和型で扱うのは、呼び出し元がバッチ全体の応答を
+ * 決めるときに見る対象が「この店舗分が確定したか」という一つの問いだからである。
+ */
+type StoreDelivery = ReceiveOutcome | { readonly kind: "unresolved" };
+
+/**
+ * resolveStoreId — Store_Code から宛先 StoreId を引く（Code_Memo → `resolveStoreCode`）。
+ *
+ * memo に在れば StoreRegistryDO へ照会しない（AC 4.2）。既知の結果だけを memo へ載せ、未知は載せない
+ * （AC 4.1・4.4）。Store_Code を DO 名に用いず、返った StoreId のみを `idFromName` へ渡す（AC 2.8）。
+ */
+async function resolveStoreId(env: Env, storeCode: string): Promise<StoreId | undefined> {
+  const memoized = resolvedStoreIds.get(storeCode);
+  if (memoized !== undefined) {
+    return memoized;
+  }
+  // シングルトンゆえ locationHint 非対応の getByName で一意に addressing する（/admin/*・/entry/* と同型）。
+  const stub = env.STORE_REGISTRY_DO.getByName(REGISTRY_NAME);
+  const storeId = await stub.resolveStoreCode(storeCode);
+  if (storeId !== undefined) {
+    resolvedStoreIds.set(storeCode, storeId);
+  }
+  return storeId;
+}
+
+/**
+ * deliverRecords — 1 店舗分の Record 群を宛先 StoreTimerDO へまとめて委譲する（AC 5.2）。
+ *
+ * **委譲は RPC（`receiveRecords`）で行い、Request を転送しない。** 結末が 4 種に分かれ（確定・投影未達・
+ * 非活性・put 失敗）、呼び出し元がそれで挙動を分ける必要があるため、HTTP ステータスでは分類を運べない。
+ * 副産物として、クライアント由来の内部 identity ヘッダ（IDENTITY_HEADER）が宛先 DO へ運ばれる経路が
+ * そもそも生じない（AC 1.9・後述の注記）。
+ *
+ * スタブは既存経路と同じ `idFromName` → `get({ locationHint: "apac-ne" })` の二段で引く（AC 1.10）。
+ */
+async function deliverRecords(
+  env: Env,
+  storeCode: string,
+  records: readonly ArrivalRecord[],
+): Promise<StoreDelivery> {
+  const storeId = await resolveStoreId(env, storeCode);
+  if (storeId === undefined) {
+    return { kind: "unresolved" };
+  }
+  const id = env.STORE_TIMER_DO.idFromName(storeId);
+  const stub = env.STORE_TIMER_DO.get(id, { locationHint: "apac-ne" });
+  // 到着順は groupByStoreCode が保った並びのまま渡す（同一 Store_Code 内は直列・AC 5.3）。
+  return stub.receiveRecords(records);
+}
 
 // 認可の純粋ロジック（isAdminAuthorized / timingSafeEqual）は src/worker-auth.ts へ隔離した。
 // Worker エントリは cloudflare:workers を DO の re-export 経由で引き込むため、既定 pool での純粋な
@@ -160,6 +488,129 @@ export default {
       const id = env.STORE_TIMER_DO.idFromName(storeId);
       const stub = env.STORE_TIMER_DO.get(id, { locationHint: "apac-ne" });
       return stub.fetch(new Request(request, { headers: forwarded }));
+    }
+
+    // POS_Ingress（POST /pos/records・pos-order-ingress 要件1）。宛先をボディから解決する取り込み経路。
+    // Worker が担うのは 4 つだけである（AC 1.7）——認可・宛先解決・宛先 DO への委譲・宛先未解決の保留。
+    // ボディの解釈は `src/ingress/` の純粋関数へ委ね、Worker 自身に持たせない（AC 1.8）。
+    if (url.pathname === POS_RECORDS_PATH) {
+      // 認可鍵は ORDER_INGRESS_TOKEN のみ（ADMIN_TOKEN は用いない・AC 1.6）。未設定（空）は不許可で
+      // （AC 1.4）、失敗は 401 で StoreRegistryDO・StoreTimerDO のいずれへも到達させない（AC 1.5）。
+      if (!isOrderIngressAuthorized(request, env)) {
+        // 捨てていることが誰にも見えない状態は許容しない（AC 9.12）。**観測は Worker 内で完結する**
+        // ——カウンタも診断も DO を起こさずに出す（起こせば認可失敗が状態の入口を叩く経路になる）。
+        const tally = emptyTally();
+        tally.unauthorized = 1;
+        logPosIngress(tally, [{ reason: "unauthorized" }]);
+        return new Response("Unauthorized", { status: 401 });
+      }
+      if (request.method !== "POST") {
+        return new Response("Expected POST", { status: 405 });
+      }
+      // 内部 identity ヘッダについて（AC 1.9）: 本経路は Request を転送せず RPC（receiveRecords）で委譲する
+      // ため、クライアント由来の同名ヘッダが宛先 DO へ運ばれる経路がそもそも存在しない。既存の 2 経路が
+      // 転送前に delete するのと同じ不変を、こちらは委譲の形そのもので満たす（経路ごとの例外ではない）。
+      const body = await request.json().catch(() => null);
+      // null を返すのはボディが records 配列を成さないときだけである（AC 1.11）。個々の Record の異常で
+      // バッチを落とさない——Record 間に原子性は無い。
+      const batch = toArrivalBatch(body);
+      if (batch === null) {
+        return new Response("Invalid body", { status: 400 });
+      }
+      // 上限超過は一時的失敗として何も確定させない（AC 1.13）。上流の bisect が分割して再送する。
+      if (batch.records.length > POS_RECORDS_LIMIT) {
+        return new Response("Too many records", { status: 503 });
+      }
+      // 時計を読むのはここだけで、窓の検査には引数として渡す（純粋関数に時計を持ち込まない規律）。
+      const classified = classifyRecords(batch.records, Date.now());
+      const groups = groupByStoreCode(classified.deliverable);
+      // unreadableStoreCode は空である（Unique_Key を導けた Record は store_id を読み出せる——両者は
+      // 同一の関門を通る）。それでも数に足すのは、この含意が将来崩れたときに黙って消えないためである。
+      classified.tally.poisonRecord += groups.unreadableStoreCode.length;
+      // 異なる Store_Code へは並列に委譲してよい（Store_Code 間の順序は上流も保証しない・AC 5.4）。
+      // 同一 Store_Code は Map の 1 要素ゆえ 1 回の委譲に畳まれ、宛先の照会も 1 回で済む（AC 4.7・5.2）。
+      const delivered = await Promise.all(
+        [...groups.byStoreCode].map(async ([storeCode, records]) => ({
+          storeCode,
+          records,
+          delivery: await deliverRecords(env, storeCode, records),
+        })),
+      );
+      // 宛先店舗数に比例する処理の継続機構は持たない（残作業＋Alarm 継続を本経路に持ち込まない・AC 5.9）。
+      // 未完了は一時的失敗として上流の再送に委ねる。
+      let transient = false;
+      const unrouted: { readonly storeCode: string; readonly records: readonly ArrivalRecord[] }[] = [];
+      for (const { storeCode, records, delivery } of delivered) {
+        switch (delivery.kind) {
+          case "settled":
+            // DO の内側でしか判らない 2 件を拾い、リクエストの 1 行へ合算する（AC 12.15）。
+            tallyReceiveCounts(classified.tally, delivery.counts);
+            break;
+          case "deactivated":
+            // 恒久的失敗（再活性化は運用の判断であり 2 時間の窓に収まらない）ゆえ飛ばして数える。
+            classified.tally.deactivatedStore += records.length;
+            break;
+          case "unresolved":
+            // 宛先未解決は捨てず保留する（AC 11.1・11.2）。4xx を返せば上流はアラームの無いカウンタを
+            // 加算して Record を捨て、5xx を返せば同一バッチの他店舗も止まる。ゆえに第三の道を採る。
+            unrouted.push({ storeCode, records });
+            break;
+          case "unprovisioned":
+          case "persist-failed":
+            // いずれも一時的失敗ゆえ Arrival_Batch 全体を 5xx にする（AC 5.8・Duplicate_Bias）。既に確定した
+            // 他店舗の分は残り、再送時の重複は下流の冪等が吸収する。`unprovisioned` を飛ばして数えれば、
+            // 店舗開設の瞬間に届いた注文が消える。
+            transient = true;
+            break;
+        }
+      }
+      // 保留と隔離。**いずれも `put` 成功で確定してから受理を応答する**（Property 10・AC 11.3・11.4・8.11）。
+      // 保持できていないものを受理と主張しないため、応答を組む前にここを待ち切る。書き込み先は Store_Code
+      // ごとに 1 つのキーゆえ、並列でも同じキーの取り合いにならない。
+      if (unrouted.length > 0 || classified.violations.size > 0) {
+        const registry = env.STORE_REGISTRY_DO.getByName(REGISTRY_NAME);
+        const [held, quarantined] = await Promise.all([
+          Promise.all(
+            unrouted.map(async ({ storeCode, records }) => ({
+              count: records.length,
+              outcome: await registry.holdUnrouted(storeCode, records),
+            })),
+          ),
+          Promise.all(
+            [...classified.violations].map(([storeCode, raws]) =>
+              registry.quarantineContractViolations(storeCode, raws),
+            ),
+          ),
+        ]);
+        for (const { count, outcome } of held) {
+          if (outcome.kind === "persist-failed") {
+            transient = true;
+            continue;
+          }
+          if (outcome.kind === "replay-deferred") {
+            // 保留は確定している（ゆえに件数は数える）が、既知コードの再生が完了しなかった。一時的失敗として
+            // 応答し上流の再送に委ねる（design §8-b）——レジストリの残作業と Alarm も回収を続けるため、
+            // どちらか一方が働けば届く。再送が生む保留の重複は宛先 DO の単調性が吸収する。
+            transient = true;
+          }
+          classified.tally.unknownStorePending += count;
+          tallyHeldDiscards(classified.tally, outcome.counts);
+        }
+        for (const outcome of quarantined) {
+          if (outcome.kind === "persist-failed") {
+            transient = true;
+            continue;
+          }
+          tallyHeldDiscards(classified.tally, outcome.counts);
+        }
+      }
+      // 出力はここ 1 箇所で、応答の分岐より前に置く。分岐の内側へ入れれば行が 2 通りになり、「1 リクエスト
+      // につき 1 行」が応答の種類に依存する（一時的失敗のリクエストだけ観測が欠ける形を作らない）。
+      logPosIngress(classified.tally, classified.diagnostics);
+      if (transient) {
+        return new Response("Retry", { status: 503 });
+      }
+      return Response.json({ accepted: true });
     }
 
     // 店舗宛先（新経路・要件1.1 / 1.3）: /s/{storeId}/（画面・SPA）。storeId を検証し、不正は 400。

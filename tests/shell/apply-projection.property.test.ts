@@ -17,7 +17,7 @@ import { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import { configResidualDefaults } from "../storeConfigDefaults";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO バインディングを型付きで引く）。
 declare module "cloudflare:test" {
@@ -61,7 +61,7 @@ const genConfig: fc.Arbitrary<StoreConfig> = fc
     toleranceRatio: fc.integer({ min: 1, max: 50 }),
     noodlePresets: genNoodlePresets,
   })
-  .map((fields) => ({ ...fields, ...schedulingDefaults(fields.unitCount) }));
+  .map((fields) => ({ ...fields, ...configResidualDefaults(fields.unitCount) }));
 
 /** Roster（identity 集合）。非 ASCII・重複に近い文字列も含めて振る（ワイヤに出ない内部値）。 */
 const genRoster = fc.array(fc.string({ maxLength: 12 }), { maxLength: 4 });

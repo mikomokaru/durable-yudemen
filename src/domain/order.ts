@@ -15,7 +15,7 @@
 
 import { isFirmness, type Firmness } from "./firmness";
 import { isNonEmpty, type NonEmptyArray } from "./timer";
-import type { NoodlePreset } from "./store";
+import { SLOT_SPAN_MAX, SLOT_SPAN_MIN, type NoodlePreset } from "./store";
 
 /**
  * PendingOrder — 未着手オーダーの 1 品目。
@@ -37,6 +37,14 @@ export interface PendingOrder {
   readonly tableId: string | null;
   /** Order_Arrival_Time（絶対時刻の事実）。Wait_Time の起点であり、待ち行列の並び順の基準。 */
   readonly arrivalTime: number;
+  /**
+   * 1 品目がスロット軸上で占める幅（SLOT_SPAN_MIN〜SLOT_SPAN_MAX）。麺量の指定から翻訳して定める。
+   *
+   * timer-model.md の判定を通した結果ここに置く——client が待ち行列を表示し engine が計画を組むのに要る
+   * ため共有される事実であり、片側専用の関心事ではない。Timer.slotIds（割り当てられた実体）とは
+   * 「要求」と「割当」の関係で別概念ゆえ、被せず別の名で立てる。
+   */
+  readonly slotSpan: number;
 }
 /**
  * Order_Ingress が受けた到着の生値（品目の配列）を PendingOrder 列へ写す純粋関数。
@@ -94,6 +102,8 @@ function toPendingOrder(value: unknown, presets: readonly NoodlePreset[], arriva
   ) {
     return null;
   }
+  const slotSpan = toSlotSpan(candidate.slotSpan);
+  if (slotSpan === null) return null;
   // 余剰フィールドを落として正規化する（外部の混ぜ物を待ち行列の正本へ持ち込まない）。
   return {
     externalOrderId: candidate.externalOrderId,
@@ -102,5 +112,24 @@ function toPendingOrder(value: unknown, presets: readonly NoodlePreset[], arriva
     firmness: candidate.firmness,
     tableId: typeof candidate.tableId === "string" ? candidate.tableId : null,
     arrivalTime,
+    slotSpan,
   };
+}
+
+/**
+ * 生値を占有幅へ写す。値域外・非整数・null は null（呼び出し側が到着全体を拒否する）。
+ *
+ * 欠如だけは 1 スロット占有へ畳む。麺量の語彙を持たない到着（既存 Order_Ingress の直接投入）は現に
+ * 1 品目 1 スロットで計画されており、畳んだ値がその実際の挙動に一致する——これは「指定が無い」という
+ * 入力の形に対する既定であり、不正値を黙って通すことではない。下限と同じ値になるのは偶然ではなく、
+ * 占有しない麺が在りえないことの帰結である。
+ *
+ * 値域外はクランプせず拒否する（store.ts の toNoodleSize と同じ判断）。勝手に寄せれば、どこにも
+ * 要求されていない占有幅を新たに作ってしまう。
+ */
+function toSlotSpan(value: unknown): number | null {
+  if (value === undefined) return SLOT_SPAN_MIN;
+  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  if (value < SLOT_SPAN_MIN || value > SLOT_SPAN_MAX) return null;
+  return value;
 }

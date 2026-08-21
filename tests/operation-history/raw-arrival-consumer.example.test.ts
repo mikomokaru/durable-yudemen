@@ -21,7 +21,7 @@ const canonicalLine = printCanonicalOperationLine({
 const body: OperationRecordMessage = {
   canonicalLine,
   firstObservedAt: Date.UTC(2026, 5, 26, 7, 8, 9),
-  producerScript: "yude-men-timer-prod",
+  producerScript: "yude-men-timer",
 };
 
 type StoredObject = {
@@ -89,7 +89,7 @@ describe("rawArrivalObject", () => {
     expect(object.observation).toEqual({
       firstObservedAt: "1782457689000",
       arrivedAt: "1800000000000",
-      producerScript: "yude-men-timer-prod",
+      producerScript: "yude-men-timer",
       queueMessageId: "msg-1",
       deliveryAttempt: "1",
       canonicalHash: "abc",
@@ -131,7 +131,7 @@ describe("rawArrivalConsumer.queue", () => {
     expect(written![0]!.body).toBe(canonicalLine);
     expect(written![0]!.customMetadata).toMatchObject({
       firstObservedAt: "1782457689000",
-      producerScript: "yude-men-timer-prod",
+      producerScript: "yude-men-timer",
       queueMessageId: "msg-1",
       deliveryAttempt: "1",
       canonicalHash: await canonicalLineHash(canonicalLine),

@@ -1,9 +1,13 @@
-// tests/core/migrate.property.test.ts — Property 13（migrate の version 不整合・移行失敗で元データ不変）。
+// tests/core/migrate.property.test.ts — migrate の 2 つの Property。
+//   yude-men-timer Property 13: version 不整合・移行失敗で元データ不変。
+//   pos-order-ingress Property 12: 移行は既存の挙動を保つ（v7 → v8 の欠如の埋め方）。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { migrate } from "../../src/engine/migrate";
 import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
+import { FIRMNESS_ORDER } from "../../src/domain/firmness";
+import { SLOT_SPAN_MIN } from "../../src/domain/store";
 
 /** version > 現行スキーマの永続データ。timers/nextSeq の妥当性に関わらず UnsupportedSchemaVersion になる。 */
 const genUnsupported = fc.integer({ min: CURRENT_SCHEMA_VERSION + 1, max: 100_000 }).map((version) => ({
@@ -41,6 +45,128 @@ describe("core/migrate", () => {
         expect(raw).toEqual(before);
       }),
       { numRuns: 200 },
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Property 12（pos-order-ingress）— 移行は既存の挙動を保つ。
+//
+// migrate.example.test.ts が v7 → v8 を点で固定するのに対し、ここは**任意の** v7 スナップショットに対して
+// 成り立つことを面で押さえる。置き場は `migrate` が `src/engine/` にあることに従い `tests/core/` とする
+// （既存の migrate テスト 2 本と同じ場所に置き、移行の検証を 1 箇所に集める）。
+// ---------------------------------------------------------------------------
+
+/** v7 の Timer 一件（v7 は orderItem まで持ち、slotSpan / 判定材料の語彙を持たない）。 */
+const genV7Timer = fc.record({
+  id: fc.string({ minLength: 1, maxLength: 8 }),
+  slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 3 }),
+  noodleType: fc.constantFrom("Thin", "Medium", "Thick"),
+  firmness: fc.constantFrom(...FIRMNESS_ORDER),
+  startTime: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+  endTime: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+  seq: fc.nat({ max: 1000 }),
+  boiledAt: fc.option(fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }), { nil: null }),
+  adjustment: fc.integer({ min: -60_000, max: 60_000 }),
+  orderItem: fc.option(
+    fc.record({ externalOrderId: fc.string({ minLength: 1, maxLength: 8 }), itemIndex: fc.nat({ max: 9 }) }),
+    { nil: null },
+  ),
+});
+
+/** v7 の待ち行列 1 件。**slotSpan を持たない**（それが v7 であることの定義そのものである）。 */
+const genV7PendingOrder = fc.record({
+  externalOrderId: fc.string({ minLength: 1, maxLength: 10 }),
+  itemIndex: fc.nat({ max: 9 }),
+  noodleType: fc.constantFrom("Thin", "Medium", "Thick"),
+  firmness: fc.constantFrom(...FIRMNESS_ORDER),
+  tableId: fc.option(fc.string({ minLength: 1, maxLength: 6 }), { nil: null }),
+  arrivalTime: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+});
+
+/** v7 の採用済み計画。v8 で形が変わらないため、版上げが触らないことの確認材料になる。 */
+const genV7AcceptedSlice = fc.record({
+  tableKey: fc.string({ minLength: 1, maxLength: 6 }),
+  placements: fc.array(
+    fc.record({
+      externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+      itemIndex: fc.nat({ max: 9 }),
+      slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 2 }),
+      startAt: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+      serveAt: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+    }),
+    { maxLength: 2 },
+  ),
+  score: fc.integer({ min: -1000, max: 1000 }),
+});
+
+/** v7 の永続スナップショット。v8 で増える 2 つ（slotSpan・lastSequenceByTerminal）をどこにも持たない。 */
+const genV7Snapshot = fc.record({
+  version: fc.constant(7),
+  timers: fc.array(genV7Timer, { maxLength: 3 }),
+  nextSeq: fc.nat({ max: 1000 }),
+  pendingOrders: fc.array(genV7PendingOrder, { maxLength: 4 }),
+  acceptedSlices: fc.array(genV7AcceptedSlice, { maxLength: 2 }),
+  requestedDigest: fc.option(fc.integer({ min: 0, max: 1_000_000 }), { nil: null }),
+});
+
+/** 計時の事実だけを取り出す（版上げが走行中の釜の挙動を変えないことの比較対象）。 */
+function boilFacts(timer: { endTime: number; adjustment: number; boiledAt: number | null }) {
+  return { endTime: timer.endTime, adjustment: timer.adjustment, boiledAt: timer.boiledAt };
+}
+
+describe("core/migrate — v7 → v8 の面", () => {
+  // Feature: pos-order-ingress, Property 12: 移行は既存の挙動を保つ
+  // **Validates: Requirements 6.25, 13.5**
+  //
+  // v7 の待ち行列は麺量の語彙を持たず、現に 1 品目 1 スロットで計画されていた。ゆえに欠如を 1 で埋めるのが
+  // 当時の実際の挙動に一致する。判定材料は空から始める——v7 以前は取り込み経路が存在せず、材料を持つ端末が
+  // 無い。空なら最初の Record が必ず受理され、以降は単調性が効く。
+  it("Property 12: 任意の v7 スナップショットで slotSpan は 1 になり、判定材料は空になる", () => {
+    fc.assert(
+      fc.property(genV7Snapshot, (v7) => {
+        // 生成器が v8 の語彙を混ぜていないことを先に確かめる（混ざれば以降の主張が意味を失う）。
+        expect("lastSequenceByTerminal" in v7).toBe(false);
+        expect(v7.pendingOrders.some((order) => "slotSpan" in order)).toBe(false);
+
+        const raw = structuredClone(v7) as unknown;
+        const result = migrate(raw);
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+        expect(result.snapshot.pendingOrders).toHaveLength(v7.pendingOrders.length);
+        for (const order of result.snapshot.pendingOrders) expect(order.slotSpan).toBe(SLOT_SPAN_MIN);
+        expect(result.snapshot.lastSequenceByTerminal).toEqual({});
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: pos-order-ingress, Property 12: 移行は既存の挙動を保つ
+  // **Validates: Requirements 6.25, 13.5**
+  //
+  // 埋めた 2 つ以外は写しである。版上げが既存の待ち行列・採用済み計画・計時の事実を書き換えないことが
+  // 「既存の挙動を保つ」の残りの半分である。
+  it("Property 12: 埋めた 2 つ以外の事実は写しで、入力は不変である", () => {
+    fc.assert(
+      fc.property(genV7Snapshot, (v7) => {
+        const raw = structuredClone(v7) as unknown;
+        const result = migrate(raw);
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        // slotSpan を除いた待ち行列は v7 の値そのままである。
+        expect(result.snapshot.pendingOrders.map(({ slotSpan: _unused, ...rest }) => rest)).toEqual(v7.pendingOrders);
+        expect(result.snapshot.acceptedSlices).toEqual(v7.acceptedSlices);
+        expect(result.snapshot.requestedDigest).toBe(v7.requestedDigest);
+        expect(result.snapshot.nextSeq).toBe(v7.nextSeq);
+        // 計時の事実（endTime / adjustment / boiledAt）に一切触れない。
+        expect(result.snapshot.timers.map(boilFacts)).toEqual(v7.timers.map(boilFacts));
+        // 移行は入力を書き換えない（失敗時と同じ規律を成功時にも保つ）。
+        expect(raw).toEqual(v7);
+      }),
+      { numRuns: 300 },
     );
   });
 });

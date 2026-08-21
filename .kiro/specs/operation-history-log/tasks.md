@@ -114,7 +114,7 @@
     - raw 重複の順列、欠落、孤児、競合、分母 0、閾値ちょうど、UTC 月境界、15 分ちょうどと前後、30／60 分遷移、一連続状態一回を確認する。
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 5.13, 5.14, 5.15, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.13_
 
-- [ ] 5. 純粋層 — Tail envelope filtering を実装する
+- [x] 5. 純粋層 — Tail envelope filtering を実装する
   - [x] 5.1 Tail event から Queue 候補を抽出する純粋 filter を実装する
     - タスク 1 で確定した想定 Producer script、log level `log`、console 引数が一要素かつ string、文字列が一行かつ canonical Operation Record として妥当、という全条件を順に適用する。
     - `src/observe` の debug JSON、未知の console 出力、複数引数、非 string、複数行、不正行を Queue 候補へ含めない。
@@ -282,7 +282,7 @@
     - 全 fixture と call trace で Producer URL、Service Binding、DO namespace／stub、RPC、HTTP、WebSocket、scheduled event、Alarm、ack、再出力要求が 0 件であることを確認する。
     - _Requirements: 1.9, 4.10, 4.13, 4.14, 4.15_
 
-- [ ] 11. Producer と Data Platform の設定境界を実装・検証する
+- [x] 11. Producer と Data Platform の設定境界を実装・検証する
   - [x] 11.1 実装時点の Wrangler v4 schema と公式資料で設定キーを確認する
     - リポジトリに導入済み Wrangler v4 の schema と Cloudflare 公式 Wrangler configuration／Tail Workers／Queues／R2 資料を照合し、`tail_consumers`、Queue producer／consumer、R2 binding の正しいキーと配置を確認してから設定する。
     - タスク 1 で確定した Worker、binding、Queue 名を使い、未確認の設定キーを推測で追加しない。
@@ -294,106 +294,106 @@
     - root 変更後は `pnpm cf-typegen` を実行し、生成 `Env` 型に Queue／R2 能力が増えていないことを確認する。
     - _Requirements: 1.3, 1.7, 1.9, 4.9, 4.10, 4.13, 4.14_
 
-  - [~] 11.3 Tail Worker と Consumer の設定を Data Platform 側へ分離する
+  - [x] 11.3 Tail Worker と Consumer の設定を Data Platform 側へ分離する
     - Tail Worker に Queue producer binding、Consumer に Queue consumer と R2 binding を置き、再配送／dead-letter 方針を Data Platform 側の設定正本へ置く。
     - Tail／Consumer に `STORE_TIMER_DO`、Producer URL、Service Binding、DO namespace／stub、Producer を起動できる route や権限を付けない。
     - _Requirements: 1.9, 4.1, 4.5, 4.11, 4.12, 4.13, 4.14, 4.15_
 
-  - [~] 11.4 設定 graph の static test を実装する
+  - [x] 11.4 設定 graph の static test を実装する
     - root には Tail attachment だけ、Tail には Queue producer だけ、Consumer には Queue consumer／R2 だけがあり、Producer への逆 edge がないことを machine-readable graph と設定 snapshot で検証する。
     - Producer 観測 module に platform／downstream capability がなく、観測専用 Alarm、Queue callback、scheduled route、storage key がないことも合わせて確認する。
     - _Requirements: 1.3, 1.8, 1.9, 2.15, 4.10, 4.13, 4.14, 4.15_
 
-- [ ] 12. Tail 不可環境の Logpush → R2 縮退を構成・検証する
-  - [~] 12.1 確認済み環境だけに Logpush → R2 を構成する
+- [x] 12. Tail 不可環境の Logpush → R2 縮退を構成・検証する
+  - [x] 12.1 確認済み環境だけに Logpush → R2 を構成する
     - タスク 1.3 で承認された環境の対象 Workers logs dataset と R2 destination を使い、観測できた structured console log だけを R2、Snowpipe、Snowflake へ搬送する。
     - Producer root に Queue／R2 binding や再出力入口を追加せず、Data Platform 所有の account 設定として分離する。
     - _Requirements: 4.7, 4.12, 4.13, 4.14_
 
-  - [~] 12.2 縮退経路に backfill／再出力／DO 再起動がないことを検証する
+  - [x] 12.2 縮退経路に backfill／再出力／DO 再起動がないことを検証する
     - Tail unavailable または structured console log 未観測の期間について、backfill job、Producer 再出力要求、outbox、DO 再起動、観測目的の rehydrate／Reconcile／Persist が存在しないことを設定 graph と運用手順で確認する。
     - _Requirements: 1.8, 1.9, 2.15, 4.8, 4.13, 4.14_
 
-  - [~] 12.3 Logpush 縮退の smoke fixture と欠落表示を検証する
+  - [x] 12.3 Logpush 縮退の smoke fixture と欠落表示を検証する
     - 観測できた canonical line が R2 へ到達する fixture と、観測不能分を補完せず完全未観測率を測定不能と表示する運用結果を確認する。
     - _Requirements: 4.7, 4.8, 5.8, 5.14_
 
-- [ ] 13. Snowpipe／Snowflake の raw、品質、SLO、保持、アクセス制御を実装する
-  - [~] 13.1 R2 raw arrival を Snowpipe で Snowflake へ取り込む
+- [x] 13. Snowpipe／Snowflake の raw、品質、SLO、保持、アクセス制御を実装する
+  - [x] 13.1 R2 raw arrival を Snowpipe で Snowflake へ取り込む
     - canonical Operation Record と観測側 metadata を分離したまま取り込み、`firstObservedAt` と `firstSnowflakeAt` を関連付ける。
     - raw arrival、重複収束後 record、相関結果、品質判定を別の責務として保持し、重複、欠落、孤児、競合の根拠 record を削除しない。
     - _Requirements: 4.6, 5.3, 5.4, 5.5, 5.6, 5.7, 6.1_
 
-  - [~] 13.2 相関、重複収束、欠落／孤児／競合／重複、品質率を Snowflake へ配線する
+  - [x] 13.2 相関、重複収束、欠落／孤児／競合／重複、品質率を Snowflake へ配線する
     - 純粋計算の定義を SQL／view 側で再解釈して別の定義を作らず、一次相関 key、Timer 事実整合、補助 metadata、raw 到達数、重複数を設計どおり反映する。
     - lifecycle 内欠落率、重複率、孤児率、競合率と分母 0 の算出不能を保持し、閾値超過または算出不能の店舗／期間を信頼済み分析から除外する。
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.9, 5.10, 5.11, 5.12, 5.13, 5.15_
 
-  - [~] 13.3 best-effort 分析表示と完全未観測率の表示を実装する
+  - [x] 13.3 best-effort 分析表示と完全未観測率の表示を実装する
     - 生産能力指標に Store Id、期間、Observed telemetry に基づく best-effort 推定である旨を付ける。
     - lifecycle 内欠落率と console log 自体の完全未観測率を分け、後者は Producer telemetry 総数を観測できないため測定不能と表示する。
     - _Requirements: 5.8, 5.14, 5.15_
 
-  - [~] 13.4 月次 99%／15 分 SLO と 30／60 分通知を運用経路へ配線する
+  - [x] 13.4 月次 99%／15 分 SLO と 30／60 分通知を運用経路へ配線する
     - UTC 暦月ごとに重複除外後の母集団、15 分以内到達数、率または対象外を表示し、母集団が一件以上なら 99% 以上を判定基準にする。
     - 未到達最古 record が 30 分帯へ遷移したら警告、60 分以上へ遷移したら重大通知を各連続状態一回、遷移から 5 分以内に発し、Store Id、Timer Id、Operation Kind、Event Time を含める。
     - SLO が Timer 操作成功を保証しない旨を併記する。
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.13_
 
-  - [~] 13.5 R2 90 日と Snowflake 25 UTC 暦月の保持を構成する
+  - [x] 13.5 R2 90 日と Snowflake 25 UTC 暦月の保持を構成する
     - R2 は保存成功から 90 日で削除開始し 24 時間以内に完了、Snowflake は初回到達月を第 1 月とする 25 UTC 暦月終了後に削除開始し 24 時間以内に完了する。
     - 各期限前は保持期限を理由とする削除を 0 件にし、品質根拠 raw も期限までは保持する。
     - _Requirements: 6.7, 6.8, 6.9_
 
-  - [~] 13.6 機密業務データのアクセス制御を実装する
+  - [x] 13.6 機密業務データのアクセス制御を実装する
     - Operation Record を個人情報ではない機密業務データとして分類し、record、品質指標、分析結果を承認済み分析担当者だけが読める role／policy にする。
     - 未承認主体を拒否し、拒否後も Operation Record、品質指標、分析結果、アクセス承認状態が変わらないようにする。
     - _Requirements: 6.10, 6.11, 6.12_
 
-  - [~] 13.7 Snowpipe／Snowflake／運用 integration テストを実装する
+  - [x] 13.7 Snowpipe／Snowflake／運用 integration テストを実装する
     - R2 fixture の取込、初回時刻関連付け、重複 raw 保持、四品質状態、四品質率、分母 0、信頼除外、best-effort 表示、完全未観測率の測定不能を確認する。
     - 15 分境界、空月、30／60 分通知、R2 90 日、Snowflake 25 UTC 暦月、24 時間削除境界を clock-controlled test で確認する。
     - 承認済み／未承認アクセスと拒否後不変を確認する。
     - _Requirements: 4.6, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 5.13, 5.14, 5.15, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 6.12, 6.13_
 
-- [ ] 14. チェックポイント — Producer と Data Platform の統合境界を確認する
-  - [~] 14.1 Producer／Tail／Queue／R2／Snowflake の検証結果をレビューする
+- [x] 14. チェックポイント — Producer と Data Platform の統合境界を確認する
+  - [x] 14.1 Producer／Tail／Queue／R2／Snowflake の検証結果をレビューする
     - Producer の console 一点以外に StoreTimerDO 外向き作用がなく、Data Platform の待機、再試行、失敗保持、再配送が StoreTimerDO 実行外だけにあることを確認する。
     - O1〜O7、設定 graph、fault injection、Tail fixture、R2 ack、raw 重複保持、品質／SLO／保持／アクセスの検証が揃うまで rollout へ進まない。
     - _Requirements: 1.1, 1.2, 1.3, 1.8, 1.9, 1.10, 4.1, 4.5, 4.10, 4.11, 4.13, 4.14, 4.15_
 
 - [ ] 15. Config／deployment smoke と段階 rollout を実施する
-  - [~] 15.1 local config smoke を実装・実行する
+  - [ ] 15.1 local config smoke を実装・実行する
     - root `tail_consumers` が確定した実在 Tail Worker 名を指し、Tail の Queue producer、Consumer の Queue consumer／R2、R2 lifecycle、Snowpipe stage、通知、access role の参照整合を検査する。
     - Producer root に Queue／R2 がなく、Tail／Consumer に `STORE_TIMER_DO`、Producer URL、Service Binding、DO stub がなく、Producer 逆呼出し edge が 0 件であることを確認する。
     - _Requirements: 1.3, 1.9, 4.1, 4.5, 4.10, 4.12, 4.13, 4.14, 4.15, 6.7, 6.8, 6.11_
 
-  - [~] 15.2 ユーザー実行の下流 smoke 手順を整備する
+  - [ ] 15.2 ユーザー実行の下流 smoke 手順を整備する
     - 認証情報を要する実デプロイとは分けて、ユーザーが R2 → Queue／Consumer → Snowpipe → Snowflake → 保持／通知／access の順に疎通確認する手順、期待結果、停止／切戻し条件を記述する。
     - R2 保存成功前 ack 0 件、重複 raw 保持、Producer／StoreTimerDO 呼出し 0 件を確認項目に含める。
     - _Requirements: 4.5, 4.6, 4.10, 4.11, 4.13, 4.14, 4.15, 5.5, 5.7, 6.5, 6.6, 6.7, 6.8, 6.11, 6.12_
 
-  - [~] 15.3 ユーザー実行の Tail fixture smoke 手順を整備する
+  - [ ] 15.3 ユーザー実行の Tail fixture smoke 手順を整備する
     - 下流疎通後に Tail Worker を fixture で検証し、想定 envelope だけが Queue へ進み、不正行の位置／分類が残り、Producer 逆呼出しがないことを確認する手順を記述する。
     - _Requirements: 4.2, 4.3, 4.4, 4.13, 4.14_
 
-  - [~] 15.4 環境別の最終 attachment／Logpush 有効化手順を整備する
+  - [ ] 15.4 環境別の最終 attachment／Logpush 有効化手順を整備する
     - Tail 利用可能環境は下流と Tail fixture 成功後に Producer `tail_consumers` attachment を有効化し、利用不可環境は確認済み Logpush → R2 を有効化する。
     - 順序を「下流 → Tail fixture → Producer attachment または Logpush」に固定し、実デプロイ、account plan 確認、credential を要する操作はユーザー実行と明記する。
     - attachment 無効化または Logpush 停止に Timer state migration、backfill、Producer 再出力、DO 再起動が不要であることを切戻し条件にする。
     - _Requirements: 1.8, 1.9, 2.15, 4.1, 4.7, 4.8, 4.13, 4.14_
 
-  - [~] 15.5 ユーザー実行 smoke で Producer 逆呼出しゼロを確認する
+  - [ ] 15.5 ユーザー実行 smoke で Producer 逆呼出しゼロを確認する
     - Tail／Consumer／Snowpipe 障害を発生させても StoreTimerDO の construct、wake、rehydrate、storage read、Alarm 予定が増えず、Producer へ ack、再出力要求、HTTP、RPC、stub call がないことを確認する観測手順を記述する。
     - _Requirements: 1.8, 1.9, 1.10, 4.10, 4.11, 4.13, 4.14, 4.15_
 
 - [ ] 16. 最終チェックポイント — 全ローカル検証を完了する
-  - [~] 16.1 生成型と対象テストの完了状態を確認する
+  - [ ] 16.1 生成型と対象テストの完了状態を確認する
     - root `wrangler.jsonc` を変更した場合は `pnpm cf-typegen` が完了し、Producer `Env` に Queue／R2／DO 逆方向能力が追加されていないことを確認する。
     - Correctness Properties 1〜11、Workers pool integration、static／config graph、Tail／Queue／R2、Snowflake／運用 integration が全て省略なく成功していることを確認する。
     - _Requirements: 1.3, 1.5, 1.7, 1.8, 1.9, 1.10, 3.18, 3.19, 4.3, 4.4, 4.5, 4.13, 4.14, 5.15, 6.13_
 
-  - [~] 16.2 最終品質コマンドを順に実行する
+  - [ ] 16.2 最終品質コマンドを順に実行する
     - `pnpm typecheck`、`pnpm lint`、`pnpm test`、`pnpm build` を実行し、失敗があれば原因を修正して全て成功するまで確認する。
     - 実デプロイ、plan／権限照会、credential を要する smoke は自動実行せず、タスク 15 のユーザー実行手順と結果記録を引き渡す。
     - _Requirements: 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, 4.1, 4.5, 4.12, 4.13, 4.14, 4.15_
@@ -408,6 +408,7 @@
 - `TimerFact`、engine `Timer`、`TimerState`、`ActiveTimersSnapshot`、Effect は不変とし、実効 `endTime` は既存 `toWireTimer` の SSOT を再利用する。
 - root `wrangler.jsonc` の Producer 設定には `tail_consumers` attachment だけを置き、Queue／R2 binding を置かない。変更時は `pnpm cf-typegen` を実行する。
 - 実環境への deploy、account plan／権限確認、Logpush job、Snowpipe、保持 policy、通知、access role の smoke は認証情報を要するため、ユーザー実行手順としてローカル検証と区別する。
+- タスク 1.2／1.3 の確認結果は「対象環境はいずれも Tail Workers を利用できる」であり、Logpush 縮退の構成対象環境は 0 件である。タスク 12 は Logpush job と R2 destination を作らず、構成対象なしの確定と将来の再確認条件を記録する（design.md「環境別搬送の確定結果」）。
 
 ## Task Dependency Graph
 

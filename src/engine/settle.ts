@@ -157,9 +157,15 @@ function mergeBoiled(movedTimers: readonly Timer[], synced: readonly Timer[]): r
 /**
  * 確定結果の同一性判定（要件7.7 / AC 7.6）。永続され broadcast される事実のすべてが prev と next で一致するか。
  *
- * 突き合わせるのは 3 つ——Timer 集合・Pending_Order 集合・採用済み PlanSlice 列。**待ち行列と採用済み計画を
- * 見なければオーダー到着が握り潰される**（Timer は 1 つも動かないため、Timer だけを見る判定は「変化なし」と
- * 答えて Persist も Broadcast も出さない）。
+ * 突き合わせるのは 4 つ——Timer 集合・Pending_Order 集合・採用済み PlanSlice 列・取り込みの判定材料。
+ * **待ち行列と採用済み計画を見なければオーダー到着が握り潰される**（Timer は 1 つも動かないため、Timer
+ * だけを見る判定は「変化なし」と答えて Persist も Broadcast も出さない）。
+ *
+ * **判定材料（lastSequenceByTerminal）を含めるのは、集合が変わらずに材料だけが進む受領が実在するため
+ * である**——翻訳結果が 0 件で当該注文が集合に無い受領（麺を含まない注文）がそれで、材料を確定させ
+ * なければ同じ注文が再送のたびに翻訳をやり直される（pos-order-ingress AC 6.12・Property 16）。材料は
+ * 永続され Pending_Order 集合と同一の `Persist` で確定する事実であり、確定結果の一部である（Property 14）。
+ * 受領以外の遷移はこの材料を一切動かさないため、判定を足しても他の分岐の挙動は変わらない。
  *
  * `requestedDigest` は含めない（design が挙げる 2 つに限る）。指紋だけが変わる確定結果は存在しない——
  * 要求の生成（タスク 17.2）は、この判定を抜けて Effect 列を組む経路の中だけで起こり、新しい指紋は
@@ -169,8 +175,26 @@ function isSameConfirmedResult(prev: TimerState, next: TimerState): boolean {
   return (
     isSameTimers(prev.timers, next.timers) &&
     isSamePending(prev.pendingOrders, next.pendingOrders) &&
-    isSameAccepted(prev.acceptedSlices, next.acceptedSlices)
+    isSameAccepted(prev.acceptedSlices, next.acceptedSlices) &&
+    isSameLastSequence(prev.lastSequenceByTerminal, next.lastSequenceByTerminal)
   );
+}
+
+/**
+ * 端末ごとの判定材料が一致するか（端末の集合と各値）。
+ *
+ * 内容で突き合わせるのは、判定を呼び出し側のオブジェクトの作り方に依存させないためである——受領の遷移は
+ * 1 件も受理しなくても写しを渡すので、参照の一致だけを見れば重複ばかりの受領が「変化」に見え、
+ * AC 7.6 が禁じる空振りの Persist / Broadcast が出る。
+ */
+function isSameLastSequence(
+  prev: Readonly<Record<string, string>>,
+  next: Readonly<Record<string, string>>,
+): boolean {
+  if (prev === next) return true;
+  const terminalIds = Object.keys(prev);
+  if (terminalIds.length !== Object.keys(next).length) return false;
+  return terminalIds.every((terminalId) => prev[terminalId] === next[terminalId]);
 }
 
 /**

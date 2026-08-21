@@ -106,6 +106,7 @@ function pendingItem(input: {
   firmness?: Firmness;
   tableId?: string | null;
   arrivalTime?: number;
+  slotSpan?: number;
 }): PendingOrder {
   return {
     externalOrderId: input.orderId,
@@ -114,6 +115,7 @@ function pendingItem(input: {
     firmness: input.firmness ?? "normal",
     tableId: input.tableId ?? null,
     arrivalTime: input.arrivalTime ?? NOW,
+    slotSpan: input.slotSpan ?? 1,
   };
 }
 

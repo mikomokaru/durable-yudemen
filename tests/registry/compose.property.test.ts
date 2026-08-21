@@ -14,19 +14,26 @@ import { composeEffectiveConfig } from "../../src/registry/compose";
 import type { Policy, PolicyFields, PolicyMode, StoreOverride } from "../../src/registry/ideal";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import {
+  type FirmnessCode,
+  type MenuItem,
   type NoodlePreset,
+  type NoodleSize,
   UNIT_COUNT_MIN,
   UNIT_COUNT_MAX,
   ARMS_MIN,
   ARMS_MAX,
   TOLERANCE_RATIO_MIN,
   TOLERANCE_RATIO_MAX,
+  SLOT_SPAN_MIN,
+  SLOT_SPAN_MAX,
   toUnitCount,
   toArms,
   toToleranceRatio,
   toNoodlePresets,
   DEFAULT_NOODLE_PRESETS,
 } from "../../src/domain/store";
+import { FIRMNESS_ORDER, isFirmness } from "../../src/domain/firmness";
+import { nonEmpty } from "../nonEmpty";
 
 // ────────────────────────────────────────────────────────────────────────────
 // 再利用可能な生成器（モジュールスコープ）
@@ -68,6 +75,36 @@ export const genNoodlePresets: fc.Arbitrary<NonEmptyArray<NoodlePreset>> = fc
   .tuple(genNoodlePreset, fc.array(genNoodlePreset, { maxLength: 2 }))
   .map(([head, tail]) => [head, ...tail] as NonEmptyArray<NoodlePreset>);
 
+// ── POS の対応表 2 枚（丸ごと置換の単位・出口で toFirmnessCodes / toMenuItems を通る） ──
+// 商品コードと slotSpan は妥当域の外へも振る（出口の検証関数が不正要素を落とすことまで検査に含める）。
+
+/** 硬さ対応 1 件。コードは 0・負も振り、firmness は既知の 4 値から採る。 */
+const genFirmnessCode: fc.Arbitrary<FirmnessCode> = fc.record({
+  code: fc.integer({ min: -2, max: 200_000 }),
+  firmness: fc.constantFrom(...FIRMNESS_ORDER),
+});
+
+/** 硬さ対応表（空も振る——既定が空ゆえ空は正当な状態）。再利用可能。 */
+export const genFirmnessCodes: fc.Arbitrary<readonly FirmnessCode[]> = fc.array(genFirmnessCode, {
+  maxLength: 3,
+});
+
+/** 麺量 1 件。slotSpan は妥当域の外へも振る。 */
+const genNoodleSize: fc.Arbitrary<NoodleSize> = fc.record({
+  code: fc.integer({ min: -2, max: 200_000 }),
+  slotSpan: fc.integer({ min: SLOT_SPAN_MIN - 2, max: SLOT_SPAN_MAX + 2 }),
+});
+
+/** メニュー 1 件（sizes は型で非空を強制）。 */
+const genMenuItem: fc.Arbitrary<MenuItem> = fc.record({
+  productCode: fc.integer({ min: -2, max: 200_000 }),
+  noodleType: fc.string({ minLength: 1, maxLength: 8 }),
+  sizes: fc.array(genNoodleSize, { minLength: 1, maxLength: 3 }).map(nonEmpty),
+});
+
+/** メニュー対応表（空も振る）。再利用可能。 */
+export const genMenuItems: fc.Arbitrary<readonly MenuItem[]> = fc.array(genMenuItem, { maxLength: 3 });
+
 // 値域内外の双方を跨ぐ数値生成器（compose の出口クランプの健全性まで検査するため境界外へ振る）。
 const genUnitCountValue = fc.integer({ min: UNIT_COUNT_MIN - 5, max: UNIT_COUNT_MAX + 8 });
 const genArmsValue = fc.integer({ min: ARMS_MIN - 5, max: ARMS_MAX + 5 });
@@ -88,6 +125,8 @@ export const genPolicyFields: fc.Arbitrary<PolicyFields> = fc.record(
     arms: genModedNumber(genArmsValue),
     toleranceRatio: genModedNumber(genToleranceValue),
     noodlePresets: fc.record({ mode: genPolicyMode, value: genNoodlePresets }),
+    firmnessCodes: fc.record({ mode: genPolicyMode, value: genFirmnessCodes }),
+    menuItems: fc.record({ mode: genPolicyMode, value: genMenuItems }),
   },
   { requiredKeys: [] },
 );
@@ -124,6 +163,8 @@ export const genStoreOverride: fc.Arbitrary<StoreOverride> = fc.record(
     arms: genArmsValue,
     toleranceRatio: genToleranceValue,
     noodlePresets: genNoodlePresets,
+    firmnessCodes: genFirmnessCodes,
+    menuItems: genMenuItems,
   },
   { requiredKeys: [] },
 );
@@ -155,6 +196,41 @@ function isValidNoodlePresets(value: unknown): boolean {
   });
 }
 
+/** 商品コードとして妥当か（正の整数）。合成結果に不正コードが残っていないことの判定に用いる。 */
+function isProductCode(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+/** 合成結果の硬さ対応表が構造的に妥当か（空は正当・残った要素は正の整数コードと既知の Firmness）。 */
+function isValidFirmnessCodes(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.every((entry) => {
+    if (typeof entry !== "object" || entry === null) return false;
+    const code = entry as Record<string, unknown>;
+    return isProductCode(code.code) && isFirmness(code.firmness);
+  });
+}
+
+/** 合成結果のメニュー対応表が構造的に妥当か（残った要素は正の整数コード・非空の麺種・妥当域内の非空麺量群）。 */
+function isValidMenuItems(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.every((entry) => {
+    if (typeof entry !== "object" || entry === null) return false;
+    const item = entry as Record<string, unknown>;
+    if (!isProductCode(item.productCode)) return false;
+    if (typeof item.noodleType !== "string" || item.noodleType.length === 0) return false;
+    if (!Array.isArray(item.sizes) || item.sizes.length === 0) return false;
+    return item.sizes.every((size) => {
+      if (typeof size !== "object" || size === null) return false;
+      const noodleSize = size as Record<string, unknown>;
+      if (!isProductCode(noodleSize.code)) return false;
+      const { slotSpan } = noodleSize;
+      if (typeof slotSpan !== "number" || !Number.isInteger(slotSpan)) return false;
+      return slotSpan >= SLOT_SPAN_MIN && slotSpan <= SLOT_SPAN_MAX;
+    });
+  });
+}
+
 describe("registry/compose — composeEffectiveConfig", () => {
   // Feature: per-store-provisioning, Property 10: 合成は純粋・完全・値域内
   // **Validates: Requirements 4.1, 4.5**
@@ -163,8 +239,10 @@ describe("registry/compose — composeEffectiveConfig", () => {
   // 持ち各値が対応検証関数の値域に収まる。次の 4 つを同時に検査する：
   //   1. 決定性     — 同一入力での二度呼びが構造的に等しい（toEqual）。
   //   2. 順序非依存 — Policy 群を置換しても出力が変わらない（(priority, policyId) の全順序で畳むため）。
-  //   3. 完全性     — 出力は unitCount / arms / toleranceRatio / noodlePresets の全フィールドを持つ。
-  //   4. 値域内     — 各数値は検証関数の値域に収まり、noodlePresets は構造的に妥当な非空配列。
+  //   3. 完全性     — 出力は合成対象の全フィールド（unitCount / arms / toleranceRatio / noodlePresets ＋
+  //                   POS の対応表 2 枚）を持つ。
+  //   4. 値域内     — 各数値は検証関数の値域に収まり、noodlePresets は構造的に妥当な非空配列、対応表 2 枚は
+  //                   出口の検証関数（toFirmnessCodes / toMenuItems）を通った形（不正要素が残らない）。
   it("Property 10: 合成は決定的・順序非依存で、完全な StoreConfig を値域内で返す", () => {
     fc.assert(
       fc.property(genComposeInput, ({ policies, shuffled, override }) => {
@@ -183,6 +261,8 @@ describe("registry/compose — composeEffectiveConfig", () => {
         expect(result.arms).toBeDefined();
         expect(result.toleranceRatio).toBeDefined();
         expect(result.noodlePresets).toBeDefined();
+        expect(result.firmnessCodes).toBeDefined();
+        expect(result.menuItems).toBeDefined();
 
         // 4. 値域内：各数値は対応検証関数の値域（min..max）に収まる。
         expect(Number.isInteger(result.unitCount)).toBe(true);
@@ -199,6 +279,10 @@ describe("registry/compose — composeEffectiveConfig", () => {
 
         // 4. 値域内：noodlePresets は構造的に妥当な非空配列。
         expect(isValidNoodlePresets(result.noodlePresets)).toBe(true);
+
+        // 4. 値域内：POS の対応表 2 枚は出口の検証関数を通っており、不正な要素が残らない（空は正当）。
+        expect(isValidFirmnessCodes(result.firmnessCodes)).toBe(true);
+        expect(isValidMenuItems(result.menuItems)).toBe(true);
       }),
       { numRuns: 200 },
     );

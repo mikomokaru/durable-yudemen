@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {
+      "id": "operation-raw-arrival-90-days",
+      "enabled": true,
+      "conditions": {
+        "prefix": "raw/"
+      },
+      "deleteObjectsTransition": {
+        "condition": {
+          "type": "Age",
+          "maxAge": 7776000
+        }
+      }
+    }
+  ]
+}

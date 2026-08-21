@@ -17,6 +17,9 @@ const line = printCanonicalOperationLine({
   firmness: "normal",
 });
 
+// root wrangler.jsonc の "name" と一致する、現存するただ一つの Producer script。
+const PRODUCER_SCRIPT = "yude-men-timer";
+
 // TraceItem を構造的に満たす最小の tail event。純粋 filter が読むのは scriptName と logs だけ。
 const event = (scriptName: string | null, logs: readonly {
   readonly level: string;
@@ -43,17 +46,17 @@ function fakeQueue() {
 
 // Requirements 4.1, 4.2, 4.3, 4.4, 4.11, 4.13, 4.14
 describe("operationRecordMessagesFromTailEvents", () => {
-  it("承認済み三環境のProducerから妥当な候補を入力順でQueue message化し観測時刻を添える", () => {
+  it("実在するProducerの妥当な候補を入力順でQueue message化し観測時刻を添える", () => {
     const events = [
-      event("yude-men-timer-dev", [{ level: "log", message: [line] }]),
-      event("yude-men-timer-stage", [{ level: "log", message: [line] }]),
-      event("yude-men-timer-prod", [{ level: "log", message: [line] }]),
+      event(PRODUCER_SCRIPT, [{ level: "log", message: [line] }]),
+      event(PRODUCER_SCRIPT, [{ level: "log", message: [line] }]),
+      event(PRODUCER_SCRIPT, [{ level: "log", message: [line] }]),
     ];
     expect(operationRecordMessagesFromTailEvents(events, 1000)).toEqual({
       messages: [
-        { canonicalLine: line, firstObservedAt: 1000, producerScript: "yude-men-timer-dev" },
-        { canonicalLine: line, firstObservedAt: 1000, producerScript: "yude-men-timer-stage" },
-        { canonicalLine: line, firstObservedAt: 1000, producerScript: "yude-men-timer-prod" },
+        { canonicalLine: line, firstObservedAt: 1000, producerScript: PRODUCER_SCRIPT },
+        { canonicalLine: line, firstObservedAt: 1000, producerScript: PRODUCER_SCRIPT },
+        { canonicalLine: line, firstObservedAt: 1000, producerScript: PRODUCER_SCRIPT },
       ],
       failures: [],
     });
@@ -62,7 +65,7 @@ describe("operationRecordMessagesFromTailEvents", () => {
   it("不正行はmessageにせず1始まり位置と失敗種別を観測側へ残す", () => {
     const missingRequired = '{"storeId":"store-1"}';
     const events = [
-      event("yude-men-timer-dev", [
+      event(PRODUCER_SCRIPT, [
         { level: "warn", message: ["not-json"] },
         { level: "log", message: ["not-json"] },
         { level: "log", message: [line, "extra"] },
@@ -71,7 +74,7 @@ describe("operationRecordMessagesFromTailEvents", () => {
       ]),
     ];
     expect(operationRecordMessagesFromTailEvents(events, 2000)).toEqual({
-      messages: [{ canonicalLine: line, firstObservedAt: 2000, producerScript: "yude-men-timer-dev" }],
+      messages: [{ canonicalLine: line, firstObservedAt: 2000, producerScript: PRODUCER_SCRIPT }],
       failures: [
         { lineNumber: 1, failure: "invalid-json" },
         { lineNumber: 3, failure: "missing-required-attribute" },
@@ -84,7 +87,7 @@ describe("tailWorker.tail", () => {
   it("妥当な候補だけをQueueへ一括送信する", async () => {
     const { queue, batches } = fakeQueue();
     const events = [
-      event("yude-men-timer-dev", [
+      event(PRODUCER_SCRIPT, [
         { level: "log", message: [line] },
         { level: "log", message: ['{"storeId":"store-1"}'] },
       ]),

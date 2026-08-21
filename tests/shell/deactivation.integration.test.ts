@@ -21,7 +21,7 @@ import type { ServerMessage } from "../../src/domain/messages";
 import type { StoreConfig } from "../../src/domain/store";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import type { StoreSnapshot } from "../../src/engine/snapshot";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import { configResidualDefaults } from "../storeConfigDefaults";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO バインディングを型付きで引く）。
 declare module "cloudflare:test" {
@@ -47,7 +47,7 @@ const CONFIG: StoreConfig = {
   arms: 2,
   toleranceRatio: 10,
   noodlePresets: DEFAULT_NOODLE_PRESETS,
-  ...schedulingDefaults(3),
+  ...configResidualDefaults(3),
 };
 
 /** 活性/非活性・version を差し替えて投影を組む。roster はワイヤに出ない内部値ゆえ空でよい。 */

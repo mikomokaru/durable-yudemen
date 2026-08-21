@@ -1,0 +1,62 @@
+{
+  "records": [
+    {
+      "path": "/lio/order",
+      "arrival_timestamp_ms": 1786000339000,
+      "sequence_number": "49590338271490256608326543212345678901234567890123456789",
+      "payload": {
+        "store_id": 1263,
+        "terminal_id": 1,
+        "bill_no": 1084,
+        "datetime": "2026-08-17T20:52:19",
+        "order_id": "1263-1-1084",
+        "table_no": 12,
+        "order_items": [
+          {
+            "plu_no": 11421,
+            "item_type": 1,
+            "qty": 1,
+            "child_items": [
+              { "plu_no": 19401, "s_class_code": 65 },
+              { "plu_no": 10010, "s_class_code": 66 },
+              { "plu_no": 90001, "s_class_code": 67 }
+            ]
+          },
+          { "plu_no": 20001, "item_type": 1, "qty": 1 }
+        ]
+      }
+    },
+    {
+      "path": "/lio/order",
+      "arrival_timestamp_ms": 1786000340000,
+      "sequence_number": "49590338271490256608326543212345678901234567890123456790",
+      "payload": {
+        "store_id": 1102,
+        "terminal_id": 2,
+        "bill_no": 220,
+        "datetime": "2026-08-17T20:52:20",
+        "order_id": "1102-2-220",
+        "order_items": [
+          {
+            "plu_no": 116051,
+            "item_type": 1,
+            "qty": 1,
+            "child_items": [{ "plu_no": 19401, "s_class_code": 65 }]
+          }
+        ]
+      }
+    },
+    {
+      "path": "/lio/status",
+      "arrival_timestamp_ms": 1786000341000,
+      "sequence_number": "49590338271490256608326543212345678901234567890123456791",
+      "payload": {
+        "store_id": 1263,
+        "terminal_id": 1,
+        "datetime": "2026-08-17T20:52:21",
+        "error_level": 2,
+        "errors": ["PRINTER_OFFLINE"]
+      }
+    }
+  ]
+}

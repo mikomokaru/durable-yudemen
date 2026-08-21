@@ -1,0 +1,35 @@
+{
+  // Tail Worker（operation-history-log 要件4.1 / 4.2）。Producer の実行完了後に StoreTimerDO とは
+  // 別の Worker 実行として起動し、canonical 一行だけを Queue へ送る。
+  //
+  // 所有者は Data Platform である。root（wrangler.jsonc）は Producer 設定の SSOT であり、そこに置くのは
+  // Tail Worker を指す tail_consumers attachment だけとする。Queue producer binding をこちら側の正本に
+  // 分けることで、StoreTimerDO の env から Queue へ到達できないことを設定構造が保証する
+  // （要件1.9 / 4.13 / 4.14。design.md「Deployment and Configuration Ownership」）。
+  //
+  // デプロイは `wrangler deploy --config wrangler.telemetry-tail.jsonc`（root の deploy とは独立）。
+  // root の tail_consumers を有効化する前に、この Worker をデプロイしておく必要がある（tasks.md 15.4）。
+  "name": "yude-men-telemetry-tail",
+  "main": "src/data-platform/tail-worker.ts",
+  // root と同一の日付に揃える（tooling.md の確定値）。Worker 間で挙動の既定が食い違わないようにする。
+  "compatibility_date": "2026-06-26",
+  "observability": {
+    "enabled": true
+  },
+  // ネットワークへ露出させない。この Worker への正当な到達経路は Producer の tail attachment だけであり、
+  // fetch handler も route も持たない。逆に Producer を起動できる経路（route、Service binding、
+  // DO namespace／stub、STORE_TIMER_DO）をここへ一切置かない（要件4.13 / 4.14 / 4.15）。
+  "workers_dev": false,
+  "preview_urls": false,
+  // Queue producer binding。形はタスク11.1 で導入済み Wrangler v4 の config-schema.json と公式 Queues 資料に
+  // 照合済み（binding と queue が必須。`name` というキーは schema に無い）。
+  // 送信の非同期性と再試行は Data Platform 側の能力であり、Producer env には現れない（要件4.11）。
+  "queues": {
+    "producers": [
+      {
+        "binding": "OPERATION_RECORDS",
+        "queue": "operation-records"
+      }
+    ]
+  }
+}

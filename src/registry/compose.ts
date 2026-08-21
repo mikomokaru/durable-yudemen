@@ -17,6 +17,8 @@ import {
   toArms,
   toToleranceRatio,
   toNoodlePresets,
+  toFirmnessCodes,
+  toMenuItems,
 } from "../domain/store";
 
 /**
@@ -30,6 +32,8 @@ const CONFIG_FIELDS = [
   "arms",
   "toleranceRatio",
   "noodlePresets",
+  "firmnessCodes",
+  "menuItems",
 ] as const satisfies readonly (keyof StoreConfig)[];
 
 /** 合成対象フィールド名（PolicyFields / StoreOverride が主張しうる集合）。 */
@@ -41,7 +45,8 @@ type ConfigField = (typeof CONFIG_FIELDS)[number];
  * ・基底は domain の DEFAULT_*（どの層も主張しないフィールドの供給源＝出力完全性を保証・要件4.5）。
  * ・priority 昇順（小さい＝全社統制が先）に畳む。同着は policyId 昇順で安定化（曖昧割当は入口で排除済み・要件3.4）。
  * ・enforced はその層で確定し以後ロック（後の層・Override が無視される・要件4.2）。縦の衝突は最小 priority が勝つ（要件4.3）。
- * ・default は後の層が上書き可。配列フィールド（noodlePresets）は層ごとの丸ごと置換（要素マージなし・要件4.4）。
+ * ・default は後の層が上書き可。配列フィールド（noodlePresets / firmnessCodes / menuItems）は層ごとの丸ごと
+ *   置換（要素マージなし・要件4.4）。要素マージを許せば有効な表がどの層に由来するか読めなくなる。
  * ・Store_Override は最終層で、ロックされていないフィールドにのみ適用される。統制解除で再びロックが外れ Override が復活する（要件4.7）。
  *
  * 出力完全性と値域内（要件4.5）は domain の検証関数で構造的に保証する：基底に DEFAULT_* を置くため acc は常に全
@@ -60,6 +65,8 @@ export function composeEffectiveConfig(
     arms: undefined,
     toleranceRatio: undefined,
     noodlePresets: undefined,
+    firmnessCodes: undefined,
+    menuItems: undefined,
   };
   // enforced で確定済みのフィールド名（一度ロックされたら以後の層・Override が無視される・単調増加）。
   const locked = new Set<ConfigField>();
@@ -103,6 +110,8 @@ export function composeEffectiveConfig(
     affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
     unitOrigins: defaultUnitOrigins(unitCount),
     slotOffsets: DEFAULT_SLOT_OFFSETS,
+    firmnessCodes: toFirmnessCodes(acc.firmnessCodes),
+    menuItems: toMenuItems(acc.menuItems),
   };
 }
 

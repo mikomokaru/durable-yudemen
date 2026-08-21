@@ -49,7 +49,7 @@ import type { StoreSnapshot } from "../../src/engine/snapshot";
 import type { AcceptedSlice } from "../../src/engine/schedule";
 import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import { configResidualDefaults } from "../storeConfigDefaults";
 // 20.4 の 401 は worker.ts の経路でしか立たない（DO の受け口は 401 を返さない）。ゆえにここだけ Worker を通す。
 import worker from "../../src/worker";
 
@@ -83,7 +83,7 @@ const storeConfig: StoreConfig = {
   noodlePresets: [
     { noodleType: NOODLE, boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
   ] as NonEmptyArray<NoodlePreset>,
-  ...schedulingDefaults(UNIT_COUNT),
+  ...configResidualDefaults(UNIT_COUNT),
 };
 
 /** プロビジョニング用の投影。ACCESS_REQUIRED OFF 期ゆえ roster は空でよい（関心事は認可ではない）。 */
@@ -574,7 +574,7 @@ const planConfig: StoreConfig = {
       },
     },
   ] as NonEmptyArray<NoodlePreset>,
-  ...schedulingDefaults(UNIT_COUNT),
+  ...configResidualDefaults(UNIT_COUNT),
 };
 
 /**

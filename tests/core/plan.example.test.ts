@@ -63,6 +63,7 @@ const LONG: PendingOrder = {
   firmness: "normal",
   tableId: "t-a",
   arrivalTime: NOW,
+  slotSpan: 1,
 };
 const SHORT: PendingOrder = { ...LONG, externalOrderId: "o-short", noodleType: "Short", tableId: "t-b" };
 

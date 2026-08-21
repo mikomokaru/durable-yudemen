@@ -33,6 +33,8 @@ import {
   DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_SLOT_OFFSETS,
+  DEFAULT_FIRMNESS_CODES,
+  DEFAULT_MENU_ITEMS,
   defaultUnitOrigins,
 } from "../../src/domain/store";
 import { nonEmpty } from "../nonEmpty";
@@ -272,6 +274,10 @@ export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
       affinityToleranceDistance: fc.constant(DEFAULT_AFFINITY_TOLERANCE_DISTANCE),
       unitOrigins: fc.constant(defaultUnitOrigins(unitCount)),
       slotOffsets: fc.constant(DEFAULT_SLOT_OFFSETS),
+      // POS の対応表 2 枚は client 側の読み手が無い（本 spec の範囲外）。要らない次元へ生成の分散を
+      // 広げず既定（空の表）で固定する。
+      firmnessCodes: fc.constant(DEFAULT_FIRMNESS_CODES),
+      menuItems: fc.constant(DEFAULT_MENU_ITEMS),
     }),
   ),
   fc.record({

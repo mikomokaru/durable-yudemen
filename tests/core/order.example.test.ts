@@ -2,11 +2,12 @@
 //
 // 部分受理は現場が欠品に気づけない嘘になるため、1 品目でも不正なら null へ落ちる。逆に妥当な到着は
 // 余剰フィールドを落とし、卓なし（tableId 欠落）を単独グループ（null）へ正規化して通る。
+// slotSpan は欠落のみ 1 スロット占有へ畳み、値域外・非整数は他の型違反と同じく到着全体の拒否へ落ちる。
 // 受理拒否（400）への写しは shell の受け口の関心事ゆえ、ここでは null か否かだけを見る。
 
 import { describe, it, expect } from "vitest";
 import { toPendingOrders } from "../../src/domain/order";
-import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import { DEFAULT_NOODLE_PRESETS, SLOT_SPAN_MAX, SLOT_SPAN_MIN } from "../../src/domain/store";
 
 const presets = DEFAULT_NOODLE_PRESETS;
 const arrivalTime = 1_700_000_000_000;
@@ -18,6 +19,8 @@ const validItem = {
   noodleType: "Thin",
   firmness: "hard",
   tableId: "table-3",
+  // 既定（1）と異なる幅を据える——既定と同値では「持たせている」ことと「畳んでいる」ことが見分けられない。
+  slotSpan: 2,
 } as const;
 
 describe("toPendingOrders — 正常値の正規化", () => {
@@ -30,8 +33,28 @@ describe("toPendingOrders — 正常値の正規化", () => {
         firmness: "hard",
         tableId: "table-3",
         arrivalTime,
+        slotSpan: 2,
       },
     ]);
+  });
+
+  it("slotSpan の欠落を 1 スロット占有へ畳む（麺量の語彙を持たない到着）", () => {
+    const withoutSpan: Record<string, unknown> = { ...validItem };
+    delete withoutSpan.slotSpan;
+
+    expect(toPendingOrders([withoutSpan], presets, arrivalTime)?.[0]?.slotSpan).toBe(1);
+  });
+
+  it("slotSpan の値域の境界（SLOT_SPAN_MIN・SLOT_SPAN_MAX）を通す", () => {
+    const bounds = [SLOT_SPAN_MIN, SLOT_SPAN_MAX];
+
+    const orders = toPendingOrders(
+      bounds.map((slotSpan, itemIndex) => ({ ...validItem, itemIndex, slotSpan })),
+      presets,
+      arrivalTime,
+    );
+
+    expect(orders?.map((order) => order.slotSpan)).toEqual(bounds);
   });
 
   it("tableId の欠落・null を単独グループ（null）へ正規化する", () => {
@@ -85,6 +108,14 @@ describe("toPendingOrders — 不正な到着は全体を拒否する", () => {
       { ...validItem, firmness: "veryHard" },
       { ...validItem, tableId: 3 },
       { ...validItem, tableId: "" },
+      // 値域外はクランプせず拒否する（勝手に寄せれば、要求されていない占有幅を作ってしまう）。
+      { ...validItem, slotSpan: SLOT_SPAN_MIN - 1 },
+      { ...validItem, slotSpan: SLOT_SPAN_MAX + 1 },
+      { ...validItem, slotSpan: -1 },
+      { ...validItem, slotSpan: 1.5 },
+      { ...validItem, slotSpan: "1" },
+      { ...validItem, slotSpan: null },
+      { ...validItem, slotSpan: Number.NaN },
     ];
 
     for (const item of violations) {

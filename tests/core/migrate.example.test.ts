@@ -1,8 +1,9 @@
-// engine/migrate の v6 → v7 移行を固定する（要件2.5）。
+// engine/migrate の v6 → v8 移行を固定する（要件2.5、pos-order-ingress 要件6.25 / 10.5）。
 //
-// v7 は待ち行列・採用済み計画・指紋を永続へ載せるが、既存 Timer の計時の事実（endTime / adjustment /
+// v7 は待ち行列・採用済み計画・指紋を永続へ載せ、v8 は占有幅（slotSpan）と取り込みの判定材料
+// （lastSequenceByTerminal）を載せる。いずれの版上げも既存 Timer の計時の事実（endTime / adjustment /
 // boiledAt）に一切触れてはならない。スキーマの版上げが走行中の釜の挙動を変えないことがここの眼目である。
-// v6 以前からの各段（v1 の単一 slotId ／ boiledAt・startTime・firmness・adjustment の欠如）も v7 へ着地する。
+// v6 以前からの各段（v1 の単一 slotId ／ boiledAt・startTime・firmness・adjustment の欠如）も v8 へ着地する。
 
 import { describe, it, expect } from "vitest";
 import { migrate } from "../../src/engine/migrate";
@@ -24,8 +25,8 @@ const v6Timer = {
 /** v6 の永続値（単一キー "activeTimers" に丸ごと入っていた形）。 */
 const v6Raw = { version: 6, timers: [v6Timer], nextSeq: 42 } as const;
 
-describe("migrate — v6 → v7", () => {
-  it("3 フィールドを空値と null で埋め、version を 7 へ上げる", () => {
+describe("migrate — v6 → v8", () => {
+  it("後続版の追加フィールドを空値と null で埋め、version を現行へ上げる", () => {
     const result = migrate(structuredClone(v6Raw));
 
     expect(result.ok).toBe(true);
@@ -34,6 +35,7 @@ describe("migrate — v6 → v7", () => {
     expect(result.snapshot.pendingOrders).toEqual([]);
     expect(result.snapshot.acceptedSlices).toEqual([]);
     expect(result.snapshot.requestedDigest).toBeNull();
+    expect(result.snapshot.lastSequenceByTerminal).toEqual({});
     expect(result.snapshot.nextSeq).toBe(42);
   });
 
@@ -61,7 +63,7 @@ describe("migrate — v6 → v7", () => {
     expect(result.snapshot.timers[0]!.orderItem).toBeNull();
   });
 
-  it("v6 以前の各段（v1 の単一 slotId・後続版の欠如フィールド）も v7 へ着地する", () => {
+  it("v6 以前の各段（v1 の単一 slotId・後続版の欠如フィールド）も v8 へ着地する", () => {
     const v1Raw = { timers: [{ id: "timer-0", slotId: "slot-9", noodleType: "Thick", endTime: 1_700_000_000_000, seq: 0 }], nextSeq: 1 };
 
     const result = migrate(v1Raw);
@@ -79,10 +81,11 @@ describe("migrate — v6 → v7", () => {
     expect(result.snapshot.pendingOrders).toEqual([]);
     expect(result.snapshot.acceptedSlices).toEqual([]);
     expect(result.snapshot.requestedDigest).toBeNull();
+    expect(result.snapshot.lastSequenceByTerminal).toEqual({});
   });
 });
 
-describe("migrate — v7 の往復", () => {
+describe("migrate — v7 → v8", () => {
   it("v7 で書いた orderItem / 待ち行列 / 採用済み計画 / 指紋を読み戻す", () => {
     const v7Raw = {
       version: 7,
@@ -121,9 +124,12 @@ describe("migrate — v7 の往復", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.snapshot.timers[0]!.orderItem).toEqual({ externalOrderId: "order-7", itemIndex: 1 });
-    expect(result.snapshot.pendingOrders).toEqual(v7Raw.pendingOrders);
+    // v7 の待ち行列は slotSpan を持たない。欠如は 1 スロット占有として読み戻る（当時の実際の挙動に一致する）。
+    expect(result.snapshot.pendingOrders).toEqual([{ ...v7Raw.pendingOrders[0], slotSpan: 1 }]);
     expect(result.snapshot.acceptedSlices).toEqual(v7Raw.acceptedSlices);
     expect(result.snapshot.requestedDigest).toBe(123_456);
+    // v7 以前は取り込み経路が存在せず、判定材料を持つ端末が無い。空から始めれば最初の Record が必ず受理される。
+    expect(result.snapshot.lastSequenceByTerminal).toEqual({});
   });
 
   it("形を満たさない orderItem は移行失敗にせず null へ畳む（計時は保たれる）", () => {
@@ -152,5 +158,58 @@ describe("migrate — v7 の往復", () => {
     if (badPending.ok || badAccepted.ok) return;
     expect(badPending.failure.code).toBe("MigrationFailed");
     expect(badAccepted.failure.code).toBe("MigrationFailed");
+  });
+});
+
+describe("migrate — v8 の往復", () => {
+  /** v8 で書いた待ち行列 1 件（slotSpan を持つ）。 */
+  const v8Order = {
+    externalOrderId: "order-8",
+    itemIndex: 0,
+    noodleType: "Thin",
+    firmness: "normal",
+    tableId: null,
+    arrivalTime: 1_700_000_050_000,
+    slotSpan: 2,
+  } as const;
+
+  it("v8 で書いた slotSpan と判定材料を読み戻す", () => {
+    const v8Raw = {
+      version: 8,
+      timers: [],
+      nextSeq: 0,
+      pendingOrders: [v8Order],
+      lastSequenceByTerminal: { "terminal-1": "00000000000000000000000000000000000000000000000000000042" },
+    };
+
+    const result = migrate(structuredClone(v8Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.pendingOrders).toEqual([v8Order]);
+    expect(result.snapshot.lastSequenceByTerminal).toEqual(v8Raw.lastSequenceByTerminal);
+  });
+
+  it("値域外・非整数の slotSpan は全体を移行失敗にする（既存の全体拒否の規律）", () => {
+    const tooWide = migrate({ version: 8, timers: [], nextSeq: 0, pendingOrders: [{ ...v8Order, slotSpan: 7 }] });
+    const fractional = migrate({ version: 8, timers: [], nextSeq: 0, pendingOrders: [{ ...v8Order, slotSpan: 1.5 }] });
+    const zero = migrate({ version: 8, timers: [], nextSeq: 0, pendingOrders: [{ ...v8Order, slotSpan: 0 }] });
+
+    expect([tooWide.ok, fractional.ok, zero.ok]).toEqual([false, false, false]);
+    if (tooWide.ok || fractional.ok || zero.ok) return;
+    expect(tooWide.failure.code).toBe("MigrationFailed");
+    expect(fractional.failure.code).toBe("MigrationFailed");
+    expect(zero.failure.code).toBe("MigrationFailed");
+  });
+
+  it("形を満たさない判定材料は空へ畳む（喪失が生むのは重複だけで欠落は生じない）", () => {
+    const notRecord = migrate({ version: 8, timers: [], nextSeq: 0, lastSequenceByTerminal: ["terminal-1"] });
+    const badValue = migrate({ version: 8, timers: [], nextSeq: 0, lastSequenceByTerminal: { "terminal-1": 42 } });
+
+    expect(notRecord.ok).toBe(true);
+    expect(badValue.ok).toBe(true);
+    if (!notRecord.ok || !badValue.ok) return;
+    expect(notRecord.snapshot.lastSequenceByTerminal).toEqual({});
+    expect(badValue.snapshot.lastSequenceByTerminal).toEqual({});
   });
 });

@@ -145,7 +145,8 @@ describe("StoreTimerDO Operation History 入口", () => {
 
   it("constructor と同じ Reconcile 境界で Persist が失敗すると確定せず出力しない", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const clock = vi.spyOn(Date, "now").mockReturnValue(EVENT_TIME);
+    // Reconcile へ渡す now は明示するが、DO 内部の時刻読みも固定しておく。
+    vi.spyOn(Date, "now").mockReturnValue(EVENT_TIME);
     const object = stub(`history-reconcile-persist-failure-${crypto.randomUUID()}`);
 
     await runInDurableObject(object, async (instance, state) => {

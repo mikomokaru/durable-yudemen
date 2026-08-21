@@ -77,6 +77,10 @@ const EXPECTED_CORE_FILES = [
   "src/engine/pending.ts",
   "src/engine/plan.ts",
   "src/engine/project.ts",
+  // receive.ts は POS オーダー取り込み（pos-order-ingress）が足した受領の純粋変換。上と同じ判断で
+  // 追随させる——オフライン劣化の関心（auto-response / 心拍 / client 結合）は及ばず、下の禁止トークン
+  // 検査・import 検査がこのファイルにも掛かるため、集合を更新しても (a) の主張は弱まらない。
+  "src/engine/receive.ts",
   "src/engine/recommend.ts",
   "src/engine/rejection.ts",
   "src/engine/schedule.ts",

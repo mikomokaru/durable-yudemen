@@ -150,6 +150,7 @@ function stale(
       firmness: newcomer.firmness,
       tableId,
       arrivalTime: NOW,
+      slotSpan: 1,
     },
   ];
 }
