@@ -89,8 +89,26 @@
   //   { "service": "yude-men-telemetry-tail" }
   // ],
   // React 静的アセットを同一オリジンで配信。SPA フォールバック。
+  //
+  // run_worker_first: Entry（`/`）だけは Worker を先に走らせる。
+  //   既定では「要求パスがアセットに一致すればアセットを返し、Worker を起動しない」
+  //   （https://developers.cloudflare.com/workers/static-assets/routing/worker-script/）。`/` は index.html に
+  //   一致するため、この既定のままでは worker.ts の Entry 分岐——ACCESS_REQUIRED が ON のときに JWT を検証し、
+  //   identity の接続可能店舗を逆引きして Store_Path へリダイレクトする経路（per-store-provisioning 要件7.2〜7.5）
+  //   ——が**一度も実行されない**。実測でも `/` は 200（SPA）を返し、アセットに一致しない `/entry/stores` と
+  //   `/pos/records` だけが Worker に届いていた（403 / 401）。
+  //
+  //   ゆえに `/` を明示する。**`true`（全要求で Worker 先行）にはしない**——アセット 1 本ごとに Worker が
+  //   起動して要求数を食い、Entry 以外に先行の理由がない。除外パターン（`!`）も要らない：`/entry/stores`・
+  //   `/pos/records`・`/admin/*`・`/s/{id}/`・`/s/{id}/ws` はいずれもアセットに一致せず、既定で Worker に届く。
+  //
+  //   **`/` の 403 は Cloudflare Access が前段に在ることを前提とする。** Access は Worker・アセット層より
+  //   手前で認証を課すため、Access_Application が `/` を含んでいればログインへ誘導され、JWT を持った要求だけが
+  //   ここへ届く。Access アプリが `/` を覆っていない状態でこの設定を有効にすると、`/` は JWT 不在の 403 に
+  //   なる（`/s/{storeId}/` の直叩きは従来どおり通る）。有効化の順序は「Access アプリの構成 → 本設定」。
   "assets": {
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/"]
   }
 }
