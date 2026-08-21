@@ -59,7 +59,12 @@ export type Mode = "live" | "degraded";
  * ブラウザ WebSocket API はハンドシェイクの HTTP ステータスを隠すため、権限なし（接続時拒否）は
  * close code 1006 に潰れ、純粋なオフラインと区別できない。この分類は帯域外 HTTP fetch（probeReachability）
  * が導く付加情報であって、Connectivity（二値）・Mode（導出）とは独立の別軸である（要件15.12）。
- * "offline"（回線喪失・特段の理由なし）が既定。up 時・boot 時・分類前はすべて "offline" に潰す。
+ *
+ * **"offline" の意味は connectivity.ts の classifyReachability の docstring が定義の正本である**
+ * （同一概念を二箇所で定義しない・signin-required-misreported-as-offline 要件3.2）。ここでは繰り返さない
+ * ——かつてこの行は「回線喪失・特段の理由なし」と書き、あちらは「分類不能」と書いていた。同じ値が事実の
+ * 主張と知識の不在を同時に背負い、後者の経路を通った結果が前者の顔で表示されたのが本 spec のバグである。
+ * 既定値としての扱いだけをここに残す: up 時・boot 時・分類前はすべて "offline" に潰す。
  */
 export type UnreachableReason = "offline" | "noAccess" | "signInRequired";
 

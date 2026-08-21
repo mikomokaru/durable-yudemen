@@ -49,8 +49,14 @@ export default defineConfig({
         // not_found_handling: "single-page-application"）。ナビゲーション要求は
         // precache 済みの index.html を返し、オフラインでも起動できる（要件10.2）。
         navigateFallback: "/index.html",
-        // /ws（WebSocket アップグレード）と DO API はキャッシュ対象から除外する。
-        navigateFallbackDenylist: [/^\/ws$/],
+        // フォールバック除外は意図のある経路のみを列挙する（要件5.1/5.2）。
+        // /cdn-cgi/ は Access の認証エンドポイント——ここを App_Shell に飲ませると
+        // Access の 302 がブラウザへ一度も渡らず、認証へ戻る道が構造的に消える。
+        // /entry/・/pos/・/admin/ は機械が叩く API 経路で、殻を返す意味がない。
+        // WebSocket の項は持たない（要件5.3）。upgrade はナビゲーション要求ではないため、
+        // そもそもフォールバック除外の対象にならない。
+        // 接頭辞一致に留め、App_Shell（/・/index.html・/s/{storeId}/…）は巻き込まない（要件6.1）。
+        navigateFallbackDenylist: [/^\/cdn-cgi\//, /^\/entry\//, /^\/pos\//, /^\/admin\//],
         // 新 Service Worker を即時有効化し、開いている画面の制御を引き継ぐ。
         cleanupOutdatedCaches: true,
         clientsClaim: true,
