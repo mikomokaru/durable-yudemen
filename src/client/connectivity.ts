@@ -286,58 +286,166 @@ export function watchConnectivity(
 // 到達不能理由の分類（probeReachability・要件15）。
 //
 // Connectivity が down へ確定した契機に限り（Sync_Mediator が 1 回だけ呼ぶ・常駐ポーリングにしない・
-// 要件15.13）、既存 GET /entry/stores へ帯域外 HTTP fetch を 1 回発行し、HTTP ステータスと店舗リストから
-// 到達不能理由を分類する作用の端。ブラウザ WebSocket API はハンドシェイクの HTTP ステータスを隠すため、
-// 権限なし（DO の接続時拒否）は close code 1006 に潰れて純粋なオフラインと区別できない——この HTTP fetch が
-// その区別を回復する（要件15）。分類は degraded 運用への付加情報であり、fetch が失敗しても offline へ畳んで
-// ローカル権限・カウントダウン継続・茹で上がり発火（要件5〜8）を一切妨げない。
+// 要件15.13）、既存 GET /entry/stores へ帯域外 HTTP fetch を 1 回発行し、到達不能理由を分類する。ブラウザ
+// WebSocket API はハンドシェイクの HTTP ステータスを隠すため、権限なし（DO の接続時拒否）は close code 1006
+// に潰れて純粋なオフラインと区別できない——この HTTP fetch がその区別を回復する（要件15）。分類は degraded
+// 運用への付加情報であり、fetch が失敗しても offline へ畳んでローカル権限・カウントダウン継続・茹で上がり
+// 発火（要件5〜8）を一切妨げない。
 //
-// decideView（純粋）は一切呼ばない。ここは fetch と status 判定という「世界を観る手続き」に閉じ、
-// 分類結果 UnreachableReason だけを返す。純粋な Classify 畳み込みは connection.ts の decideView が担う
+// decideView（純粋）は一切呼ばない。純粋な Classify 畳み込みは connection.ts の decideView が担う
 // （計算と作用の分離・要件15.8）。
+//
+// **観測（作用）と分類（純粋）は分ける**（signin-required-misreported-as-offline 要件1〜3・design 判断 1）。
+// 作用の端（probeReachability）は fetch の結果を小さな直和（ProbeObservation）へ写すだけで判定表を持たず、
+// 分類（classifyReachability）はその直和だけを受けて fetch・URL・リダイレクト抑止・キャッシュ層を一切
+// 知らない。今回のバグ（Access の 302 を回線喪失として取り違えた）は fetch を差し替えなければ踏めなかった
+// ——この分割は、分類表の全域を property で踏めるようにするためにある。
 // ---------------------------------------------------------------------------
 
 /**
- * 到達不能理由を分類する（作用の端・要件15.1〜15.6）。down 契機で 1 回だけ呼ぶ（要件15.13）。
+ * 分類 fetch の本文の読み取り結果。**読めなかったことを値として持つ**（status を失わないため）。
  *
- * GET /entry/stores を自前で 1 回 fetch し、response.status を捨てずに分類する。fetchStoreChoices を
- * 呼ばないのは、あちらが 403 と 404 をともに空配列へ畳んで status を捨てるため——probeReachability は
- * 403（signInRequired）と 404（offline）を見分ける必要がある（捨ててはならない差分・要件15.3 / 15.6）。
- * 共通化するのは「200 ボディから (storeId, name)[] を取り出す純粋部」だけで、connection.ts の共有ヘルパ
- * parseStoreChoices を import して二重定義を避ける（重複の根絶）。
+ * `{ parsed: false }` を空配列と同一視しない。読めなかったこと（分類不能 → "offline"・要件3.3）と、
+ * 読めて当該店舗が不在だったこと（この店舗の権限なし → "noAccess"・要件2.4）は別の事実である。
+ * 同一視すれば、本文が壊れているだけの応答が「この店舗の権限がない」という別の主張へ化ける。
+ */
+export type ObservedBody =
+  | { readonly parsed: true; readonly value: unknown }
+  | { readonly parsed: false };
+
+/**
+ * 分類 fetch から観測できた事実。これ以外の形は存在しない（3 枝で全域）。
  *
- * 判定表（design.md 準拠。既存 fetchStoreChoices の「空配列へ優雅に劣化」と同じ思想で想定外は offline へ畳む）:
- *   - fetch が throw（ネットワークエラー）      → "offline"（そもそも到達できていない・要件15.2）
- *   - HTTP 403                                    → "signInRequired"（Access セッション無効・再ログイン要・要件15.3）
- *   - HTTP 200 かつ storeId が返却リストに在      → "offline"（当該店舗の認可あり・WS 断は一過性・要件15.5）
- *   - HTTP 200 かつ storeId が返却リストに不在    → "noAccess"（認証は通るがこの店舗の権限なし・要件15.4）
- *   - HTTP 404 / その他非 2xx / 非配列 / パース失敗 → "offline"（分類不能・優雅に劣化・要件15.6）
+ * "redirected" は 3xx（Access_Redirect を含む）。`redirect: "manual"` を与えた fetch が 3xx に対して
+ * 返す不透明な応答であり、**宛先は観測できない**——オリジンを問わずあらゆる 3xx が同じ形になる。ゆえに
+ * 名は HTTP の事実にとどめ、"accessRedirect" のような解釈を混ぜない。Worker が 3xx を返し始めた日に
+ * 名前が嘘になる形を作らないためである（要件1.5 が警戒している結合）。
+ *
+ * "failed" は **fetch 自体が throw した**ことのみを指す。本文の読み取り失敗はここへ畳まない
+ * （畳めば status が失われ、403 が "offline" へ退行する）。
+ */
+export type ProbeObservation =
+  | { readonly kind: "redirected" }
+  | { readonly kind: "responded"; readonly status: number; readonly body: ObservedBody }
+  | { readonly kind: "failed" };
+
+/**
+ * 観測された事実から到達不能理由を分類する（純粋・要件1.1 / 1.3 / 2.1〜2.4 / 3.3）。
+ *
+ * **"offline" の意味（要件3.1・この docstring が定義の正本）— 「サーバへ到達できていない。理由は特定
+ * できない」。回線喪失を断定しない。** 分類できなかった応答（404・その他の非 2xx・本文が店舗リストの形で
+ * ない・本文が読めなかった）と、fetch 自体が失敗した観測は、いずれもここへ畳まれる。「分類不能」を表す
+ * 4 値目を立てないのは、現場の行動が分岐しないからである（決定 B）——値を増やさずに、断定をやめる。
+ *
+ * 分類表:
+ *   - redirected                                → "signInRequired"（Access が認証を要求した・要件1.1 / 1.3）
+ *   - responded 403                             → "signInRequired"（Worker 自身が JWT 不在で拒んだ・要件2.1 / 2.2）
+ *   - responded 200・店舗リストに storeId 在    → "offline"（当該店舗の認可あり・WS 断は一過性・要件2.3）
+ *   - responded 200・店舗リストに storeId 不在  → "noAccess"（認証は通るがこの店舗の権限なし・要件2.4）
+ *   - それ以外 / failed                          → "offline"（分類不能・優雅に劣化・要件3.3）
+ *
+ * 302（Access の拒否）と 403（Worker 自身の拒否）は拒んだ主体が違うだけで、現場に示すべき事実は同一
+ * ——「認証が要る」。ゆえに同じ値へ収束させ、証拠の別を型に残さない（決定 D）。
+ *
+ * fetch・URL・時計・DOM に一切触れない。叩く先（`/entry/stores`）は作用の端の性質であり、この関数は
+ * 知らない——知れば、別の口を叩いた誤りが分類の側から見えなくなる。
+ */
+export function classifyReachability(
+  observation: ProbeObservation,
+  storeId: string,
+): UnreachableReason {
+  switch (observation.kind) {
+    case "redirected":
+      // 3xx。宛先は読めないが、セッション不在の要求をログインへ差し向けるのは Access の振る舞いである。
+      return "signInRequired";
+
+    case "responded": {
+      // 403 は **本文を読まずに**確定する（要件2.1）。Worker の 403 は JSON 本文を持たないことがあり、
+      // parse を掛けてから分岐する形にすると読み取り失敗に巻き取られて "offline" へ退行する。
+      if (observation.status === 403) return "signInRequired";
+
+      // 200 かつ本文が読めたときだけ、当該店舗の認可有無を判定できる。
+      if (observation.status === 200 && observation.body.parsed) {
+        // 配列でなければ店舗リストではない。「不在」と読めば知識の不在を認可の不在にすり替えることに
+        // なるため、分類不能として offline へ畳む（要件3.3）。
+        if (!Array.isArray(observation.body.value)) return "offline";
+        // 200 ボディの取り出しは共有純粋ヘルパへ委ねる（fetchStoreChoices と同一規律・重複の根絶）。
+        const choices = parseStoreChoices(observation.body.value);
+        return choices.some((choice) => choice.storeId === storeId) ? "offline" : "noAccess";
+      }
+
+      // 404 / その他の非 2xx / 200 だが本文が読めなかった → 分類不能（要件3.3）。
+      return "offline";
+    }
+
+    case "failed":
+      // fetch 自体が throw した。到達できていないという事実だけが分かる（要件3.3）。
+      return "offline";
+  }
+}
+
+/**
+ * 本文の読み取り（観測の構築規則 2・3 が宿る唯一の場所・design 判断 1）。
+ *
+ * **status === 200 のときだけ読み取りを試みる。** 403 に parse を掛けない——Worker の 403 は JSON 本文を
+ * 持たないことがあり、読んでから分岐する形にすれば読み取り失敗に巻き取られて "offline" へ退行する
+ * （要件2.1 が守る区別が、まさにそこで失われる）。
+ *
+ * **読み取り失敗は "failed" へ畳まず `{ parsed: false }` に留める。** 畳めば status が失われる。読めなかった
+ * ことは status と両立する事実であり、直和の枝ではなく本文の値として持つ（要件3.3）。ここが try/catch を
+ * 内側に閉じ込めているのは、呼び出し側の catch（fetch 自体の throw）へ漏らさないためである。
+ */
+async function observeBody(response: Response): Promise<ObservedBody> {
+  if (response.status !== 200) return { parsed: false };
+  try {
+    return { parsed: true, value: await response.json() };
+  } catch {
+    return { parsed: false };
+  }
+}
+
+/**
+ * 到達不能理由を分類する作用の端（要件1.1〜1.4 / 2.1 / 5.4）。down 契機で 1 回だけ呼ぶ（要件15.13）。
+ *
+ * fetch の結果を ProbeObservation へ写すだけで、分類は classifyReachability へ委ねる。**この関数は
+ * 判定表を持たない**——判定は純粋関数に一箇所だけ在り、ここは「世界を観る手続き」に閉じる。逆に URL・
+ * リダイレクト抑止・キャッシュ層はこの関数だけが知る（純粋関数は叩く先を知らない）。
+ *
+ * fetchStoreChoices を呼ばないのは、あちらが 403 と 404 をともに空配列へ畳んで status を捨てるため
+ * ——ここは 403（signInRequired）と 404（offline）を見分ける必要がある（捨ててはならない差分）。
+ *
+ * fetch に与える指定は 3 つとも分類の成立条件であり、飾りではない。
+ *   - `redirect: "manual"` — リダイレクトを追跡させない（要件1.2）。追えばクロスオリジンの CORS 失敗に
+ *     潰れ、302 という事実ごと失われる。3xx は Opaque_Redirect（`type === "opaqueredirect"`）として返り、
+ *     これが Access_Redirect を観測可能な事実として受け取る唯一の形である。
+ *   - `cache: "no-store"` — **塞ぐ層は 2 つある。** 要件5.4 は Service_Worker の戦略を素通りさせるが、
+ *     ブラウザの HTTP キャッシュは別の層であり、そこが古い 200 を返せば "noAccess" / "offline" へ誤る。
+ *   - `Accept: application/json` — fetchStoreChoices と同じヘッダに倣う。
+ *
+ * **判定は `response.type === "opaqueredirect"` で行い、`status === 0` で代用しない。** `no-cors` の
+ * opaque 応答も status 0 になるため、後者では別物を取り違える。本 spec が直したバグは「別の信号を同じ形へ
+ * 潰した」ことに起因する——同じ誤りを繰り返さない。
  */
 export async function probeReachability(storeId: string): Promise<UnreachableReason> {
+  let observation: ProbeObservation;
   try {
-    // fetchStoreChoices と同じヘッダに倣う。ただし status を捨てず保持して分岐する（捨ててはならない差分）。
-    const response = await fetch("/entry/stores", { headers: { Accept: "application/json" } });
-
-    // 403: Access セッション無効。再認証が要る（要件15.3）。
-    if (response.status === 403) {
-      return "signInRequired";
-    }
-
-    // 200: 店舗リストから当該 storeId の認可有無を判定する。
-    if (response.status === 200) {
-      const data: unknown = await response.json();
-      // 200 ボディの取り出しは共有純粋ヘルパへ委ねる（fetchStoreChoices と同一規律・重複の根絶）。
-      const choices = parseStoreChoices(data);
-      // storeId が返却リストに在れば認可あり＝WS 断は一過性ゆえ offline、不在なら権限なし＝noAccess（要件15.4 / 15.5）。
-      return choices.some((choice) => choice.storeId === storeId) ? "offline" : "noAccess";
-    }
-
-    // 404 / その他の非 2xx はすべて分類不能として offline へ優雅に劣化する（要件15.6）。
-    return "offline";
+    const response = await fetch("/entry/stores", {
+      redirect: "manual",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    observation =
+      response.type === "opaqueredirect"
+        ? // 3xx。宛先は読めない（Location は空）。事実は「リダイレクトされた」だけである（要件1.3）。
+          { kind: "redirected" }
+        : // status は常に保持する（観測の構築規則 1）。本文の読み取り結果に関わらず失わない。
+          { kind: "responded", status: response.status, body: await observeBody(response) };
   } catch {
-    // ネットワークエラー（fetch の throw）・JSON パース失敗などの想定外はすべて offline へ畳む（要件15.2 / 15.6）。
-    return "offline";
+    // **fetch 自体が throw した場合のみ "failed"**（観測の構築規則 3）。本文の読み取り失敗は observeBody が
+    // 内側で受け止めるため、ここへは来ない。
+    observation = { kind: "failed" };
   }
+  return classifyReachability(observation, storeId);
 }
 
 // ---------------------------------------------------------------------------

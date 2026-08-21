@@ -35,6 +35,19 @@ const STORE_SCREEN_PATTERN = /^\/s\/([^/]+)(?:\/.*)?$/;
 const POS_RECORDS_PATH = "/pos/records";
 
 /**
+ * SIGNIN_ENTRY_PATH — 認証を経て店舗画面へ導く通し口の接頭（`/entry/signin/{storeId}`・要件4.5 / 4.6）。
+ *
+ * Sign_In_Affordance の遷移先である。`/entry/` 配下に置くのは、Service_Worker のフォールバック除外が
+ * この配下をまとめて対象にしており（要件5.2）、除外設定を個別に足さずに済むためである。Access は
+ * ホスト全体を保護しているため、このパスも自動的に保護下に入る（Access 側の構成変更を要さない）。
+ *
+ * **通し口であって関門ではない。** 接続可否の判定は店舗 DO の投影 Roster が担う既存の一本道であり、
+ * ここに Roster 判定を足せば判定が二箇所に分かれる。ここが担うのは storeId の形式検証（既存の
+ * `/s/{storeId}/` 分岐と同じ関門）と、店舗画面への 302 だけである。
+ */
+const SIGNIN_ENTRY_PATH = "/entry/signin/";
+
+/**
  * 1 リクエストに含められる Record 件数の上限（AC 1.13）。**この値の単一の出所である。**
  *
  * 超過は一時的失敗として応答し、上流の bisect による分割で通過させる（何も確定させない）。100 店規模なら
@@ -658,6 +671,20 @@ export default {
       const stub = env.STORE_REGISTRY_DO.getByName(REGISTRY_NAME);
       const choices = await stub.storeChoicesForIdentity(identity);
       return Response.json(choices);
+    }
+
+    // 認証を経て店舗画面へ戻る通し口（GET /entry/signin/{storeId}・signin-required-misreported-as-offline
+    // 要件4.5 / 4.6）。Access セッションが切れた端末が Sign_In_Affordance から向かう先である。未認証なら
+    // Access がここへの遷移に 302 を返してログインへ運び、認証後は redirect_url でこのパスへ戻る。
+    // ゆえに戻り先が生 JSON にならず（`/entry/stores` を遷移先にできない理由）、かつ storeId をパスで運ぶ
+    // ため identity からの逆引きに委ねずに現場の居る店舗へ戻れる。
+    // ACCESS_REQUIRED を見ない——OFF でも 302 するだけで無害であり、フラグで分岐させる理由がない。
+    if (url.pathname.startsWith(SIGNIN_ENTRY_PATH)) {
+      const storeId = url.pathname.slice(SIGNIN_ENTRY_PATH.length);
+      if (!isValidStoreId(storeId)) {
+        return new Response("Invalid storeId", { status: 400 });
+      }
+      return Response.redirect(new URL(`/s/${storeId}/`, url), 302);
     }
 
     // Entry（共通 URL `/`・要件7.1〜7.5）。PWA の start_url はこの 1 個に固定する（配布単位は店舗数に依存しない）。

@@ -45,6 +45,10 @@ export default defineConfig({
             "tests/operation-history/snowflake-quality.static.test.ts",
             // Wake_Lock マウントの依存確認（タスク6.1）。node:fs で App.tsx を読むため node 環境で実行する。
             "tests/client/audioWakeLock.example.test.ts",
+            // Entry（`/`）が Worker に届くことの設定検査。node:fs で wrangler.jsonc を読む。
+            "tests/entry-routing.static.test.ts",
+            // Service_Worker が認証経路を横取りしないことの設定検査。node:fs で vite.config.ts を読む。
+            "tests/service-worker-config.static.test.ts",
           ],
         },
       },
@@ -149,6 +153,8 @@ export default defineConfig({
             "tests/operation-history/snowflake-ingest.static.test.ts",
             "tests/operation-history/snowflake-quality.static.test.ts",
             "tests/client/audioWakeLock.example.test.ts",
+            "tests/entry-routing.static.test.ts",
+            "tests/service-worker-config.static.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
             // src/registry/ の純粋層テストは registry プロジェクト（node）が担当する。
