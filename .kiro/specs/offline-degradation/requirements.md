@@ -224,12 +224,18 @@
 1. WHEN Connectivity が `down` として確定したとき、THE iPad_Client SHALL 既存の `GET /entry/stores` へ帯域外 HTTP fetch を 1 回発行し、その結果から到達不能理由を分類する（作用の端が担う。新規エンドポイントを設けない）。
 2. IF 到達不能理由の分類 fetch がネットワークエラー（fetch の throw）で失敗したとき、THEN THE iPad_Client SHALL 到達不能理由を `offline`（回線喪失）として分類する。
 3. IF 分類 fetch が HTTP 403 を返したとき、THEN THE iPad_Client SHALL 到達不能理由を `signInRequired`（Access セッション無効・再認証が必要）として分類する。
+
+   > **改訂注記（`signin-required-misreported-as-offline`）**: Access_Application の背後では **302 が実物**であり、403 は Access_Application を持たないホスト（`workers.dev`）でしか起きない。本受入基準は当該 spec の要件 1・2 が置き換える（403 の分類は保ち、302 = Opaque_Redirect を加える）。現行の正本はあちらの記録。
+
 4. WHEN 分類 fetch が HTTP 200 を返し、かつ現在の Store_Path の storeId が返却リスト `(storeId, name)[]` に含まれないとき、THE iPad_Client SHALL 到達不能理由を `noAccess`（この店舗の権限なし）として分類する。
 5. WHEN 分類 fetch が HTTP 200 を返し、かつ現在の Store_Path の storeId が返却リスト `(storeId, name)[]` に含まれるとき、THE iPad_Client SHALL 到達不能理由を `offline`（当該店舗の認可はあり WebSocket 断は一過性）として分類する。
 6. IF 分類 fetch が HTTP 404（Access 無効期・分類不能）またはその他の想定外レスポンス（非配列・パース失敗を含む）を返したとき、THEN THE iPad_Client SHALL 到達不能理由を `offline` へ優雅に劣化させる（`fetchStoreChoices` が空配列へ畳む既存作法と同じ思想）。
 7. THE iPad_Client SHALL 到達不能理由の分類結果をタグ付きイベント（暫定 `Classify`）として Client_Decide へ渡し、Client_Decide が当該理由をビューの到達不能理由フィールド（暫定 `unreachableReason`）へ純粋に畳み込む。
 8. THE Client_Decide SHALL 到達不能理由の分類 fetch・HTTP ステータス判定・DOM・時計のいずれにも触れず、分類結果を引数（タグ付きイベント）として受け取る純粋関数の規律（要件4.3）を保つ。
 9. WHILE Mode が `degraded` であり、かつ到達不能理由が `offline` であるとき、THE iPad_Client SHALL 従来のオフライン表示（例: "Offline — running locally"）を英語で提示する。
+
+   > **再検討の起票 `[Q-offline-label]`（`signin-required-misreported-as-offline` からの申し送り・未決）**: `signInRequired` が正しく分離された後も、`Offline — running locally` は回線喪失を**断定する**文言である。当該 spec は `offline` の意味を「サーバへ到達できていない。理由は特定できない」に確定させた（あちらの要件 3.1）が、本受入基準が据え置きを定めているため文言は変えていない（あちらの design 判断 5）。文言を到達不能寄りへ寄せるかは**本 spec の持ち物**であり、未決として残す。
+
 10. WHILE Mode が `degraded` であり、かつ到達不能理由が `noAccess` であるとき、THE iPad_Client SHALL この店舗の権限がない旨（例: "No access to this store"）を英語で提示する。
 11. WHILE Mode が `degraded` であり、かつ到達不能理由が `signInRequired` であるとき、THE iPad_Client SHALL 再認証が必要な旨（例: "Sign-in required"）を英語で提示する。
 12. THE iPad_Client SHALL 到達不能理由を Connectivity（`up` / `down`）および Mode（`live` / `degraded`）とは別の、`down` 時にのみ意味を持つ分類結果として扱い、Connectivity の二値・Mode の導出規律（要件3）を一切変えない。
