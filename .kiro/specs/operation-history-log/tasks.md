@@ -362,38 +362,38 @@
     - O1〜O7、設定 graph、fault injection、Tail fixture、R2 ack、raw 重複保持、品質／SLO／保持／アクセスの検証が揃うまで rollout へ進まない。
     - _Requirements: 1.1, 1.2, 1.3, 1.8, 1.9, 1.10, 4.1, 4.5, 4.10, 4.11, 4.13, 4.14, 4.15_
 
-- [ ] 15. Config／deployment smoke と段階 rollout を実施する
-  - [ ] 15.1 local config smoke を実装・実行する
+- [x] 15. Config／deployment smoke と段階 rollout を実施する
+  - [x] 15.1 local config smoke を実装・実行する
     - root `tail_consumers` が確定した実在 Tail Worker 名を指し、Tail の Queue producer、Consumer の Queue consumer／R2、R2 lifecycle、Snowpipe stage、通知、access role の参照整合を検査する。
     - Producer root に Queue／R2 がなく、Tail／Consumer に `STORE_TIMER_DO`、Producer URL、Service Binding、DO stub がなく、Producer 逆呼出し edge が 0 件であることを確認する。
     - _Requirements: 1.3, 1.9, 4.1, 4.5, 4.10, 4.12, 4.13, 4.14, 4.15, 6.7, 6.8, 6.11_
 
-  - [ ] 15.2 ユーザー実行の下流 smoke 手順を整備する
+  - [x] 15.2 ユーザー実行の下流 smoke 手順を整備する
     - 認証情報を要する実デプロイとは分けて、ユーザーが R2 → Queue／Consumer → Snowpipe → Snowflake → 保持／通知／access の順に疎通確認する手順、期待結果、停止／切戻し条件を記述する。
     - R2 保存成功前 ack 0 件、重複 raw 保持、Producer／StoreTimerDO 呼出し 0 件を確認項目に含める。
     - _Requirements: 4.5, 4.6, 4.10, 4.11, 4.13, 4.14, 4.15, 5.5, 5.7, 6.5, 6.6, 6.7, 6.8, 6.11, 6.12_
 
-  - [ ] 15.3 ユーザー実行の Tail fixture smoke 手順を整備する
+  - [x] 15.3 ユーザー実行の Tail fixture smoke 手順を整備する
     - 下流疎通後に Tail Worker を fixture で検証し、想定 envelope だけが Queue へ進み、不正行の位置／分類が残り、Producer 逆呼出しがないことを確認する手順を記述する。
     - _Requirements: 4.2, 4.3, 4.4, 4.13, 4.14_
 
-  - [ ] 15.4 環境別の最終 attachment／Logpush 有効化手順を整備する
+  - [x] 15.4 環境別の最終 attachment／Logpush 有効化手順を整備する
     - Tail 利用可能環境は下流と Tail fixture 成功後に Producer `tail_consumers` attachment を有効化し、利用不可環境は確認済み Logpush → R2 を有効化する。
     - 順序を「下流 → Tail fixture → Producer attachment または Logpush」に固定し、実デプロイ、account plan 確認、credential を要する操作はユーザー実行と明記する。
     - attachment 無効化または Logpush 停止に Timer state migration、backfill、Producer 再出力、DO 再起動が不要であることを切戻し条件にする。
     - _Requirements: 1.8, 1.9, 2.15, 4.1, 4.7, 4.8, 4.13, 4.14_
 
-  - [ ] 15.5 ユーザー実行 smoke で Producer 逆呼出しゼロを確認する
+  - [x] 15.5 ユーザー実行 smoke で Producer 逆呼出しゼロを確認する
     - Tail／Consumer／Snowpipe 障害を発生させても StoreTimerDO の construct、wake、rehydrate、storage read、Alarm 予定が増えず、Producer へ ack、再出力要求、HTTP、RPC、stub call がないことを確認する観測手順を記述する。
     - _Requirements: 1.8, 1.9, 1.10, 4.10, 4.11, 4.13, 4.14, 4.15_
 
-- [ ] 16. 最終チェックポイント — 全ローカル検証を完了する
-  - [ ] 16.1 生成型と対象テストの完了状態を確認する
+- [x] 16. 最終チェックポイント — 全ローカル検証を完了する
+  - [x] 16.1 生成型と対象テストの完了状態を確認する
     - root `wrangler.jsonc` を変更した場合は `pnpm cf-typegen` が完了し、Producer `Env` に Queue／R2／DO 逆方向能力が追加されていないことを確認する。
     - Correctness Properties 1〜11、Workers pool integration、static／config graph、Tail／Queue／R2、Snowflake／運用 integration が全て省略なく成功していることを確認する。
     - _Requirements: 1.3, 1.5, 1.7, 1.8, 1.9, 1.10, 3.18, 3.19, 4.3, 4.4, 4.5, 4.13, 4.14, 5.15, 6.13_
 
-  - [ ] 16.2 最終品質コマンドを順に実行する
+  - [x] 16.2 最終品質コマンドを順に実行する
     - `pnpm typecheck`、`pnpm lint`、`pnpm test`、`pnpm build` を実行し、失敗があれば原因を修正して全て成功するまで確認する。
     - 実デプロイ、plan／権限照会、credential を要する smoke は自動実行せず、タスク 15 のユーザー実行手順と結果記録を引き渡す。
     - _Requirements: 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, 4.1, 4.5, 4.12, 4.13, 4.14, 4.15_
