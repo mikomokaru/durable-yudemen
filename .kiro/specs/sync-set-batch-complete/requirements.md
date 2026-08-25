@@ -18,13 +18,15 @@
 - **Sync_Set**: synchronized-boil-adjustment が同期させた「同時に上げる Timer の単位」。1 Sync_Set の最大本数は `arms`（既定 2）で頭打ちになる。同期確定した Sync_Set の全メンバーは実効 endTime が完全一致する。
 - **Sync_Target**: 同期確定した Sync_Set が共有する共通の実効茹で上がり時刻。
 - **arms**: 同時に上げられる腕の本数（1 Sync_Set の最大本数の上限・既定 2・サーバ設定）。
-- **boiled**: 実効 endTime が補正後現在時刻に達した（`endTime ≤ correctedNow`）が、まだ明示完了されていない Timer。ユーザーが消し込むべき状態。
+- **boiled**: 実効 endTime が補正後現在時刻に達した（`endTime ≤ correctedNow`）が、まだ明示完了されていない Timer。ユーザーが消し込むべき状態。本ドキュメントで単に boiled と書くときは、この**クライアント観測の boiled** を指す。
+- **engine の発火記録（`boiledAt`）**: サーバ側 engine が Timer ごとに持つ発火の記録。Alarm 発火の遷移で `boiledAt` が立つ。クライアント観測の boiled とは**別の記録**であり、同一 Timer について一時的に食い違う（クライアントが boiled と見た時点で engine はまだ `boiledAt === null` である窓が存在する）。この食い違いを前提とする受入基準は要件6.7 / 6.9 / 6.10 に置く。
 - **complete（消し込み）**: boiled な Timer をユーザーが明示的に完了し、Timer 集合から除去する操作。
 - **Boiled_Group**: 本機能が導入する識別概念。ある boiled Timer と「同時に茹で上がった」boiled Timer の集合。実効 endTime が等しい boiled Timer 群として識別する（後述の要件1で確定）。
 - **Provisional_Timer**: degraded 中にクライアントがローカルで生んだ未確定の Timer（`origin === "local"`）。サーバは id を知らない。
 - **Timer_Connection**: クライアント側の接続コントローラ（`TimerConnection` / `openTimerConnection`）。UI の complete インテントを Mode と対象 origin で経路選択する唯一の窓口。
 - **Slot_Display**: 担当スロットごとの表示状態を導出する純粋関数群（`slotDisplay.ts`）。boiled / running を endTime と now から切り分ける。
 - **Slot_Card**: 担当スロット 1 つの表示・操作 UI（`SlotCard.tsx`）。boiled のとき Complete ボタンを描画する。
+- **sync（同期状態）**: クライアントがサーバ全量 snapshot を受け取って同期を確立したかを表すビューの区分（`connecting` / `synced` / `syncFailed`）。永続ビューの再水和直後は `connecting` である（`EMPTY_VIEW.sync` が `"connecting"` であり、`openTimerConnection` は接続前に `persistence.load()` で再水和する。実装で確認）。
 - **Mode**: Connectivity から導出する経路。`up → live`（サーバ送信）/ `down → degraded`（ローカル権限）。状態として保持しない。
 - **live / degraded**: それぞれ Mode の値。
 - **assigned units（担当ユニット）**: クライアントが表示・操作する担当範囲。unit u は slot 6u..6u+5（`assignment.ts`）。保持は全量・表示は担当スコープの導出。
@@ -56,7 +58,11 @@
 2. WHEN Boiled_Group が 1 件のみで構成されるとき、THE Yudemen_Timer SHALL 従来の単一消し込みと同一の結果（当該 1 件のみ除去）を生成する。
 3. WHERE Boiled_Group のメンバーが server-confirmed（`origin === "server"`）であるとき、THE Timer_Connection SHALL 当該メンバーの完了をサーバ権威経路（WS 送信）で処理する。
 4. WHERE Boiled_Group のメンバーが Provisional_Timer（`origin === "local"`）であるとき、THE Timer_Connection SHALL 当該メンバーの完了をローカル畳み込みで処理し、サーバへ送信しない。
-5. WHEN 一括完了が確定したとき、THE Slot_Display SHALL 完了した各メンバーの駆動スロットを idle として導出する。
+5. WHILE ビューの sync が `synced` である間、WHEN あるメンバーの完了が保持ビューへ反映され、かつ当該メンバーの駆動スロットを駆動する Timer が保持ビューに残っていないとき、THE Slot_Display SHALL 当該スロットを idle として導出する。
+6. WHERE あるメンバーの完了が保持ビューへ反映された後も、当該メンバーの駆動スロットを駆動する別の Timer が保持ビューに残るとき、THE Slot_Display SHALL 当該スロットを、残る Timer から running または boiled として導出する（走行中を優先し、同区分が複数あれば最早の実効 endTime を採る）。
+7. WHILE ビューの sync が `synced` 以外（`connecting` または `syncFailed`）である間、WHEN あるメンバーの完了が保持ビューへ反映され、かつ当該メンバーの駆動スロットを駆動する Timer が保持ビューに残っていないとき、THE Slot_Display SHALL 当該スロットを unreceived として導出する。
+
+> 注（idle は同期済みを要する）: 要件2.5 と 2.7 は同じ盤面（駆動 Timer が残らないスロット）を sync で分けている。`assignedSlotDisplays` は Timer が無いスロットについて `sync === "synced"` のときだけ `idle` を返し、それ以外は `unreceived` を返す（実装で確認）。この分岐は到達可能である——永続ビューの再水和直後は `sync` が `connecting` であり、hydration 前に degraded でローカル完了すれば、駆動 Timer が残らないスロットは `unreceived` として導出される。要件2.7 はこの帰結を受入基準として記録するもので、既存の `slotDisplay.ts` の挙動を変更しない。
 
 ### Requirement 3: 一括完了の対象は boiled のメンバーに限る
 
@@ -100,15 +106,22 @@ snapshot-broadcast の SSOT 規律では、確定した状態変化ごとにサ�
 
 実装上、現行のクライアント complete は server-confirmed に対して WebSocket へ fire-and-forget で送信し（Promise を返さない）、ファンアウトは各メンバーへ complete を発行するループ／一斉送信として表現する。送信は投げっぱなし（best-effort）のままとし、`Promise.all` 的な完了待機を要する設計にはしない。
 
+**一括を確定させる事象は存在しない。** サーバは complete を 1 件ずつ受け、1 件ごとに状態遷移と Effect 列を組む。ゆえに確定の単位は**メンバーごとの put 成功**であって、「一括完了の確定」という事象も状態も存在しない。以下の受入基準はすべてメンバー単位でトリガーを立てる。
+
 #### Acceptance Criteria
 
-1. WHEN live Mode で Boiled_Group の一括完了が確定したとき、THE Yudemen_Timer SHALL Boiled_Group の全 server-confirmed メンバーが除去された状態を、サーバ権威の全量 snapshot として全端末へ反映する。
-2. WHEN 一括完了がサーバで確定したとき、THE Yudemen_Timer SHALL 確定の起点を永続層への put 成功に置く（SSOT 規律を維持する）。
+1. WHEN live Mode で Boiled_Group のある server-confirmed メンバーの complete がサーバで確定したとき、THE Yudemen_Timer SHALL 当該メンバーが除去された状態を、サーバ権威の全量 snapshot として全端末へ反映する。
+2. WHEN サーバがあるメンバーの complete を処理するとき、THE Yudemen_Timer SHALL 当該メンバーの確定の起点を、当該遷移における永続層への put 成功ただ一点に置く（SSOT 規律を維持する）。
 3. WHEN live Mode で一括完了を発行するとき、THE Timer_Connection SHALL Boiled_Group の各 server-confirmed メンバーに対して既存の complete 経路を fire-and-forget で発行し、送信完了の待機を行わない。
 4. WHEN 各メンバーの complete がサーバで確定するとき、THE Yudemen_Timer SHALL メンバーごとの確定変化に対して全量 snapshot を送り、原子的な単一 snapshot を保証しない。
-5. IF 一括完了の処理中に一部メンバーの除去が失敗するならば、THEN THE Yudemen_Timer SHALL 未除去のメンバーをサーバ権威の snapshot に残し、クライアントを実際の正本状態へ収束させる。
+5. IF あるメンバーの complete で永続層への put が失敗するならば、THEN THE Yudemen_Timer SHALL 当該メンバーの除去を確定させず、当該メンバーを永続層の正本に残し、当該遷移に対する全量 snapshot を送らない。
 6. IF 収束機構そのもの（全量 snapshot の配信・受信）が失敗するならば、THEN THE Yudemen_Timer SHALL クライアントが正本と一時的に不整合な状態にとどまることを許容し、次回の同期契機（再接続・再同期）で収束させる。
-7. WHEN Boiled_Group の完了が boiled なメンバーのみを除去するとき、THE Yudemen_Timer SHALL 残余 running 集合の同期結果（各 adjustment）を変化させない（boiled の除去は running 集合を変えないため）。
+7. WHEN Boiled_Group の完了が、engine で発火済み（`boiledAt !== null`）のメンバーのみを除去するとき、THE Yudemen_Timer SHALL 残余 running 集合の同期結果（各メンバーの adjustment）を変化させない。
+8. WHEN 要件6.5 により正本に残ったメンバーが在る状態で次の snapshot 契機（他の確定変化に伴う全量 snapshot の配信、または再接続時の全量 hydration）が生じたとき、THE Yudemen_Timer SHALL 当該メンバーを含む全量 snapshot を送り、クライアントを実際の正本状態へ収束させる。
+9. IF あるメンバーが、クライアント観測では boiled でありながら engine では未発火（`boiledAt === null`）である窓で、当該メンバーの complete が確定するならば、THEN THE Yudemen_Timer SHALL 当該メンバーを除いた残余 running を再同期し、残余 running の adjustment が変化することを許容する。
+10. THE Yudemen_Timer SHALL 要件6.9 の再同期を、Boiled_Group の件数に依らず単一の complete と同一の規律で扱う（当該窓での再同期は単一消し込みが既に持つ性質であり、一括完了が新たに導入する挙動ではない）。
+
+> 注（二つの boiled 記録）: 要件6.7 が保証を限定しているのは、クライアント観測の boiled（実効 endTime ≤ 補正後現在時刻）と engine の発火記録（`boiledAt !== null`）が**別の記録**だからである。engine は Alarm 発火で `boiledAt` を立てるため、クライアントが boiled と見た直後に engine ではまだ `boiledAt === null` である窓が存在する。その窓で complete が確定するとき何が起きるかは要件6.9 が定め、それが本機能に固有でないことは要件6.10 が記録する。要件6.7 は無条件の主張ではなく、engine で発火済みのメンバーを除去する場合に限った主張である。
 
 ### Requirement 7: 消し込み UI のアフォーダンス
 
@@ -126,11 +139,32 @@ snapshot-broadcast の SSOT 規律では、確定した状態変化ごとにサ�
 
 **User Story:** As a 厨房スタッフ, I want 消し込んだ釜に直前の麺種が一定時間表示される, so that 何を茹でていたか確認できる。
 
+直前結果はスロットごとに 1 件しか保持されない（クライアントの `lastResults` はスロットをキーとする写像である）。一方 engine は「1 スロットを駆動する Timer は同時に 1 本まで」という排他を**課していない**（`validateStart` は非空・茹で時間範囲・容量のみを検査し、既存 Timer との `slotIds` 重複を拒否しない。実装で確認）。ゆえに同一スロットを複数メンバーが駆動する退化入力は起こり得るため、そのときどの麺種を採るかを競合規則として定める（要件8.4）。
+
+競合規則は**反映順**で決める。反映順＝完了が保持ビュー（`view.timers` と `lastResults`）へ届く順のこと。反映順は経路で決まり、経路は 2 つある（実装で確認）。
+
+- **degraded / provisional 経路** — `decideLocalComplete` がメンバーごとに `recordLastResults` を呼ぶ。反映順は畳み込み順（`view.timers` の並び）であり、クライアント内で決まる。
+- **live の server-confirmed 経路** — サーバの全量 snapshot が届いたときに `reconcileServerConfirmed` が「消えた Timer」の残滓を導く。反映順は二段である。**snapshot 間は到着順**であり、クライアントは決められない。**同一 snapshot 内は直前の保持列順**——`reconcileServerConfirmed` は直前の保持 Timer 列から `origin === "server"` を抽出した列（`prevServer`）を走査し、新 snapshot の id 集合に無いものを消失として扱う（実装で確認）。1 つの snapshot で複数メンバーの消失が同時に判明する経路は到達可能である。中間 snapshot の配信・受信の失敗は要件6.6 が許容しており、そのとき次の全量 snapshot が複数の消失をまとめて運ぶ。
+
+同一スロットを駆動するメンバーが両経路に分かれるとき、どちらの完了が後に届くかを設計は決められない。ゆえに要件8.5 / 8.6 は経路内の決定性のみを要求し、経路をまたぐ反映順は到着順に委ねる。これが許容できるのは残滓の位置づけによる（要件8.9）——残滓は client 専用のベストエフォートな表示制御用ローカル情報であって、SSOT ではない。
+
+占有スロット（別の Timer が駆動中のスロット）の扱いも経路で異なり、その非対称は既存実装の規律である（要件8.7 / 8.8）。本機能は `recordLastResults` にも `reconcileServerConfirmed` にも触れないため、この非対称を導入も解消もしない。
+
+**残滓は「記録の有無」と「記録する値」の二つの関心事に分かれる。** 記録の有無は要件8.7 / 8.8 が経路ごとに決める（live 経路は占有スロットへ記録せず既存の残滓を消去し、degraded / provisional 経路は占有を見ずに記録する）。記録される場合にどの麺種を採るかは要件8.4 が決める。要件8.4 は値の選択規則であって、記録するか否かを決めない——ゆえに live 経路で記録が見送られるスロットについて、要件8.4 は何も主張しない。両者を混ぜて読めば「記録するな」と「この値を採用せよ」が衝突して見えるが、階層が異なるため衝突は生じない。
+
 #### Acceptance Criteria
 
-1. WHEN Boiled_Group のメンバーが完了により除去されるとき、THE Yudemen_Timer SHALL 除去された各メンバーの麺種（noodleType）を、その駆動スロットの直前結果（残滓）として記録する。
+1. WHEN Boiled_Group のメンバーが完了により除去されるとき、THE Yudemen_Timer SHALL 除去された各メンバーの麺種（noodleType）を、その駆動スロットの直前結果（残滓）として記録する（同一スロットを複数メンバーが駆動するときは要件8.4 の競合規則、占有スロットの扱いは要件8.7 / 8.8 に従う）。
 2. THE Yudemen_Timer SHALL 一括完了で除去された各メンバーの残滓記録を、単一消し込みと同一の規律（除去理由を問わない一様な残滓）で扱う。
 3. WHEN 完了したスロットが再度 idle として表示されるとき、THE Slot_Display SHALL 記録された直前結果を既存の提示時間窓に従って提示する。
+4. WHERE Boiled_Group の複数のメンバーが同一スロットを駆動し、WHEN 要件8.7 / 8.8 に従って当該スロットへ残滓が記録されるとき、THE Yudemen_Timer SHALL 記録する麺種として、完了が保持ビューへ最後に反映されたメンバーの麺種を採用する（要件8.4 は記録する値のみを定め、記録の有無は要件8.7 / 8.8 が定める）。
+5. THE Yudemen_Timer SHALL 完了が保持ビューへ反映される順を経路ごとに定める——degraded 経路および Provisional_Timer のローカル畳み込みでは Boiled_Group の畳み込み順（クライアントが保持する Timer 列の並び）、live の server-confirmed 経路では snapshot 間はサーバ全量 snapshot の到着順、同一 snapshot 内は直前の保持列順（直前の保持 Timer 列から server-confirmed を抽出した並び）である。
+6. WHERE Boiled_Group の同一スロットを駆動するメンバーが、degraded / provisional 経路と live の server-confirmed 経路の双方に分かれるとき、THE Yudemen_Timer SHALL 各経路内の反映順のみを要件8.5 に従って決定的に保ち、経路をまたぐ反映順は各経路の到着順に委ねる。
+7. WHERE live の server-confirmed 経路であるメンバーが除去され、かつ当該メンバーの駆動スロットを別の Timer（新しい server-confirmed または保持された Provisional_Timer）が占有するとき、THE Yudemen_Timer SHALL 当該スロットの残滓記録を見送り、当該スロットに残る既存の残滓を消去する。
+8. WHERE degraded / provisional 経路であるメンバーが除去され、かつ当該メンバーの駆動スロットを別の Timer が占有するとき、THE Yudemen_Timer SHALL 占有の有無に依らず当該スロットへ当該メンバーの麺種を残滓として記録する。
+9. THE Yudemen_Timer SHALL 直前結果（残滓）を、client 専用のベストエフォートな表示制御用ローカル情報として扱う（永続層の正本ではなく、リロードで失われてよい）。この位置づけの下で、要件8.5 / 8.6 が定める経路ごとの決定性をもって足りるものとする。
+
+> 注（経路の非対称は既存規律である）: 要件8.7 / 8.8 が記述する占有スロットの扱いの差は、`reconcileServerConfirmed`（占有スロットへ記録せず既存の残滓を消去する）と `recordLastResults`（占有を見ずに記録する）の既存実装の差である（実装で確認）。本 spec は両者に触れず、既存の単一 complete / cancel の挙動を変えない。ゆえにこの非対称は本機能が導入したものではなく、一括完了によって**メンバー数だけ同じことが起きる**にとどまる。差を揃える改修は本 spec のスコープ外である。
 
 ### Requirement 9: スコープ境界（同期アルゴリズム不変）
 
