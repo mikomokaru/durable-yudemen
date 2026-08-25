@@ -81,17 +81,24 @@ bucket 既定の multipart 中止 rule は上書きで消える。Consumer は�
 
 ### 2-3. 期限の起点と完了を確認する（要件 6.7）
 
+起点は個別 object の期限 header で見る。key を指定して取得する。
+
 ```sh
 pnpm exec wrangler r2 object get operation-raw-arrivals/raw/<YYYY>/<MM>/<DD>/<key>.json --pipe > /dev/null
 ```
 
 - [ ] 応答の `x-amz-expiration` が put 時刻 + 90 日を指すこと（起点が保存成功時刻であること）。
+
+残っている object の一覧は、`raw/` を指す Snowflake stage（タスク 13.1 で作成・§1 の前提）または dashboard の
+R2 object browser で見る。**`wrangler r2 object` は v4.105.0 で `get` / `put` / `delete` だけを持ち、一覧の
+subcommand を持たない。**
+
+```sql
+LIST @OPERATION_HISTORY.RAW.OPERATION_RAW_ARRIVALS;
+```
+
 - [ ] 期限前の object が消えていないこと（要件 6.9）。`raw/` 配下の最古 object の日付が 90 日以内である
       ことで確認する。
-
-```sh
-pnpm exec wrangler r2 object list operation-raw-arrivals --prefix raw/ | head
-```
 
 削除完了までの時間は Cloudflare の documented behavior に依る。expire 条件を満たした object は通常 24 時間
 以内に消える（要件 6.8 の 24 時間）。前倒しの削除 job を足さない。
