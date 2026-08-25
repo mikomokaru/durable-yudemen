@@ -49,6 +49,8 @@ export default defineConfig({
             "tests/entry-routing.static.test.ts",
             // Service_Worker が認証経路を横取りしないことの設定検査。node:fs で vite.config.ts を読む。
             "tests/service-worker-config.static.test.ts",
+            // 一括消し込みの不変点検査（sync-set-batch-complete タスク5.1）。node:fs で src のソースを読む。
+            "tests/sync-set-batch-complete.static.test.ts",
           ],
         },
       },
@@ -155,6 +157,7 @@ export default defineConfig({
             "tests/client/audioWakeLock.example.test.ts",
             "tests/entry-routing.static.test.ts",
             "tests/service-worker-config.static.test.ts",
+            "tests/sync-set-batch-complete.static.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
             // src/registry/ の純粋層テストは registry プロジェクト（node）が担当する。

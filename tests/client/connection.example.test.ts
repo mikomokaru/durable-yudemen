@@ -203,6 +203,7 @@ describe("client/connection — provisional への操作は origin で経路分�
    */
   function setupWithWatch(overrides: Partial<ConnectionOptions> = {}) {
     const send = vi.fn<(message: ClientMessage) => void>();
+    let currentNow = START_NOW;
     let connectivityHandler: ((status: Connectivity) => void) | null = null;
     let serverMessageHandler: ((message: ServerMessage, receivedAt: number) => void) | null = null;
     const watch: ConnectivityWatch = {
@@ -220,7 +221,7 @@ describe("client/connection — provisional への操作は origin で経路分�
     const connection = openTimerConnection({
       storeId: "test-store",
       url: "wss://test/ws",
-      now: () => START_NOW,
+      now: () => currentNow,
       newId: () => `local-${(idCounter += 1)}`,
       connectivity: () => watch,
       ...overrides,
@@ -230,6 +231,10 @@ describe("client/connection — provisional への操作は origin で経路分�
       send,
       setConnectivity: (status: Connectivity) => connectivityHandler?.(status),
       receiveMessage: (message: ServerMessage) => serverMessageHandler?.(message, START_NOW),
+      /** ローカル時刻を進める（ティックは進めない）。boiled まで到達させるために使う。 */
+      setNow: (next: number) => {
+        currentNow = next;
+      },
     };
   }
 
@@ -274,13 +279,16 @@ describe("client/connection — provisional への操作は origin で経路分�
   });
 
   it("live で provisional の Complete もサーバへ送らずローカル除去する", () => {
-    const { connection, send, setConnectivity } = setupWithWatch();
+    const { connection, send, setConnectivity, setNow } = setupWithWatch();
 
     connection.start(["slot-3"], "udon", 120);
     const provisional = connection.getView().timers.find((t) => t.origin === "local");
     expect(provisional).toBeDefined();
 
     setConnectivity("up");
+    // 消し込みは boiled な Timer にしか作用しない（対象が running なら窓口が弾く・要件1.2 / 3.2）。
+    // 検証したいのは origin による経路分けゆえ、対象を茹で上がりまで到達させてから押す。
+    setNow(provisional!.endTime);
     connection.complete(provisional!.id);
     expect(send).not.toHaveBeenCalled();
     expect(connection.getView().timers.some((t) => t.id === provisional!.id)).toBe(false);

@@ -37,6 +37,7 @@ boiled なスロットの Complete を一度押すと、その Timer と同時�
 | 8 | 純粋関数 `boiledGroup` を `src/client/boiledGroup.ts` へ切り出す | Components「boiledGroup の置き場」 |
 | 9 | 残滓は**記録の有無**（経路が決める）と**記録する値**（反映順で最後のメンバー）を分け、**経路をまたぐ反映順は規定しない**（実装の非対称に要件を合わせる） | Components「残滓の記録」 |
 | 10 | 完了は**スロットを idle にするとは限らない**（同一スロットを別 Timer が駆動しうる／未同期なら `unreceived`） | Components「UI は変更しない」 |
+| 11 | ファンアウトが生む重複 complete の拒否 `TimerNotFound` を、**クライアントの error 畳み込みで落とす**（意図は達成済みゆえ表示に値しない）。他の拒否種別は従来どおり提示する | Architecture「ファンアウトが重複 complete を系統的に生む」 |
 
 ### スコープ外（design 判断として固定）
 
@@ -88,7 +89,7 @@ flowchart TB
 
 **変更しない箇所（不変点）:**
 
-`src/domain/**`・`src/engine/**`・`src/shell/**`・`src/client/connection.ts` の `ClientView` / `ClientEvent` / `decideView` / `reconcileServerConfirmed` / `dueLocalTimers`・`src/client/components/slotDisplay.ts`・`src/client/components/SlotCard.tsx`・`src/client/components/SlotBoard.tsx`・`src/client/assignment.ts`・`src/client/clock.ts`・`src/client/notification.ts`・`src/client/persistence.ts`。
+`src/domain/**`・`src/engine/**`・`src/shell/**`・`src/client/connection.ts` の `ClientView` / `ClientEvent` / `decideView`（**ただし error 畳み込みの一点を除く**——Architecture「ファンアウトが重複 complete を系統的に生む」の不変点の修正） / `reconcileServerConfirmed` / `dueLocalTimers`・`src/client/components/slotDisplay.ts`・`src/client/components/SlotCard.tsx`・`src/client/components/SlotBoard.tsx`・`src/client/assignment.ts`・`src/client/clock.ts`・`src/client/notification.ts`・`src/client/persistence.ts`。
 
 ### なぜ実効 endTime の一致でグループを再構成できるのか
 
@@ -157,6 +158,46 @@ SSOT はサーバであり、担当外メンバーの除去も他端末には全
 - **snapshot が複数飛ぶ（要件6.4）。** メンバー n 件の一括では最大 n 回の確定変化が起き、n 回の snapshot が流れる。クライアントは既存の snapshot 畳み込み（server-confirmed 全置換）でそのまま受け、中間状態（一部だけ消えた盤面）を経て最終状態へ至る。原子性は要求しない。
 - **収束機構自体の失敗は次の同期契機に委ねる（要件6.6）。** snapshot の配信・受信が失敗すれば、クライアントは一時的に正本と不整合なままとどまる。回収するのは再接続時の全量 hydration である（`offline-degradation/design.md`「データフロー（再接続時の Reconcile ＝ 決定 B）」）。差分再送を持たない既存規律をそのまま用いる。
 - **完了待機を持ち込まない。** 現行の `complete` は `watch.send` へ渡すだけで戻り値を持たない（実装で確認した fire-and-forget）。`Promise.all` 的な待機を導入すれば、「送信が完了した／していない」という**新しい状態**が生まれる。その状態は保持すべき事実ではない導出値であり、進行中フラグと失敗経路と再試行規律を呼び込む。しかも原子性を要求しないのだから、待って得るものが無い。ゆえに待たない（要件6.3）。
+
+### ファンアウトが重複 complete を系統的に生む（要件6.11〜6.17）
+
+一括は成功しているのに赤い警告帯が出る。この経路は当初の requirements / design のどちらも扱っていなかった。実装を読んで裏取りした事実を、構造として記録する。
+
+**発端は「live 経路は局所ビューを動かさない」という設計判断である。** server-confirmed メンバーの除去はサーバの全量 snapshot が運ぶため、押下時点では `next === view` で `update` が早期 return する（Components「ファンアウトの形」）。ゆえに snapshot が届くまで、群の全メンバーのスロットは boiled のまま表示され、**Complete ボタンも出たままである**（要件6.11 / 6.12）。
+
+そこで二度目の押下が起きると、`boiledGroup` は同じビューから同じメンバー集合を再構成する——群は導出値であり、送信済みかどうかを覚えていない。結果として**既に送った id へもう一度 `complete` が飛ぶ**。
+
+その先は既存機構がそのまま動く。engine の `completeTimer` は対象不在で `TimerNotFound` を返し、状態を変えない（`src/engine/complete.ts`）。shell は拒否を Effect 列にせず、**要求元の WS だけへ** `{ type: "error", code, message }` を返す（`src/shell/store-timer-do.ts` の `webSocketMessage`）。クライアントの `decideServerMessage` の error 分岐が `view.error` を立て、`SlotBoard.tsx` が `role="alert"` の警告帯に `message` をそのまま描く（「指定された timerId の Timer は存在しない: …」）。解消は次の snapshot（`error: null`）を待つ。いずれも実装で確認した。
+
+**到達経路は 2 つある。** 同一端末で群の別スロットを続けて押す場合と、**同じ Sync_Set を見る二台目の端末が押す場合**である。後者は要件4.1（担当スコープをまたぐファンアウト）の帰結であり、一度の湯切りを二人で分担する現場では、二台がほぼ同時に別スロットを押すと**負けた側が必ず拒否を受ける**。
+
+**単一消し込みではこの形が起きなかった。** 操作口は担当スロットにしか現れないため、押し手は Timer ごとに一人である。二つの boiled スロットを続けて押しても、送るのは別々の有効な id だった。**ファンアウトが重複を系統的にした**——一度の押下が複数の id を送り、そのすべてが次の押下でも再び群に含まれるからである。
+
+一括は成功しているのに赤い警告帯が出る。これは「失敗は優雅に劣化する」「厨房スタッフへの善」に反する（`design-philosophy.md`）。現場に見せているのは、起きていない失敗である。
+
+#### なぜ `TimerNotFound` を表示に値しないと判断するか
+
+**採る形（ユーザー確認済み）: クライアントの error 畳み込みで `TimerNotFound` を落とす。** 変更は `src/client/connection.ts` の `decideServerMessage` の error 分岐 1 箇所で、`code === "TimerNotFound"` なら `view.error` を立てず `offset` の更新だけを行う（要件6.14）。
+
+論拠は一つである。**`TimerNotFound` は「対象が既に無い」という報告であり、利用者の意図はすでに達成されている。** complete も cancel も意図は「この Timer を消す」であって、消えているなら意図は満たされている。達成された意図を赤で報せる理由が無い。
+
+これは error 表示そのものを止める判断ではない。`InvalidSlotOrNoodle` / `CapacityExceeded` / `InvalidBoilSeconds` / `UnknownNoodle` は意図が未達であり、従来どおり提示する（要件6.15）。落とすのは code 一つだけである。
+
+> **不変点の修正（正直な記録）:** Architecture「本機能が触る層と触らない層」の不変点は `connection.ts` の `decideView` を「変更しない箇所」に挙げていた。本節の変更は `decideView` の `Server` 分岐が呼ぶ `decideServerMessage` の error 分岐に及ぶため、その一点で不変点を改める。変更するファイル数は 2 のまま（`boiledGroup.ts` 新規・`connection.ts`）であり、`ClientEvent` / `ClientView` の種別・フィールド・`reconcileServerConfirmed` / `dueLocalTimers` は不変である。
+
+#### 却下した 3 案
+
+- **engine の `completeTimer` を冪等にする**（対象不在でも成功として扱う）— 概念としては正しい。だが engine 契約を変えるため要件9 / 10 の「engine ゼロ変更」を破る。`cancelTimer` / `adjustTimer` は不在で拒否を返し続けるため、同じ `TimerNotFound` を返す三つの遷移のうち一つだけが別の規律を持つ非対称も生む。
+- **`ServerMessage.error` に由来の操作を載せる**（complete 由来か adjust 由来かを運ぶ）— 最も正確に狙い撃ちできる。だがワイヤ契約を変えるため要件10.3 に反する。表示の一行を静かにするために共有契約へフィールドを足すのは、代償が大きすぎる。
+- **クライアントが送信済み id を覚えて重複を抑止する** — 「送信済みで未反映のメンバー集合」という導出値を状態へ昇格させる。それは進行中フラグと到着待ちと再判定を呼び込み、完了待機を持ち込まない判断（Architecture「サーバ権威との一貫性」）と真っ向から衝突する。
+
+#### adjust は理屈の外に残る（正直な記録）
+
+採る形は code だけで判断するため、**cancel 由来の `TimerNotFound` も提示されなくなる。** cancel の意図も「この Timer を消す」であり同じ論理が通るため、規律の一貫性として受け入れる（要件6.17）。
+
+**adjust 由来の `TimerNotFound` も提示されなくなる。これは理屈の外である。** adjust の意図は「この Timer を調整する」であり、対象が無いなら意図は未達である。未達を黙らせるのは、上の論拠では正当化できない。
+
+原因は code の側にある。**`TimerNotFound` という単一の code に、二つの意味（意図達成 / 意図未達）が同居している。** 正しい分離は code を分けることだが、それは `Rejection` の種別を増やす engine 契約の変更であり、要件9 / 10 の不変点と衝突する。ゆえに**分離は本 spec のスコープ外とし、ここに残る不整合として記録する**。現場への影響は小さい——adjust の対象が消えているのは、その Timer が既に上げられた（または他端末で消された）ときであり、次の snapshot が盤面をそう見せる。だが「小さいから正しい」とは言わない。code の同居が解消されるまで、この一点は理屈の外に立っている。
 
 ### engine で発火済みのメンバーの除去は同期結果を変えない（要件6.7）と、その限定の外（要件6.9 / 6.10）
 
@@ -502,6 +543,9 @@ const group = boiledGroup(view, timerId, at + view.offset);
 | degraded 中の一括 | WS 送信ゼロ。ローカル畳み込みのみ（`update` は 1 回） | 5.1, 5.2 | Example |
 | 群が 1 件（退化） | 従来の単一消し込みと同一結果 | 2.2 | Property 6 |
 | 群が空で `update(view)` を呼ぶ | 参照同一のため早期 return（save も notify もしない） | — | Example |
+| snapshot 未到着のまま同一メンバーへ再度 complete が飛ぶ（同一端末の続け押し／二台目の端末） | サーバは状態を変えず `TimerNotFound` を要求元の接続へ返す | 6.11, 6.12, 6.13, 6.16 | Example（error 畳み込み） |
+| クライアントが `TimerNotFound` の error を受ける | `view.error` を立てず `offset` のみ更新。警告帯は出ない（意図は達成済み） | 6.14, 6.17 | Example（`view.error` が `null` のまま） |
+| クライアントが `TimerNotFound` 以外の error を受ける | 従来どおり `view.error` を立て、`Slot_Board` が message を提示する | 6.15 | Example（他の拒否種別） |
 
 握り潰す失敗は無い。送信の成否を追わないのは無視ではなく、**正本が真実を語り続けることを回復経路として採る**という判断である（Architecture「サーバ権威との一貫性」）。
 
@@ -565,6 +609,12 @@ const genGroupWithOrder = genGroup.chain((group) =>
 - **live の占有スロットの残滓** — 同一スロットを駆動する server-confirmed メンバーの除去が snapshot で届くとき、当該スロットが新 serverTimers または保持 provisional に占有されていれば、残滓は記録されず既存の残滓も消える（要件8.7・既存 `reconcileServerConfirmed` の規律）。値の選択規則（要件8.4）はここでは適用先を持たない。
 - **同一 snapshot 内の反映順** — 同一スロットを駆動する server-confirmed 2 件を一括完了し、**中間 snapshot を受けずに**両者が消えた全量 snapshot を 1 通だけ受ける。残滓は `prevServer`（直前の保持列から server-confirmed を抽出した並び）で後に現れるメンバーの麺種になる（要件8.5 の live 節・同一 snapshot 内は直前の保持列順）。到着順では決まらないことを固定する。
 - **混在の反映順** — 同一スロット・同一実効 endTime の provisional と server-confirmed を一括完了し、その後に server 分の除去を反映した snapshot を受けると、残滓は後に反映された server 分に従う（占有されていなければ上書き、占有されていれば消去）。**保持列で最後の provisional が残るとは限らない**ことを固定する（要件8.6）。
+- **snapshot 未到着での再押下** — live で一括完了したのち snapshot を受けずに同じスロットの Complete をもう一度押すと、同一 id へ再度 `complete` が送られる（局所ビューが動かない帰結・要件6.11 / 6.12）。`send` の発行内容で固める。
+- **`TimerNotFound` は提示しない** — `{ type: "error", code: "TimerNotFound", … }` を受けても `view.error` は `null` のままで、`offset` だけが最新化される（要件6.14）。同じ code を cancel / adjust の文脈で受けても同一に扱われることも併せて固める（要件6.17）。
+- **他の拒否種別は従来どおり提示する** — `InvalidSlotOrNoodle` / `CapacityExceeded` / `InvalidBoilSeconds` / `UnknownNoodle` を受けたときは `view.error` が当該 code と message で立つ（要件6.15）。この example を欠くと、`TimerNotFound` を落とす変更が error 提示そのものを壊していないことが未検証になる。
+- **二台目の端末からの complete** — 同一 Sync_Set の別メンバーを二つの接続から完了させ、後に届いた側が `TimerNotFound` を受けても提示されない（要件6.16）。
+
+> 反映順や群の再構成と違い、これらは **Property に向かない**。入力で振る舞いが変わらない配線であり（`code` の等値で分けるだけ）、100 イテレーション回しても 2〜3 例より多くを見つけない。
 
 ### 静的検査（Smoke）
 
@@ -608,6 +658,11 @@ const genGroupWithOrder = genGroup.chain((group) =>
 | | 6.7 | `synchronize` は running のみ対象（engine 発火済みの除去は中立） | 記述（Architecture「engine で発火済みの…」） |
 | | 6.8 | 次の snapshot 契機（他の確定変化・再接続 hydration）が全量で拾う | 記述（Error Handling） |
 | | 6.9 / 6.10 | 二つの boiled 記録の窓を許容として明示（単一 complete と同一規律） | 記述（同節） |
+| | 6.11 / 6.12 | live は局所ビューを動かさない（`next === view` で `update` 早期 return）ゆえ操作口が残る | Example（send 回数・ビュー不変） |
+| | 6.13 | engine `completeTimer` の不在拒否・shell は要求元 WS へ error（いずれも変更なし） | 記述（Architecture「ファンアウトが重複…」） |
+| | 6.14 / 6.17 | `decideServerMessage` の error 分岐で `code === "TimerNotFound"` を落とす（offset のみ更新） | Example（`view.error` が `null` のまま） |
+| | 6.15 | 同分岐は他 code を従来どおり `view.error` へ立てる | Example（他の拒否種別） |
+| | 6.16 | 端末ごとに同一の code 判断（由来端末で区別しない） | Example（二接続からの complete） |
 | 7 UI | 7.1 / 7.2 / 7.3 | `SlotCard` / `SlotBoard` **変更なし**（呼び先不変） | Smoke（差分なし） |
 | 8 残滓 | 8.1 / 8.2 | `recordLastResults`（`slotIds` 全てへ・一様） | Property 8 |
 | | 8.3 | `SlotBoard` の既存提示時間窓（変更なし） | Smoke（差分なし） |
