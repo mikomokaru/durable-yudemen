@@ -30,8 +30,8 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
 
 ## Tasks
 
-- [ ] 1. 同時上がり群の再構成 `boiledGroup` を実装（src/client/boiledGroup.ts・新規）
-  - [ ] 1.1 純粋関数 `boiledGroup` を実装する
+- [x] 1. 同時上がり群の再構成 `boiledGroup` を実装（src/client/boiledGroup.ts・新規）
+  - [x] 1.1 純粋関数 `boiledGroup` を実装する
     - `src/client/boiledGroup.ts`（新規）に `boiledGroup(view: ClientView, timerId: string, correctedNow: number): readonly ClientTimer[]` を実装する。`ClientTimer` / `ClientView` は `import type { ClientTimer, ClientView } from "./connection"` の**型限定 import** で受ける（実行時の循環を作らない）
     - 対象が不在、または running（`endTime > correctedNow`）のときは空を返す（要件1.2 / 3.2）。boiled の検査は**対象について一度だけ**行い、メンバーは実効 endTime（`TimerFact.endTime`）の等値のみで集める。判定形は `endTime <= correctedNow`（`dueLocalTimers` と同一述語）
     - 対象自身を必ず含み（要件1.4）、並び順は `view.timers` の並びを保つ。新しい順序規律・許容窓・新しい型を導入しない
@@ -39,7 +39,7 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
     - 時計・WS・DOM・localStorage に触れない（`correctedNow` は端が `now() + view.offset` で採って渡す）
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 3.1, 3.2, 4.1, 4.2, 9.4_
 
-  - [ ]* 1.2 PBT の生成器を整える（既存 generators.ts の再利用と production 型への adapter）
+  - [x]* 1.2 PBT の生成器を整える（既存 generators.ts の再利用と production 型への adapter）
     - `tests/client/generators.ts` の既存 `genClientTimer` / `genClientView` / `genCorrectedNow` を再利用し、**同じ生成器を二重定義しない**。本機能に要る次元だけを追加する
     - **`genClientView` は production の `ClientView` を返さない。** `generators.ts` の `ClientView` は tests ローカルに定義された独自 interface で、`timers` / `offset` / `processedIds` / `connectivity` / `sync` / `error` の 6 フィールドしか持たない。production の `ClientView`（`src/client/connection.ts`）は 12 フィールド（上記 6 つに加え `pendingOrders` / `recommendations` / `lastResults` / `unreachableReason` / `unitCount` / `noodlePresets`）である。`boiledGroup` は production の `ClientView` を受けるため、`genClientView` の出力をそのまま渡すと `pnpm typecheck` が通らない
     - 対処は `tests/client/audioGenerators.ts` の `genAudioView` と**同形の adapter generator を本 spec 用に作る**こと。`genClientView.map((view): ClientView => ({ ... }))` で production 型へ補完し、型は `import type { ClientView } from "../../src/client/connection"` で受ける。補完の既定値は `pendingOrders: []` / `recommendations: []` / `unreachableReason: "offline"` / `unitCount: DEFAULT_UNIT_COUNT` / `noodlePresets: DEFAULT_NOODLE_PRESETS`（後 2 者は `src/domain/store` から import）
@@ -52,28 +52,28 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
     - 置き場は `tests/client/boiledGroup.property.test.ts`（新規・既存 `tests/client/*.property.test.ts` の規約に従う）内、または既存前例に倣い専用生成器ファイル `tests/client/boiledGroupGenerators.ts`（新規）。どちらでもよいが、**`generators.ts` の既存生成器を二重定義しない**規律は保つ
     - _Requirements: 1.1, 4.2, 8.4, 8.8_
 
-  - [ ]* 1.3 群が対象自身を含むことの property test
+  - [x]* 1.3 群が対象自身を含むことの property test
     - **Property 1: 群は対象自身を含む**
     - **Validates: Requirements 1.4**
 
-  - [ ]* 1.4 全メンバーが boiled であることの property test
+  - [x]* 1.4 全メンバーが boiled であることの property test
     - **Property 2: 全メンバーが boiled である**
     - **Validates: Requirements 1.6, 3.1**
 
-  - [ ]* 1.5 実効 endTime 等値と漏れ無しの property test
+  - [x]* 1.5 実効 endTime 等値と漏れ無しの property test
     - **Property 3: 全メンバーの実効 endTime が対象と等しい**
     - **Validates: Requirements 1.1, 1.3**
 
-  - [ ]* 1.6 対象が running / 不在なら群を形成しないことの property test
+  - [x]* 1.6 対象が running / 不在なら群を形成しないことの property test
     - **Property 4: 対象が running または不在なら群を形成しない**
     - **Validates: Requirements 1.2, 3.2**
 
-  - [ ]* 1.7 担当スコープ非依存の property test
+  - [x]* 1.7 担当スコープ非依存の property test
     - **Property 5: 群は担当スコープに依存しない**
     - **Validates: Requirements 4.1, 4.2**
 
-- [ ] 2. `complete` の意味をファンアウトへ広げる（src/client/connection.ts）
-  - [ ] 2.1 `openTimerConnection` の `complete` をファンアウト実装にする
+- [x] 2. `complete` の意味をファンアウトへ広げる（src/client/connection.ts）
+  - [x] 2.1 `openTimerConnection` の `complete` をファンアウト実装にする
     - `src/client/connection.ts` の `openTimerConnection` 内 `complete` を、design「ファンアウトの形」の形に置き換える。`const at = now()` を**一度だけ**採り、`boiledGroup(view, timerId, at + view.offset)` で群を再構成する（押下時刻と群の基準時刻を同じ瞬間から導く）
     - メンバーごとに既存の origin × mode 経路を適用する——`live && member.origin === "server"` なら `watch.send({ type: "complete", timerId: member.id })` を **fire-and-forget** で発行し（送信完了を待たない・`Promise.all` を持ち込まない）、それ以外は `next = decideView(next, { kind: "LocalComplete", timerId: member.id, now: at })` で畳む
     - **`update(next)` はループの外で一度だけ呼ぶ。** 中間ビュー（群の一部だけが消えた盤面）を購読者へ notify せず、`persistence.save` もメンバー数だけ走らせない。群が空のときは `next === view` ゆえ参照同一で早期 return する
@@ -81,29 +81,29 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
     - `ClientView` / `ClientEvent` / `decideView` / `reconcileServerConfirmed` / `dueLocalTimers` には触れない（新しいイベント種別・状態・窓口を作らない）
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 5.1, 5.2, 6.3, 7.2, 8.1, 8.2, 10.3_
 
-  - [ ]* 2.2 1 件退化時の一致の property test
+  - [x]* 2.2 1 件退化時の一致の property test
     - **Property 6: 1 件のときは単一消し込みと一致する**
     - **Validates: Requirements 2.2**
 
-  - [ ]* 2.3 degraded の一括除去と処理済み記録の property test
+  - [x]* 2.3 degraded の一括除去と処理済み記録の property test
     - **Property 7: degraded の一括は全メンバーを除去し処理済みに記録する**
     - **Validates: Requirements 5.3, 5.4**
 
-  - [ ]* 2.4 残滓が反映順で最後のメンバーになることの property test
+  - [x]* 2.4 残滓が反映順で最後のメンバーになることの property test
     - **Property 8: 残滓は反映順で最後のメンバーの麺種になる（ローカル畳み込み経路）**
     - 反映順は `fc.shuffledSubarray` による群の並びの置換で与える（タスク 1.2）。適用範囲を degraded / provisional 経路に**明示的に限定**し、live の反映順と占有スロットの扱い（要件8.5 の live 節 / 8.6 / 8.7）は Example が担う
     - **Validates: Requirements 8.1, 8.2, 8.4, 8.8**
 
-  - [ ]* 2.5 群に属さない Timer の不変の property test
+  - [x]* 2.5 群に属さない Timer の不変の property test
     - **Property 9: 一括完了は群に属さない Timer を変えない**
     - **Validates: Requirements 3.2**
 
-- [ ] 3. Checkpoint - 群の再構成とファンアウトの検証
+- [x] 3. Checkpoint - 群の再構成とファンアウトの検証
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Example テストを追記（tests/client/complete.example.test.ts）
+- [x] 4. Example テストを追記（tests/client/complete.example.test.ts）
   - 新規ファイルを作らず、`openTimerConnection` レベルの complete 遷移を既に扱う既存ファイルへ**追記**する。
-  - [ ]* 4.1 経路分けと端の観測の example test
+  - [x]* 4.1 経路分けと端の観測の example test
     - **live × 全 server-confirmed** — 同一 endTime の boiled 2 件を hydration で受け、片方を complete → `send` が `complete` を 2 回発行し `timerId` は 2 件それぞれ。ビュー不変ゆえ `persistence.save` は呼ばれない
     - **degraded** — Connectivity を down にしてから complete → `send` はゼロ。ビューから 2 件消え、`persistence.save` は **1 回**（`update` を畳む判断の検証）
     - **混在（live）** — server-confirmed と Provisional_Timer が同一 endTime で boiled のとき、server 分は `send`、local 分はローカル除去
@@ -112,14 +112,14 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
     - **担当外メンバー** — 担当ユニット外のスロットを駆動する boiled メンバーも消し込まれる
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 4.1, 4.2, 5.1, 5.2, 6.3, 1.2, 3.2_
 
-  - [ ]* 4.2 完了後の表示導出の example test
+  - [x]* 4.2 完了後の表示導出の example test
     - **完了後の idle 導出** — 群を除去した後、当該スロットを駆動する Timer が残らず、かつ `sync === "synced"` であれば `assignedSlotDisplays` が `idle` を導出する
     - **未同期での完了後は unreceived** — 再水和直後（`sync === "connecting"`）に degraded で一括完了し、当該スロットを駆動する Timer が残らないとき `idle` ではなく `unreceived` を導出する（`persistence.load()` で server-confirmed を再水和してから hydration を受けずに complete する経路で固める）
     - **完了後もスロットが占有される** — 群メンバーと同一スロットを駆動する群外 Timer が在るとき、除去後も `idle` にならず running（走行中があれば優先）または boiled になる（いずれも最早 endTime）
     - `components/slotDisplay.ts` は変更せず、既存導出の帰結として確認する
     - _Requirements: 2.5, 2.6, 2.7_
 
-  - [ ]* 4.3 残滓の反映順と占有スロットの example test
+  - [x]* 4.3 残滓の反映順と占有スロットの example test
     - **degraded の畳み込み順** — 端のループは `boiledGroup` の返す並び（＝`view.timers` の並び）で `LocalComplete` を畳む。同一スロットを駆動する 2 メンバーで、並びの後のメンバーの麺種が残滓に残る（要件8.5 の degraded 節）
     - **degraded の占有スロットへの記録** — 群外 Timer が当該スロットを占有していても `recordLastResults` は残滓を記録する（要件8.8）
     - **live の占有スロットの残滓** — server-confirmed メンバーの除去が snapshot で届くとき、当該スロットが新 serverTimers または保持 provisional に占有されていれば、残滓は記録されず既存の残滓も消える（要件8.7）。値の選択規則（要件8.4）はここでは適用先を持たない
@@ -128,22 +128,22 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
     - `recordLastResults` / `reconcileServerConfirmed` は変更せず、既存規律の帰結として確認する
     - _Requirements: 8.4, 8.5, 8.6, 8.7, 8.8_
 
-- [ ] 5. 静的検査（Smoke）
-  - [ ]* 5.1 不変点のソース静的検査を実装する
+- [x] 5. 静的検査（Smoke）
+  - [x]* 5.1 不変点のソース静的検査を実装する
     - `tests/sync-set-batch-complete.static.test.ts`（新規・既存 `tests/*.static.test.ts` の規約に倣いソーステキストを直接検査する）に次を実装する
     - (a) `src/engine/**` / `src/domain/**` / `src/shell/**` に本機能由来の差分が無いこと——同期計算・発火判定・`TimerFact` の 6 フィールド・`ClientMessage` / `ServerMessage` の種別・engine 公開関数・Effect 種別が増えていないこと
     - (b) `ClientEvent` の種別が増えていないこと（既存 `LocalComplete` の複数回畳み込みで実現している）
     - (c) UI に差分が無いこと——`components/SlotCard.tsx` / `SlotBoard.tsx` / `components/slotDisplay.ts` が一括完了のための操作要素・確認ダイアログ・視覚フィードバックを持たず、Complete の操作口が担当スロットに対してのみ描画される構造を保つこと
     - _Requirements: 4.3, 7.1, 7.3, 8.3, 9.1, 9.2, 9.3, 9.4, 10.1, 10.3_
 
-  - [ ]* 5.2 `boiledGroup.ts` の純粋性の静的検査を実装する
+  - [x]* 5.2 `boiledGroup.ts` の純粋性の静的検査を実装する
     - `src/client/boiledGroup.ts` が `connection.ts` から**型限定 import**（`import type`）のみを行い、時計（`Date` / `clock.ts` の実時刻）・WebSocket・DOM・localStorage を import も参照もしないことを検査する
     - 既存の純粋性検査（`tests/offline-degradation.static.test.ts` の純粋層検査）と同じ規律に追随させる
     - **`stripCommentsAndStrings` 相当は新規 static test 内に実装してよい。** 同名の関数は既存 5 ファイル（`tests/static-analysis.example.test.ts` / `tests/offline-degradation.static.test.ts` / `tests/per-store-provisioning.static.test.ts` / `tests/observe/static-analysis.example.test.ts` / `tests/client/audioWakeLock.example.test.ts`）に非 export で重複しており、新しいテストから import できない。既存 5 ファイルと同じ形に倣う
     - 共有 helper への抽出と既存 5 ファイルの移行は**本 spec のスコープ外**である。1 ファイルだけを共有 helper へ寄せても 6 箇所中 1 つだけが共有される中途半端な状態になり、既存 5 ファイルの移行は本 spec の不変点（本番の変更は `src/` の 2 ファイル）とスコープが衝突する
     - _Requirements: 9.4, 10.3_
 
-- [ ] 6. Final checkpoint - 全テストと静的検査の通過
+- [x] 6. Final checkpoint - 全テストと静的検査の通過
   - `pnpm typecheck`（エラー 0）・`pnpm lint`（error 0・warning は既存 47 件を増やさない）・`pnpm test`（`vitest --run`・失敗 0）・`pnpm build` を通す。
   - Ensure all tests pass, ask the user if questions arise.
 
