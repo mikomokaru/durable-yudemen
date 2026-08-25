@@ -1,18 +1,13 @@
 // client/boiledGroup.ts — 同時上がり群（Boiled_Group）の再構成。純粋・決定的。
 // 押下のたびに view.timers と補正後現在時刻から導き直す導出値であり、ClientView のフィールドにしない
-// （導出値を状態に昇格させない・要件9.4）。時計にも WS にも DOM にも localStorage にも触れない。
+// （導出値を状態に昇格させない・要件9.4）。
 //
-// 型は connection.ts から型限定 import で受ける。components/slotDisplay.ts が同じ形で ClientTimer /
-// ClientView を受け取る前例があり、型限定ゆえ実行時の循環は生じない。
+// 型限定 import ゆえ実行時の循環は生じない。
 
 import type { ClientTimer, ClientView } from "./connection";
 
 /**
- * 同時上がり群（Boiled_Group）を再構成する純粋関数（要件1）。
- *
- * 対象 Timer が boiled（実効 endTime ≤ 補正後現在時刻）のとき、実効 endTime が対象と等しい Timer を
- * view.timers 全体から集めて返す（対象自身を含む・要件1.4）。対象が不在、または running のときは空を返す
- * ——一括しない（要件1.2 / 3.2）。
+ * 同時上がり群（Boiled_Group）の再構成（要件1 / 1.2 / 1.4 / 3.2）。
  *
  * boiled の検査を対象について一度しか行わないのは、correctedNow を固定すれば boiled が endTime のみの
  * 関数だからである。対象と実効 endTime が等しいメンバーは、対象が boiled であるとき必ず boiled であり、
@@ -36,7 +31,6 @@ export function boiledGroup(
   correctedNow: number,
 ): readonly ClientTimer[] {
   const target = view.timers.find((timer) => timer.id === timerId);
-  // 不在、または running なら群を形成しない（関門はここ一度だけ）。
   if (target === undefined || target.endTime > correctedNow) return [];
   return view.timers.filter((timer) => timer.endTime === target.endTime);
 }
