@@ -26,6 +26,7 @@ import type { TimerFact, NonEmptyArray } from "../domain/timer";
 import { DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS } from "../domain/store";
 import type { NoodlePreset } from "../domain/store";
 import { DEFAULT_FIRMNESS, type Firmness } from "../domain/firmness";
+import { boiledGroup } from "./boiledGroup";
 import { clockOffset } from "./clock";
 import {
   isPingBlackholeActive,
@@ -532,7 +533,10 @@ export interface TimerConnection {
   ): void;
   /** タイマーキャンセル操作を送る。 */
   cancel(timerId: string): void;
-  /** 茹で上がりの明示完了（消し込み）を送る。boiled な Timer を除去する。 */
+  /**
+   * 茹で上がりの明示完了（消し込み）を送る。その Timer と同時上がり群（実効 endTime が一致する boiled 群）を
+   * 完了する。単一の消し込みは群が 1 件の退化ケースであって別概念ではない。対象が running / 不在なら何もしない。
+   */
   complete(timerId: string): void;
   /** 走行中の茹で加減変更を送る（live のみ・サーバが endTime を引き直す）。 */
   adjust(timerId: string, firmness: Firmness): void;
@@ -900,14 +904,25 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       update(decideView(view, { kind: "LocalCancel", timerId, now: now() }));
     },
     complete: (timerId) => {
-      // cancel と同じ origin 経路分け。provisional の boiled 消し込みもサーバへ送らずローカルで除去する。
-      const target = view.timers.find((timer) => timer.id === timerId);
-      if (target?.origin === "server" && mode(view) === "live") {
-        watch.send({ type: "complete", timerId });
-        return;
+      // 押下時刻は一度だけ採る。群の再構成の基準時刻と残滓の記録時刻を同じ瞬間から導くため——二度呼べば
+      // 境界に居る Timer が「群を作る判定」と「残滓に刻む時刻」で別の現在時刻を見ることになる。
+      const at = now();
+      const group = boiledGroup(view, timerId, at + view.offset);
+      const live = mode(view) === "live";
+      let next = view;
+      for (const member of group) {
+        // cancel と同じ origin 経路分けをメンバーごとに適用する。provisional の boiled 消し込みもサーバへ
+        // 送らずローカルで除去する（サーバは id を知らない＝幽霊タイマー化を避ける）。
+        if (live && member.origin === "server") {
+          watch.send({ type: "complete", timerId: member.id });
+          continue;
+        }
+        next = decideView(next, { kind: "LocalComplete", timerId: member.id, now: at });
       }
-      // degraded、または対象が provisional / 不在のときはローカル除去。直前結果の記録時刻は now()（client 実時刻）。
-      update(decideView(view, { kind: "LocalComplete", timerId, now: now() }));
+      // ループ外で一度だけ確定させる。中間ビュー（群の一部だけが消えた盤面）を購読者へ notify すれば
+      // 起きていない段階を見せることになり、persistence.save もメンバー数だけ走る。群が空なら
+      // next === view ゆえ参照同一で早期 return する。
+      update(next);
     },
     adjust: (timerId, firmness) => {
       // 茹で加減変更はサーバが麺ごとの硬さ別秒で endTime を引き直す操作。server-confirmed かつ live のときだけ送る。
