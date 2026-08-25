@@ -414,6 +414,27 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
 
     case "error":
       // 拒否・失敗の通知（要件2.4）。次の snapshot 受信で解消する（error: null）。
+      //
+      // ただし TimerNotFound は提示しない。offset の最新化だけを行い、error は更新しない
+      // （sync-set-batch-complete 要件6.14）。理由は二つある。
+      //
+      //   1. **意図は達成されている。** TimerNotFound は「対象が既に無い」という報告である。complete も
+      //      cancel も意図は「この Timer を消す」であって、消えているなら意図は満たされている。達成された
+      //      意図を赤い警告帯で報せる理由が無い。
+      //   2. **ファンアウトは重複送信を系統的に生む。** live 経路は局所ビューを動かさない（除去はサーバの
+      //      全量 snapshot が運ぶ）ため、Complete の操作口は snapshot 到着まで残る。群は導出値ゆえ送信済みを
+      //      覚えておらず、二度目の押下で同じ id へ再度飛ぶ。二台目の端末も担当スコープを越えて同じ群の全
+      //      メンバーへ送る。ゆえに一括が成功しているのに赤帯が出る——起きていない失敗を現場へ見せない。
+      //
+      // 判断は code のみで行い、complete / cancel / adjust のどれに由来するかで区別しない（要件6.17）。
+      // error は由来を運ばず、クライアントは由来を知らない。その帰結として adjust 由来の TimerNotFound
+      // （意図未達ゆえ提示に値する）も落ちる。単一の code に二つの意味が同居しているためで、code の分離は
+      // スコープ外とした（sync-set-batch-complete の requirements 要件6 の注記 / design を参照）。
+      if (message.code === "TimerNotFound") {
+        return { ...view, offset };
+      }
+      // 他の拒否種別（InvalidSlotOrNoodle / CapacityExceeded / InvalidBoilSeconds / UnknownNoodle 等）は
+      // 意図が未達ゆえ従来どおり提示する（要件6.15）。落とすのは code 一つだけである。
       return { ...view, offset, error: { code: message.code, message: message.message } };
   }
 }

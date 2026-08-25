@@ -7,13 +7,17 @@
 **本番コード（`src/`）で変更するファイルは 2 つだけである。**
 
 1. `src/client/boiledGroup.ts`（新規）— 純粋関数 `boiledGroup(view, timerId, correctedNow)`。同時上がり群を押下時のビューから再構成する。
-2. `src/client/connection.ts` — `openTimerConnection` が返す `complete` の実装をファンアウトへ広げる。`TimerConnection` のシグネチャは不変（docstring のみ更新）。
+2. `src/client/connection.ts` — `openTimerConnection` が返す `complete` の実装をファンアウトへ広げる。`TimerConnection` のシグネチャは不変（docstring のみ更新）。加えて `decideServerMessage` の error 分岐で `TimerNotFound` を提示対象から外す（タスク 7.1・要件6.14）。
+
+**`connection.ts` は 2 箇所を触るが、変更ファイルは 2 つのままである。** タスク 2.1（`complete` のファンアウト）とタスク 7.1（error 畳み込みの 1 分岐）はいずれも同一ファイル内で、新規ファイルは生じない。`ClientEvent` / `ClientView` の型・`reconcileServerConfirmed` / `dueLocalTimers`・UI 3 ファイルはどちらでも不変である。ゆえに上の「変更するファイルは 2 つだけ」と矛盾しない（design「ファンアウトが重複 complete を系統的に生む」の不変点の修正と同じ記録）。
 
 **テスト側では次のファイルを新規作成・追記する**（本番 2 ファイルの不変点とは別の計数である）。
 
 - `tests/client/boiledGroup.property.test.ts`（新規）— Property 1〜9。
-- `tests/client/complete.example.test.ts`（追記）— 経路分けと端の観測、残滓の反映順。
+- `tests/client/complete.example.test.ts`（追記）— 経路分けと端の観測、残滓の反映順、重複 complete の拒否の非提示。
 - `tests/sync-set-batch-complete.static.test.ts`（新規）— 不変点と純粋性の静的検査。
+- `vitest.config.ts`（追記）— 上の新規 static test を node 環境へ登録する 3 行。既存 13 本の static test と同一の形で、`include` と除外側の両方へ足す。
+- `tests/client/connection.example.test.ts`（追記）— 既存テスト 1 件が仕様変更に追随する。running な provisional へ complete を呼ぶ形は窓口の関門（`boiledGroup` が対象 running のとき空を返す）で弾かれるため、押下前に boiled まで到達させる形へ直す。
 - adapter generator の置き場（タスク 1.2）— 既定は `tests/client/boiledGroup.property.test.ts` 内。専用生成器ファイル `tests/client/boiledGroupGenerators.ts`（新規）へ切り出してもよい。**いずれの場合も `tests/client/generators.ts` は変更しない。**
 
 **UI は変更しない。** `SlotCard.tsx` / `SlotBoard.tsx` / `components/slotDisplay.ts` に差分は生じない。Complete ボタンの呼び先（`connection.complete(timer.id)`）が不変のまま、その意味が広がる（要件7.1 / 7.2 / 7.3）。この不変はタスク 5.1 の静的検査で守る。
@@ -147,15 +151,32 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
   - `pnpm typecheck`（エラー 0）・`pnpm lint`（error 0・warning は既存 47 件を増やさない）・`pnpm test`（`vitest --run`・失敗 0）・`pnpm build` を通す。
   - Ensure all tests pass, ask the user if questions arise.
 
+- [x] 7. 重複 complete の拒否を提示しない（要件6.11〜6.17・タスク 1〜6 の完了後に追加）
+  - ファンアウトは同一メンバーへの二度目の `complete` を系統的に生む。その拒否 `TimerNotFound` は「対象が既に無い」という報告であり、利用者の意図は達成済みである。ゆえに提示しない。
+  - [x] 7.1 `TimerNotFound` を提示対象から外す（src/client/connection.ts）
+    - `decideServerMessage` の `case "error"` に `code === "TimerNotFound"` の分岐を足し、`view.error` を更新せず `offset` の最新化だけを行う（要件6.14）
+    - それ以外の code（`InvalidSlotOrNoodle` / `CapacityExceeded` / `InvalidBoilSeconds` / `UnknownNoodle` 等）は従来どおり `view.error` を当該 code と message で立てる（要件6.15）
+    - 判断は error の code のみで行い、complete / cancel / adjust の由来で区別しない（要件6.17）。`ServerMessage.error` に由来を載せない
+    - engine 契約はゼロ変更のまま。`completeTimer` を冪等にしない。`ClientEvent` / `ClientView` の型・`reconcileServerConfirmed` / `dueLocalTimers`・UI 3 ファイル（`SlotCard.tsx` / `SlotBoard.tsx` / `components/slotDisplay.ts`）も不変
+    - _Requirements: 6.14, 6.15, 6.17_
+
+  - [x]* 7.2 重複 complete の拒否を提示しないことの example test（tests/client/complete.example.test.ts）
+    - **再押下が起きること** — snapshot 未到着でも Complete の操作口が残り、同一メンバーへ再度 `complete` が飛ぶ（要件6.11 / 6.12）
+    - **非提示** — `TimerNotFound` を受けても `view.error` は `null` のまま。`offset` だけが最新化される（要件6.14）。offset の観測は「error を立てない」と「拒否をまるごと捨てる」を区別するために要る
+    - **他の拒否種別** — `CapacityExceeded` は従来どおり `view.error` を立て、その後に `TimerNotFound` が届いても既存の error が消えない（要件6.14 は「更新しない」であって「null にする」ではない）
+    - **二台の端末** — `setupWithWatch` を 2 つ作り、同一 Sync_Set のメンバーを両者が押す。負けた側の `TimerNotFound` が提示されない（要件6.16）
+    - _Requirements: 6.11, 6.12, 6.14, 6.15, 6.16_
+
 ## Notes
 
 - `*` 付きサブタスクは任意（PBT・Example・静的検査）で、スキップしても中核実装は成立する。トップレベルタスクは任意化しない。
+- **タスク 7（要件6.11〜6.17）は後から足した。** タスク 1〜6 の完了後のコードレビューで、当初の requirements / design が扱っていない経路——ファンアウトが生む重複 complete とその拒否の提示——が見つかったため、要件6.11〜6.17 を追加して対応した。
 - 各タスクは特定の受け入れ基準を `_Requirements: x.y_` 形式で参照し、各 property test タスクは `Validates: Requirements x.y` を明記する。
 - PBT は fast-check で各プロパティ **最低 100 イテレーション**、タグ形式 `Feature: sync-set-batch-complete, Property {番号}: {プロパティ本文}` を付す。PBT を自前実装しない。
 - **fast-check 4.8.0 に `fc.shuffle` は無い。** 全要素の置換は `fc.shuffledSubarray([...group], { minLength: group.length, maxLength: group.length })` で得る。
 - 純粋層テストは `Date.now` のスタブも `vi.useFakeTimers()` も用いない（`boiledGroup` と `decideView` はいずれも時刻を引数で受ける）。
 - **既存純粋関数を再利用し二重定義しない** — 残り導出は `clock.ts`、通知冪等性は `notification.ts`、担当射影は `assignment.ts`、表示導出は `components/slotDisplay.ts` をそのまま用いる。生成器は `tests/client/generators.ts` を再利用するが、`genClientView` は tests ローカル型を返すため production `ClientView` へ補完する adapter を挟む（タスク 1.2）。
-- **不変点（本番コードの計数）** — **`src/` の変更は** `src/client/boiledGroup.ts`（新規）と `src/client/connection.ts` の `complete` 実装の 2 箇所のみ。テスト側の新規作成・追記（Overview の一覧）はこの計数に含めない。`src/domain/**` / `src/engine/**` / `src/shell/**`・`connection.ts` の `ClientView` / `ClientEvent` / `decideView` / `reconcileServerConfirmed` / `dueLocalTimers`・`components/slotDisplay.ts` / `SlotCard.tsx` / `SlotBoard.tsx`・`assignment.ts` / `clock.ts` / `notification.ts` / `persistence.ts` には触れない。
+- **不変点（本番コードの計数）** — **`src/` の変更は** `src/client/boiledGroup.ts`（新規）と `src/client/connection.ts` の 2 ファイルのみ。`connection.ts` で触るのは `complete` 実装（タスク 2.1）と `decideServerMessage` の error 分岐 1 箇所（タスク 7.1）で、ファイル数は 2 のままである。テスト側の新規作成・追記（Overview の一覧）はこの計数に含めない。`src/domain/**` / `src/engine/**` / `src/shell/**`・`connection.ts` の `ClientView` / `ClientEvent` / `reconcileServerConfirmed` / `dueLocalTimers`（`decideView` はタスク 7.1 が呼ぶ `decideServerMessage` の error 分岐 1 点を除いて不変。design「ファンアウトが重複 complete を系統的に生む」の不変点の修正と同じ）・`components/slotDisplay.ts` / `SlotCard.tsx` / `SlotBoard.tsx`・`assignment.ts` / `clock.ts` / `notification.ts` / `persistence.ts` には触れない。
 - **待機を持ち込まない。** live の送信は fire-and-forget のままとし、`Promise.all` 的な完了待機・進行中フラグ・クライアント側の再送機構を作らない。put が失敗したメンバーは正本に残り、次の snapshot 契機（他の確定変化に伴う全量 snapshot・再接続時の全量 hydration）で収束する（要件6.5 / 6.8 / 6.6）。
 - **Boiled_Group は状態にしない。** 押下のたびに `view.timers` と補正後現在時刻から再構成する導出値であり、`ClientView` のフィールドにしない（要件9.4）。
 - テストに向かない性質はタスクに含めない——サーバ側の収束（要件6.1 / 6.2 / 6.4 / 6.5 / 6.6 / 6.8）と二つの boiled 記録の窓（要件6.9 / 6.10）は既存機構の記述であり、design「Error Handling」が対応先を明示している。経路をまたぐ反映順（要件8.6 / 8.9）も規定しないことが設計判断であるため、Example は各経路内の決定性のみを固める。
@@ -178,7 +199,9 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
     { "id": 9, "tasks": ["2.5"] },
     { "id": 10, "tasks": ["4.1", "5.1"] },
     { "id": 11, "tasks": ["4.2", "5.2"] },
-    { "id": 12, "tasks": ["4.3"] }
+    { "id": 12, "tasks": ["4.3"] },
+    { "id": 13, "tasks": ["7.1"] },
+    { "id": 14, "tasks": ["7.2"] }
   ]
 }
 ```

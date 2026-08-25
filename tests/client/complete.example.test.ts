@@ -186,6 +186,16 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
           { type: "snapshot", serverTime: currentNow, timers, pendingOrders: [], recommendations: [] },
           currentNow,
         ),
+      /**
+       * 拒否（`{ type: "error", … }`）を受信させる。shell は拒否を Effect 列にせず要求元の WS だけへ返すため、
+       * broadcast（receiveSnapshot）とは別の受信経路として与える。
+       *
+       * serverTime を受信時点の now と別値にできるようにしてあるのは、`TimerNotFound` で「error を立てない」
+       * ことと「何もしない」ことを区別するためである——offset だけが動くことを見なければ、畳み込みが
+       * 拒否をまるごと捨てていても同じ観測になる。
+       */
+      receiveError: (code: string, message: string, serverTime: number = currentNow) =>
+        serverMessageHandler?.({ type: "error", serverTime, code, message }, currentNow),
       setNow: (next: number) => {
         currentNow = next;
       },
@@ -654,6 +664,110 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       expect(after.lastResults.has("0")).toBe(false);
 
       connection.close();
+    });
+  });
+
+  // 重複 complete とその拒否の畳み込み（要件6.11〜6.17）。ファンアウトは重複送信を系統的に生むため、
+  // 「一括は成功しているのに赤帯が出る」形が起こり得る。ここで固めるのは二段である——重複が実際に飛ぶこと
+  // （live が局所ビューを動かさない帰結・要件6.11 / 6.12）と、その拒否 `TimerNotFound` が提示されないこと
+  // （要件6.14）。落とすのは code 一つだけで、他の拒否種別は従来どおり立つ（要件6.15）。
+  //
+  // 入力で振る舞いが変わらない配線（`code` の等値で分けるだけ）ゆえ Property には向かない。
+  describe("重複 complete の拒否は提示しない（error 畳み込み）", () => {
+    it("snapshot 未到着での再押下 — 操作口が残り同一メンバーへ再度 complete が飛ぶ（要件6.11 / 6.12）", () => {
+      const { connection, setConnectivity, receiveSnapshot, completeSends } = setupWithWatch();
+      setConnectivity("up");
+      receiveSnapshot([timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)]);
+
+      connection.complete("T1");
+      expect(completeSends()).toEqual(["T1", "T2"]);
+
+      // 除去を運ぶ snapshot は届いていない。局所ビューが動かないため両スロットは boiled のまま導出され、
+      // ゆえに Complete の操作口も残る（`assignedSlotDisplays` が boiled を返す＝SlotCard がボタンを描く）。
+      const displays = assignedSlotDisplays(connection.getView(), [0], START_NOW);
+      expect(displays.find((d) => d.slot === 0)?.kind).toBe("boiled");
+      expect(displays.find((d) => d.slot === 1)?.kind).toBe("boiled");
+
+      // 二度目の押下。群は導出値であって送信済みを覚えないため、同じメンバー集合を再構成して再送する。
+      connection.complete("T2");
+      expect(completeSends()).toEqual(["T1", "T2", "T1", "T2"]);
+
+      connection.close();
+    });
+
+    it("TimerNotFound を受けても view.error は null のまま・offset だけ最新化される（要件6.14）", () => {
+      const { connection, setConnectivity, receiveSnapshot, receiveError } = setupWithWatch();
+      setConnectivity("up");
+      receiveSnapshot([timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)]);
+      expect(connection.getView().offset).toBe(0);
+
+      connection.complete("T1");
+      // 再送分に対してサーバが返す拒否。状態は変わらず、要求元の接続だけへ届く。
+      receiveError("TimerNotFound", "指定された timerId の Timer は存在しない: T2", START_NOW + 4_000);
+
+      const after = connection.getView();
+      // 意図（この Timer を消す）は達成済みゆえ警告帯を出さない。SlotBoard は view.error を見るため、
+      // null のままであることが「提示されない」ことそのものである。
+      expect(after.error).toBeNull();
+      // それでも offset は最新化される——拒否をまるごと捨てているのではなく、error を立てないだけである。
+      expect(after.offset).toBe(4_000);
+
+      connection.close();
+    });
+
+    it("他の拒否種別は従来どおり view.error が立つ（要件6.15）", () => {
+      const { connection, setConnectivity, receiveSnapshot, receiveError } = setupWithWatch();
+      setConnectivity("up");
+      receiveSnapshot([timerAt("T1", "0", BOILED_AT)]);
+
+      receiveError("CapacityExceeded", "同時稼働上限に達している");
+      expect(connection.getView().error).toEqual({
+        code: "CapacityExceeded",
+        message: "同時稼働上限に達している",
+      });
+
+      // 後から TimerNotFound が届いても、既に立っている error は書き換わらない。要件6.14 は「更新しない」で
+      // あって「null にする」ではない——落とす判断が、提示中の別の拒否を消してしまわないことを固める。
+      receiveError("TimerNotFound", "指定された timerId の Timer は存在しない: T1");
+      expect(connection.getView().error).toEqual({
+        code: "CapacityExceeded",
+        message: "同時稼働上限に達している",
+      });
+
+      // 解消は従来どおり次の snapshot が担う。
+      receiveSnapshot([]);
+      expect(connection.getView().error).toBeNull();
+
+      connection.close();
+    });
+
+    it("二台の端末が同一 Sync_Set を押す — 負けた側の TimerNotFound も提示されない（要件6.16）", () => {
+      // 二つの接続を作る（端末 2 台）。同一の Sync_Set を両者が hydration で受け、それぞれ別のスロットを押す。
+      // 要件4.1 の帰結として、どちらの押下も群の全メンバーへ送る——ゆえに後に届いた側が必ず拒否を受ける。
+      const first = setupWithWatch();
+      const second = setupWithWatch();
+      const sync = [timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)];
+      for (const terminal of [first, second]) {
+        terminal.setConnectivity("up");
+        terminal.receiveSnapshot(sync);
+      }
+
+      first.connection.complete("T1");
+      second.connection.complete("T2");
+      // 二台とも群の全メンバーへ送る（担当スコープは群に掛からない）。
+      expect(first.completeSends()).toEqual(["T1", "T2"]);
+      expect(second.completeSends()).toEqual(["T1", "T2"]);
+
+      // 先に届いた first の 2 件が確定し、second の 2 件は対象不在で拒否される（拒否は要求元だけへ返る）。
+      second.receiveError("TimerNotFound", "指定された timerId の Timer は存在しない: T1");
+      second.receiveError("TimerNotFound", "指定された timerId の Timer は存在しない: T2");
+
+      // 負けた側にも警告帯は出ない。判断は code のみで、由来（自分が二番目だったこと）を知る必要が無い。
+      expect(second.connection.getView().error).toBeNull();
+      expect(first.connection.getView().error).toBeNull();
+
+      first.connection.close();
+      second.connection.close();
     });
   });
 });

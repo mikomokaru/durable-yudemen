@@ -26,6 +26,8 @@
 - **Timer_Connection**: クライアント側の接続コントローラ（`TimerConnection` / `openTimerConnection`）。UI の complete インテントを Mode と対象 origin で経路選択する唯一の窓口。
 - **Slot_Display**: 担当スロットごとの表示状態を導出する純粋関数群（`slotDisplay.ts`）。boiled / running を endTime と now から切り分ける。
 - **Slot_Card**: 担当スロット 1 つの表示・操作 UI（`SlotCard.tsx`）。boiled のとき Complete ボタンを描画する。
+- **Slot_Board**: 担当ボード全体の表示 UI（`SlotBoard.tsx`）。`view.error` が在るとき `role="alert"` の警告帯へ `message` をそのまま提示する（実装で確認）。
+- **`TimerNotFound`**: サーバの拒否 code の一つ（`src/engine/rejection.ts`）。「対象 timerId の Timer が存在しない」ことを表す。complete / cancel / adjust のいずれの操作からも返り得る。拒否は状態を変えず、要求元の接続へ `{ type: "error", code, message }` として返る（実装で確認）。
 - **sync（同期状態）**: クライアントがサーバ全量 snapshot を受け取って同期を確立したかを表すビューの区分（`connecting` / `synced` / `syncFailed`）。永続ビューの再水和直後は `connecting` である（`EMPTY_VIEW.sync` が `"connecting"` であり、`openTimerConnection` は接続前に `persistence.load()` で再水和する。実装で確認）。
 - **Mode**: Connectivity から導出する経路。`up → live`（サーバ送信）/ `down → degraded`（ローカル権限）。状態として保持しない。
 - **live / degraded**: それぞれ Mode の値。
@@ -120,6 +122,15 @@ snapshot-broadcast の SSOT 規律では、確定した状態変化ごとにサ�
 8. WHEN 要件6.5 により正本に残ったメンバーが在る状態で次の snapshot 契機（他の確定変化に伴う全量 snapshot の配信、または再接続時の全量 hydration）が生じたとき、THE Yudemen_Timer SHALL 当該メンバーを含む全量 snapshot を送り、クライアントを実際の正本状態へ収束させる。
 9. IF あるメンバーが、クライアント観測では boiled でありながら engine では未発火（`boiledAt === null`）である窓で、当該メンバーの complete が確定するならば、THEN THE Yudemen_Timer SHALL 当該メンバーを除いた残余 running を再同期し、残余 running の adjustment が変化することを許容する。
 10. THE Yudemen_Timer SHALL 要件6.9 の再同期を、Boiled_Group の件数に依らず単一の complete と同一の規律で扱う（当該窓での再同期は単一消し込みが既に持つ性質であり、一括完了が新たに導入する挙動ではない）。
+11. WHILE live Mode である間、WHEN Boiled_Group の server-confirmed メンバーへ complete を発行したとき、THE Timer_Connection SHALL 当該メンバーの除去を局所ビューへ反映せず、除去の反映をサーバの全量 snapshot の到着に委ねる。
+12. WHILE 要件6.11 で発行した complete の除去を運ぶ snapshot が未到着である間、THE Slot_Card SHALL 当該メンバーの駆動スロットを boiled として表示し、Complete ボタンを描画し続ける（ゆえに同一メンバーへ再度 complete が発行され得る）。
+13. IF サーバが、既に除去済みの Timer を対象とする complete を受けるならば、THEN THE Yudemen_Timer SHALL 状態を変えず、code が `TimerNotFound` の error を要求元の接続へ返す（既存 engine / shell の挙動を変更しない）。
+14. WHEN クライアントが code が `TimerNotFound` の error を受けたとき、THE Timer_Connection SHALL `view.error` を更新せず、当該 error を Slot_Board の提示対象から外す（offset の最新化のみを行う）。
+15. WHEN クライアントが code が `TimerNotFound` 以外（`InvalidSlotOrNoodle` / `CapacityExceeded` / `InvalidBoilSeconds` / `UnknownNoodle` 等）の error を受けたとき、THE Timer_Connection SHALL 従来どおり `view.error` を当該 code と message で更新し、THE Slot_Board SHALL 当該 message を提示する。
+16. WHERE 複数の端末が同一の Sync_Set のメンバーを対象に complete を発行するとき、THE Yudemen_Timer SHALL 各端末を要件6.13 / 6.14 と同一の規律で扱う（後に届いた complete は `TimerNotFound` となり、その端末で提示されない）。
+17. THE Timer_Connection SHALL 要件6.14 の非提示を error の code のみで判断し、complete / cancel / adjust のいずれに由来するかで区別しない。
+
+> 注（なぜ `TimerNotFound` だけを落とすのか）: 要件6.11 / 6.12 は既存設計の帰結である——live 経路は局所ビューを動かさないため、Complete の操作口は snapshot 到着まで残る。ゆえに同一メンバーへの二度目の complete は起こり得る。到達経路は 2 つある。同一端末で群の別スロットを続けて押す場合と、同じ Sync_Set を見る二台目の端末が押す場合（要件4.1 が担当スコープをまたぐファンアウトを定めた帰結）である。<br>要件6.14 が `TimerNotFound` を提示対象から外すのは、この拒否が「対象が既に無い」という報告であり、**利用者の意図（この Timer を消す）は達成されている**からである。達成された意図を警告帯で報せる理由が無い。要件6.15 は、この判断が error 提示そのものを止めるものではないことを明示する——他の拒否種別は従来どおり提示する。<br>要件6.17 の帰結として、cancel 由来の `TimerNotFound` も提示されなくなる。cancel も「この Timer を消す」意図ゆえ同じ論理が通り、規律の一貫性として受け入れる。**adjust 由来の `TimerNotFound` は理屈の外に残る**——adjust は「調整したかった Timer が無い」ので意図が未達であり、提示に値する。これは `TimerNotFound` という単一の code に二つの意味（意図達成 / 意図未達）が同居しているためである。code の分離は本 spec のスコープ外とし、ここに正直に記録する。
 
 > 注（二つの boiled 記録）: 要件6.7 が保証を限定しているのは、クライアント観測の boiled（実効 endTime ≤ 補正後現在時刻）と engine の発火記録（`boiledAt !== null`）が**別の記録**だからである。engine は Alarm 発火で `boiledAt` を立てるため、クライアントが boiled と見た直後に engine ではまだ `boiledAt === null` である窓が存在する。その窓で complete が確定するとき何が起きるかは要件6.9 が定め、それが本機能に固有でないことは要件6.10 が記録する。要件6.7 は無条件の主張ではなく、engine で発火済みのメンバーを除去する場合に限った主張である。
 
