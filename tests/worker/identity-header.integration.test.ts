@@ -18,28 +18,19 @@
 // （要件7.4(b)「偽装 X-Yudemen-Identity 値が店舗 DO の受信ヘッダに現れない」の直接検証）。DO 本体の
 // Roster ゲート（要件6.4 / 6.5）は別タスクの関心事ゆえここでは起こさない。
 //
-// JWT／JWKS の据え付けは access-jwt.integration.test.ts の確立手法を踏襲する：実の RS256 鍵ペアを jose で
-// 発行し、`${TEAM_DOMAIN}/cdn-cgi/access/certs` への GET にだけ公開鍵 JWKS を返すようグローバル fetch を
-// 差し替える（crypto は偽装しない）。TEAM_DOMAIN はケースごとに一意採番し、worker.ts の JWKS memo と
-// jose 内部キャッシュの持ち越しを断つ。
+// JWT／JWKS の据え付けは tests/worker/support/accessJwt.ts が供する（実の RS256 鍵ペアを jose で発行し、
+// certs エンドポイントへの GET にだけ公開鍵 JWKS を返すようグローバル fetch を差し替える。crypto は偽装しない）。
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:test";
-import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import worker from "../../src/worker";
 import { IDENTITY_HEADER } from "../../src/shell/store-timer-do";
+import { establishAccessSigning, freshTeamDomain, POLICY_AUD, type AccessSigning } from "./support/accessJwt";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する。
 declare module "cloudflare:test" {
   interface ProvidedEnv extends Env {}
 }
-
-// ── Access アプリの audience（JWT の aud 検証に用いる固定値）。TEAM_DOMAIN はケースごとに一意採番する。──
-const POLICY_AUD = "yudemen-access-app-aud";
-// Access 署名鍵の kid（JWKS に載る正規鍵）。
-const SIGNING_KID = "access-signing-key";
-// JWKS エンドポイントのパス（worker.ts の ACCESS_CERTS_PATH と一致）。stub はこのパスにだけ応答する。
-const CERTS_PATH_SUFFIX = "/cdn-cgi/access/certs";
 
 // クライアントが送りうる IDENTITY_HEADER の各種大小文字表記。HTTP ヘッダ名は大小文字非依存ゆえ、
 // Worker の無条件除去（Headers.delete）はいずれの表記でも効く——その作動をケースとして固める。
@@ -55,59 +46,16 @@ const FORGED_IDENTITY = "attacker@evil.example";
 // JWT 検証成功時に載る検証済み identity（email クレーム由来）。
 const VERIFIED_IDENTITY = "cook@store.example";
 
-// ── 実の RS256 鍵ペア。正規鍵は JWKS に載せる。──
-let signingKey: CryptoKey;
-let jwks: { readonly keys: readonly unknown[] };
+// Access の署名鍵集合。鍵発行は非同期ゆえ beforeAll で確立する。
+let access: AccessSigning;
 
 beforeAll(async () => {
-  const signing = await generateKeyPair("RS256", { extractable: true });
-  signingKey = signing.privateKey;
-  const publicJwk = await exportJWK(signing.publicKey);
-  jwks = { keys: [{ ...publicJwk, kid: SIGNING_KID, alg: "RS256", use: "sig" }] };
+  access = await establishAccessSigning();
 });
-
-// ケースごとに一意の TEAM_DOMAIN を採番し、worker.ts の JWKS memo（TEAM_DOMAIN キー）と jose の内部
-// キャッシュ・cooldown の持ち越しを断つ。issuer 検証もこの値に一致させる。
-function freshTeamDomain(): string {
-  return `https://team-${crypto.randomUUID()}.cloudflareaccess.test`;
-}
 
 // run 間で衝突しない storeId を採番する（[a-z0-9-]・長さ 1..64 を満たす・要件1.2）。
 function freshStoreId(): string {
   return `identity-header-${crypto.randomUUID()}`;
-}
-
-/** mintToken — 本物の RS256 署名で JWT を発行する（crypto は偽装しない）。 */
-async function mintToken(params: {
-  readonly issuer: string;
-  readonly audience: string;
-  readonly email: string;
-}): Promise<string> {
-  return new SignJWT({ email: params.email })
-    .setProtectedHeader({ alg: "RS256", kid: SIGNING_KID })
-    .setIssuer(params.issuer)
-    .setAudience(params.audience)
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(signingKey);
-}
-
-/** stubJwksFetch — グローバル fetch を差し替え、certs エンドポイントへの GET にだけ JWKS を返す。 */
-function stubJwksFetch(): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
-      const href =
-        typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
-      if (href.endsWith(CERTS_PATH_SUFFIX)) {
-        return new Response(JSON.stringify(jwks), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      throw new Error(`予期しない外部 fetch: ${href}`);
-    }),
-  );
 }
 
 /**
@@ -188,8 +136,8 @@ describe("worker fetch — クライアント由来 IDENTITY_HEADER の無条件
   for (const casing of IDENTITY_HEADER_CASINGS) {
     it(`ACCESS_REQUIRED="1"（JWT 検証成功）：クライアント由来 "${casing}" の偽装値は DO 受信ヘッダに現れない`, async () => {
       const teamDomain = freshTeamDomain();
-      stubJwksFetch();
-      const token = await mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
+      access.stubCertsFetch();
+      const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
 
       const { response, forwarded } = await driveWs({
         storeId: freshStoreId(),
@@ -214,8 +162,8 @@ describe("worker fetch — 検証済み identity の付与は ON かつ JWT 検�
 
   it('ACCESS_REQUIRED="1"（JWT 検証成功）：偽装ヘッダがあっても DO 受信 IDENTITY_HEADER は検証済み identity になる', async () => {
     const teamDomain = freshTeamDomain();
-    stubJwksFetch();
-    const token = await mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
+    access.stubCertsFetch();
+    const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
 
     const { response, forwarded } = await driveWs({
       storeId: freshStoreId(),
@@ -234,8 +182,8 @@ describe("worker fetch — 検証済み identity の付与は ON かつ JWT 検�
 
   it('ACCESS_REQUIRED="0"：JWT があっても identity を付与しない（OFF は付与元でない・要件7.3 の対偶）', async () => {
     const teamDomain = freshTeamDomain();
-    stubJwksFetch();
-    const token = await mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
+    access.stubCertsFetch();
+    const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
 
     const { response, forwarded } = await driveWs({
       storeId: freshStoreId(),
@@ -252,7 +200,7 @@ describe("worker fetch — 検証済み identity の付与は ON かつ JWT 検�
 
   it('ACCESS_REQUIRED="1"（JWT 欠如）：偽装ヘッダがあっても 403 で DO に到達させない（付与元は検証成功のみ）', async () => {
     const teamDomain = freshTeamDomain();
-    stubJwksFetch();
+    access.stubCertsFetch();
 
     const { response, forwarded } = await driveWs({
       storeId: freshStoreId(),

@@ -26,12 +26,11 @@
 // ACCESS_REQUIRED の env override について：worker.fetch に渡す env と、店舗 DO の this.env は
 // vitest-pool-workers の単一 isolate 上で同一の bindings オブジェクトを参照する。Worker 端の JWT 検証も
 // 店舗 DO 端の Roster 判定も同じ ACCESS_REQUIRED を読むため、共有 env を "1"（本番 ON）へその場で書き換えて
-// 両端を同時に本番構成にする（テスト後に元値へ戻す）。JWT/JWKS の据え付けは access-jwt.integration.test.ts の
-// 確立手法（実 RS256 鍵ペア＋certs エンドポイントへの fetch 差し替え）を踏襲する（crypto は偽装しない）。
+// 両端を同時に本番構成にする（テスト後に元値へ戻す）。JWT/JWKS の据え付け（実 RS256 鍵ペア＋certs
+// エンドポイントへの fetch 差し替え）は tests/worker/support/accessJwt.ts が供する（crypto は偽装しない）。
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { env, reset, runInDurableObject } from "cloudflare:test";
-import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import worker from "../../src/worker";
 import type { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
@@ -39,18 +38,12 @@ import type { StoreSnapshot } from "../../src/engine/snapshot";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
 import { configResidualDefaults } from "../storeConfigDefaults";
+import { establishAccessSigning, freshTeamDomain, POLICY_AUD, type AccessSigning } from "./support/accessJwt";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO を型付きで引く）。
 declare module "cloudflare:test" {
   interface ProvidedEnv extends Env {}
 }
-
-// ── Access アプリの audience（JWT の aud 検証に用いる固定値）。TEAM_DOMAIN はケースごとに一意採番する。──
-const POLICY_AUD = "yudemen-access-app-aud";
-// Access 署名鍵の kid（JWKS に載る正規鍵）。
-const SIGNING_KID = "access-signing-key";
-// JWKS エンドポイントのパス（worker.ts の ACCESS_CERTS_PATH と一致）。stub はこのパスにだけ応答する。
-const CERTS_PATH_SUFFIX = "/cdn-cgi/access/certs";
 
 // 店舗 DO の永続キー（store-timer-do.ts の private 定数と一致させる。状態不変の直接観測に用いる）。
 const PROJECTION_KEY = "projection";
@@ -73,9 +66,8 @@ const NON_SYNTHETIC_IDENTITIES = [
   "staff-@yamaokaya.com",
 ] as const;
 
-// ── 実の RS256 鍵ペア。正規鍵の公開 JWK だけを JWKS に載せる（Access が公開する署名鍵集合の模型）。──
-let signingKey: CryptoKey;
-let jwks: { readonly keys: readonly unknown[] };
+// Access の署名鍵集合。鍵発行は非同期ゆえ beforeAll で確立する。
+let access: AccessSigning;
 
 // 本番 ON へ書き換える前の env 値を退避し、全ケース終了後に復元する（共有 env を汚したまま残さない）。
 let originalAccessRequired: unknown;
@@ -83,10 +75,7 @@ let originalTeamDomain: unknown;
 let originalPolicyAud: unknown;
 
 beforeAll(async () => {
-  const signing = await generateKeyPair("RS256", { extractable: true });
-  signingKey = signing.privateKey;
-  const publicJwk = await exportJWK(signing.publicKey);
-  jwks = { keys: [{ ...publicJwk, kid: SIGNING_KID, alg: "RS256", use: "sig" }] };
+  access = await establishAccessSigning();
 
   // 共有 env を本番 ON 構成へ書き換える。ACCESS_REQUIRED / POLICY_AUD は全ケース共通ゆえここで一度だけ。
   // TEAM_DOMAIN はケースごとに一意採番する（JWKS memo と jose 内部キャッシュの持ち越しを断つ）。
@@ -106,12 +95,6 @@ afterAll(() => {
   mutableEnv.POLICY_AUD = originalPolicyAud;
 });
 
-// ケースごとに一意の TEAM_DOMAIN を採番し、worker.ts の JWKS memo（TEAM_DOMAIN キー）と jose の内部
-// キャッシュ・cooldown の持ち越しを断つ。issuer 検証もこの値に一致させる。
-function freshTeamDomain(): string {
-  return `https://team-${crypto.randomUUID()}.cloudflareaccess.test`;
-}
-
 // 共有 env の TEAM_DOMAIN をケースの値へ差し替える（Worker の JWT 検証がこの issuer/JWKS を引く）。
 function setTeamDomain(teamDomain: string): void {
   (env as unknown as Record<string, unknown>).TEAM_DOMAIN = teamDomain;
@@ -120,39 +103,6 @@ function setTeamDomain(teamDomain: string): void {
 // run 間で DO 状態が持ち越さないよう storeId を一意採番する（[a-z0-9-]・長さ 1..64 を満たす・要件1.2）。
 function freshStoreId(): string {
   return `roster-nonmatch-${crypto.randomUUID()}`;
-}
-
-/** mintToken — 本物の RS256 署名で有効な JWT を発行する（crypto は偽装しない）。email クレームを任意に振る。 */
-async function mintToken(params: {
-  readonly issuer: string;
-  readonly audience: string;
-  readonly email: string;
-}): Promise<string> {
-  return new SignJWT({ email: params.email })
-    .setProtectedHeader({ alg: "RS256", kid: SIGNING_KID })
-    .setIssuer(params.issuer)
-    .setAudience(params.audience)
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(signingKey);
-}
-
-/** stubJwksFetch — グローバル fetch を差し替え、certs エンドポイントへの GET にだけ JWKS を返す（他は例外）。 */
-function stubJwksFetch(): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
-      const href =
-        typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
-      if (href.endsWith(CERTS_PATH_SUFFIX)) {
-        return new Response(JSON.stringify(jwks), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      throw new Error(`予期しない外部 fetch: ${href}`);
-    }),
-  );
 }
 
 /** 値域内の完全な StoreConfig（プロビジョニング用・接続可否には依らないが健全な値を置く）。 */
@@ -226,9 +176,9 @@ describe("worker → 店舗 DO：非合成 email の有効 JWT は Roster ゲー
       setTeamDomain(teamDomain);
       // 合成 email の実効 Roster でプロビジョニング（非合成 identity はここに一致しない）。
       await provisionStore(storeId, [...SYNTHETIC_ROSTER]);
-      stubJwksFetch();
+      access.stubCertsFetch();
       // JWT 自体は正規鍵・正 issuer・正 audience で「検証に成功」する（Worker 端の 403 ではない）。
-      const token = await mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: identity });
+      const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: identity });
 
       const response = await connect(storeId, token);
 
@@ -247,8 +197,8 @@ describe("worker → 店舗 DO：非合成 email の有効 JWT は Roster ゲー
     setTeamDomain(teamDomain);
     const rosteredIdentity = SYNTHETIC_ROSTER[0];
     await provisionStore(storeId, [...SYNTHETIC_ROSTER]);
-    stubJwksFetch();
-    const token = await mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: rosteredIdentity });
+    access.stubCertsFetch();
+    const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: rosteredIdentity });
 
     const response = await connect(storeId, token);
 
