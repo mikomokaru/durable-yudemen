@@ -39,13 +39,10 @@ export function synchronize(running: readonly Timer[], params: SyncParams): read
   // seq をキーに Adjustment を集める（seq は running 内で一意の全順序の根拠）。未設定は 0。
   const adjustmentBySeq = new Map<number, number>();
 
-  // 近接クラスタ（窓の重なりの連結成分）ごとに Sync_Set へ分割し、Sync_Target を決めて Adjustment を割り当てる。
-  for (const cluster of formProximityClusters(targets, params.toleranceRatio)) {
-    assignCluster(
-      cluster.map((timer) => toWindow(timer, params.toleranceRatio)),
-      armsLimit,
-      adjustmentBySeq,
-    );
+  // Timer を一度だけ窓へ写し、近接クラスタごとに Sync_Set へ分割して Adjustment を割り当てる。
+  const windows = targets.map((timer) => toWindow(timer, params.toleranceRatio));
+  for (const cluster of formClusters(windows)) {
+    assignCluster(cluster, armsLimit, adjustmentBySeq);
   }
 
   // running は算出結果で全体置換、boiled はそのまま。入力順を保って返す。
