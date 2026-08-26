@@ -90,12 +90,18 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
     - **Validates: Requirements 3.3, 3.7, 4.3**
   - [ ]* 5.5 クラスタ連結成分の property test（境界一致生成器を含む）
     - **Property 3: Proximity_Cluster は窓重なりの連結成分に一致する**
+    - 期待 membership は入力 Timer と調整パラメータだけからテスト側の小さな参照モデルで導く。各 Timer の閉区間を独立に計算し、区間が重なる対（境界一致を含む）を辺とするグラフの到達可能性を推移的に閉じ、極大連結成分を集合として求める
+    - `synchronize` またはその内部 helper の出力を期待値の組み立てに使わない。本体の分類結果は検査対象としてのみ扱い、期待 membership の要素・境界・並びを本体から逆算しない
     - **Validates: Requirements 1.3, 1.4, 1.5, 1.6**
   - [ ]* 5.6 分割の property test
     - **Property 4: Sync_Set は Running_Timer 集合の分割である**
+    - 期待 membership は 5.5 の独立参照モデルが求めた連結成分を、テスト側でオリジナル `endTime` 昇順（同着 `seq` 昇順）に並べ、arms 本ずつ区切って導く。`synchronize` または内部 helper が返した集合を期待値として再利用しない
+    - 各 Running_Timer がちょうど 1 つの Sync_Set に属すること、集合間の重複と全体からの欠落がないこと、各集合の大きさが arms 以下であることを、入力の Running_Timer 集合との集合演算で独立に確認する
     - **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5**
   - [ ]* 5.7 確定セット実効時刻一致の property test
     - **Property 5: 同期確定セットのメンバーは実効 endTime が完全一致する**
+    - 同期確定された複数メンバーの集合は、5.5〜5.6 の独立参照モデルによる membership と、テスト側で独立に計算した Window_Intersection が空でないことから判定する。本体出力の実効 `endTime` の一致や、本体 helper の membership を同期確定判定へ写さない
+    - 独立に同期確定と判定した各複数メンバー集合について、本体出力の `endTime + adjustment` が全メンバーで完全一致することを確認する
     - **Validates: Requirements 2.6**
   - [ ]* 5.8 同期可能性とフォールバックの property test
     - **Property 6: 同期可能性とフォールバック（窓の積が空・孤立は Adjustment 0）**
