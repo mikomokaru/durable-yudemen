@@ -88,7 +88,7 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
   - [ ]* 5.4 窓内収束の property test
     - **Property 2: Adjustment は許容調整窓内に収まる**
     - **Validates: Requirements 3.3, 3.7, 4.3**
-  - [ ]* 5.5 クラスタ連結成分の property test（境界一致生成器を含む）
+  - [x]* 5.5 クラスタ連結成分の property test（境界一致生成器を含む）
     - **Property 3: Proximity_Cluster は窓重なりの連結成分に一致する**
     - 期待 membership は入力 Timer と調整パラメータだけからテスト側の小さな参照モデルで導く。各 Timer の閉区間を独立に計算し、区間が重なる対（境界一致を含む）を辺とするグラフの到達可能性を推移的に閉じ、極大連結成分を集合として求める
     - `synchronize` またはその内部 helper の出力を期待値の組み立てに使わない。本体の分類結果は検査対象としてのみ扱い、期待 membership の要素・境界・並びを本体から逆算しない

@@ -39,18 +39,30 @@ export function synchronize(running: readonly Timer[], params: SyncParams): read
   // seq をキーに Adjustment を集める（seq は running 内で一意の全順序の根拠）。未設定は 0。
   const adjustmentBySeq = new Map<number, number>();
 
-  // 各 Running_Timer をスケール整数の窓へ写す。
-  const windows = targets.map((timer) => toWindow(timer, params.toleranceRatio));
-
   // 近接クラスタ（窓の重なりの連結成分）ごとに Sync_Set へ分割し、Sync_Target を決めて Adjustment を割り当てる。
-  for (const cluster of formClusters(windows)) {
-    assignCluster(cluster, armsLimit, adjustmentBySeq);
+  for (const cluster of formProximityClusters(targets, params.toleranceRatio)) {
+    assignCluster(
+      cluster.map((timer) => toWindow(timer, params.toleranceRatio)),
+      armsLimit,
+      adjustmentBySeq,
+    );
   }
 
   // running は算出結果で全体置換、boiled はそのまま。入力順を保って返す。
   return running.map((timer) =>
     timer.boiledAt === null ? { ...timer, adjustment: adjustmentBySeq.get(timer.seq) ?? 0 } : timer,
   );
+}
+
+/**
+ * 100 倍スケール整数と区間掃引を公開契約へ漏らさないため、Timer 列だけを分類境界にする。
+ */
+export function formProximityClusters(
+  running: readonly Timer[],
+  toleranceRatio: number,
+): readonly (readonly Timer[])[] {
+  const windows = running.map((timer) => toWindow(timer, toleranceRatio));
+  return formClusters(windows).map((cluster) => cluster.map(({ timer }) => timer));
 }
 
 /**
