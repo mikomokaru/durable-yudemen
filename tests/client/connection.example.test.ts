@@ -7,78 +7,23 @@
 //   3. 切断中も offset を固定したままローカル再算出ティックが継続し、サーバ通信が発生しない
 //      （要件5.2 / 5.3）
 //
-// WebSocket グローバルには触れず、SocketOpener / now を注入して決定的に駆動する。
+// WebSocket グローバルには触れず、SocketOpener / now を注入して決定的に駆動する。据え付け
+// （偽 Socket / 偽 Connectivity_Watch）は support/timerConnection.ts に置き、complete.example と共有する。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { remainingMs } from "../../src/client/clock";
-import {
-  mode,
-  openTimerConnection,
-  type Connectivity,
-  type ConnectionOptions,
-  type Socket,
-  type SocketListeners,
-} from "../../src/client/connection";
-import type { ConnectivityWatch } from "../../src/client/connectivity";
-import type { ClientMessage, ServerMessage } from "../../src/domain/messages";
+import { mode } from "../../src/client/connection";
 import type { TimerFact } from "../../src/domain/timer";
-
-/** 1 回の接続試行で生成された偽 Socket（送信・切断のモック）とそのリスナの組。 */
-interface OpenedSocket {
-  readonly listeners: SocketListeners;
-  readonly send: ReturnType<typeof vi.fn<(data: string) => void>>;
-  readonly close: ReturnType<typeof vi.fn<() => void>>;
-}
-
-const START_NOW = 1_000_000; // 任意の固定エポックミリ秒。受信時刻の基準。
-
-/**
- * 接続コントローラと偽 Socket 環境を組み立てる。
- *
- * now は可変参照で制御し、切断中の時間経過（ローカル再算出）を表現できるようにする。
- * openSocket は接続試行のたびに新しい偽 Socket を sockets へ積む（再接続も追跡できる）。
- */
-function setup(overrides: Partial<ConnectionOptions> = {}) {
-  const sockets: OpenedSocket[] = [];
-  let currentNow = START_NOW;
-
-  const connection = openTimerConnection({
-    storeId: "test-store",
-    url: "wss://test/ws",
-    now: () => currentNow,
-    openSocket: (_url, listeners) => {
-      const send = vi.fn<(data: string) => void>();
-      const close = vi.fn<() => void>();
-      sockets.push({ listeners, send, close });
-      const socket: Socket = { send, close };
-      return socket;
-    },
-    ...overrides,
-  });
-
-  return {
-    connection,
-    sockets,
-    /** 直近に開かれた Socket（再接続後は最新を指す）。未生成なら明示的に失敗する。 */
-    latest: (): OpenedSocket => {
-      const last = sockets[sockets.length - 1];
-      if (last === undefined) throw new Error("Socket がまだ開かれていない");
-      return last;
-    },
-    setNow: (next: number) => {
-      currentNow = next;
-    },
-  };
-}
+import {
+  openConnectionWithFakeSockets,
+  openConnectionWithFakeWatch,
+  receiveFrame,
+  START_NOW,
+} from "./support/timerConnection";
 
 /** テスト用 TimerFact 生成。endTime は START_NOW から十分先に置く。startTime は START_NOW（開始時刻の事実）。 */
 function makeTimer(id: string, endTime = START_NOW + 180_000): TimerFact {
   return { id, slotIds: [`slot-${id}`], noodleType: "ramen", firmness: "normal", startTime: START_NOW, endTime };
-}
-
-/** JSON 文字列としてサーバメッセージを受信させる。 */
-function receive(opened: OpenedSocket, message: unknown): void {
-  opened.listeners.onMessage(JSON.stringify(message));
 }
 
 beforeEach(() => {
@@ -91,11 +36,11 @@ afterEach(() => {
 
 describe("client/connection — 状態同期と切断継続", () => {
   it("snapshot は表示中 Timer 集合を全置換し、含まれない Timer と処理済み記録を刈り取る（要件4.2 / 4.5）", () => {
-    const { connection, latest } = setup();
+    const { connection, latest } = openConnectionWithFakeSockets();
     latest().listeners.onOpen();
 
     // 最初の snapshot で A・B を保持し synced になる。A は endTime が過去（クライアントで boiled として導出される）。
-    receive(latest(), {
+    receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW,
       timers: [makeTimer("A", START_NOW - 1000), makeTimer("B")],
@@ -109,7 +54,7 @@ describe("client/connection — 状態同期と切断継続", () => {
     expect(connection.getView().processedIds.has("A")).toBe(true);
 
     // 次の snapshot は B・C のみ。A は表示から除去され、処理済み記録からも刈り取られる。
-    receive(latest(), {
+    receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW + 20,
       timers: [makeTimer("B"), makeTimer("C")],
@@ -121,11 +66,11 @@ describe("client/connection — 状態同期と切断継続", () => {
   });
 
   it("接続確立から 2 秒 snapshot 未受信なら同期失敗を表面化し、既存表示を保持する（要件4.6 / 5.5）", () => {
-    const { connection, latest } = setup();
+    const { connection, latest } = openConnectionWithFakeSockets();
 
     // 初回接続で snapshot を受け、A を表示中 synced にしておく。
     latest().listeners.onOpen();
-    receive(latest(), {
+    receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW,
       timers: [makeTimer("A")],
@@ -150,12 +95,12 @@ describe("client/connection — 状態同期と切断継続", () => {
   });
 
   it("切断中は offset を固定したままローカル再算出ティックが継続し、サーバ通信は発生しない（要件5.2 / 5.3）", () => {
-    const { connection, latest, setNow } = setup();
+    const { connection, latest, setNow } = openConnectionWithFakeSockets();
 
     // 接続中に snapshot を受け、offset を確立する（serverTime と受信時刻 START_NOW の差）。
     latest().listeners.onOpen();
     const endTime = START_NOW + 60_000; // 受信時点で残り 60 秒
-    receive(latest(), {
+    receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW + 5_000, // サーバはローカルより 5 秒進んでいる
       timers: [{ id: "A", slotIds: ["slot-A"], noodleType: "ramen", endTime }],
@@ -197,49 +142,8 @@ describe("client/connection — 状態同期と切断継続", () => {
 });
 
 describe("client/connection — provisional への操作は origin で経路分けする（幽霊タイマー解消）", () => {
-  /**
-   * Connectivity を直接駆動できる偽 Watch で接続を組む。default watchConnectivity の ping/pong に依存せず、
-   * degraded→live の遷移と送信有無を決定的に検証する。openSocket は偽 Watch が無視する。
-   */
-  function setupWithWatch(overrides: Partial<ConnectionOptions> = {}) {
-    const send = vi.fn<(message: ClientMessage) => void>();
-    let currentNow = START_NOW;
-    let connectivityHandler: ((status: Connectivity) => void) | null = null;
-    let serverMessageHandler: ((message: ServerMessage, receivedAt: number) => void) | null = null;
-    const watch: ConnectivityWatch = {
-      onConnectivity: (handler) => {
-        connectivityHandler = handler;
-      },
-      send,
-      onServerMessage: (handler) => {
-        serverMessageHandler = handler;
-      },
-      onRejected: () => {},
-      close: vi.fn(),
-    };
-    let idCounter = 0;
-    const connection = openTimerConnection({
-      storeId: "test-store",
-      url: "wss://test/ws",
-      now: () => currentNow,
-      newId: () => `local-${(idCounter += 1)}`,
-      connectivity: () => watch,
-      ...overrides,
-    });
-    return {
-      connection,
-      send,
-      setConnectivity: (status: Connectivity) => connectivityHandler?.(status),
-      receiveMessage: (message: ServerMessage) => serverMessageHandler?.(message, START_NOW),
-      /** ローカル時刻を進める（ティックは進めない）。boiled まで到達させるために使う。 */
-      setNow: (next: number) => {
-        currentNow = next;
-      },
-    };
-  }
-
   it("degraded で開始した provisional を live で Cancel するとサーバへ送らずローカル除去する（TimerNotFound 回避）", () => {
-    const { connection, send, setConnectivity } = setupWithWatch();
+    const { connection, send, setConnectivity } = openConnectionWithFakeWatch();
 
     // boot は connectivity down（degraded）。ここで開始すると provisional（origin:"local"）が生まれ、送信はしない。
     connection.start(["slot-5"], "ramen", 180);
@@ -260,16 +164,21 @@ describe("client/connection — provisional への操作は origin で経路分�
   });
 
   it("live で server-confirmed な Timer の Cancel は従来どおりサーバへ送る", () => {
-    const { connection, send, setConnectivity, receiveMessage } = setupWithWatch();
+    const { connection, send, setConnectivity, receiveMessage } = openConnectionWithFakeWatch();
 
     setConnectivity("up");
-    receiveMessage({
-      type: "snapshot",
-      serverTime: START_NOW,
-      timers: [makeTimer("S")],
-      pendingOrders: [],
-      recommendations: [],
-    });
+    // 受信時刻は START_NOW 固定（serverTime も同値ゆえ offset は 0 に落ち着く）。ここで見たいのは
+    // origin による経路分けだけなので、受信時刻を now の進みから切り離しておく。
+    receiveMessage(
+      {
+        type: "snapshot",
+        serverTime: START_NOW,
+        timers: [makeTimer("S")],
+        pendingOrders: [],
+        recommendations: [],
+      },
+      START_NOW,
+    );
     expect(mode(connection.getView())).toBe("live");
 
     connection.cancel("S");
@@ -279,7 +188,7 @@ describe("client/connection — provisional への操作は origin で経路分�
   });
 
   it("live で provisional の Complete もサーバへ送らずローカル除去する", () => {
-    const { connection, send, setConnectivity, setNow } = setupWithWatch();
+    const { connection, send, setConnectivity, setNow } = openConnectionWithFakeWatch();
 
     connection.start(["slot-3"], "udon", 120);
     const provisional = connection.getView().timers.find((t) => t.origin === "local");

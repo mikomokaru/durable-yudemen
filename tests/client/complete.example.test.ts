@@ -7,74 +7,33 @@
 // 畳み込みの核は property test（boiledGroup.property.test.ts）が覆うため、ここは入力で振る舞いが
 // 変わらない配線——live / degraded / 混在の振り分け、watch.send の発行、persistence.save の回数——だけを
 // 少数の具体例で固める。
+//
+// 据え付け（偽 Socket / 偽 Connectivity_Watch）は support/timerConnection.ts に置き、connection.example と
+// 共有する。本ファイルに残すのは、ここでしか意味を持たない観測——complete の送信列（completeSends）と、
+// 実コーデックを通した再水和ビュー（rehydratedView）——だけである。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  EMPTY_VIEW,
-  openTimerConnection,
-  type ClientView,
-  type Connectivity,
-  type ConnectionOptions,
-  type Socket,
-  type SocketListeners,
-} from "../../src/client/connection";
-import type { ConnectivityWatch } from "../../src/client/connectivity";
+import type { ClientView } from "../../src/client/connection";
 import { parsePersistedView, type PersistedView } from "../../src/client/persistence";
 import { assignedSlotDisplays } from "../../src/client/components/slotDisplay";
-import type { ClientMessage, ServerMessage } from "../../src/domain/messages";
 import type { TimerFact } from "../../src/domain/timer";
-
-const START_NOW = 1_000_000;
-
-interface OpenedSocket {
-  readonly listeners: SocketListeners;
-  readonly send: ReturnType<typeof vi.fn<(data: string) => void>>;
-  readonly close: ReturnType<typeof vi.fn<() => void>>;
-}
-
-function setup(overrides: Partial<ConnectionOptions> = {}) {
-  const sockets: OpenedSocket[] = [];
-  let currentNow = START_NOW;
-  const connection = openTimerConnection({
-    storeId: "test-store",
-    url: "wss://test/ws",
-    now: () => currentNow,
-    openSocket: (_url, listeners) => {
-      const send = vi.fn<(data: string) => void>();
-      const close = vi.fn<() => void>();
-      sockets.push({ listeners, send, close });
-      const socket: Socket = { send, close };
-      return socket;
-    },
-    ...overrides,
-  });
-  return {
-    connection,
-    latest: (): OpenedSocket => {
-      const last = sockets[sockets.length - 1];
-      if (last === undefined) throw new Error("Socket not opened");
-      return last;
-    },
-    setNow: (n: number) => {
-      currentNow = n;
-    },
-  };
-}
-
-function receive(opened: OpenedSocket, message: unknown): void {
-  opened.listeners.onMessage(JSON.stringify(message));
-}
+import {
+  openConnectionWithFakeSockets,
+  openConnectionWithFakeWatch,
+  receiveFrame,
+  START_NOW,
+} from "./support/timerConnection";
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe("client/connection — 茹で上がりの明示完了", () => {
   it("boiled スロットを complete すると completed 受信で除去され idle へ戻る", () => {
-    const { connection, latest } = setup();
+    const { connection, latest } = openConnectionWithFakeSockets();
     latest().listeners.onOpen();
 
     // endTime が過去の Timer を hydration で受け取る（クライアントでは boiled として導出される）。
-    receive(latest(), {
+    receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW,
       timers: [{ id: "T", slotIds: ["3"], noodleType: "Medium", endTime: START_NOW - 1000 }],
@@ -94,7 +53,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
     expect(sent).toContainEqual({ type: "complete", timerId: "T" });
 
     // サーバが T の消えた snapshot をブロードキャスト → Timer 除去 → スロットは idle へ。直前結果が差分で記録される。
-    receive(latest(), { type: "snapshot", serverTime: START_NOW + 5, timers: [] });
+    receiveFrame(latest(), { type: "snapshot", serverTime: START_NOW + 5, timers: [] });
     const view2 = connection.getView();
     expect(view2.timers.some((t) => t.id === "T")).toBe(false);
     const displays2 = assignedSlotDisplays(view2, [0], START_NOW);
@@ -106,19 +65,19 @@ describe("client/connection — 茹で上がりの明示完了", () => {
   });
 
   it("当該スロットで新規開始すると直前結果（残滓）は解除される（要件13.7）", () => {
-    const { connection, latest } = setup();
+    const { connection, latest } = openConnectionWithFakeSockets();
     latest().listeners.onOpen();
-    receive(latest(), {
+    receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW,
       timers: [{ id: "T", slotIds: ["3"], noodleType: "Medium", endTime: START_NOW - 1000 }],
     });
     connection.complete("T");
-    receive(latest(), { type: "snapshot", serverTime: START_NOW + 5, timers: [] });
+    receiveFrame(latest(), { type: "snapshot", serverTime: START_NOW + 5, timers: [] });
     expect(connection.getView().lastResults.has("3")).toBe(true);
 
     // スロット 3 で新規開始（当該スロットを占有する snapshot 受信）→ 残滓は差分で解除される。
-    receive(latest(), {
+    receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW + 10,
       timers: [{ id: "U", slotIds: ["3"], noodleType: "Thin", endTime: START_NOW + 70_000 }],
@@ -132,80 +91,21 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   /** boiled な実効 endTime（offset 0 ゆえ START_NOW との差だけで boiled / running が決まる）。 */
   const BOILED_AT = START_NOW - 1_000;
 
+  /** 偽 Watch が受け取った ClientMessage 送信の記録（openConnectionWithFakeWatch が返す send そのもの）。 */
+  type WatchSend = ReturnType<typeof openConnectionWithFakeWatch>["send"];
+
   /**
-   * Connectivity を直接駆動できる偽 Watch と、呼び出し回数を数える偽 ViewStore で接続を組む
-   * （connection.example.test.ts の setupWithWatch と同形）。
+   * サーバへ送られた complete の timerId 列（どのメンバーが送られたか）。ping 等の他フレームは混じらない。
    *
-   * なぜ既定の watchConnectivity では足りないか: 切断中の watchConnectivity は socket を捨てるため、
-   * degraded の「送らない」が mode の判断なのか socket 不在の帰結なのか区別できない。偽 Watch の send を
-   * 直接数えることで、観測対象を経路分けそのものに絞る。
-   *
-   * なぜ persistence を注入するか: 一括を 1 回の update に畳む判断（design「ファンアウトの形」）は、
-   * save の呼び出し回数としてしか外から見えない。2 回走れば中間ビュー（群の一部だけが消えた盤面）が
-   * 外へ出ている。load は既定で EMPTY_VIEW にして boot 再水和の雑音を消し、未同期経路（要件2.7）だけ
-   * 再水和ビューを渡す——`openTimerConnection` は接続前に load で再水和するため、hydration 前の
-   * `sync === "connecting"` を作れる入口はここだけである。
+   * 共有ハーネスへ載せず本ファイルに置くのは、これが complete の送信列という一機能固有の絞り込みであり、
+   * 据え付け（偽 Watch の配線）とは別の関心事だからである。観測元を引数で明示すれば、二台の端末を並べる
+   * ケース（要件6.16）でもどちらの送信列を見ているかが読める。
    */
-  function setupWithWatch(rehydrated: ClientView = EMPTY_VIEW) {
-    const send = vi.fn<(message: ClientMessage) => void>();
-    const save = vi.fn<(view: ClientView) => void>();
-    let currentNow = START_NOW;
-    let connectivityHandler: ((status: Connectivity) => void) | null = null;
-    let serverMessageHandler: ((message: ServerMessage, receivedAt: number) => void) | null = null;
-    const watch: ConnectivityWatch = {
-      onConnectivity: (handler) => {
-        connectivityHandler = handler;
-      },
-      send,
-      onServerMessage: (handler) => {
-        serverMessageHandler = handler;
-      },
-      onRejected: () => {},
-      close: vi.fn(),
-    };
-    let idCounter = 0;
-    const connection = openTimerConnection({
-      storeId: "test-store",
-      url: "wss://test/ws",
-      now: () => currentNow,
-      newId: () => `local-${(idCounter += 1)}`,
-      connectivity: () => watch,
-      persistence: { save, load: () => rehydrated },
-    });
-    return {
-      connection,
-      send,
-      save,
-      setConnectivity: (status: Connectivity) => connectivityHandler?.(status),
-      /**
-       * 全量 snapshot を受信させる。serverTime に受信時点の now を渡すため offset は常に 0 になる。
-       * 群の基準時刻は now() + view.offset ゆえ、offset を 0 に保つと endTime と setNow の値がそのまま対応する。
-       */
-      receiveSnapshot: (timers: readonly TimerFact[]) =>
-        serverMessageHandler?.(
-          { type: "snapshot", serverTime: currentNow, timers, pendingOrders: [], recommendations: [] },
-          currentNow,
-        ),
-      /**
-       * 拒否（`{ type: "error", … }`）を受信させる。shell は拒否を Effect 列にせず要求元の WS だけへ返すため、
-       * broadcast（receiveSnapshot）とは別の受信経路として与える。
-       *
-       * serverTime を受信時点の now と別値にできるようにしてあるのは、`TimerNotFound` で「error を立てない」
-       * ことと「何もしない」ことを区別するためである——offset だけが動くことを見なければ、畳み込みが
-       * 拒否をまるごと捨てていても同じ観測になる。
-       */
-      receiveError: (code: string, message: string, serverTime: number = currentNow) =>
-        serverMessageHandler?.({ type: "error", serverTime, code, message }, currentNow),
-      setNow: (next: number) => {
-        currentNow = next;
-      },
-      /** サーバへ送られた complete の timerId 列（どのメンバーが送られたか）。ping 等の他フレームは混じらない。 */
-      completeSends: (): readonly string[] =>
-        send.mock.calls
-          .map(([message]) => message)
-          .filter((message) => message.type === "complete")
-          .map((message) => message.timerId),
-    };
+  function completeSends(send: WatchSend): readonly string[] {
+    return send.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message.type === "complete")
+      .map((message) => message.timerId);
   }
 
   /** テスト用 TimerFact。slotId は数値文字列（担当ユニット 0 は slot 0..5・slotOf が Number で読む）。 */
@@ -221,7 +121,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   }
 
   /**
-   * 永続ブロブから再水和したビュー（setupWithWatch の load へ渡す）。
+   * 永続ブロブから再水和したビュー（openConnectionWithFakeWatch の load へ渡す）。
    *
    * なぜ ClientView を手組みしないか: 再水和後の sync が "connecting"・connectivity が "down" 起点であることは
    * parsePersistedView が EMPTY_VIEW のベース値へ重ねる帰結であり、それが要件2.7 の前提そのものである。
@@ -238,7 +138,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   }
 
   it("live × 全 server-confirmed — 群の全メンバーへ complete を送り、局所ビューは動かさない（要件2.1 / 2.3 / 6.3）", () => {
-    const { connection, save, setConnectivity, receiveSnapshot, completeSends } = setupWithWatch();
+    const { connection, send, save, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
     setConnectivity("up");
     // 同一 endTime の boiled 2 件を hydration で受ける（同期確定した Sync_Set の実効 endTime は完全一致する）。
     receiveSnapshot([timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)]);
@@ -249,7 +149,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     connection.complete("T1");
 
     // 押下は片方だけ。送信は 2 件それぞれへ発行される（どのメンバーが送られたかまで見る）。
-    expect(completeSends()).toEqual(["T1", "T2"]);
+    expect(completeSends(send)).toEqual(["T1", "T2"]);
     // ビューは参照ごと不変。server-confirmed の除去はサーバの全量 snapshot が運ぶため、押下時点で
     // 局所ビューを動かす理由が無い（動かせば、まだ確定していない除去を先に見せることになる）。
     expect(connection.getView()).toBe(before);
@@ -259,7 +159,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   });
 
   it("degraded — 送信ゼロで 2 件消え、persistence.save は 1 回だけ（要件5.1 / 5.2）", () => {
-    const { connection, send, save, setConnectivity, receiveSnapshot } = setupWithWatch();
+    const { connection, send, save, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
     setConnectivity("up");
     receiveSnapshot([timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)]);
     // 回線喪失。以降 mode は degraded ゆえローカル権限で畳む。
@@ -278,7 +178,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   });
 
   it("混在（live）— server 分はサーバへ送り、Provisional_Timer はローカル除去する（要件2.3 / 2.4）", () => {
-    const { connection, save, setConnectivity, receiveSnapshot, setNow, completeSends } = setupWithWatch();
+    const { connection, send, save, setConnectivity, receiveSnapshot, setNow } = openConnectionWithFakeWatch();
     // boot は connectivity down（degraded）。ここで開始すると provisional（origin:"local"）が生まれる。
     connection.start(["1"], "udon", 120);
     const provisional = connection.getView().timers.find((t) => t.origin === "local");
@@ -294,7 +194,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     connection.complete("S");
 
     // server 分だけが送られ、local 分は送られない（サーバは id を知らない＝幽霊タイマー化を避ける）。
-    expect(completeSends()).toEqual(["S"]);
+    expect(completeSends(send)).toEqual(["S"]);
     const after = connection.getView();
     expect(after.timers.map((t) => t.id)).toEqual(["S"]);
     expect(after.timers.some((t) => t.id === provisional!.id)).toBe(false);
@@ -305,20 +205,20 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   });
 
   it("1 件（退化）— 同一 endTime の他メンバーが無ければ complete は 1 回だけ（要件2.2）", () => {
-    const { connection, setConnectivity, receiveSnapshot, completeSends } = setupWithWatch();
+    const { connection, send, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
     setConnectivity("up");
     // U も boiled だが endTime が違う。群の識別は「boiled であること」ではなく実効 endTime の等値である。
     receiveSnapshot([timerAt("T", "0", BOILED_AT), timerAt("U", "1", BOILED_AT - 1_000)]);
 
     connection.complete("T");
 
-    expect(completeSends()).toEqual(["T"]);
+    expect(completeSends(send)).toEqual(["T"]);
 
     connection.close();
   });
 
   it("対象 running — 群が空ゆえ送信ゼロ・ビュー不変（要件1.2 / 3.2）", () => {
-    const { connection, send, save, setConnectivity, receiveSnapshot } = setupWithWatch();
+    const { connection, send, save, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
     setConnectivity("up");
     receiveSnapshot([timerAt("R", "0", START_NOW + 60_000)]);
     const before = connection.getView();
@@ -336,7 +236,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   });
 
   it("担当外メンバー — 担当ユニット外のスロットを駆動する boiled メンバーも消し込む（要件4.1 / 4.2）", () => {
-    const { connection, setConnectivity, receiveSnapshot, completeSends } = setupWithWatch();
+    const { connection, send, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
     setConnectivity("up");
     // OUT は slot 11（unit 1）を駆動する。押下者の担当は unit 0（slot 0..5）ゆえ盤面には現れない。
     receiveSnapshot([timerAt("IN", "3", BOILED_AT), timerAt("OUT", "11", BOILED_AT)]);
@@ -347,7 +247,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     connection.complete("IN");
 
     // 担当射影は群に掛からない。同時に上がった以上、担当外のメンバーも一括の対象である。
-    expect(completeSends()).toEqual(["IN", "OUT"]);
+    expect(completeSends(send)).toEqual(["IN", "OUT"]);
 
     connection.close();
   });
@@ -357,7 +257,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   // server-confirmed 除去はサーバの全量 snapshot が運ぶため押下時点の局所ビューが動かないからである。
   describe("完了後の表示導出（既存 assignedSlotDisplays の帰結）", () => {
     it("完了後の idle 導出 — 駆動 Timer が残らず sync が synced なら idle（要件2.5）", () => {
-      const { connection, setConnectivity, receiveSnapshot } = setupWithWatch();
+      const { connection, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
       setConnectivity("up");
       receiveSnapshot([timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)]);
       // 回線喪失。sync は snapshot 受信で立った "synced" のまま（Connectivity は sync を触らない）。
@@ -380,7 +280,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     it("未同期での完了後は unreceived — 再水和直後の一括完了は idle を騙らない（要件2.7）", () => {
       // 永続ブロブから server-confirmed を再水和し、hydration を受けずに complete する。sync は
       // "connecting"・connectivity は "down" 起点ゆえ mode は degraded——ローカル畳み込みだけで群が消える。
-      const { connection, send } = setupWithWatch(
+      const { connection, send } = openConnectionWithFakeWatch(
         rehydratedView([timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)]),
       );
       const before = connection.getView();
@@ -401,7 +301,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("完了後もスロットが占有される — 群外 Timer が残れば走行中優先・同区分は最早 endTime（要件2.6）", () => {
-      const { connection, setConnectivity, receiveSnapshot } = setupWithWatch();
+      const { connection, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
       setConnectivity("up");
       // engine はスロット排他を課さないため、同一スロットを複数 Timer が駆動する盤面は有効入力である。
       // 群は endTime の等値で決まる（BOILED_AT の 2 件のみ）。他は群外——走行中 2 件と、別 endTime の boiled 2 件。
@@ -451,7 +351,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     it("degraded の畳み込み順 — 同一スロットを駆動する 2 メンバーでは保持列で後のメンバーの麺種が残る（要件8.5 degraded 節）", () => {
       // 端のループは boiledGroup の返す並び（＝ view.timers の並び）で LocalComplete を畳み、
       // recordLastResults は set で上書きする。ゆえに後に畳まれたメンバーが残滓に残る。
-      const forward = setupWithWatch();
+      const forward = openConnectionWithFakeWatch();
       forward.setConnectivity("up");
       forward.receiveSnapshot([timerAt("T1", "0", BOILED_AT), timerAt("T2", "0", BOILED_AT)]);
       forward.setConnectivity("down");
@@ -467,7 +367,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
 
       // 並びを入れ替えれば残る麺種も入れ替わる。この観測が要るのは、id の辞書順・押下対象・endTime では
       // なく「保持列の並び」が決めていることを示すためである（一方向だけでは区別できない）。
-      const reversed = setupWithWatch();
+      const reversed = openConnectionWithFakeWatch();
       reversed.setConnectivity("up");
       reversed.receiveSnapshot([timerAt("T2", "0", BOILED_AT), timerAt("T1", "0", BOILED_AT)]);
       reversed.setConnectivity("down");
@@ -482,7 +382,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("degraded の占有スロットへの記録 — 群外 Timer が占有していても残滓を記録する（要件8.8）", () => {
-      const { connection, setConnectivity, receiveSnapshot } = setupWithWatch();
+      const { connection, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
       setConnectivity("up");
       // HOLD は群外（endTime が違う）だが、群メンバー T1 と同一スロット "0" を駆動する。
       receiveSnapshot([
@@ -508,7 +408,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("live の占有スロットの残滓 — 新 serverTimers が占有すれば記録を見送り既存の残滓も消える（要件8.7）", () => {
-      const { connection, setConnectivity, receiveSnapshot, completeSends } = setupWithWatch();
+      const { connection, send, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
       // 先に残滓の種を仕込む。A / B が slot "0" を占有する間、snapshot の (c) は毎回その slot の残滓を
       // 消すため、この窓で残滓を作れるのはローカル畳み込みだけである（boot は degraded ゆえ provisional が生まれる）。
       connection.start(["0"], "seed-noodle", 120);
@@ -525,7 +425,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       connection.complete("A");
 
       // live × server-confirmed ゆえ押下時点でビューは動かない。除去は snapshot が運ぶ。
-      expect(completeSends()).toEqual(["A", "B"]);
+      expect(completeSends(send)).toEqual(["A", "B"]);
       expect(connection.getView().lastResults.get("0")).toEqual({ noodleType: "seed-noodle", at: START_NOW });
 
       // その snapshot が slot "0" を新しい server-confirmed N で占有している。
@@ -541,7 +441,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("live の占有スロットの残滓 — 保持 provisional が占有しても同じ（要件8.7）", () => {
-      const { connection, setConnectivity, receiveSnapshot } = setupWithWatch();
+      const { connection, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
       // occupied は「新 serverTimers ∪ 保持 provisional」のスロット。占有役の provisional（残す）と、
       // 残滓の種になる provisional（あとで cancel する）を degraded の boot で作る。
       connection.start(["0"], "keep-noodle", 180);
@@ -572,12 +472,12 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       // reconcileServerConfirmed は差分を受け取らない。消失は prevServer（受信時点の保持列から
       // origin==="server" を抽出した並び）の走査で導く。ゆえに中間 snapshot を受けず全量 snapshot を
       // 1 通だけ受ける形にする——2 通に分ければ到着順でも同じ結果が説明でき、走査順を固定できない。
-      const forward = setupWithWatch();
+      const forward = openConnectionWithFakeWatch();
       forward.setConnectivity("up");
       forward.receiveSnapshot([timerAt("X", "0", BOILED_AT), timerAt("Y", "0", BOILED_AT)]);
 
       forward.connection.complete("X");
-      expect(forward.completeSends()).toEqual(["X", "Y"]);
+      expect(completeSends(forward.send)).toEqual(["X", "Y"]);
 
       // 両者が消えた全量 snapshot を 1 通だけ受ける（中間 snapshot の取り逃しは要件6.6 が許容する）。
       forward.receiveSnapshot([]);
@@ -589,7 +489,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
 
       // 保持列の並びを入れ替えれば残る麺種も入れ替わる。受けた snapshot は同じく 1 通ゆえ、決めているのは
       // 到着順ではなく prevServer の走査順である。
-      const reversed = setupWithWatch();
+      const reversed = openConnectionWithFakeWatch();
       reversed.setConnectivity("up");
       reversed.receiveSnapshot([timerAt("Y", "0", BOILED_AT), timerAt("X", "0", BOILED_AT)]);
 
@@ -604,7 +504,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("混在の反映順 — 保持列で最後の provisional は残らず、後から届く server 分が上書きする（要件8.6）", () => {
-      const { connection, setConnectivity, receiveSnapshot, setNow, completeSends } = setupWithWatch();
+      const { connection, send, setConnectivity, receiveSnapshot, setNow } = openConnectionWithFakeWatch();
       // boot は degraded ゆえ provisional が生まれる。
       connection.start(["0"], "local-noodle", 120);
       const provisional = connection.getView().timers.find((t) => t.origin === "local");
@@ -620,7 +520,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
 
       // 押下時点で反映されるのは provisional 分だけ（S はサーバ確定待ち）。ここで残滓は保持列で最後の
       // メンバーの麺種になっている——この中間状態を見ておかないと、あとの上書きが観測にならない。
-      expect(completeSends()).toEqual(["S"]);
+      expect(completeSends(send)).toEqual(["S"]);
       expect(connection.getView().lastResults.get("0")).toEqual({
         noodleType: "local-noodle",
         at: provisional!.endTime,
@@ -640,7 +540,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("混在の反映順 — 後から届く snapshot が当該スロットを占有していれば provisional の残滓は消える（要件8.6 / 8.7）", () => {
-      const { connection, setConnectivity, receiveSnapshot, setNow } = setupWithWatch();
+      const { connection, setConnectivity, receiveSnapshot, setNow } = openConnectionWithFakeWatch();
       connection.start(["0"], "local-noodle", 120);
       const provisional = connection.getView().timers.find((t) => t.origin === "local");
       expect(provisional).toBeDefined();
@@ -675,12 +575,12 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
   // 入力で振る舞いが変わらない配線（`code` の等値で分けるだけ）ゆえ Property には向かない。
   describe("重複 complete の拒否は提示しない（error 畳み込み）", () => {
     it("snapshot 未到着での再押下 — 操作口が残り同一メンバーへ再度 complete が飛ぶ（要件6.11 / 6.12）", () => {
-      const { connection, setConnectivity, receiveSnapshot, completeSends } = setupWithWatch();
+      const { connection, send, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
       setConnectivity("up");
       receiveSnapshot([timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)]);
 
       connection.complete("T1");
-      expect(completeSends()).toEqual(["T1", "T2"]);
+      expect(completeSends(send)).toEqual(["T1", "T2"]);
 
       // 除去を運ぶ snapshot は届いていない。局所ビューが動かないため両スロットは boiled のまま導出され、
       // ゆえに Complete の操作口も残る（`assignedSlotDisplays` が boiled を返す＝SlotCard がボタンを描く）。
@@ -690,13 +590,13 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
 
       // 二度目の押下。群は導出値であって送信済みを覚えないため、同じメンバー集合を再構成して再送する。
       connection.complete("T2");
-      expect(completeSends()).toEqual(["T1", "T2", "T1", "T2"]);
+      expect(completeSends(send)).toEqual(["T1", "T2", "T1", "T2"]);
 
       connection.close();
     });
 
     it("TimerNotFound を受けても view.error は null のまま・offset だけ最新化される（要件6.14）", () => {
-      const { connection, setConnectivity, receiveSnapshot, receiveError } = setupWithWatch();
+      const { connection, setConnectivity, receiveSnapshot, receiveError } = openConnectionWithFakeWatch();
       setConnectivity("up");
       receiveSnapshot([timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)]);
       expect(connection.getView().offset).toBe(0);
@@ -716,7 +616,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("他の拒否種別は従来どおり view.error が立つ（要件6.15）", () => {
-      const { connection, setConnectivity, receiveSnapshot, receiveError } = setupWithWatch();
+      const { connection, setConnectivity, receiveSnapshot, receiveError } = openConnectionWithFakeWatch();
       setConnectivity("up");
       receiveSnapshot([timerAt("T1", "0", BOILED_AT)]);
 
@@ -744,8 +644,8 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     it("二台の端末が同一 Sync_Set を押す — 負けた側の TimerNotFound も提示されない（要件6.16）", () => {
       // 二つの接続を作る（端末 2 台）。同一の Sync_Set を両者が hydration で受け、それぞれ別のスロットを押す。
       // 要件4.1 の帰結として、どちらの押下も群の全メンバーへ送る——ゆえに後に届いた側が必ず拒否を受ける。
-      const first = setupWithWatch();
-      const second = setupWithWatch();
+      const first = openConnectionWithFakeWatch();
+      const second = openConnectionWithFakeWatch();
       const sync = [timerAt("T1", "0", BOILED_AT), timerAt("T2", "1", BOILED_AT)];
       for (const terminal of [first, second]) {
         terminal.setConnectivity("up");
@@ -755,8 +655,8 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       first.connection.complete("T1");
       second.connection.complete("T2");
       // 二台とも群の全メンバーへ送る（担当スコープは群に掛からない）。
-      expect(first.completeSends()).toEqual(["T1", "T2"]);
-      expect(second.completeSends()).toEqual(["T1", "T2"]);
+      expect(completeSends(first.send)).toEqual(["T1", "T2"]);
+      expect(completeSends(second.send)).toEqual(["T1", "T2"]);
 
       // 先に届いた first の 2 件が確定し、second の 2 件は対象不在で拒否される（拒否は要求元だけへ返る）。
       second.receiveError("TimerNotFound", "指定された timerId の Timer は存在しない: T1");
