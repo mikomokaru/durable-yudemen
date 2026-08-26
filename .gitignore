@@ -26,3 +26,12 @@ worker-configuration.d.ts
 /operation-log.jsonl
 /instrumentation-log.txt
 /*.jsonl
+
+# コードレビューツールの出力先。レビューの作業出力であり、成果は PR の本文と
+# コミットメッセージに残る。履歴に載せると PR ごとに 20KB 級の分析文が積む。
+/semantic-review/
+
+# spec タスク実行のメタデータ（pbtResults / executionHistory）。
+# この機械のセッション識別子（chatSessionId）と実行時刻の記録であり、spec の内容ではない。
+# タスクの完了状態は tasks.md のチェックボックスが正本。
+.kiro/specs/*/tasks.meta.json
