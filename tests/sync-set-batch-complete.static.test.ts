@@ -12,10 +12,7 @@
 //   (a) engine / domain / shell に本機能由来の差分が無いこと — TimerFact の 6 フィールド・ClientMessage /
 //       ServerMessage の種別集合・Effect 種別の集合が増えていないこと、synchronize が存置されていること、
 //       そしてクライアント専用の導出 boiledGroup がサーバ側の三層へ漏れていないこと
-//       （要件9.1 / 9.3 / 10.1 / 10.3）。同期の membership 規律と発火判定の中身は整形固定の正規表現では
-//       主張できないため本検査から引いた——発火は tests/core/fire.property.test.ts が行動で守り、
-//       membership の行動検証は Boil_Sync 自身の Property（design Property 3〜5・未実装）の領分として
-//       起票済み。
+//       （要件9.1 / 9.3 / 10.1 / 10.3）。
 //   (b) クライアント契約に新種別・新状態が無いこと — ClientEvent の kind 集合が増えず、一括完了が既存
 //       LocalComplete の複数回畳み込みで実現され、Boiled_Group が ClientView のフィールドへ昇格していない
 //       こと（要件9.4 / 10.3）。
@@ -680,8 +677,8 @@ describe("(d) boiledGroup が暗黙の作用に触れない（要件9.4 / 10.3�
 
   it("boiled の関門が引数 correctedNow で決まる（要件9.4）", () => {
     // 「時計に触れない」ことの裏返し。禁則トークンの不在だけでは、時刻を別経路（引数で受けた view の中の
-    // 値など）から得る形を排除できない。シグネチャ全文の整形固定は引いた——形は tsc が、correctedNow を
-    // 引数として振ったときの振る舞いは boiledGroup.property が守る。ここは関門の式だけを見る。
+    // 値など）から得る形を排除できない。シグネチャ全文の整形固定は引いた——利用箇所との型整合は tsc が、
+    // correctedNow を引数として振ったときの振る舞いは boiledGroup.property が守る。ここは関門の式だけを見る。
     expect(bareCode(), "boiled の関門が引数 correctedNow で決まっていない").toMatch(
       /\bendTime\s*>\s*correctedNow\b/,
     );
@@ -689,8 +686,8 @@ describe("(d) boiledGroup が暗黙の作用に触れない（要件9.4 / 10.3�
 
   it("モジュールスコープに let / var の宣言が無い（要件9.4）", () => {
     // モジュールに跨って生き残る再代入可能な状態（蓄積変数）を禁じる。関数内の let は禁じない。
-    // memo の実型（const cache = new Map() のような可変コンテナ）はこの検査では見えない——そこまでの
-    // 主張はしない。押下ごとに導き直す規律の残りは、import 1 本制約とグローバル禁則が塞いでいる。
+    // const cache = new Map() のような可変コンテナは、この検査・import 1 本制約・グローバル禁則のいずれも
+    // 通る。ここで保証するのは、モジュールスコープに let / var の宣言が無いことだけである。
     expect(bareCode(), "モジュールスコープに let / var の宣言が在る").not.toMatch(
       /^(?:let|var)\s/m,
     );
