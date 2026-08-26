@@ -63,6 +63,20 @@ export function formProximityClusters(
 }
 
 /**
+ * 分割規律だけを検査できるよう、内部の窓表現と同期目標を公開境界から隠す。
+ */
+export function formSyncSets(
+  running: readonly Timer[],
+  params: SyncParams,
+): readonly (readonly Timer[])[] {
+  const armsLimit = params.arms < 1 ? 1 : params.arms;
+  const windows = running.map((timer) => toWindow(timer, params.toleranceRatio));
+  return formClusters(windows).flatMap((cluster) =>
+    partitionProximityCluster(cluster, armsLimit).map((set) => set.map(({ timer }) => timer)),
+  );
+}
+
+/**
  * Windowed — Running_Timer をスケール整数（× 100）の許容調整窓へ写した内部表現。
  *
  * half = duration × toleranceRatio = h_i × 100（クランプなし）。center = endTime × 100。
@@ -113,17 +127,21 @@ function formClusters(windows: readonly Windowed[]): Windowed[][] {
 /** Sync_Set — 一つの Proximity_Cluster を endTime 昇順に arms 本ずつ区切った同時に上げる単位。 */
 type SyncSet = readonly Windowed[];
 
-/**
- * 一クラスタを Sync_Set へ分割し、同期可能なセット群へ maximin で Sync_Target を配置して Adjustment を割り当てる。
- * 同期見送りセット（Window_Intersection が空）・単独クラスタ・単独メンバーは Adjustment 0 に落ちる（要件1.7 / 3.6 / 7.4）。
- */
-function assignCluster(cluster: readonly Windowed[], armsLimit: number, out: Map<number, number>): void {
-  // クラスタ内をオリジナル endTime 昇順（同着 seq 昇順）に整列し、先頭から arms 本ずつチャンク化（要件2.2〜2.5）。
+function partitionProximityCluster(cluster: readonly Windowed[], armsLimit: number): SyncSet[] {
   const ordered = [...cluster].sort((a, b) => a.center - b.center || a.seq - b.seq);
   const sets: SyncSet[] = [];
   for (let i = 0; i < ordered.length; i += armsLimit) {
     sets.push(ordered.slice(i, i + armsLimit));
   }
+  return sets;
+}
+
+/**
+ * 一クラスタを Sync_Set へ分割し、同期可能なセット群へ maximin で Sync_Target を配置して Adjustment を割り当てる。
+ * 同期見送りセット（Window_Intersection が空）・単独クラスタ・単独メンバーは Adjustment 0 に落ちる（要件1.7 / 3.6 / 7.4）。
+ */
+function assignCluster(cluster: readonly Windowed[], armsLimit: number, out: Map<number, number>): void {
+  const sets = partitionProximityCluster(cluster, armsLimit);
 
   // Window_Intersection [Lmax, Rmin] と同期可能判定（Lmax ≤ Rmin）。同期見送りセットは全メンバー 0（要件3.1 / 3.2 / 3.6）。
   const syncable: { readonly set: SyncSet; readonly lmax: number; readonly rmin: number }[] = [];
