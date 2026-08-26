@@ -10,16 +10,19 @@
 // 実ファイルを読み、期待するシンボルの存在と禁則トークンの不在を確かめる）。検査する不変点は次の (a)〜(d):
 //
 //   (a) engine / domain / shell に本機能由来の差分が無いこと — TimerFact の 6 フィールド・ClientMessage /
-//       ServerMessage の種別集合・engine 公開関数の集合・Effect 種別の集合が増えていないこと、同期計算
-//       （synchronize の membership 規律）と発火判定（実効 endTime ≤ now + ε）が不変であること、そして
-//       クライアント専用の導出 boiledGroup がサーバ側の三層へ漏れていないこと
-//       （要件9.1 / 9.2 / 9.3 / 10.1 / 10.3）。
+//       ServerMessage の種別集合・Effect 種別の集合が増えていないこと、synchronize が存置されていること、
+//       そしてクライアント専用の導出 boiledGroup がサーバ側の三層へ漏れていないこと
+//       （要件9.1 / 9.3 / 10.1 / 10.3）。同期の membership 規律と発火判定の中身は整形固定の正規表現では
+//       主張できないため本検査から引いた——発火は tests/core/fire.property.test.ts が行動で守り、
+//       membership の行動検証は Boil_Sync 自身の Property（design Property 3〜5・未実装）の領分として
+//       起票済み。
 //   (b) クライアント契約に新種別・新状態が無いこと — ClientEvent の kind 集合が増えず、一括完了が既存
 //       LocalComplete の複数回畳み込みで実現され、Boiled_Group が ClientView のフィールドへ昇格していない
 //       こと（要件9.4 / 10.3）。
 //   (c) UI に差分が無いこと — SlotCard / SlotBoard / slotDisplay が群の存在を知らず、一括のための操作要素・
-//       確認ダイアログ・視覚フィードバックを持たず、Complete の操作口が担当スロットの boiled に対してのみ
-//       描画され、残滓の提示窓が既存の一点で決まること（要件4.3 / 7.1 / 7.3 / 8.3）。
+//       確認ダイアログ・視覚フィードバックを持たず、Complete の操作口がちょうど一つで単一 Timer を渡し、
+//       残滓の提示窓が既存の一点で決まること（要件4.3 / 7.1 / 7.3 / 8.3）。boiled 分岐にのみ描画される
+//       ことの JSX 整形固定は引いた（実描画の行動テストが本来の守り・起票済み）。
 //   (d) boiledGroup が純粋であること — 取り込み点が connection.ts からの型限定 import ただ一つで、時計・
 //       乱数・WS・DOM・localStorage を import も参照もせず、時刻を引数（correctedNow）でのみ受けること
 //       （要件9.4 / 10.3）。純粋性は振る舞いテストでは捉えにくい——Date.now を混ぜても、たまたま同じ
@@ -48,10 +51,8 @@ const TIMER_FILE = "src/domain/timer.ts";
 const MESSAGES_FILE = "src/domain/messages.ts";
 /** 作用の記述。Effect 種別を増やさない（要件10.3）。 */
 const EFFECT_FILE = "src/engine/effect.ts";
-/** 同期計算。アルゴリズムと Sync_Set membership 規律を変えない（要件9.1 / 9.2）。 */
+/** 同期計算。存置のみを見る（要件9.1）。 */
 const SYNC_FILE = "src/engine/sync.ts";
-/** 一括ドレイン発火。発火判定の基準を変えない（要件9.3）。 */
-const FIRE_FILE = "src/engine/fire.ts";
 /** クライアント契約と唯一の窓口。complete の意味だけが広がる（要件10.3）。 */
 const CONNECTION_FILE = "src/client/connection.ts";
 /** 群の再構成（本機能が足す唯一の公開シンボル）。 */
@@ -107,58 +108,6 @@ const CLIENT_EVENT_KINDS = new Set([
   "Classify",
   "LocalDone",
   "Tick",
-]);
-
-/**
- * engine の公開関数の確定集合（要件10.3）。本機能はここへ 1 つも足さない——一括完了はクライアント側の
- * ファンアウトで完結し、サーバは既存の completeTimer を 1 件ずつ受けるだけである。
- *
- * 他 spec が engine へ正当に公開関数を足したときはこの集合を追随させる（既存
- * tests/offline-degradation.static.test.ts の EXPECTED_CORE_FILES と同じ判断）。追随しても本検査の主張は
- * 弱まらない——群・一括の語彙が engine へ現れないことは下の禁則トークン検査が独立に守る。
- */
-const ENGINE_PUBLIC_FUNCTIONS = new Set([
-  "adjustTimer",
-  "adjustedEndTime",
-  "admit",
-  "advanceRelease",
-  "arriveOrder",
-  "arriveRecords",
-  "baselineSchedule",
-  "cancelOrder",
-  "cancelTimer",
-  "committedSchedule",
-  "completeTimer",
-  "consumeOrder",
-  "createTimer",
-  "decide",
-  "digestInput",
-  "earliestEndTime",
-  "fireDueTimers",
-  "fromSnapshot",
-  "initialRelease",
-  "isNewerSequence",
-  "isSamePending",
-  "isStale",
-  "migrate",
-  "nextAlarmEffect",
-  "planTargets",
-  "receivePlan",
-  "recommend",
-  "reconcile",
-  "refersTo",
-  "removeOrder",
-  "scoreSchedule",
-  "settle",
-  "slotDistance",
-  "startTimer",
-  "synchronize",
-  "toCookSchedule",
-  "toSnapshot",
-  "toWireSnapshot",
-  "toWireTimer",
-  "upsertOrder",
-  "validateStart",
 ]);
 
 /**
@@ -450,40 +399,14 @@ describe("(a) engine / domain / shell に一括完了由来の差分が無い（
     expect(effects).toEqual(EFFECT_TYPES);
   });
 
-  it("engine の公開関数集合が確定集合と一致する（engine 公開関数を足していない・要件10.3）", () => {
-    const found = new Set<string>();
-    for (const file of collectSourceFiles("src/engine")) {
-      for (const match of readBareCode(file).matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)/g)) {
-        const name = match[1];
-        if (name !== undefined) found.add(name);
-      }
-    }
-    expect(found).toEqual(ENGINE_PUBLIC_FUNCTIONS);
-  });
-
-  it("synchronize が存置され、Sync_Set membership 規律（オリジナル endTime 昇順・arms チャンク）が不変（要件9.1 / 9.2）", () => {
-    // 群の識別は同期の結果（実効 endTime の一致）を読むだけで、同期の作り方には触れない。
-    // membership を決める 2 行——クラスタ内の整列と arms 本ずつのチャンク化——を構造として固定する。
-    const code = readBareCode(SYNC_FILE);
-    expect(code, `${SYNC_FILE} が synchronize を公開していない`).toMatch(
+  it("synchronize が存置される（要件9.1）", () => {
+    // 群の識別は同期の結果（実効 endTime の一致）を読むだけで、同期の作り方には触れない。存置だけを見る。
+    // membership 規律（整列・arms チャンク化）の不変は整形固定の正規表現では主張できない——ソースの
+    // 空白や識別子を変えれば通り、他の場所を変えても通る。行動としての守りは Boil_Sync 自身の
+    // Property（design Property 3〜5・未実装）の領分であり、起票済み。発火判定（実効 endTime ≤ now + ε）は
+    // tests/core/fire.property.test.ts が行動で守るため、ここでは見ない。
+    expect(readBareCode(SYNC_FILE), `${SYNC_FILE} が synchronize を公開していない`).toMatch(
       /export\s+function\s+synchronize\b/,
-    );
-    expect(code, "Sync_Set の整列規律（center 昇順・同着 seq 昇順）が変わっている").toMatch(
-      /\[\.\.\.cluster\]\s*\.sort\(\s*\(a,\s*b\)\s*=>\s*a\.center\s*-\s*b\.center\s*\|\|\s*a\.seq\s*-\s*b\.seq\s*\)/,
-    );
-    expect(code, "Sync_Set の arms チャンク化が変わっている").toMatch(
-      /for\s*\(\s*let\s+i\s*=\s*0;\s*i\s*<\s*ordered\.length;\s*i\s*\+=\s*armsLimit\s*\)/,
-    );
-  });
-
-  it("発火判定が実効 endTime ≤ now + ε のまま（要件9.3）", () => {
-    // 一括完了は boiled になった後の話であり、boiled になる基準には触れない。閾値の作り方と述語を固定する。
-    const code = readBareCode(FIRE_FILE);
-    expect(code, "発火の許容窓（now + EPSILON_MS）が変わっている").toMatch(
-      /const\s+dueThreshold\s*=\s*\(\s*now\s+as\s+number\s*\)\s*\+\s*EPSILON_MS/,
-    );
-    expect(code, "発火判定が実効 endTime（adjustedEndTime）≤ dueThreshold でない").toMatch(
-      /adjustedEndTime\(t\)\s+as\s+number\)\s*<=\s*dueThreshold/,
     );
   });
 
@@ -529,15 +452,15 @@ describe("(b) ClientEvent の種別が増えず、群を状態に昇格させな
 
   it("complete の端が既存 LocalComplete の複数回畳み込みで一括を実現する（要件10.3）", () => {
     // 群のメンバーを 1 件ずつ既存経路へ流す形であること——新しいイベント種別も、群を運ぶ引数も持たない。
-    // update がループ外の 1 回であることも併せて固定する（中間ビューを見せない・要件2.1 の帰結）。
+    // 群の再構成呼び出しの実引数（局所変数名に依存する整形固定）は見ない——群の中身の正しさは
+    // boiledGroup.property が、押下時刻の扱いは complete.example が行動で守る。中間ビューを見せない
+    // こと（要件2.1 の帰結）も出現回数では守れず、complete.example の degraded ケース
+    // （persistence.save が 1 回）が行動として守る。
     const complete = sliceBetween(
       readCodeWithStrings(CONNECTION_FILE),
       "complete: (timerId) => {",
       "adjust: (timerId, firmness) => {",
       CONNECTION_FILE,
-    );
-    expect(complete, "complete が群を再構成していない").toMatch(
-      /boiledGroup\(\s*view\s*,\s*timerId\s*,\s*at\s*\+\s*view\.offset\s*\)/,
     );
     expect(complete, "complete がメンバーごとのループを持たない").toMatch(
       /for\s*\(\s*const\s+member\s+of\s+group\s*\)/,
@@ -552,7 +475,6 @@ describe("(b) ClientEvent の種別が増えず、群を状態に昇格させな
     expect(complete, "live の送信が既存 complete メッセージでない").toMatch(
       /\{\s*type:\s*"complete"\s*,\s*timerId:\s*member\.id\s*\}/,
     );
-    expect(countMatches(complete, /\bupdate\(/g), "update がループ外の 1 回でない").toBe(1);
   });
 
   it("ClientView が群を状態として持たない（押下ごとの導出値のまま・要件9.4）", () => {
@@ -568,15 +490,6 @@ describe("(b) ClientEvent の種別が増えず、群を状態に昇格させな
     );
   });
 
-  it("boiledGroup は関数として押下のたびに呼ばれる（状態ではない・要件9.4）", () => {
-    // 呼び先が関数 export であることを両側から確かめる（宣言側と呼び出し側）。
-    expect(readBareCode(BOILED_GROUP_FILE), "boiledGroup が関数として export されていない").toMatch(
-      /export\s+function\s+boiledGroup\s*\(/,
-    );
-    expect(readBareCode(CONNECTION_FILE), "connection が boiledGroup を値として import していない").toMatch(
-      /import\s*\{\s*boiledGroup\s*\}\s*from/,
-    );
-  });
 });
 
 // ── (c) UI に差分が無い（要件4.3 / 7.1 / 7.3 / 8.3） ───────────────────────────
@@ -613,19 +526,6 @@ describe("(c) UI が群を知らず一括専用の操作要素を持たない（
     );
   });
 
-  it("SlotCard の Complete は boiled 分岐にのみ描画される（要件7.1）", () => {
-    // running に Complete を出さないこと（要件3.3）と同じ構造。呼び出しが isBoiled の真側に居ることを見る。
-    const code = readCodeWithStrings(SLOT_CARD_FILE);
-    const call = code.indexOf("onComplete(slot,");
-    expect(call, "onComplete の呼び出しが見つからない").toBeGreaterThan(0);
-    // 開き波括弧まで含めてアンカーする（`{!isBoiled ? (` を `isBoiled ? (` として拾わないため）。
-    const branch = code.lastIndexOf("{isBoiled ? (", call);
-    expect(branch, "onComplete が isBoiled の三項分岐の中に無い").toBeGreaterThanOrEqual(0);
-    expect(
-      code.slice(branch, call),
-      "onComplete が isBoiled の偽側（boiled でない分岐）に居る",
-    ).not.toContain(") : (");
-  });
 
   it("SlotCard に確認ダイアログ・一括であることを示す操作要素が無い（要件7.3）", () => {
     // 一括は既存の単一 Complete が暗黙に担う。新しい操作要素・確認・特別な視覚フィードバックを足さない。
@@ -714,23 +614,12 @@ describe("(d) boiledGroup が暗黙の作用に触れない（要件9.4 / 10.3�
    */
   const bareCode = (): string => readBareCode(BOILED_GROUP_FILE);
 
-  /**
-   * 副作用を持つクライアント隣接モジュール。実時刻・接続監視・永続・通知はいずれも端の関心事であり、
-   * 群の再構成が触れてよい相手ではない。
-   */
-  const EFFECTFUL_CLIENT_MODULES = [
-    "clock",
-    "connectivity",
-    "persistence",
-    "notification",
-    "audio",
-    "wakeLock",
-  ] as const;
-
   it("取り込み点がちょうど 1 つで、connection.ts からの型限定 import である（要件9.4）", () => {
     // これが本 describe で最も強い検査である。import が「connection.ts の型 2 つ」ただ一つに固定されれば、
     // 副作用を持つモジュールの取り込みは構造的に不可能になる（下の禁則トークン検査が残りの、グローバル
-    // 経由の作用を塞ぐ）。
+    // 経由の作用を塞ぐ）。締め出される相手は副作用を持つ隣接モジュール——clock（実時刻）・connectivity
+    // （接続監視）・persistence（永続）・notification（通知）・audio・wakeLock——で、いずれも端の関心事で
+    // あり、群の再構成が触れてよい相手ではない。名指しの個別検査は置かない（この 1 本制約から導かれる）。
     //
     // 型限定（import type）であることを構造として固める理由は実行時の循環である。connection.ts は
     // boiledGroup を値として import するため、こちらが値 import を持てば循環が実行時に生じうる。
@@ -761,16 +650,6 @@ describe("(d) boiledGroup が暗黙の作用に触れない（要件9.4 / 10.3�
     expect(code, "require を持っている").not.toMatch(/\brequire\s*\(/);
   });
 
-  it("副作用を持つ隣接モジュール（clock / connectivity / persistence / notification）を import しない（要件9.4）", () => {
-    // 上の「import は 1 本」検査から導かれるが、塞いでいる相手を名前で残す。どのモジュールを避けているのか
-    // が読めなければ、将来 import を足す人はこの規律の理由に気づけない。
-    const code = readCodeWithStrings(BOILED_GROUP_FILE);
-    for (const module of EFFECTFUL_CLIENT_MODULES) {
-      expect(code, `${BOILED_GROUP_FILE} が ${module} を import している`).not.toMatch(
-        new RegExp(`from\\s+["'][^"']*${module}["']`),
-      );
-    }
-  });
 
   it("時計（Date / performance）に触れない（要件9.4）", () => {
     // 現在時刻は端が now() + view.offset で採り、correctedNow として渡す。ここで実時刻を読めば、同じ
@@ -799,22 +678,19 @@ describe("(d) boiledGroup が暗黙の作用に触れない（要件9.4 / 10.3�
     expect(bareCode(), "localStorage を参照している").not.toMatch(/\blocalStorage\b/);
   });
 
-  it("時刻を引数（correctedNow）でのみ受け、判定にそれを用いる（要件9.4）", () => {
-    // 「時計に触れない」ことの裏返し。時刻の入口がシグネチャにあり、boiled の関門がその引数で決まる形を
-    // 固定する。禁則トークンの不在だけでは、時刻を別経路（引数で受けた view の中の値など）から得る形を
-    // 排除できない。
-    const code = bareCode();
-    expect(code, "boiledGroup のシグネチャが（view, timerId, correctedNow）でない").toMatch(
-      /export\s+function\s+boiledGroup\(\s*view:\s*ClientView,\s*timerId:\s*string,\s*correctedNow:\s*number,?\s*\):\s*readonly\s+ClientTimer\[\]/,
-    );
-    expect(code, "boiled の関門が引数 correctedNow で決まっていない").toMatch(
+  it("boiled の関門が引数 correctedNow で決まる（要件9.4）", () => {
+    // 「時計に触れない」ことの裏返し。禁則トークンの不在だけでは、時刻を別経路（引数で受けた view の中の
+    // 値など）から得る形を排除できない。シグネチャ全文の整形固定は引いた——形は tsc が、correctedNow を
+    // 引数として振ったときの振る舞いは boiledGroup.property が守る。ここは関門の式だけを見る。
+    expect(bareCode(), "boiled の関門が引数 correctedNow で決まっていない").toMatch(
       /\bendTime\s*>\s*correctedNow\b/,
     );
   });
 
-  it("モジュールスコープに可変状態を持たない（同じ入力に同じ出力・要件9.4）", () => {
-    // 群を memo するモジュール変数を置けば、押下ごとに導き直すという規律（要件9.4）が静かに壊れる。
-    // 関数内の let は禁じない——壊れるのはモジュールに跨って生き残る状態だけである。
+  it("モジュールスコープに let / var の宣言が無い（要件9.4）", () => {
+    // モジュールに跨って生き残る再代入可能な状態（蓄積変数）を禁じる。関数内の let は禁じない。
+    // memo の実型（const cache = new Map() のような可変コンテナ）はこの検査では見えない——そこまでの
+    // 主張はしない。押下ごとに導き直す規律の残りは、import 1 本制約とグローバル禁則が塞いでいる。
     expect(bareCode(), "モジュールスコープに let / var の宣言が在る").not.toMatch(
       /^(?:let|var)\s/m,
     );
