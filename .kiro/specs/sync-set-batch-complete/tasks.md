@@ -167,7 +167,7 @@ PBT は設計の 9 プロパティを各 1 サブタスクとして実装する�
     - **二台の端末** — `setupWithWatch` を 2 つ作り、同一 Sync_Set のメンバーを両者が押す。負けた側の `TimerNotFound` が提示されない（要件6.16）
     - _Requirements: 6.11, 6.12, 6.14, 6.15, 6.16_
 
-- [ ]* 8. SlotCard の実描画境界の example test（tests/client/complete.example.test.ts）
+- [x]* 8. SlotCard の実描画境界の example test（tests/client/complete.example.test.ts）
   - `SlotCard` 本体を `react-dom/server` の `renderToStaticMarkup` で実際に描画する。既存の `.ts` テストからは `createElement` を用い、新しい DOM / renderer 依存を追加しない
   - boiled の描画結果に `aria-label="Complete"` の `button` がちょうど 1 つ存在することを確認する。running と idle の描画結果には当該 Complete ボタンが存在しないことを確認する
   - `SlotCard.tsx` の `isBoiled` 式・分岐文字列を読む静的検査や、分岐をテスト側へ写した純粋関数テストでは代替しない。検査対象は実コンポーネントの SSR 出力とする

@@ -12,10 +12,13 @@
 // 共有する。本ファイルに残すのは、ここでしか意味を持たない観測——complete の送信列（completeSends）と、
 // 実コーデックを通した再水和ビュー（rehydratedView）——だけである。
 
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientView } from "../../src/client/connection";
 import { parsePersistedView, type PersistedView } from "../../src/client/persistence";
-import { assignedSlotDisplays } from "../../src/client/components/slotDisplay";
+import { SlotCard } from "../../src/client/components/SlotCard";
+import { assignedSlotDisplays, type SlotDisplay } from "../../src/client/components/slotDisplay";
 import type { TimerFact } from "../../src/domain/timer";
 import {
   openConnectionWithFakeSockets,
@@ -23,6 +26,56 @@ import {
   receiveFrame,
   START_NOW,
 } from "./support/timerConnection";
+
+function completeButtonCount(html: string): number {
+  const buttons = html.match(/<button\b[^>]*>/g) ?? [];
+  return buttons.filter((button) => /\saria-label="Complete"(?=\s|\/?>)/.test(button)).length;
+}
+
+function slotCardMarkup(display: SlotDisplay): string {
+  return renderToStaticMarkup(
+    createElement(SlotCard, {
+      display,
+      onStart: () => undefined,
+      onCancel: () => undefined,
+      onComplete: () => undefined,
+      noodleColor: () => "#ffffff",
+      onAdjust: () => undefined,
+    }),
+  );
+}
+
+describe("SlotCard — Complete の実描画境界", () => {
+  const timer: TimerFact = {
+    id: "SSR-TIMER",
+    slotIds: ["0"],
+    noodleType: "Udon",
+    firmness: "normal",
+    startTime: START_NOW - 60_000,
+    endTime: START_NOW,
+  };
+
+  it("boiled は Complete button を 1 つ描画し、running / idle は描画しない（要件7.1 / 7.3）", () => {
+    const boiled = slotCardMarkup({
+      kind: "boiled",
+      slot: 0,
+      timer: { ...timer, endTime: START_NOW - 1_000 },
+      overdueMs: 1_000,
+    });
+    const running = slotCardMarkup({
+      kind: "running",
+      slot: 0,
+      timer: { ...timer, endTime: START_NOW + 30_000 },
+      remainingMs: 30_000,
+      unconfirmed: false,
+    });
+    const idle = slotCardMarkup({ kind: "idle", slot: 0 });
+
+    expect(completeButtonCount(boiled)).toBe(1);
+    expect(completeButtonCount(running)).toBe(0);
+    expect(completeButtonCount(idle)).toBe(0);
+  });
+});
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
