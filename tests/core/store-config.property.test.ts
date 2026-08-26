@@ -6,7 +6,6 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
-  AFFINITY_TOLERANCE_DISTANCE_MAX,
   AFFINITY_TOLERANCE_DISTANCE_MIN,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_AFFINITY_WEIGHT,
@@ -42,6 +41,21 @@ import {
 // データとして持ち、キーを振って回す形にする（8 個の it を並べるとパラメータ独立の主張が書けない）。
 // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 数値スカラー 1 個の妥当域と既定。
+ *
+ * max は任意項——許容 slot 距離だけが上限を持たない（座標に上限が無いことと揃う。理由は domain の
+ * AFFINITY_TOLERANCE_DISTANCE_MIN の傍）。上限の不在を Infinity で埋めない。埋めれば「上限がある」という
+ * 嘘の形を表に残し、上限超えの生成も妥当域の検査も、存在しない境界を測ることになる。
+ */
+interface ScalarDomain {
+  readonly validate: (raw: unknown) => number;
+  readonly min: number;
+  /** 上限。上限を持たないパラメータでは省く。 */
+  readonly max?: number;
+  readonly fallback: number;
+}
+
 /** 数値スカラーのパラメータ表（重み 3・許容幅 3）。妥当域と既定は domain の定数を正本とする。 */
 const SCALAR_PARAMS = {
   orderSyncWeight: { validate: toOrderSyncWeight, min: WEIGHT_MIN, max: WEIGHT_MAX, fallback: DEFAULT_ORDER_SYNC_WEIGHT },
@@ -59,16 +73,29 @@ const SCALAR_PARAMS = {
     max: SYNC_TOLERANCE_SECONDS_MAX,
     fallback: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
   },
+  // 上限の行を持たない 1 個。妥当域は「AFFINITY_TOLERANCE_DISTANCE_MIN 以上の整数」で閉じる。
   affinityToleranceDistance: {
     validate: toAffinityToleranceDistance,
     min: AFFINITY_TOLERANCE_DISTANCE_MIN,
-    max: AFFINITY_TOLERANCE_DISTANCE_MAX,
     fallback: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   },
-} as const;
+} as const satisfies Record<string, ScalarDomain>;
 
 type ScalarKey = keyof typeof SCALAR_PARAMS;
 const SCALAR_KEYS = Object.keys(SCALAR_PARAMS) as readonly ScalarKey[];
+
+/** 表の 1 行を読む。行ごとに max の有無が違うため、union のまま property へ触らず ScalarDomain へ揃える。 */
+function scalarDomain(key: ScalarKey): ScalarDomain {
+  return SCALAR_PARAMS[key];
+}
+
+/**
+ * 妥当な許容 slot 距離の生成上限。設定側に上限が無いため生成側で決める。
+ *
+ * 既定 14 を大きく跨ぐところまで振る。上限を持つ他の 5 個の妥当域（最大 600）も越えるため、
+ * 「上限が無いパラメータは大きな整数でもクランプされず素通りする」ことが同じ母集団で観測できる。
+ */
+const AFFINITY_TOLERANCE_DISTANCE_GEN_MAX = 10_000;
 
 /** レイアウトのパラメータ（要素ごとに畳む 2 個）。 */
 const LAYOUT_KEYS = ["unitOrigins", "slotOffsets"] as const;
@@ -124,7 +151,7 @@ function genValidRaw(unitCount: number): fc.Arbitrary<RawConfig> {
     tableSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
     affinityToleranceDistance: fc.integer({
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
-      max: AFFINITY_TOLERANCE_DISTANCE_MAX,
+      max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
     }),
     unitOrigins: fc.array(genGridPoint, { minLength: unitCount, maxLength: unitCount }),
     slotOffsets: fc.array(genGridPoint, { minLength: SLOTS_PER_UNIT, maxLength: SLOTS_PER_UNIT }),
@@ -182,12 +209,18 @@ function genIntrusion(key: ParamKey): fc.Arbitrary<Intrusion> {
       genMixedPoints.map((value) => ({ value, foldsToDefault: false })),
     );
   }
-  // スカラーの範囲外は既定ではなく境界へクランプされる（畳み方の違いを札で区別する）。
-  const { min, max } = SCALAR_PARAMS[key];
-  const outOfRange = fc
-    .oneof(fc.integer({ min: min - 5000, max: min - 1 }), fc.integer({ min: max + 1, max: max + 5000 }))
-    .map((value) => ({ value, foldsToDefault: false }));
-  return fc.oneof(unusable, outOfRange);
+  // スカラーの下限未満は既定ではなく境界へクランプされる（畳み方の違いを札で区別する）。
+  const { min, max } = scalarDomain(key);
+  const belowMin = fc.integer({ min: min - 5000, max: min - 1 });
+  // 上限を持たない 1 個には「上限超え」が存在しない。代わりに大きな整数を差し込み、クランプされずに
+  // 妥当域内へ残ることを見る（上限の無さが検査に掛かる唯一の入口ゆえ、ここを空にはしない）。
+  const beyondMax =
+    max === undefined
+      ? fc.integer({ min: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX, max: Number.MAX_SAFE_INTEGER })
+      : fc.integer({ min: max + 1, max: max + 5000 });
+  // 「範囲外」とは呼べない——上限が無い 1 個では大きな値は範囲内である。境界の外側へ振る値、と読む。
+  const beyondBounds = fc.oneof(belowMin, beyondMax).map((value) => ({ value, foldsToDefault: false }));
+  return fc.oneof(unusable, beyondBounds);
 }
 
 // ── 妥当域の判定 ──
@@ -200,9 +233,10 @@ function isWithinDomain(key: ParamKey, config: ValidatedConfig, unitCount: numbe
   if (key === "slotOffsets") {
     return config.slotOffsets.length === SLOTS_PER_UNIT && config.slotOffsets.every(isValidPoint);
   }
-  const { min, max } = SCALAR_PARAMS[key];
+  const { min, max } = scalarDomain(key);
   const value = config[key];
-  return Number.isInteger(value) && value >= min && value <= max;
+  // 上限を持たないパラメータの妥当域は「min 以上の整数」で閉じる（在らぬ上限を測らない）。
+  return Number.isInteger(value) && value >= min && (max === undefined || value <= max);
 }
 
 /** 格子座標として妥当か（GRID_COORDINATE_MIN 以上の整数）。 */
@@ -219,7 +253,7 @@ function isValidPoint(point: GridPoint): boolean {
 function defaultOf(key: ParamKey, unitCount: number): unknown {
   if (key === "unitOrigins") return defaultUnitOrigins(unitCount);
   if (key === "slotOffsets") return DEFAULT_SLOT_OFFSETS;
-  return SCALAR_PARAMS[key].fallback;
+  return scalarDomain(key).fallback;
 }
 
 // ── シナリオ：妥当な設定 1 つと、その 1 パラメータへの不正値の差し込み ──

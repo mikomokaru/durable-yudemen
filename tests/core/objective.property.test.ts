@@ -11,7 +11,6 @@ import type { PlanSlice } from "../../src/engine/schedule";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
 import {
-  AFFINITY_TOLERANCE_DISTANCE_MAX,
   AFFINITY_TOLERANCE_DISTANCE_MIN,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_SLOT_OFFSETS,
@@ -54,10 +53,22 @@ interface PlanSeed {
   readonly params: ScheduleParams;
 }
 
+/** 生成する格子座標の上限。座標に上限は無い（台の増設を設定側で縛らない）が、生成は現実的な範囲に収める。 */
+const GRID_COORDINATE_GEN_MAX = 40;
+
+/**
+ * 生成する許容 slot 距離の上限。設定側に上限は無いため生成側で決める。
+ *
+ * 合成座標は原点＋オフセットゆえ最大 2 × GRID_COORDINATE_GEN_MAX = 80、オクタイル距離は
+ * 10 × max(dx, dy) + 4 × min(dx, dy) ゆえ生じ得る最大距離は 10×80 + 4×80 = 1120。そこを少し超える
+ * 1200 まで振れば、「一部の対だけが超過する」領域と「全ペアが許容内へ潰れる」領域の双方を引ける。
+ */
+const AFFINITY_TOLERANCE_DISTANCE_GEN_MAX = 1200;
+
 /** 妥当な格子座標。座標に上限は無いが、生成は現実的な範囲に収める。 */
 const genGridPoint: fc.Arbitrary<GridPoint> = fc.record({
-  x: fc.integer({ min: GRID_COORDINATE_MIN, max: 40 }),
-  y: fc.integer({ min: GRID_COORDINATE_MIN, max: 40 }),
+  x: fc.integer({ min: GRID_COORDINATE_MIN, max: GRID_COORDINATE_GEN_MAX }),
+  y: fc.integer({ min: GRID_COORDINATE_MIN, max: GRID_COORDINATE_GEN_MAX }),
 });
 
 /** 6 点の配列をオフセット組（タプル）へ昇格する。fast-check はタプル型を直に生成できないための橋渡し。 */
@@ -79,7 +90,7 @@ function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     tableSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
     affinityToleranceDistance: fc.integer({
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
-      max: AFFINITY_TOLERANCE_DISTANCE_MAX,
+      max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
     }),
     unitOrigins: fc.oneof(
       fc.constant(defaultUnitOrigins(unitCount)),
@@ -308,13 +319,12 @@ describe("engine/objective — 距離尺度", () => {
     fc.assert(
       fc.property(
         genPlan,
-        fc.integer({ min: 0, max: AFFINITY_TOLERANCE_DISTANCE_MAX }),
+        // 余裕。0 でも前件（全ペアが許容内）は満たすため、境界ちょうどと十分に余る場合の双方を引くだけの幅で足る。
+        fc.integer({ min: 0, max: 100 }),
         ({ slices, pending, params }, slack) => {
           // 全ペアが許容内に収まる許容距離を採る（レイアウトが与える最大距離＋余裕）。
-          const tolerance = Math.min(
-            AFFINITY_TOLERANCE_DISTANCE_MAX,
-            maxPairDistance(params) + slack,
-          );
+          // 許容距離に上限が無いため、どんなレイアウトでもこの値をそのまま設定できる。
+          const tolerance = maxPairDistance(params) + slack;
           const within = { ...params, affinityToleranceDistance: tolerance };
           const withoutAffinity = { ...within, affinityWeight: 0 };
 

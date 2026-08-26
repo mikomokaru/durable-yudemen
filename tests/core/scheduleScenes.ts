@@ -25,7 +25,6 @@ import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/
 import type { PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import {
-  AFFINITY_TOLERANCE_DISTANCE_MAX,
   AFFINITY_TOLERANCE_DISTANCE_MIN,
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_SLOT_OFFSETS,
@@ -90,6 +89,14 @@ export function genOrderSpec(noodleTypes: readonly string[]): fc.Arbitrary<Order
   });
 }
 
+/**
+ * 生成する許容 slot 距離の上限。設定側に上限は無い（座標に上限が無いことと揃う）ため生成側で決める。
+ *
+ * ここのレイアウトは既定に固定されており、4 ユニットでも合成座標は x ≤ 4×3 + 1 = 13・y ≤ 2、
+ * 生じ得る最大距離は 10×13 + 4×2 = 138。200 まで振れば「全ペアが許容内へ潰れる」領域まで届く。
+ */
+const AFFINITY_TOLERANCE_DISTANCE_GEN_MAX = 200;
+
 /** 採点パラメータ。レイアウトは既定（原点は unitCount 個・slot 番号と座標の対応が解放表と一致する）。 */
 export function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
   return fc.record({
@@ -100,7 +107,7 @@ export function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     tableSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
     affinityToleranceDistance: fc.integer({
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
-      max: AFFINITY_TOLERANCE_DISTANCE_MAX,
+      max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
     }),
     unitOrigins: fc.constant(defaultUnitOrigins(unitCount)),
     slotOffsets: fc.constant(DEFAULT_SLOT_OFFSETS),
