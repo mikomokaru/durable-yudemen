@@ -81,11 +81,14 @@ export const DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS = 30;
 /** 同一卓内の茹で上がり差の許容幅（秒）の既定。オーダー内より緩い。 */
 export const DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS = 60;
 
-/** 許容 slot 距離の下限。 */
+/**
+ * 許容 slot 距離の下限。上限は置かない——距離は座標から導出され、座標に上限が無い（台の増設を設定側で縛らない）。
+ *
+ * 距離の側だけを有限で止めると「全ペアの超過を 0 にできない」レイアウトが生まれる。上限を外しても守るべき
+ * 破綻はない（大きすぎる許容は affinity 項を 0 に潰すだけで、affinityWeight = 0 と同義である）。
+ * 理由と却下案は online-cook-scheduling/design.md「許容距離に上限を置かない」。
+ */
 export const AFFINITY_TOLERANCE_DISTANCE_MIN = 0;
-
-/** 許容 slot 距離の上限。 */
-export const AFFINITY_TOLERANCE_DISTANCE_MAX = 1000;
 
 /**
  * 許容 slot 距離の既定（14 = 斜め隣接のオクタイル距離）。
@@ -293,20 +296,35 @@ export interface StoreConfig {
 }
 
 /**
- * 生値（env 文字列・永続値・運用投入のボディ）を、範囲内の整数へ畳む共通の芯。公開しない。
+ * 生値（env 文字列・永続値・運用投入のボディ）を、下限以上の整数へ畳む共通の芯。公開しない。
  *
  * 抽出の判断（design-philosophy「抽象は重複が実在してから入れる」）：同形の検証が 9 個（unitCount / arms /
  * toleranceRatio ＋ 重み 3 個 ＋ 許容幅 3 個）に達し、重複は実在する。ゆえに芯を一箇所へ寄せた。
  * ただし公開シンボルは各パラメータの to* のまま残す——呼び出し側（shell の設定ロード・registry の合成）が
  * 範囲と既定を引数で組み立てるのではなく名前で呼べること、各パラメータの既定と妥当域がその名の傍で一度だけ
- * 読めることが、この設定群の可読性の芯である。芯は畳み方（不正は既定・範囲内はクランプ）のみを担う。
+ * 読めることが、この設定群の可読性の芯である。芯は畳み方（不正は既定・下限未満はクランプ）のみを担う。
+ *
+ * 下限だけを受けるのは、上限を持たないパラメータが 1 個ある（affinityToleranceDistance）ためであり、
+ * 上限のクランプは toBoundedInteger が重ねる。
  */
-function toBoundedInteger(raw: unknown, min: number, max: number, fallback: number): number {
+function toIntegerAtLeast(raw: unknown, min: number, fallback: number): number {
   const value = typeof raw === "string" ? Number(raw) : raw;
   if (typeof value !== "number" || !Number.isInteger(value)) {
     return fallback;
   }
-  return Math.min(Math.max(value, min), max);
+  return Math.max(value, min);
+}
+
+/**
+ * 下限のみの芯に上限のクランプを重ねた芯。9 個のうち 8 個（上限を持つもの）がこちらを使う。
+ *
+ * 上限を省略可能な引数にはしない。上限が「無い」ことを Infinity や undefined で表せば、上限を持つ 8 個の
+ * 読み手も毎回その分岐を通ることになる（上限の不在は 1 個だけの事実である）。生値の解釈と既定への畳み込みは
+ * toIntegerAtLeast に一度だけ在り、ここが足すのは上限のクランプだけゆえ重複は生まれない。
+ * 不正値の既定は各パラメータの妥当域内ゆえ、fallback が上限クランプで削られることはない。
+ */
+function toBoundedInteger(raw: unknown, min: number, max: number, fallback: number): number {
+  return Math.min(toIntegerAtLeast(raw, min, fallback), max);
 }
 
 /**
@@ -395,17 +413,14 @@ export function toTableSyncToleranceSeconds(raw: unknown): number {
 }
 
 /**
- * 任意の生値を、範囲内の整数 affinityToleranceDistance へ写す純粋関数。
+ * 任意の生値を、AFFINITY_TOLERANCE_DISTANCE_MIN 以上の整数 affinityToleranceDistance へ写す純粋関数。
  *
- * 整数でない・範囲外・非有限は DEFAULT_AFFINITY_TOLERANCE_DISTANCE へ畳む（当該パラメータのみ・要件 3.4）。
+ * 整数でない・非有限・負値は DEFAULT_AFFINITY_TOLERANCE_DISTANCE へ畳む（当該パラメータのみ・要件 3.4）。
+ * 9 個の設定のうちこれだけが上限を持たず、畳み込みも下限のみで閉じる（理由は
+ * AFFINITY_TOLERANCE_DISTANCE_MIN の傍に一度だけ記す）。
  */
 export function toAffinityToleranceDistance(raw: unknown): number {
-  return toBoundedInteger(
-    raw,
-    AFFINITY_TOLERANCE_DISTANCE_MIN,
-    AFFINITY_TOLERANCE_DISTANCE_MAX,
-    DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
-  );
+  return toIntegerAtLeast(raw, AFFINITY_TOLERANCE_DISTANCE_MIN, DEFAULT_AFFINITY_TOLERANCE_DISTANCE);
 }
 
 /**
