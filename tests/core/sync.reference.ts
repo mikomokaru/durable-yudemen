@@ -47,3 +47,17 @@ export function referenceProximityClusters(
 
   return clusters;
 }
+
+export function referenceSyncSets(
+  timers: readonly Timer[],
+  params: { readonly arms: number; readonly toleranceRatio: number },
+): readonly (readonly Timer[])[] {
+  return referenceProximityClusters(timers, params.toleranceRatio).flatMap((cluster) => {
+    const ordered = [...cluster].sort((a, b) => a.endTime - b.endTime || a.seq - b.seq);
+    const sets: Timer[][] = [];
+    for (let index = 0; index < ordered.length; index += params.arms) {
+      sets.push(ordered.slice(index, index + params.arms));
+    }
+    return sets;
+  });
+}
