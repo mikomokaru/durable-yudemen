@@ -119,7 +119,7 @@ engine は元の規定茹で上がり時刻（オリジナル `endTime`）を **
 
 #### Acceptance Criteria
 
-1. THE Boil_Sync SHALL 同期調整をサーバ側で計算し、各クライアント端末は受信した実効 `endTime` をそのまま用い、Adjustment の再計算や独自算出をしない（そもそも Adjustment を受信しない）
+1. THE Boil_Sync SHALL 同期調整をサーバ側で計算し、`ServerMessage.config` で arms・Tolerance_Ratio をクライアント端末へ一方向配信する一方、各クライアント端末は両値を `ClientView` に保持せず同期計算を再実装せず、受信した実効 `endTime` をそのまま用い、Adjustment を受信・再計算・独自算出しない
 2. WHEN Boil_Sync が新しい調整結果を確定する、THE Boil_Sync SHALL 確定結果を永続層（SSOT）へ書き込み、その書き込みが成功した後にのみ全端末へ broadcast する
 3. IF 永続層への書き込みが失敗する、THEN THE Boil_Sync SHALL 全端末への broadcast を行わず、直前に確定した調整結果を保持し、SSOT を失敗前の確定状態に維持する
 4. WHEN ある端末が再接続して状態を再取得（hydration）する、THE Boil_Sync SHALL 現在確定している実効 `endTime` を含む状態を当該端末へ反映し、再取得完了時点で他端末と同一の Adjusted_Boil_Time を持たせる
@@ -136,7 +136,7 @@ engine は元の規定茹で上がり時刻（オリジナル `endTime`）を **
 2. THE Boil_Sync SHALL 既定値として arms を 2 本、Tolerance_Ratio を 10% とする
 3. THE Boil_Sync SHALL 各調整パラメータの妥当域を、arms は 1 以上 10 以下の整数、Tolerance_Ratio は 1 以上 50 以下の整数パーセントと定める
 4. IF `StoreConfig` の arms・Tolerance_Ratio のいずれかが未指定・非数・非整数・自身の妥当域外のいずれかである、THEN THE Boil_Sync SHALL 当該パラメータのみを当該パラメータの既定値へ畳み、妥当な他パラメータの設定値は保持したまま同期計算を継続する
-5. WHERE クライアント端末が調整パラメータを受信する、THE Boil_Sync SHALL 当該パラメータを表示・導出にのみ用い、クライアント由来の変更要求を反映せず `StoreConfig` の確定値を使用し続ける
+5. WHERE クライアント端末が `ServerMessage.config` で調整パラメータを受信する、THE Boil_Sync SHALL 当該パラメータを `ClientView` に保持せず、`ClientMessage` による変更要求を許可せず、同期計算には `StoreConfig` の確定値のみを使用し続ける
 
 ### Requirement 7: 集合変化時の再計算（追加・キャンセル・完了）
 

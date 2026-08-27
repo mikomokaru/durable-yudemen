@@ -298,14 +298,11 @@ export interface StoreConfig {
 /**
  * 生値（env 文字列・永続値・運用投入のボディ）を、下限以上の整数へ畳む共通の芯。公開しない。
  *
- * 抽出の判断（design-philosophy「抽象は重複が実在してから入れる」）：同形の検証が 9 個（unitCount / arms /
- * toleranceRatio ＋ 重み 3 個 ＋ 許容幅 3 個）に達し、重複は実在する。ゆえに芯を一箇所へ寄せた。
- * ただし公開シンボルは各パラメータの to* のまま残す——呼び出し側（shell の設定ロード・registry の合成）が
- * 範囲と既定を引数で組み立てるのではなく名前で呼べること、各パラメータの既定と妥当域がその名の傍で一度だけ
- * 読めることが、この設定群の可読性の芯である。芯は畳み方（不正は既定・下限未満はクランプ）のみを担う。
+ * 公開シンボルは各パラメータの to* のまま残し、呼び出し側が範囲と既定を組み立てない境界を保つ。
+ * この芯は、域外値を境界へクランプする既存設定だけが使う。
  *
- * 下限だけを受けるのは、上限を持たないパラメータが 1 個ある（affinityToleranceDistance）ためであり、
- * 上限のクランプは toBoundedInteger が重ねる。
+ * 下限だけを受けるのは、上限を持たないパラメータがあるためであり、上限のクランプは
+ * toBoundedInteger が重ねる。
  */
 function toIntegerAtLeast(raw: unknown, min: number, fallback: number): number {
   const value = typeof raw === "string" ? Number(raw) : raw;
@@ -316,15 +313,22 @@ function toIntegerAtLeast(raw: unknown, min: number, fallback: number): number {
 }
 
 /**
- * 下限のみの芯に上限のクランプを重ねた芯。9 個のうち 8 個（上限を持つもの）がこちらを使う。
- *
- * 上限を省略可能な引数にはしない。上限が「無い」ことを Infinity や undefined で表せば、上限を持つ 8 個の
- * 読み手も毎回その分岐を通ることになる（上限の不在は 1 個だけの事実である）。生値の解釈と既定への畳み込みは
- * toIntegerAtLeast に一度だけ在り、ここが足すのは上限のクランプだけゆえ重複は生まれない。
- * 不正値の既定は各パラメータの妥当域内ゆえ、fallback が上限クランプで削られることはない。
+ * 下限のみの芯に上限のクランプを重ねる。
+ * 同期パラメータは異なる規律のため使わない。
  */
 function toBoundedInteger(raw: unknown, min: number, max: number, fallback: number): number {
   return Math.min(toIntegerAtLeast(raw, min, fallback), max);
+}
+
+/**
+ * 生値を妥当域内の整数へ畳む芯。同期パラメータは域外値を境界へ寄せず、既定値へ戻す。
+ */
+function toIntegerWithin(raw: unknown, min: number, max: number, fallback: number): number {
+  const value = typeof raw === "string" ? Number(raw) : raw;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    return fallback;
+  }
+  return value;
 }
 
 /**
@@ -341,20 +345,19 @@ export function toUnitCount(raw: unknown): number {
  * 任意の生値（env 文字列・永続値など）を、範囲内の整数 arms へ写す純粋関数。
  *
  * 整数でない・範囲外・非有限はすべて DEFAULT_ARMS へ畳む（当該パラメータのみ・要件 6.3 / 6.4）。
- * 範囲内へはクランプし、検証を一箇所へ集約する（toUnitCount と同形）。
  */
 export function toArms(raw: unknown): number {
-  return toBoundedInteger(raw, ARMS_MIN, ARMS_MAX, DEFAULT_ARMS);
+  return toIntegerWithin(raw, ARMS_MIN, ARMS_MAX, DEFAULT_ARMS);
 }
 
 /**
  * 任意の生値（env 文字列・永続値など）を、範囲内の整数パーセント toleranceRatio へ写す純粋関数。
  *
  * 整数でない・範囲外・非有限はすべて DEFAULT_TOLERANCE_RATIO へ畳む（当該パラメータのみ・要件 6.3 / 6.4）。
- * 範囲内へはクランプし、検証を一箇所へ集約する（toUnitCount と同形）。engine では toleranceRatio / 100 を割合として用いる。
+ * engine では toleranceRatio / 100 を割合として用いる。
  */
 export function toToleranceRatio(raw: unknown): number {
-  return toBoundedInteger(raw, TOLERANCE_RATIO_MIN, TOLERANCE_RATIO_MAX, DEFAULT_TOLERANCE_RATIO);
+  return toIntegerWithin(raw, TOLERANCE_RATIO_MIN, TOLERANCE_RATIO_MAX, DEFAULT_TOLERANCE_RATIO);
 }
 
 /**

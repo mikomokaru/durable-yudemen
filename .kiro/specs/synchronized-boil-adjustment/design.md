@@ -34,7 +34,7 @@
 ### スコープ外（design 判断として固定）
 
 - **バッチ membership の最適化** — どの Timer を同一 Sync_Set にまとめるかは、オリジナル `endTime` 昇順チャンク（先頭から arms 本ずつ）で固定する。membership 自体を最適化対象にすることは将来検討とし、本設計では扱わない（要件2 の申し送りどおり）。
-- **client への調整パラメータ配信** — arms・Tolerance_Ratio は client へ送らない（client は実効 `endTime` だけで足りる）。理由は Components「client 変更不要の担保」を参照。**（改訂: 本方針は online-cook-scheduling design で StoreConfig 全配信へ改めた。あちらの記録が現行の正本）**
+- **client での調整パラメータ保持・変更** — arms・Tolerance_Ratio は `ServerMessage.config` で client へ一方向配信する。ただし client は両値を `ClientView` に保持せず、同期計算を再実装せず、`ClientMessage` による変更要求も持たない。`StoreConfig` が引き続き正本である。
 
 ---
 
@@ -47,7 +47,7 @@ flowchart TB
   subgraph domain["src/domain（共有契約・中立地帯）"]
     TF["TimerFact<br/>id/slotIds/noodleType/firmness/startTime/endTime<br/><b>変更なし（Adjustment を足さない）</b>"]
     SC["StoreConfig<br/><b>+ arms / toleranceRatio</b><br/>+ toArms / toToleranceRatio"]
-    MSG["messages（ClientMessage/ServerMessage）<br/><b>変更なし（新種別なし・snapshot を再利用）</b>"]
+    MSG["messages（ClientMessage/ServerMessage）<br/><b>ServerMessage.config で arms/toleranceRatio を一方向配信</b><br/>ClientMessage に変更要求なし・新種別なし"]
   end
   subgraph engine["src/engine（純粋・プラットフォーム非依存）"]
     TM["Timer = TimerFact + Sequenced + Boilable<br/><b>+ Adjusted（engine-only）</b>"]
@@ -61,7 +61,7 @@ flowchart TB
     DO["StoreTimerDO<br/>StoreConfig から arms/toleranceRatio を解決し decide へ注入<br/>snapshot 射影を project.ts へ委譲"]
   end
   subgraph client["src/client（React）"]
-    CL["<b>変更なし</b><br/>実効 endTime から残り時間・boiled を導出"]
+    CL["<b>同期計算は変更なし</b><br/>config の arms/toleranceRatio は保持せず<br/>実効 endTime から残り時間・boiled を導出"]
   end
   DO --> DEC
   DEC --> TR --> SYNC
@@ -81,12 +81,12 @@ flowchart TB
 - `src/engine/decide.ts` ほか各遷移 — 遷移後に `synchronize` を通し、no-op 検出のうえ Effect 列を組む。`decide` に第3引数 `syncParams` を追加。
 - `src/engine/alarm.ts` / `src/engine/fire.ts` — 最早算出・発火判定を実効 `endTime` 基準へ精緻化。
 - `src/engine/snapshot.ts` / `src/engine/migrate.ts` / `src/engine/types.ts` — スキーマ v6（`adjustment` 追加・欠如は 0 で移行）。
-- `src/shell/store-timer-do.ts` — `StoreConfig` から arms/toleranceRatio をロード・配信対象外・`decide` へ注入、snapshot 射影を `project.ts` へ委譲。
+- `src/shell/store-timer-do.ts` — `StoreConfig` から arms/toleranceRatio をロードし、`ServerMessage.config` へ一方向配信して `decide` へ注入する。snapshot 射影を `project.ts` へ委譲する。
 - `config/store-config.sample.json` — `arms` / `toleranceRatio` を追記。
 
 **変更しない箇所（不変点）:**
 
-- `src/domain/timer.ts`（`TimerFact` の 6 フィールド）、`src/domain/messages.ts`（ワイヤ形式・新メッセージ種別を増やさない）、`src/client/**`（client は実効 `endTime` を今までどおり使うだけ）。
+- `src/domain/timer.ts`（`TimerFact` の 6 フィールドと Adjustment 非露出）、`ClientMessage`（arms/toleranceRatio の変更要求を持たない）、`src/client/**` の同期計算（client は arms/toleranceRatio を `ClientView` に保持せず、実効 `endTime` を今までどおり使うだけ）。`ServerMessage` は既存の `config` 種別で両値を一方向配信し、新メッセージ種別は増やさない。
 
 ### データフロー（Start を例に・同期計算 → Effect → shell の作用）
 
@@ -267,18 +267,18 @@ export function adjustedEndTime(timer: Timer): EpochMillis {
 
 - **全量 `snapshot` を追加 broadcast する。** 実効 `endTime` を載せた全 Timer の `snapshot`（既存 `ServerMessage.snapshot`）を、確定結果が変化したとき Persist 成功後に全 WS へ流す。client は既存の `case "snapshot"`（server-confirmed の全置換）でそのまま受ける。**新メッセージ種別を増やさない・client を変更しない。**
 - **意味論メッセージは保持する。** `started` / `cancelled` / `completed` / `boiled` / `adjusted` は、client 側の副作用（`completed` の直前結果表示・`started` の直前結果解除・アラート重複抑止）を担うため従来どおり送る。実効 `endTime` の全体反映は後続の `snapshot` が担う（Persist → 意味論 Broadcast → snapshot Broadcast → Reply の順）。
-- **client が調整を意識しない根拠。** client は `endTime`（実効値）から `remaining = endTime − now` と boiled（`endTime ≤ now`）を導出する既存経路のみを使う。Adjustment 概念も arms/Tolerance_Ratio も client に存在しない。ゆえに arms・Tolerance_Ratio は `config` メッセージにも載せない（要件6.5 の「client からは変更不可」は、そもそも client へ配信しないことで自明に満たす）。
+- **client が同期計算を意識しない根拠。** `ServerMessage.config` は arms・Tolerance_Ratio を一方向配信するが、client は両値を `ClientView` に保持せず、同期計算を再実装しない。表示と boiled 判定は `endTime`（実効値）から `remaining = endTime − now` と `endTime ≤ now` を導出する既存経路だけを使う。Adjustment は wire に露出しない。`ClientMessage` に arms・Tolerance_Ratio がないため client から変更要求できず、`StoreConfig` が同期計算の権威であり続ける（要件5.1 / 6.5）。
 
 ### StoreConfig の拡張と設定ロード（shell）
 
 - **`StoreConfig` に `arms` / `toleranceRatio` を追加**（`domain/store.ts`）。検証関数 `toArms` / `toToleranceRatio` を足し、不正値は**当該パラメータのみ**既定へ畳む（要件6.4：他の妥当なパラメータは保持）。
-- **shell（`store-timer-do.ts`）** — `ensureConfigLoaded` が env シード（`STORE_ARMS` / `STORE_TOLERANCE_RATIO`）または永続値から `arms` / `toleranceRatio` を確立し、`this.arms` / `this.toleranceRatio` に保持する（`unitCount` / `noodlePresets` と同じ系統）。`applyStoreConfig`（PUT /admin/config）も同様に全体置換する。`decide` 呼び出し時に `{ arms: this.arms, toleranceRatio: this.toleranceRatio }` を渡す。**client への `config` 配信対象には含めない。（改訂: 本方針は online-cook-scheduling design で `StoreConfig` 全配信へ改めた。あちらの記録が現行の正本。理由は「設計判断の要点」の同項を参照）**
+- **shell（`store-timer-do.ts`）** — `ensureConfigLoaded` が env シード（`STORE_ARMS` / `STORE_TOLERANCE_RATIO`）または永続値から `arms` / `toleranceRatio` を確立し、`this.arms` / `this.toleranceRatio` に保持する（`unitCount` / `noodlePresets` と同じ系統）。`applyStoreConfig`（PUT /admin/config）も同様に全体置換する。`decide` 呼び出し時に `{ arms: this.arms, toleranceRatio: this.toleranceRatio }` を渡す。`ServerMessage.config` に両値を載せて client へ一方向配信するが、client は保持せず、変更要求も送れない。
 
 ---
 
 ## Data Models
 
-> 本節は engine 専用基底 `Adjusted` の合成、Adjustment を永続する判断、スキーマ v6 と移行、`StoreConfig` 拡張と検証を定める。`TimerFact`・`ServerMessage`・`ClientMessage` は**変更しない**。
+> 本節は engine 専用基底 `Adjusted` の合成、Adjustment を永続する判断、スキーマ v6 と移行、`StoreConfig` 拡張と検証を定める。`TimerFact` は Adjustment を持たない。`ServerMessage.config` は arms/toleranceRatio を一方向配信する。`ClientMessage` は両値の変更要求を持たない。
 
 ### engine 専用基底 `Adjusted`（仮）と `Timer` への合成
 
@@ -503,7 +503,7 @@ engine の `Rejection` は本機能で新種別を増やさない（同期はコ
 - 空 running → `synchronize` が空を返す（要件1.8）。
 - `toArms(undefined) === 2`、`toToleranceRatio(undefined) === 10`（要件6.2）、`toArms(0)===2` / `toArms(11)===2` / `toArms(3.5)===2`、`toToleranceRatio(0)===10` / `toToleranceRatio(51)===10`。
 - `toWireTimer` の出力が `TimerFact` の 6 フィールドのみを持ち `adjustment` を含まない（要件4.1）。
-- `config` メッセージに `arms` / `toleranceRatio` が含まれない（要件5.1 / 6.5）。
+- `ServerMessage.config` が `arms` / `toleranceRatio` を一方向配信し、JSON 往復後も両値を保つことを確認する。同時に `ClientView` が両値を保持せず、`ClientMessage` に両値がなく client から変更要求できないことを確認する（要件5.1 / 6.5）。
 - 3 本・arms=2 のクラスタが `[2 本][1 本]` に分割され、2 本セットが窓の積で同期、残余 1 本セットが maximin で離される具体例。
 
 ### Integration（DO・少数例）
@@ -543,7 +543,7 @@ engine の `Rejection` は本機能で新種別を増やさない（同期はコ
 | | 5.3/5.4/5.5/5.6 | shell の Persist 規律・全量 snapshot・hydration | Integration |
 | 6 設定 | 6.1/6.2 | `StoreConfig.arms/toleranceRatio`・既定 2/10 | Example |
 | | 6.3/6.4 | `toArms`/`toToleranceRatio` の域内・独立畳み込み | Property 13 |
-| | 6.5 | client へ非配信ゆえ変更不可 | Example |
+| | 6.5 | `ServerMessage.config` で一方向配信・`ClientView` 非保持・`ClientMessage` 変更要求なし | Example |
 | 7 再計算 | 7.1/7.2/7.3 | 各遷移後に `settle`＝全体置換 | Property 12 |
 | | 7.4 | 孤立で 0 復帰 | Property 6, 12 |
 | | 7.5 | 順序非依存・冪等 | Property 8, 9 |
@@ -578,7 +578,7 @@ engine の `Rejection` は本機能で新種別を増やさない（同期はコ
 2. **タイブレーク規律**＝ maximin 最適間隔 `g*` 固定下で「各セットの Window_Intersection 中点への二乗偏差和を最小化する一意配置」（整数演算・順序非依存）。より単純な代替（中点クランプ＋前後決定的パス）も可能。どちらを採るか確認。
 3. **broadcast 戦略**＝意味論メッセージ（started 等）に加え、確定変化時に実効 endTime を載せた全量 `snapshot` を追加 broadcast（新メッセージ種別を増やさず client 無変更）。
 4. **バッチ membership は昇順チャンク固定**（最適化対象化は将来）。
-5. **arms/toleranceRatio を client へ配信しない**（実効 endTime のみで足りるため。要件6.5 は非配信で自明に充足）。
+5. **arms/toleranceRatio を `ServerMessage.config` で client へ一方向配信する。** client は両値を `ClientView` に保持せず同期計算を再実装しない。`ClientMessage` に両値を持たせず、変更権限は `StoreConfig` に限定する。
 
 ---
 

@@ -4,7 +4,7 @@ import { synchronize, type SyncParams } from "../../src/engine/sync";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { nonEmpty } from "../nonEmpty";
-import { referenceSyncSets } from "./sync.reference";
+import { referenceSyncSets, referenceWindowIntersection } from "./sync.reference";
 
 interface TimerSeed {
   readonly duration: number;
@@ -68,13 +68,8 @@ function timersFromSeeds(seeds: readonly TimerSeed[]): readonly Timer[] {
 function independentlyConfirmedSets(timers: readonly Timer[], params: SyncParams): readonly (readonly Timer[])[] {
   return referenceSyncSets(timers, params).filter((set) => {
     if (set.length < 2) return false;
-    const left = Math.max(
-      ...set.map((timer) => timer.endTime - ((timer.endTime - timer.startTime) * params.toleranceRatio) / 100),
-    );
-    const right = Math.min(
-      ...set.map((timer) => timer.endTime + ((timer.endTime - timer.startTime) * params.toleranceRatio) / 100),
-    );
-    return left <= right;
+    const intersection = referenceWindowIntersection(set, params.toleranceRatio);
+    return intersection.left <= intersection.right;
   });
 }
 
