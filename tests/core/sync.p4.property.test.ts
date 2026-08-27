@@ -1,10 +1,10 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { formSyncSets, type SyncParams } from "../../src/engine/sync";
+import { formSyncSets } from "../../src/engine/sync";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { nonEmpty } from "../nonEmpty";
-import { referenceProximityClusters } from "./sync.reference";
+import { referenceSyncSets } from "./sync.reference";
 
 interface TimerSeed {
   readonly duration: number;
@@ -40,17 +40,6 @@ function timersFromSeeds(seeds: readonly TimerSeed[]): readonly Timer[] {
       endTime: endTime as EpochMillis,
       seq: seed.seq,
     });
-  });
-}
-
-function referenceSyncSets(timers: readonly Timer[], params: SyncParams): readonly (readonly Timer[])[] {
-  return referenceProximityClusters(timers, params.toleranceRatio).flatMap((cluster) => {
-    const ordered = [...cluster].sort((a, b) => a.endTime - b.endTime || a.seq - b.seq);
-    const sets: Timer[][] = [];
-    for (let i = 0; i < ordered.length; i += params.arms) {
-      sets.push(ordered.slice(i, i + params.arms));
-    }
-    return sets;
   });
 }
 

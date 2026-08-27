@@ -98,7 +98,7 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
     - 期待 membership は 5.5 の独立参照モデルが求めた連結成分を、テスト側でオリジナル `endTime` 昇順（同着 `seq` 昇順）に並べ、arms 本ずつ区切って導く。`synchronize` または内部 helper が返した集合を期待値として再利用しない
     - 各 Running_Timer がちょうど 1 つの Sync_Set に属すること、集合間の重複と全体からの欠落がないこと、各集合の大きさが arms 以下であることを、入力の Running_Timer 集合との集合演算で独立に確認する
     - **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5**
-  - [ ]* 5.7 確定セット実効時刻一致の property test
+  - [x]* 5.7 確定セット実効時刻一致の property test
     - **Property 5: 同期確定セットのメンバーは実効 endTime が完全一致する**
     - 同期確定された複数メンバーの集合は、5.5〜5.6 の独立参照モデルによる membership と、テスト側で独立に計算した Window_Intersection が空でないことから判定する。本体出力の実効 `endTime` の一致や、本体 helper の membership を同期確定判定へ写さない
     - 独立に同期確定と判定した各複数メンバー集合について、本体出力の `endTime + adjustment` が全メンバーで完全一致することを確認する
