@@ -26,6 +26,8 @@ import { env } from "cloudflare:test";
 import worker from "../../src/worker";
 import { IDENTITY_HEADER } from "../../src/shell/store-timer-do";
 import { establishAccessSigning, freshTeamDomain, POLICY_AUD, type AccessSigning } from "./support/accessJwt";
+// 転送先 DO を横取りする観測ハーネス。同じ観測を要する Upgrade 拒否のテストと共有する（重複を作らない）。
+import { capturingStoreNamespace, emptyForwardSink, type ForwardSink } from "./support/storeTimerSink";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する。
 declare module "cloudflare:test" {
@@ -59,26 +61,6 @@ function freshStoreId(): string {
 }
 
 /**
- * capturingStoreNamespace — 転送先 DO を横取りし、Worker が転送した Request を記録する namespace。
- * Worker は `idFromName(storeId)` → `get(id, {locationHint})` → `stub.fetch(forwardedRequest)` の順で
- * 委譲する。ここでは DO 内部挙動を起こさず、受け取った Request を捕捉して 101 を返す（転送内容の観測に徹する）。
- */
-function capturingStoreNamespace(sink: { forwarded: Request | null }): Env["STORE_TIMER_DO"] {
-  const stub = {
-    fetch(request: Request): Response {
-      sink.forwarded = request;
-      // DO 到達を表す簡素な応答。101（WS 昇格）は webSocket 無しでは workerd で構成できないため、
-      // 「転送された＝DO に到達した」ことを示す 200 を返す（本テストの関心は転送ヘッダの内容にある）。
-      return new Response("reached", { status: 200 });
-    },
-  };
-  return {
-    idFromName: (_name: string) => ({}) as DurableObjectId,
-    get: (_id: DurableObjectId) => stub,
-  } as unknown as Env["STORE_TIMER_DO"];
-}
-
-/**
  * driveWs — capturing namespace を差し込んだ env で `/s/{storeId}/ws` を Worker に通し、
  * 応答と「DO が受信した Request」を返す。ACCESS_REQUIRED / TEAM_DOMAIN / POLICY_AUD は実行時の
  * string 値だけが意味を持つため unknown 経由で Env へ写す（DO 以外のバインディングは実 env を継承）。
@@ -90,7 +72,7 @@ async function driveWs(params: {
   readonly clientIdentityCasing?: string;
   readonly token?: string | null;
 }): Promise<{ readonly response: Response; readonly forwarded: Request | null }> {
-  const sink: { forwarded: Request | null } = { forwarded: null };
+  const sink: ForwardSink = emptyForwardSink();
   const headers = new Headers({ Upgrade: "websocket" });
   // クライアント由来の偽装ヘッダ（指定の大小文字表記で）。
   if (params.clientIdentityCasing !== undefined) {
