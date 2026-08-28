@@ -147,7 +147,7 @@ Property-Based Testing は fast-check を採用し、各 Correctness Property（
     - 単一キー（`"activeTimers"`）丸ごと put のみ。`ctx.storage.sql` を使わない
     - _Requirements: 8.1, 8.4, 8.5, 3.7_
 
-  - [ ]* 10.2 runEffects の SSOT 規律の統合テストを書く
+  - [x]* 10.2 runEffects の SSOT 規律の統合テストを書く
     - `storage.put` の成功/失敗をモックし、(a) put 成功時のみ Broadcast/SetAlarm が実行される、(b) put 失敗時は後続 Effect 不実行・Working_Copy が put 前へ戻ることを検証
     - _Requirements: 8.4, 8.5, 3.7_
 
@@ -156,7 +156,7 @@ Property-Based Testing は fast-check を採用し、各 Correctness Property（
     - `shell/store-timer-do.ts`: `ctx.blockConcurrencyWhile` で初期化を囲い、`ensureLoaded` が `storage.get("activeTimers")` → `migrate` → `fromSnapshot` で Working_Copy を再構築。各エントリポイントの前段でロードを保証。snapshot 不在は空状態（Alarm 設定なし）、読み出し失敗は確定せず throw（再初期化に委ねる）。ロード後 `reconcile` を 1 回適用し Effect を実行
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 8.6_
 
-  - [ ]* 11.2 rehydrate 配線の統合テストを書く
+  - [x]* 11.2 rehydrate 配線の統合テストを書く
     - 未ロード時に `get → migrate → fromSnapshot` を通すこと、読み出し失敗時に状態を確定せずエラーにすること、snapshot 不在で空初期化することを検証
     - _Requirements: 7.1, 7.4, 7.5, 8.6_
 
@@ -165,11 +165,11 @@ Property-Based Testing は fast-check を採用し、各 Correctness Property（
     - `shell/store-timer-do.ts`: `alarm(alarmInfo)` で `ensureLoaded` 後に `decide(state, {type:"AlarmFired", now})` を呼び Effect を実行。`storage.setAlarm`/`getAlarm`/`deleteAlarm` を Effect から写す。put 失敗時は throw して at-least-once リトライに委ね、`retryCount` 上限近傍では throw せず `setAlarm(Date.now()+30s)` で張り直す。`ctx.id.name` で店舗 ID を参照
     - _Requirements: 2.3, 2.4, 2.7, 2.8, 2.9, 2.10, 3.3, 3.4_
 
-  - [ ]* 12.2 Alarm 配線の統合テストを書く
+  - [x]* 12.2 Alarm 配線の統合テストを書く
     - Alarm 発火で due 一括処理 → done broadcast → 残存最早へ張り直し（残存 0 で解除）を検証。多重発火（同一 now で 2 回）で状態が壊れないことを確認
     - _Requirements: 2.5, 2.6, 3.4_
 
-- [-] 13. shell: WebSocket Hibernation 収容・hydration・broadcast
+- [x] 13. shell: WebSocket Hibernation 収容・hydration・broadcast
   - [x] 13.1 fetch での acceptWebSocket 収容と hydration 全量送信を実装する
     - `shell/store-timer-do.ts`: `fetch` で `new WebSocketPair()` を作り `this.ctx.acceptWebSocket(server)` で受理（`server.accept()` は使わない）。受理直後に現在アクティブな全 Timer を `snapshot` メッセージで当該 WS へ全量送信（`serverTime = Date.now()` 付与）
     - _Requirements: 4.1, 9.2_
@@ -178,7 +178,7 @@ Property-Based Testing は fast-check を採用し、各 Correctness Property（
     - `shell/store-timer-do.ts`: `webSocketMessage` で `ClientMessage` をパースし core を呼び Effect 実行。不正形式メッセージは破棄して Working_Copy 不変。`webSocketClose` で接続管理から除去（接続集合は `ctx.getWebSockets()` を正とし隠れ状態を持たない）。`Broadcast` は `ctx.getWebSockets()` を走査して全 WS へ送信、送信失敗は握り潰さず再接続 hydration に委ねる。担当分割には関与せず全 WS を等価に扱う（`serializeAttachment` 不使用）。秒読み目的の setInterval/終わらない setTimeout を持たない
     - _Requirements: 1.3, 2.5, 2.6, 6.2, 9.3, 9.4, 9.7, 12.6_
 
-  - [ ]* 13.3 WebSocket Hibernation の統合テストを書く
+  - [x]* 13.3 WebSocket Hibernation の統合テストを書く
     - 接続確立で全量 snapshot を受信、メッセージ処理、close での除去、複数 WS への broadcast 到達、不正形式メッセージ破棄を検証
     - _Requirements: 4.1, 9.2, 9.3, 9.4, 9.7_
 
@@ -187,7 +187,7 @@ Property-Based Testing は fast-check を採用し、各 Correctness Property（
     - `src/worker.ts`: Hono の極薄エントリ。WebSocket アップグレード要求を検証し、不正な Upgrade は 426 で拒否して DO へ引き渡さない。正当な要求は `namespace.idFromName(店舗ID)` → `namespace.get(id, { locationHint: "apac-ne" })` で stub を引いて `fetch` を委譲。React 静的アセットを同一オリジンで配信。業務ロジックは持たない
     - _Requirements: 9.1, 9.6_
 
-  - [ ]* 14.2 アップグレード拒否の example テストを書く
+  - [x]* 14.2 アップグレード拒否の example テストを書く
     - 不正な Upgrade ヘッダの要求が 426 で拒否され DO へ引き渡されないことを確認
     - _Requirements: 9.6_
 
@@ -257,28 +257,66 @@ Property-Based Testing は fast-check を採用し、各 Correctness Property（
     - `tests/` に静的検査（lint ルールまたはソース grep スクリプト）を実装。core / StoreTimerDO に秒読み目的の `setInterval`・終端のない `setTimeout` ループが存在しないこと、`ctx.acceptWebSocket` を使い `server.accept()` を使わないこと、`ctx.storage.sql` を使わず put/get のみであることを検証
     - _Requirements: 8.2, 9.2, 9.5_
 
-  - [ ]* 22.2 2〜3 台同時反映の統合テストを書く
+  - [x]* 22.2 2〜3 台同時反映の統合テストを書く
     - 複数 WS クライアントを接続し、1 台の `start`/`cancel` が他の全クライアントへ 1000ms 以内に届くことを確認
     - _Requirements: 1.3, 6.2_
 
-  - [ ]* 22.3 hibernate 後発火・多重発火冪等の統合テストを書く
+  - [x]* 22.3 hibernate 後発火・多重発火冪等の統合テストを書く
     - hibernate 後に Alarm 発火で `done` がブロードキャストされること、発火遅延の実測、多重発火時に `fireDueTimers` 冪等性で状態が壊れないことを確認
     - _Requirements: 2.5, 2.6, 2.7_
 
-  - [ ]* 22.4 切断・再接続復元（Hydration）の統合テストを書く
+  - [x]* 22.4 切断・再接続復元（Hydration）の統合テストを書く
     - WS 切断・再接続後、接続直後に全量 snapshot を 2 秒以内に受信し表示が追いつくことを確認
     - _Requirements: 4.1, 4.2, 4.3_
 
-  - [ ]* 22.5 複数タイマー並走の単一 Alarm 張り直しの統合テストを書く
+  - [x]* 22.5 複数タイマー並走の単一 Alarm 張り直しの統合テストを書く
     - 時刻差のある複数 Timer を並走させ、発火・キャンセルのたびに Alarm が残存最早へ張り直され、残存 0 で解除されることを確認
     - _Requirements: 3.2, 3.3, 3.4, 6.3, 6.4_
 
-  - [ ]* 22.6 broadcast / put 確定（fsync）レイテンシ実測の統合テストを書く
+  - [x]* 22.6 broadcast / put 確定（fsync）レイテンシ実測の統合テストを書く
     - Output Gate と明示 `await` の二重がけ下で broadcast が put 確定後に出ることを前提に、put 確定レイテンシ込みで要件 1.3／6.2 の 1000ms 以内を満たすか実測
     - _Requirements: 1.3, 6.2_
 
 - [x] 23. 最終チェックポイント — 全テストと静的検査が通ることを確認
   - Ensure all tests pass, ask the user if questions arise.
+
+## 実施記録 — shell / Worker 配線テストの追補
+
+配線テスト 10 件（10.2 / 11.2 / 12.2 / 13.3 / 14.2 / 22.2 / 22.3 / 22.4 / 22.5 / 22.6）を監査した。既存テストが同じ主張を既に持つ分は重複を作らないため書かず、残余だけを新規ファイルで補った。
+
+### 新規に書いたテスト
+
+| タスク | 置き場 | 内容 |
+| --- | --- | --- |
+| 14.2 | `tests/worker/websocket-upgrade.integration.test.ts`（8 テスト） | 不正な Upgrade ヘッダが 426 で拒否され、DO へ引き渡されないこと。共有 fixture `capturingStoreNamespace` を `tests/worker/support/storeTimerSink.ts` へ抽出し、`tests/worker/identity-header.integration.test.ts` のローカル複製を import へ置換した |
+| 11.2 | `tests/shell/store-timer-rehydrate.integration.test.ts`（2 テスト） | `storage.get` 失敗時に状態を確定せずエラーにすること、snapshot 不在で空初期化すること。失敗注入は `ensureLoaded` を継ぎ目にする（`loaded=false` へ戻して未ロード前件を再現）。constructor の `blockConcurrencyWhile` は handle 取得時点で完了済みで注入できない |
+| 12.2 / 22.3 / 22.5 の残余 | `tests/shell/store-timer-alarm.integration.test.ts`（3 テスト） | due 一括処理 → `done` broadcast → 残存最早への張り直し（残存 0 で解除）、同一 now での多重発火の冪等性 |
+| 22.2 の残余 / 22.6 / 13.3 の構造主張 | `tests/shell/store-timer-broadcast-order.integration.test.ts`（3 テスト） | put 確定後に broadcast が出ること、close 後に socket 参照が残らないこと |
+
+### 既存テストがカバー済みのため書かなかったもの
+
+- 10.2（`storage.put` 成功時のみ後続 Effect を実行し、失敗時は Working_Copy を復帰する）
+- 22.4（再接続直後の全量 snapshot 受信）
+
+13.3 / 22.2 / 12.2 / 22.5 は一部が既存カバーで、残余だけを上表のファイルで補った。参照先は各新規テストファイル冒頭のコメントに明記してある。
+
+### 実測から構造主張への読み替え
+
+- 22.6 と 22.3 のレイテンシ実測は構造主張へ読み替えた。CI の壁時計は workerd のローカル IO 速度と runner 負荷を測るだけで、要件 1.3 / 6.2 の 1000ms（本番 WAN 前提）とは別物である。代わりに `storage.put` を遅延 Promise へ差し替え、解決前に `ws.send` が起きないことを主張する。実 WAN でのレイテンシ実測は `hibernation-observability` の runtime ハーネスへ申し送る。
+- 13.3 の「close での除去」も構造主張。実装は `ctx.getWebSockets()` を正本とし自前レジストリを持たないため、除去の振る舞い主張は死んだテストになる。runtime リフレクションで own プロパティに socket 参照が 0 件であることを主張する。
+
+### Alarm 期待値の導出
+
+Alarm の期待値は永続 snapshot の `endTime + adjustment` から導出する。`boilSeconds` からの素朴な計算では Boil_Sync が非ゼロ Adjustment を割り当てるため一致しない。fixture は 60 / 62 秒の近接ペアと arms=2 で同期させ、`expect(scheduled).not.toBe(BASE + 60_000)` で空虚化を防ぐ。`alarm()` は `runInDurableObject` 経由で直接 2 回呼ぶ（`runDurableObjectAlarm` は予約を消費して 1 回しか走らず「同一 now で 2 回」が書けない）。
+
+### 変異注入による空虚化確認
+
+いずれも復元済みで、`src` の差分はゼロ。
+
+- `earliestEndTime` を `adjustedEndTime(t)` から `t.endTime` へ → alarm の 3 テストが失敗
+- `isSameConfirmedResult` を常に false → 多重発火テストのみ失敗
+- `runEffects` で `applySideEffect` を `await put` の前へ → broadcast 順序テストのみ失敗
+- `src/worker.ts` の Upgrade ガード無効化 → 8 テスト中 6 件が失敗（対照 2 件は通る）
 
 ## Notes
 
