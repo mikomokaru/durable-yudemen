@@ -91,11 +91,17 @@ _Design trace: decision #3, Overview「bug#1」, シーケンス（変更後）,
 2. WHEN Client が Snapshot を適用する, THE Client SHALL 直前の Server_Confirmed_Timer 集合に在り新 `snapshot.timers` に無い各 Timer（消えた Timer）の `noodleType` を、置換後に Server_Confirmed_Timer も保持 Provisional_Timer も占有しない各 `slotId` の Residual として、受信時刻 `at` とともに記録する
 3. WHEN ある `slotId` が新 Snapshot の Server_Confirmed_Timer もしくは保持 Provisional_Timer により占有される, THE Client SHALL その `slotId` の Residual を消去する
 4. THE Client SHALL boiled / running 状態およびアラート dedup を `endTime` から導出し、これらを状態として保持しない（残り秒・boiled を状態へ昇格させない）
-5. WHEN Client が同一 `serverTimers` を二度適用する, THE Client SHALL 二度目適用後の `timers`・`processedIds`・Residual を一度目適用後と同一に保ち、新規 Residual を生成しない
+5. WHEN Client が同一 `serverTimers` を二度適用する, THE Client SHALL 二度目適用後の `timers` と Residual を一度目適用後と同一に保ち、新規 Residual を生成せず、かつ `processedIds` に新 `serverTimers` の id をすべて保持し、二度目適用後の `processedIds` を三度目以降の適用でも変化させない
 6. THE Client SHALL Residual を `(直前 Server_Confirmed_Timer 集合, 新 serverTimers, at)` のみから導出し、TimerFact への追加フィールドに依存しない
 7. WHEN Provisional_Timer の `id` が新 `snapshot.timers` に現れる, THE Client SHALL 当該 Timer を Server_Confirmed_Timer として扱い、Provisional_Timer として二重に保持しない
 
-_Design trace: decision #4, Component 6, `reconcileServerConfirmed` Pseudocode, Property 3/4/5/6_
+**冪等性ノート（AC 5 で `processedIds` を弱めた理由・出所の記録）：**
+
+AC 5 は当初 `processedIds` も無条件に一度目と同一であることを求めていた。`degraded-slot-superimposition` の**判断 6 / 判断 9**（ユーザー承認済み）により、釜の占有解決は `reconcileServerConfirmed` の末尾に乗り、`processedIds` の刈り取りは解決**前**の集合を入力とする。ゆえに一度目は解決で落ちる Provisional_Timer の id が残り、二度目はその Provisional_Timer が居ないため刈られる。反例で確定した事実であり、AC 5 の本文をこの実態へ改めた。
+
+弱めた決定的な理由は `retainedIds ⊇ newIds`（刈り取り後の保持 id 集合が新 `serverTimers` の id を常に含む）である。server 起源の id は決して失われないため、刈り取りの目的（復活した Server_Confirmed_Timer のローカル再発火抑止）は保たれる。失うのは解決で落ちた Provisional_Timer の id のみで、ローカル id は `serverTimers` に現れないため戻る経路が無い。対して純粋差分（AC 6 — 記録がクロックドリフトで揺れない）は代替が無い。
+
+_Design trace: decision #4, Component 6, `reconcileServerConfirmed` Pseudocode, Property 3/4/5/6, `degraded-slot-superimposition` 判断 6 / 判断 9_
 
 ### Requirement 5: 残滓の一様性（理由を問わない・degraded 経路を含む）
 

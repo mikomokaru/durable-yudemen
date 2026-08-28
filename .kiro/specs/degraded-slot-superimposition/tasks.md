@@ -169,6 +169,7 @@
     - 新しい言明（これを両側へ書く）: 「`timers` と `lastResults` は厳密に冪等。`processedIds` は解決で落ちた provisional の id を 2 回目で失うが、単調減少で 2 回目以降は不動点。server 起源の id は失われない（刈り取りの入力が解決前の `serverTimers` ゆえ）。」
     - 改める先は 3 箇所。① `.kiro/specs/snapshot-broadcast/design.md`「Property 6: 冪等性」の本文、② 同 `tasks.md` のタスク 5.6 の Property 記述、③ `tests/client/reconcile.property.test.ts` の Property 6 のテスト（`timers` / `lastResults` の厳密一致はそのまま主張し、`processedIds` は **`newIds` の全要素が保たれること**と **3 回目が 2 回目と一致すること**——単調減少の不動点——へ改める）。
     - **`snapshot-broadcast` の要件 4.5 の本文をどう扱うかは当該 spec の判断である。** 本タスクでは Property の言明とテストを実態へ合わせ、要件本文の改訂が要るかを当該 spec へ申し送る。
+    - **申し送りは解消済み**（本タスクの後日）。当該 spec 側で要件 4.5 の本文が改訂され、`timers` と Residual は厳密に同一、`processedIds` は新 `serverTimers` の id をすべて保持し二度目以降を不動点とする形になった。理由は `snapshot-broadcast` requirements.md 要件 4 の「冪等性ノート」に記録されている。
     - _Requirements: 2.3, 3.3_
 
 - [x] 5. 回帰の防具（bugfix.md 3.1〜3.6）
@@ -207,7 +208,7 @@
 
 ### 変更するもの（他 spec に及ぶ・**snapshot-broadcast は無傷ではない**）
 
-- **`snapshot-broadcast` Property 6「冪等性」（要件 4.5）の言明とそのテスト**は改訂を要する（タスク 4.4）。本修正は `processedIds` の厳密な冪等性を狭義に破る（`design.md` 判断 9・反例で確定）。**要件 4.5 の本文をどう扱うかは当該 spec の判断**であり、本 spec は Property の言明とテストを実態へ合わせるところまでを担う。
+- **`snapshot-broadcast` Property 6「冪等性」（要件 4.5）の言明とそのテスト**は改訂を要する（タスク 4.4）。本修正は `processedIds` の厳密な冪等性を狭義に破る（`design.md` 判断 9・反例で確定）。**要件 4.5 の本文をどう扱うかは当該 spec の判断**であり、本 spec は Property の言明とテストを実態へ合わせるところまでを担う。**申し送り後、当該 spec 側で要件 4.5 の本文も改訂済みである**（`design.md` 判断 9「申し送りは解消済み」）。
 - 同 spec の Property 3 / 4 / 5 / 7 は改訂を要しない見込みである（`design.md`「既存テストへの波及」。予測ゆえ 4.2 で実行確認する）。
 
 ### 既知の限界（実装で埋めようとしない・`design.md` が正本）
@@ -222,6 +223,10 @@
 
 1. **両側走行中の contested と、争いを解決する UI。** `SlotDisplay` に第 5 の種別 `contested`（1 スロットの複数 Timer を隠さず並べる）と `ClientEvent` に `SlotResolved`（`{ slotId, keepTimerId }`）を足し、どちらを残すか現場に選ばせる案。表示規則を「（両側 running では）最早 endTime が勝つ」から「争いは隠さない」へ変える判断を含み、本 spec の「表示を変えない」境界を越える。着手の契機は、現場から「タイマーが二重に見える／片方が消えた」報告が実際に出たとき。それまでは YAGNI。設計案は `design.md` 申し送り 1。
 2. **engine が start 時に釜の占有を検査しない（別 spec 候補）。** live でも 1 釜 2 本が成立しうる。本 spec の統一規則は server 起源同士の争いを解かないため client 側では閉じられない。却下した書き戻し（write-back）の前提条件でもある——書き戻しを入れるなら、サーバ側の占有検査が先に要る。`src/engine` / `src/domain` の変更を要し `bugfix.md` 3.6 と直接ぶつかるため、別 spec で扱う。
+   - **新たに判明した制約——これは「誰も知らなかった穴」ではなく、既知として競合規則が組まれている状態である。** `.kiro/specs/sync-set-batch-complete/requirements.md` の Requirement 8 前文は、engine が「1 スロットを駆動する Timer は同時に 1 本まで」という排他を**課していない**ことを既に明文で認識し、`validateStart` が非空・茹で時間範囲・容量のみを検査して既存 Timer との `slotIds` 重複を拒否しないことを記している。そのうえで、同一スロットを複数メンバーが駆動する退化入力に対する競合規則を**要件8.4 として定めている**。実装も同じで、`src/engine/start.ts` の `validateStart` は占有を見ず、`src/engine/rejection.ts` の `Rejection` は `InvalidBoilSeconds` / `InvalidSlotOrNoodle` / `CapacityExceeded` / `TimerNotFound` の 4 種別である。
+   - **ゆえに engine へ占有検査を足すと、要件8.4 が守っている退化入力が live 経路では到達不能になる。** 到達不能な状態を fixture にしたテストは「死んだ振る舞いを守る」状態になる——本 spec のタスク 4.2 で実際に踏んだ罠と同型である。
+   - **消えうる範囲は限定される。** 要件8.7 は「別の Timer（新しい server-confirmed または**保持された Provisional_Timer**）が占有する」を対象にするため、provisional による占有は engine の検査では消えない（**要件8.7 は生き残る**）。消えうるのは server-confirmed 同士が同一スロットを駆動する入力である。加えて client 側には限界 1（両側 running の残余）と限界 2（再水和ブロブ）が残るため、1 スロット複数在席そのものが到達不能になるわけではない。
+   - **別 spec を立てるなら、要件8.4 をどう扱うか（撤回するのか、engine 検査の外に残る経路のために保つのか）を最初に決める必要がある。** 拒否の形（新しい `Rejection` code か `InvalidSlotOrNoodle` の拡張か）も engine 側の判断として残る。この判断が済むまで、本 spec は engine を不変に保つ（`bugfix.md` 3.6）。詳細は `design.md` 申し送り 2。
 
 ## Task Dependency Graph
 
@@ -311,7 +316,7 @@ graph TD
 - **探索テストの再演に、時刻の取り違えという欠陥があった。** 「補正後時刻」と「生のローカル読み」を混同していたため、`offset ≠ 0` のとき限界 1（両側 running の残余）を意図せず踏んでいた。`localReadingOf` で整合させた。時刻の整合は再演が成り立つための前提であり、assert の書き換えとは別の作業である。
 - **修正(2) 投入後の波及は予測どおりだった。** `snapshot-broadcast` Property 3 / 4 / 5 / 7 は緑を維持し、Property 6 のみ赤化した。赤化の反例は判断 9 に記録した `l-a` と同一である。読解による予測が実行で確認された。
 - **未実施の任意タスクは残タスクである。** Property 1〜4・6・7 の property test、example、静的検査（`2.2` / `2.3` / `3.2` / `3.3` / `3.4` / `4.3` / `5.1` / `5.2`）。
-- **`snapshot-broadcast` 要件 4.5 の本文は未改訂である。** `processedIds` について実態と食い違ったまま残っており、改訂の要否は当該 spec の判断に委ねた。
+- **`snapshot-broadcast` 要件 4.5 の本文は改訂済みである。** 当該 spec の判断に委ねた申し送りは閉じ、`processedIds` の言明が実態（新 `serverTimers` の id をすべて保持し、二度目以降を不動点とする）へ揃った。`timers` と Residual の厳密な同一性は変えていない。
 - **任意タスク 8 件（Property 1〜4・6・7 の property test、example、静的検査）を実施し、全量 172 files / 1076 tests が緑になった。** production 差分はゼロで、追加はテストと `vitest.config.ts` の登録だけである。
 - **Property 3 は領域を実測で踏んだ。** 真理値表の 6 行・境界（`endTime === correctedNow`）・多スロット Timer・複数主張者・限界 4 の領域・判断 5 の連鎖でスロットが空になる場面を、主張ではなく実測（実行後の `expect`）で踏んだことを確認している。空振りする生成器を検査で弾く形にした。
 - **Property 7 は空虚な主張になっていない。** 「落とされ、かつ入力 `processedIds` に在った server 起源 Timer」を実際に踏んだことを実行後に確認している。

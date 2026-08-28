@@ -296,6 +296,8 @@ start の入口が 2 つあり、待ち行列の推奨が占有を見ないこ�
 
 **別 spec の改訂を要する。** この言明は `snapshot-broadcast` の **Property 6「冪等性」（要件 4.5）** と、その property test（`tests/client/reconcile.property.test.ts` の Property 6）を狭義に破る。あちらは `processedIds` の**不変**を主張しているため、`server 起源の id は失われない` ＋ `2 回目以降は不動点` へ言明を改める必要がある。**要件 4.5 の本文をどう扱うかは当該 spec の判断であり、本 spec では改訂が必要である事実の記録と、そのためのタスク（tasks フェーズ D）を置くだけにとどめる。**
 
+**申し送りは解消済み**: `snapshot-broadcast` の Property 6・タスク 5.6・テストに続き、**要件 4.5 の本文も当該 spec 側で改訂された**（`timers` と Residual は厳密に同一、`processedIds` は新 `serverTimers` の id をすべて保持し二度目以降を不動点とする）。理由は同 spec requirements.md 要件 4 の「冪等性ノート」に記録され、出所として判断 6 / 判断 9 を指している。
+
 ### 判断 10: 要件 2.3 を読み替える（**部分充足であることを明記する・ユーザー承認済み**）
 
 番号は追加順だが、内容は判断 2 の直接の帰結である。統一規則は `processedIds` を判断軸に採らない（判断 2「第 2 の判断軸を持ち込まない」・却下 B）。ゆえに `bugfix.md` Expected 2.3 の**字面**——「ローカルで既に消化済み（`processedId` 済み）の server-confirmed タイマーが表示上で『復活』して見えない扱いを与える」——は、本設計では満たされない。
@@ -524,7 +526,7 @@ END FOR
 
 > `timers` と `lastResults` は厳密に冪等。`processedIds` は解決で落ちた provisional の id を 2 回目で失うが、単調減少で 2 回目以降は不動点。server 起源の id は失われない（刈り取りの入力が解決前の `serverTimers` ゆえ）。
 
-**別 spec（`snapshot-broadcast`）の改訂が要る。** 同 spec の **Property 6「冪等性」（要件 4.5）** の言明と、そのテスト（`tests/client/reconcile.property.test.ts` の Property 6）を上の形へ改める必要がある。本 spec では改訂を**要件として記録し、タスク（フェーズ D）を置く**にとどめる——`snapshot-broadcast` の文書とテストの本文をこのフェーズで書き換えはしない。
+**別 spec（`snapshot-broadcast`）の改訂が要る。** 同 spec の **Property 6「冪等性」（要件 4.5）** の言明と、そのテスト（`tests/client/reconcile.property.test.ts` の Property 6）を上の形へ改める必要がある。本 spec では改訂を**要件として記録し、タスク（フェーズ D）を置く**にとどめる——`snapshot-broadcast` の文書とテストの本文をこのフェーズで書き換えはしない。**その後、当該 spec 側で要件 4.5 の本文も改訂され、申し送りは解消した**（判断 9 末尾）。
 
 Property 3 / 4 / 5 / 7 の予測は読解によるものである。**修正後に実行して確認する**（tasks 4.2）。
 
@@ -635,6 +637,20 @@ offline-degradation 要件12.5 で明示的にスコープ外。**先送りす�
 **波及**: 却下 C（write-back）の前提条件でもある。書き戻しを入れるなら、サーバ側の占有検査が先に要る（複数端末が同じ釜へ書き戻せてしまう）。
 
 **別 spec 候補である理由**: `src/engine` / `src/domain` の変更を要し、`bugfix.md` 3.6（engine 不変）と直接ぶつかる。拒否の形（`ClientMessage.start` に対する新しい `error` code か、既存 `InvalidSlotOrNoodle` の拡張か）も engine 側の判断である。
+
+#### 新たに判明した制約: これは「誰も知らなかった穴」ではない
+
+**既知として、競合規則が既に組まれている。** `.kiro/specs/sync-set-batch-complete/requirements.md` の Requirement 8 前文は、engine が「1 スロットを駆動する Timer は同時に 1 本まで」という排他を**課していない**ことを明文で認識している。`validateStart` が非空・茹で時間範囲・容量のみを検査し、既存 Timer との `slotIds` 重複を拒否しないことも同前文が記す。そのうえで同 spec は、同一スロットを複数メンバーが駆動する退化入力に対する競合規則を**要件8.4 として定めている**。
+
+実装も読解のとおりである。`src/engine/start.ts` の `validateStart` は占有を見ない（検査は `boilSeconds` の有限性と範囲、`slotIds` の非空と各要素の非空、`noodleType` の非空のみ。容量検査 `MAX_TIMERS` は `startTimer` 側）。`src/engine/rejection.ts` の `Rejection` は `InvalidBoilSeconds` / `InvalidSlotOrNoodle` / `CapacityExceeded` / `TimerNotFound` の 4 種別である。
+
+**波及（前提が変わる）**: engine に占有検査を足すと、**要件8.4 が守っている退化入力が live 経路では到達不能になる**。到達不能な状態を fixture にしたテストは「死んだ振る舞いを守る」状態になる——本 spec のタスク 4.2 で実際に踏んだ罠と同型である。
+
+**消えうる範囲は限定される。** 要件8.7 は「別の Timer（新しい server-confirmed または**保持された Provisional_Timer**）が占有する」を対象にするため、provisional による占有は engine の検査では消えない。**要件8.7 は生き残る。** 消えうるのは server-confirmed 同士が同一スロットを駆動する入力である。加えて client 側には限界 1（両側 running の残余）と限界 2（再水和ブロブ）が残るため、1 スロット複数在席そのものが到達不能になるわけではない。
+
+**別 spec を立てるなら最初に決めること**: **要件8.4 をどう扱うか**——撤回するのか、engine 検査の外に残る経路のために保つのか。これを先に決めない限り、占有検査の設計は要件8.4 と衝突したまま進む。拒否の形（新しい `Rejection` code か `InvalidSlotOrNoodle` の拡張か）も engine 側の判断として残る。
+
+この判断が済むまで、本 spec は engine を不変に保つ（`bugfix.md` 3.6）。
 
 ## 設計フェーズで確定した事項の記録
 
