@@ -448,9 +448,9 @@ const next = decideView(view, { kind: "Server", message: snapshotMsg, receivedAt
 
 `processedIds` を弱めた出所は `degraded-slot-superimposition` の判断 6 / 判断 9 である。同 spec の占有解決は `reconcileServerConfirmed` の末尾に乗り、刈り取りは解決**前**の集合を入力とする。ゆえに 1 回目は解決で落ちる provisional の id が残り、2 回目は当該 provisional が居ないため刈られる。`retainedIds ⊇ newIds` は常に成り立つので、刈り取りの目的（復活した server-confirmed のローカル再発火抑止）は保たれる。失うのはもう存在しない provisional の id だけで、ローカル id は `serverTimers` に現れないため戻る経路が無い。
 
-**申し送り**: 要件 4.5 の本文は `timers`・`processedIds`・Residual の同一性を無条件に求めている。実態は上のとおり `processedIds` だけが弱い。要件本文を改めるかは本 spec の判断として別途扱う。
+**要件本文は改訂済み**: 要件 4.5 は本 property の言明に合わせて改訂した。`timers` と Residual の厳密な同一性はそのまま求め、`processedIds` は「新 `serverTimers` の id をすべて保持し、二度目以降を不動点とする」へ改めた。理由は requirements.md 要件 4 の「冪等性ノート」にある。
 
-**Validates: Requirements 4.5**（`processedIds` は部分充足）
+**Validates: Requirements 4.5**
 
 ### Property 7: offset 再確立
 `snapshot` / `config` / `error` の受信ごとに `offset = clockOffset(serverTime, receivedAt)` が更新される。
