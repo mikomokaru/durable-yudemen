@@ -95,18 +95,20 @@
     - `PreAlertWatch`・`lastRingAt` は `useRef` 等で作用ローカルに抱え、SSOT・永続へ書き戻さない
     - _Requirements: 1.1, 1.2, 1.3, 1.6, 2.1, 2.8, 2.9, 3.1, 3.3, 3.4, 3.11, 5.1, 5.2, 5.3, 5.5, 5.6, 7.5, 7.6, 7.8, 7.9_
 
-  - [ ]* 3.5 mock AudioContext / 擬似 visibilitychange のテストヘルパを用意する
-    - `tests/client/audioMocks.ts` を新規作成し、`state`/`sampleRate`/`resume`/`close`/`createOscillator`/`createGain`/`createBuffer*` を差し替え可能な mock AudioContext、`visibilitychange` 発火ユーティリティを提供する
+  - [x]* 3.5 mock AudioContext / 擬似 visibilitychange のテストヘルパを用意する
+    - `tests/client/audioMocks.ts` を新規作成し、`state`/`sampleRate`/`resume`/`close`/`createOscillator`/`createGain` を差し替え可能な mock AudioContext、`visibilitychange` 発火ユーティリティを提供する
+    - `createBuffer*` は持たせなかった — 現行実装は warm-up（無音バッファ）を持たず（`design.md`「解錠は『実測』で扱う（warm-up / onended に頼らない）」）、`src/client` に `createBuffer` の呼び出しが無い。触られない面を偽物に置くと、偽物が実装より大きな嘘をつくため
+    - `sampleRate` は実装が読まないが、要件7.4 の環境条件（48000 等のデバイス）を置くために持たせた
     - 生成された Oscillator/Gain ノードの `connect`/`disconnect`/`start`/`onended` を観測できるスパイを持たせる
     - _Requirements: 4.2, 7.4_
 
-  - [ ]* 3.6 解錠ゲート・既定・非対応の example/unit テストを書く
-    - `tests/client/useAudioCues.example.test.ts` に実装（mock AudioContext 使用）
+  - [x]* 3.6 解錠ゲート・既定・非対応の example/unit テストを書く
+    - `tests/client/useAudioCues.example.test.ts` に実装（4 例・mock AudioContext 使用）
     - 未解錠で Pre_Alert/Done が鳴らず解錠後に再生可能（1.2/4.3/4.4）、`AudioContext` 不在で throw せず no-op（4.5）を確認
     - _Requirements: 1.2, 4.3, 4.4, 4.5_
 
-  - [ ]* 3.7 Audio_Session と周期・自己回復の integration テストを書く
-    - `tests/client/useAudioCues.integration.test.ts` に実装（mock AudioContext / 擬似 visibilitychange 使用・各 1〜3 例）
+  - [x]* 3.7 Audio_Session と周期・自己回復の integration テストを書く
+    - `tests/client/useAudioCues.integration.test.ts` に実装（15 例・mock AudioContext / 擬似 visibilitychange 使用）
     - Audio_Unlock（capture 待受 → warm-up → 無音 `onended` で running → リスナ一括解除・失敗時は次ジェスチャ再試行）(4.1/4.2/4.6)
     - Touch_Cue レイテンシ／再トリガ（即時呼び出し・連続で都度新ノード）(1.1/1.6)
     - 再生終了ノードの後始末（`onended` で disconnect・複数周期で滞留や再 start なし）(3.11)
@@ -134,8 +136,8 @@
     - `src/client/components/SlotCard.tsx` は表示と操作の口に徹し、音声呼び出しの合成は SlotBoard 側で行う。props 伝播のみ必要なら最小限で受け渡す（カードは音を知らないまま保つ）
     - _Requirements: 1.5_
 
-  - [ ]* 5.4 配線の example テストを書く
-    - `tests/client/audioWiring.example.test.ts` に実装。Start押下/麺選択/Cancel/Complete/茹で加減変更が `playTouchCue` を呼び、指定外操作（設定・茹で加減メニュー開閉のみ）が呼ばないことを確認（1.5）。`playTouchCue` 失敗時も UI 操作本体が継続することを確認（1.3）
+  - [x]* 5.4 配線の example テストを書く
+    - `tests/client/audioWiring.example.test.ts` に実装（4 例）。Start押下/麺選択/Cancel/Complete/茹で加減変更が `playTouchCue` を呼び、指定外操作（設定・茹で加減メニュー開閉のみ）が呼ばないことを確認（1.5）。`playTouchCue` 失敗時も UI 操作本体が継続することを確認（1.3）
     - _Requirements: 1.3, 1.5_
 
 - [x] 6. 前面維持の依存を確認する
@@ -169,3 +171,44 @@
   ]
 }
 ```
+## 実施記録
+
+任意サブタスク 3.5 / 3.6 / 3.7 / 5.4 の実施で判明した事実を記録する。
+
+### フックの駆動手段
+
+本リポジトリに DOM レンダラ（jsdom / @testing-library/react）は無く、依存も増やせない。`react-dom/server` では `useEffect`（＝副作用フック）が走らない。そこで `vi.mock("react")` で **`useEffect` だけ**を「マウント時に 1 回走り cleanup をテストへ渡す」意味へ差し替えた。`audioWiring.example.test.ts` が `useSyncExternalStore` を初回描画の意味へ置き換えた先例と同形である。
+
+通る経路は本番のまま（`readyContext` / `emit` / 実 tick / `advancePreAlert` / `dueDoneCue` / `boiledTimerIds` / `assignedSlotDisplays` / 実 `audioTone`）で、テスト側にゲートの写しは無い。持ち込む嘘は効果の**時点**だけである（commit 後ではなく描画中）。本フックの効果は依存が安定参照の mount-once であり、その順序に依存しない。
+
+### 却下した代替
+
+純粋層と `audioTone` だけを突く形は採らなかった。ゲートは `audioTone` ではなく `readyContext` / `emit` にある。`playCue` は `state` を見ないので suspended な ctx でも鳴る。「フックなら呼ばないはず」をテストへ書き写すのは、ゲートの再実装である。
+
+### tasks.md 3.7 の文面と現行実装のズレ 5 点
+
+存在しない振る舞いは主張しなかった。
+
+1. warm-up / 無音 `onended` の経路が無い。
+2. 解錠フラグを持たないので「リスナ一括解除」の儀式が無い。
+3. `resume` の reject では Audio_Session を捨てない。捨てて作り直すのは `state === "closed"` のときだけ。
+4. 周期の冒頭で `resume` を投げた回はまだ鳴らず、次の周期で回復する。
+5. Touch_Cue の 100ms は偽タイマー環境で実測できない。「同期的に予約が済む」「開始時刻が `ctx.currentTime` で遅延を足さない」という構造的主張に置き換えた。
+
+### 変異確認
+
+初回で全通したため、実装を一時的に壊して落ちることを確かめた（すべて復元済み・src 差分なし）。
+
+- `DONE_CUE_INTERVAL_MS` 5000→3000 で 6 failed。
+- capture→bubble で capture の主張が落ちる。
+- 既定 `tickMs` 1000→1500 で 8 failed。
+- tick でも生成を許すと、closed 作り直しの主張が落ちる。
+- `onended` の null 化と `gain.disconnect` の削除で、後始末の主張だけが落ちる（1 failed＝的が絞れている）。
+
+### ティック粗さの主張は書き直した
+
+最初の版は 1000ms と 1500ms を区別できていなかった（3000ms が両方の倍数で偶然通る）。「999ms では未評価・1000ms で評価済み」を境界 1ms で挟む形へ改め、粗い実装で落ちるようにした。
+
+### 意図的に扱わなかったもの
+
+Silent_Switch（要件7.9）と iOS PWA standalone の実機挙動は Web から検知できず自動化不能（上記 Notes のとおり）。設定ポップオーバーの非配線は App が描画不能なため、ソーステキストで見た（`audioWakeLock.example.test.ts` と同じ静的検査の形）。
