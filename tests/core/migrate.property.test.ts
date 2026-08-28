@@ -1,11 +1,16 @@
-// tests/core/migrate.property.test.ts — migrate の 2 つの Property。
+// tests/core/migrate.property.test.ts — migrate と永続境界の 3 つの Property。
 //   yude-men-timer Property 13: version 不整合・移行失敗で元データ不変。
 //   pos-order-ingress Property 12: 移行は既存の挙動を保つ（v7 → v8 の欠如の埋め方）。
+//   synchronized-boil-adjustment: 現行 snapshot 往復で符号付き Adjustment を保存。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { migrate } from "../../src/engine/migrate";
+import { fromSnapshot, toSnapshot } from "../../src/engine/snapshot";
+import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
+import { createTimer } from "../../src/engine/timer";
 import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
+import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
 import { SLOT_SPAN_MIN } from "../../src/domain/store";
 
@@ -167,6 +172,67 @@ describe("core/migrate — v7 → v8 の面", () => {
         expect(raw).toEqual(v7);
       }),
       { numRuns: 300 },
+    );
+  });
+});
+
+// Adjustment を 0 だけに偏らせないため、符号ごとの領域を明示して往復境界を踏む。
+const genAdjustment = fc.oneof(
+  fc.integer({ min: -60_000, max: -1 }),
+  fc.constant(0),
+  fc.integer({ min: 1, max: 60_000 }),
+);
+
+const genAdjustmentTimerSpec = fc.record({
+  startTime: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+  boilDuration: fc.integer({ min: 1, max: 1_800_000 }),
+  adjustment: genAdjustment,
+  boiled: fc.boolean(),
+});
+
+const genAdjustmentState: fc.Arbitrary<TimerState> = fc
+  .array(genAdjustmentTimerSpec, { maxLength: 30 })
+  .map((specs) => {
+    const timers = specs.map((spec, index) => {
+      const endTime = spec.startTime + spec.boilDuration;
+      return createTimer({
+        id: `adjustment-${index}` as TimerId,
+        slotIds: [`slot-${index}` as SlotId],
+        noodleType: "migration-noodle" as NoodleType,
+        firmness: "normal",
+        startTime: spec.startTime as EpochMillis,
+        endTime: endTime as EpochMillis,
+        seq: index,
+        boiledAt: spec.boiled ? (endTime as EpochMillis) : null,
+        adjustment: spec.adjustment,
+      });
+    });
+    return {
+      timers,
+      nextSeq: timers.length,
+      pendingOrders: EMPTY_STATE.pendingOrders,
+      acceptedSlices: EMPTY_STATE.acceptedSlices,
+      requestedDigest: EMPTY_STATE.requestedDigest,
+      lastSequenceByTerminal: EMPTY_STATE.lastSequenceByTerminal,
+    };
+  });
+
+describe("core/migrate — Adjustment snapshot round-trip", () => {
+  // Feature: synchronized-boil-adjustment, Migration: Adjustment v5→current
+  // **Validates: Requirements 4.5**
+  it("現行 snapshot の往復で各 Timer の符号付き Adjustment を id ごとに保存する", () => {
+    fc.assert(
+      fc.property(genAdjustmentState, (state) => {
+        const restored = fromSnapshot(toSnapshot(state));
+        const adjustmentById = new Map(state.timers.map((timer) => [timer.id, timer.adjustment]));
+
+        expect(restored.timers).toHaveLength(state.timers.length);
+        for (const timer of restored.timers) {
+          expect(timer.adjustment).toBe(adjustmentById.get(timer.id));
+        }
+        expect(restored).toEqual(state);
+      }),
+      { numRuns: 200 },
     );
   });
 });

@@ -25,6 +25,37 @@ const v6Timer = {
 /** v6 の永続値（単一キー "activeTimers" に丸ごと入っていた形）。 */
 const v6Raw = { version: 6, timers: [v6Timer], nextSeq: 42 } as const;
 
+describe("migrate — v5 Adjustment → current", () => {
+  // Feature: synchronized-boil-adjustment, Migration: Adjustment v5→current
+  // **Validates: Requirements 4.5**
+  it("v5 Timer の欠如した adjustment を 0 で復元して現行版へ移行する", () => {
+    const v5Raw = {
+      version: 5,
+      timers: [
+        {
+          id: "timer-v5",
+          slotIds: ["slot-1"],
+          noodleType: "Thin",
+          firmness: "normal",
+          startTime: 1_700_000_000_000,
+          endTime: 1_700_000_090_000,
+          seq: 0,
+          boiledAt: null,
+        },
+      ],
+      nextSeq: 1,
+    } as const;
+
+    const result = migrate(structuredClone(v5Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+    expect(result.snapshot.timers).toHaveLength(1);
+    expect(result.snapshot.timers[0]!.adjustment).toBe(0);
+  });
+});
+
 describe("migrate — v6 → v8", () => {
   it("後続版の追加フィールドを空値と null で埋め、version を現行へ上げる", () => {
     const result = migrate(structuredClone(v6Raw));

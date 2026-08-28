@@ -23,7 +23,7 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
 | env シード | `STORE_ARMS` / `STORE_TOLERANCE_RATIO` | env / shell |
 | `decide` 第3引数 | `decide(state, event, params: SyncParams)` | `engine/decide.ts` |
 
-**確認を要する設計判断（併せて承認を仰ぐ）:** ① Adjustment を永続する（スキーマ v6・欠如は 0 で移行）② タイブレーク＝ `g*` 固定下で Window_Intersection 中点への二乗偏差和最小 ③ broadcast＝確定変化時に実効 `endTime` を載せた全量 `snapshot` を追加配信 ④ membership は昇順チャンク固定 ⑤ arms/toleranceRatio は client へ非配信。
+**確認を要する設計判断（併せて承認を仰ぐ）:** ① Adjustment を永続する（スキーマ v6・欠如は 0 で移行）② タイブレーク＝ `g*` 固定下で Window_Intersection 中点への二乗偏差和最小 ③ broadcast＝確定変化時に実効 `endTime` を載せた全量 `snapshot` を追加配信 ④ membership は昇順チャンク固定 ⑤ arms/toleranceRatio は `config` で一方向配信し、client は保持・再計算・変更要求をしない。
 
 各タスクの完了条件は共通で **`pnpm typecheck` / `pnpm lint` / `pnpm test`（`--run`）がすべて通ること**。テストは watch を使わず単発実行する。
 
@@ -40,10 +40,10 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
     - `StoreConfig` に `arms` / `toleranceRatio` を追加し、`ARMS_MIN=1`/`ARMS_MAX=10`/`DEFAULT_ARMS=2`・`TOLERANCE_RATIO_MIN=1`/`TOLERANCE_RATIO_MAX=50`/`DEFAULT_TOLERANCE_RATIO=10` を定義
     - `toArms` / `toToleranceRatio` を `toUnitCount` と同形で実装（型不一致・非整数・非有限・範囲外を当該パラメータのみ既定へ畳み、範囲内はクランプ）
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 2.1, 2.7_
-  - [ ]* 2.2 `toArms` / `toToleranceRatio` の property test
+  - [x]* 2.2 `toArms` / `toToleranceRatio` の property test
     - **Property 13: 調整パラメータ検証はパラメータ独立に妥当域へ畳む**
     - **Validates: Requirements 6.3, 6.4**
-  - [ ]* 2.3 検証関数の example / edge-case test
+  - [x]* 2.3 検証関数の example / edge-case test
     - `toArms(undefined)===2` / `toArms(0)===2` / `toArms(11)===2` / `toArms(3.5)===2`、`toToleranceRatio(undefined)===10` / `toToleranceRatio(0)===10` / `toToleranceRatio(51)===10`
     - _Requirements: 6.2_
   - [x] 2.4 config サンプルに `arms` / `toleranceRatio` を追記
@@ -55,7 +55,7 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
     - `Sequenced` / `Boilable` と同じ場所に `Adjusted`（符号付きミリ秒オフセット・初期値 0）を定義し `Timer extends ... Adjusted`
     - `createTimer` に `adjustment?: number`（省略時 0）を追加。domain・wire・client には露出しない
     - _Requirements: 4.1_
-  - [ ]* 3.2 `createTimer` の unit test
+  - [x]* 3.2 `createTimer` の unit test
     - `adjustment` 省略時 0・指定時保持を確認
     - _Requirements: 4.1_
 
@@ -64,10 +64,10 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
     - `adjustedEndTime(timer) = endTime + adjustment`、`toWireTimer` は `seq`/`boiledAt`/`adjustment` を削ぎ実効 `endTime` を載せる唯一の射影
     - 既存 `start.ts` / `adjust.ts` のローカル射影を撤去し `project.ts` を import して用いる（shell 側は task 11 で委譲）
     - _Requirements: 4.2, 4.5_
-  - [ ]* 4.2 射影とアンカー不変の property test
+  - [x]* 4.2 射影とアンカー不変の property test
     - **Property 10: アンカー不変と実効 endTime の射影**
     - **Validates: Requirements 4.2, 4.5, 4.7**
-  - [ ]* 4.3 `toWireTimer` の example test
+  - [x]* 4.3 `toWireTimer` の example test
     - 出力が `TimerFact` の 6 フィールドのみを持ち `adjustment` を含まないことを確認
     - _Requirements: 4.1_
 
@@ -82,10 +82,10 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
     - maximin: 間隔下限 `g` の貪欲左詰め実行可能性判定を整数スケールで二分探索して `g*` を得る。`g*` 固定下で Window_Intersection 中点への二乗偏差和を最小化（単調回帰）して一意化。単独セットは中点＝自 `endTime` に落ちて 0
     - Sync_Target を整数ミリ秒へ決定的丸め（`I` 内クランプ）、`adjustment = Sync_Target − endTime_i`。同期見送りセット・単独クラスタ・単独メンバーは 0。running のみを対象とし boiled は入力に含めない
     - _Requirements: 1.7, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 4.3_
-  - [ ]* 5.3 running 限定・boiled 凍結の property test
+  - [x]* 5.3 running 限定・boiled 凍結の property test
     - **Property 1: 同期は Running_Timer のみに作用し boiled を凍結する**
     - **Validates: Requirements 1.1, 7.3**
-  - [ ]* 5.4 窓内収束の property test
+  - [x]* 5.4 窓内収束の property test
     - **Property 2: Adjustment は許容調整窓内に収まる**
     - **Validates: Requirements 3.3, 3.7, 4.3**
   - [x]* 5.5 クラスタ連結成分の property test（境界一致生成器を含む）
@@ -103,19 +103,19 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
     - 同期確定された複数メンバーの集合は、5.5〜5.6 の独立参照モデルによる membership と、テスト側で独立に計算した Window_Intersection が空でないことから判定する。本体出力の実効 `endTime` の一致や、本体 helper の membership を同期確定判定へ写さない
     - 独立に同期確定と判定した各複数メンバー集合について、本体出力の `endTime + adjustment` が全メンバーで完全一致することを確認する
     - **Validates: Requirements 2.6**
-  - [ ]* 5.8 同期可能性とフォールバックの property test
+  - [x]* 5.8 同期可能性とフォールバックの property test
     - **Property 6: 同期可能性とフォールバック（窓の積が空・孤立は Adjustment 0）**
     - **Validates: Requirements 1.7, 3.2, 3.6, 7.4**
-  - [ ]* 5.9 maximin 最適性の property test（モデルベース・m≤4）
+  - [x]* 5.9 maximin 最適性の property test（モデルベース・m≤4）
     - **Property 7: maximin 最適性（連続確定セット間隔の最小値の最大化）**
     - **Validates: Requirements 3.4**
-  - [ ]* 5.10 順序非依存の property test（`fc.shuffle`）
+  - [x]* 5.10 順序非依存の property test（`fc.shuffle`）
     - **Property 8: 順序非依存（決定的タイブレークによる一意性）**
     - **Validates: Requirements 3.5, 7.5**
-  - [ ]* 5.11 冪等性の property test
+  - [x]* 5.11 冪等性の property test
     - **Property 9: 冪等性（再同期は no-op）**
     - **Validates: Requirements 7.5, 7.7**
-  - [ ]* 5.12 退化・具体シナリオの example / edge-case test
+  - [x]* 5.12 退化・具体シナリオの example / edge-case test
     - 空 running → 空、3 本・arms=2 が `[2 本][1 本]` に分割され 2 本セットが同期・残余が maximin で離される具体例
     - _Requirements: 1.8, 2.2, 2.6, 3.4_
 
@@ -135,10 +135,10 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
     - `adjustTimer` がオリジナル `endTime`（アンカー）を引き直した後、`settle` で全体再同期する
     - 既存拒否（`TimerNotFound` / `InvalidBoilSeconds`）は不変・新種別を増やさない
     - _Requirements: 7.1_
-  - [ ]* 7.4 集合変化後の確定結果の property test
+  - [x]* 7.4 集合変化後の確定結果の property test
     - **Property 12: 集合変化後の確定結果は現在の running 集合の純粋な関数である**
     - **Validates: Requirements 7.1, 7.2, 7.3**
-  - [ ]* 7.5 Effect 列順序と no-op 抑止の property test
+  - [x]* 7.5 Effect 列順序と no-op 抑止の property test
     - **Property 14: 確定結果が変化するときのみ Persist 先頭の Effect 列を出す**
     - **Validates: Requirements 5.2, 7.6, 7.7**
 
@@ -149,7 +149,7 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
   - [x] 8.2 due 判定を実効時刻化し発火後に残り running を再同期（engine/fire.ts）
     - `fireDueTimers` の due 判定を `adjustedEndTime(t) ≤ now + ε` に精緻化。due を先に boiled へ写して Adjustment を凍結し、その後 `settle` で残り running を再同期
     - _Requirements: 4.4, 7.3_
-  - [ ]* 8.3 発火基準の property test
+  - [x]* 8.3 発火基準の property test
     - **Property 11: 発火は Adjusted_Boil_Time を基準にする**
     - **Validates: Requirements 4.4**
 
@@ -160,7 +160,7 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
   - [x] 9.2 `adjustment` 欠如を 0 で移行（engine/migrate.ts）
     - `reviveStartTime` / `reviveFirmness` と同形で `adjustment` 欠如（v5 以前）を 0 で埋める。`MigrationFailed` を増やさない
     - _Requirements: 4.5_
-  - [ ]* 9.3 移行の property / example test
+  - [x]* 9.3 移行の property / example test
     - v5→v6 round-trip・`adjustment` 欠如が 0 で復元されることを確認
     - _Requirements: 4.5_
 
@@ -171,24 +171,24 @@ PBT は設計の 14 プロパティを各 1 サブタスクとして実装する
   - [x] 11.1 `StoreConfig` から arms/toleranceRatio をロードし `decide` へ注入
     - `ensureConfigLoaded` が env シード（`STORE_ARMS` / `STORE_TOLERANCE_RATIO`）または永続値から `this.arms` / `this.toleranceRatio` を確立し、`applyStoreConfig`（PUT /admin/config）も全体置換。`decide` 呼び出しに `{ arms, toleranceRatio }` を渡す
     - _Requirements: 6.1, 6.4_
-  - [x] 11.2 snapshot 射影を project.ts へ委譲し確定変化時に全量 snapshot を broadcast・client 非配信
-    - shell のローカル snapshot 射影を撤去し `toWireTimer` を用いる。確定変化時に実効 `endTime` を載せた全量 `snapshot` を Persist 成功後に全 WS へ配信。`config` メッセージに arms/toleranceRatio を含めない
+  - [x] 11.2 snapshot 射影を project.ts へ委譲し確定変化時に全量 snapshot を broadcast・config を一方向配信
+    - shell のローカル snapshot 射影を撤去し `toWireTimer` を用いる。確定変化時に実効 `endTime` を載せた全量 `snapshot` を Persist 成功後に全 WS へ配信。`config` メッセージで arms/toleranceRatio を一方向配信するが、client は両値を `ClientView` に保持せず同期計算を再実装しない
     - _Requirements: 5.1, 5.2, 5.4, 5.5, 6.5_
-  - [ ]* 11.3 Persist 失敗時の broadcast 抑止の統合テスト（Workers pool）
+  - [x]* 11.3 Persist 失敗時の broadcast 抑止の統合テスト（Workers pool）
     - Persist 失敗を注入 → broadcast されず SSOT が失敗前の確定 Adjustment を保持
     - _Requirements: 5.3, 7.8_
-  - [ ]* 11.4 全端末一致の統合テスト（Workers pool）
+  - [x]* 11.4 全端末一致の統合テスト（Workers pool）
     - 2 端末接続 → start で同期 → 双方の hydration/snapshot が同一の実効 `endTime`
     - _Requirements: 5.4, 5.5_
-  - [ ]* 11.5 broadcast 失敗からの回復の統合テスト（Workers pool）
+  - [x]* 11.5 broadcast 失敗からの回復の統合テスト（Workers pool）
     - 一方の broadcast を落とす → 再接続の snapshot で実効 `endTime` が一致に回復
     - _Requirements: 5.6_
-  - [ ]* 11.6 client 非配信の example test
-    - `config` メッセージに `arms` / `toleranceRatio` が含まれないことを確認
+  - [x]* 11.6 server 権威・client 変更不可の example test
+    - `ServerMessage.config` が `arms` / `toleranceRatio` を一方向配信すること、`ClientView` が両値を保持しないこと、`ClientMessage` に両値がなく client から変更要求できないことを確認
     - _Requirements: 5.1, 6.5_
 
 - [x] 12. engine 純粋性の静的検査（smoke）
-  - [ ]* 12.1 sync.ts / project.ts の純粋性 smoke test
+  - [x]* 12.1 sync.ts / project.ts の純粋性 smoke test
     - `engine/sync.ts` / `engine/project.ts` が `cloudflare:workers` / storage / `setInterval` / `waitUntil` / 外部 await に依存しないことを既存 engine 純粋性検査に追随して確認
     - _Requirements: 4.6, 8.2, 8.3_
 

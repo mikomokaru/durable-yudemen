@@ -61,3 +61,18 @@ export function referenceSyncSets(
     return sets;
   });
 }
+
+export function referenceWindowIntersection(
+  set: readonly Timer[],
+  toleranceRatio: number,
+): { readonly left: number; readonly right: number } {
+  const windows = set.map((timer) => {
+    const half = ((timer.endTime - timer.startTime) * toleranceRatio) / 100;
+    return { left: timer.endTime - half, right: timer.endTime + half };
+  });
+
+  return {
+    left: Math.max(...windows.map(({ left }) => left)),
+    right: Math.min(...windows.map(({ right }) => right)),
+  };
+}
