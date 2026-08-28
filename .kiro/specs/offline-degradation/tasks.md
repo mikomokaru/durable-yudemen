@@ -49,6 +49,7 @@
 
   - [ ]* 2.2 Mode 導出の property テストを書く
     - **Property 1: Mode は Connectivity から全域的・決定的に導出される**
+    - **監査結果（未カバー・新規に書く）:** `mode(view) === "degraded"` を主張するテストが皆無。`tests/client/connection.example.test.ts:156` / `:182` / `:227` は `"live"` の付随確認のみ
     - **Validates: Requirements 3.1, 3.2, 3.3**
 
   - [x] 2.3 decideView の Server 系分岐と reconcileServerConfirmed を実装する
@@ -57,37 +58,55 @@
     - _Requirements: 4.1, 4.2, 11.5, 11.6, 11.7_
 
   - [x] 2.4 decideView のローカル / 接続性 / Tick / Reconcile 各分岐と dueLocalTimers を実装する
-    - `src/client/connection.ts`: `LocalStart`（boilSeconds が 1〜1800 内のとき `endTime = correctedNow + boilSeconds*1000` の `origin:"local"` Provisional_Timer をちょうど 1 件注入。範囲外は不変）、`LocalCancel`（`origin:"local"` は除去のみ・`origin:"server"` は除去＋`markProcessed`・非存在 id は不変）、`Connectivity`（`connectivity` をセットし offset は変えない）、`Tick`（参照同一を返しビュー不変）、`LocalDone`（`shouldHandleDone` が true のときのみ `markProcessed`）、`Reconcile`（`reconcileServerConfirmed` を適用）を実装する
+    - `src/client/connection.ts`: `LocalStart`（boilSeconds が 1〜1800 内のとき `endTime = correctedNow + boilSeconds*1000` の `origin:"local"` Provisional_Timer をちょうど 1 件注入。範囲外は不変）、`LocalCancel`（除去時刻 `now` を引数で受け取り、`origin` を問わず対象を除去して除去直前の麺種を各駆動スロットの `lastResults` へ `at: now` と共に記録。`origin:"server"` はさらに `markProcessed`・非存在 id は不変）、`Connectivity`（`connectivity` をセットし offset は変えない）、`Tick`（参照同一を返しビュー不変）、`LocalDone`（`shouldHandleDone` が true のときのみ `markProcessed`）、`Reconcile`（`reconcileServerConfirmed` を適用）を実装する
     - `dueLocalTimers(view, correctedNow)` を実装する（`endTime ≤ correctedNow` かつ id が `processedIds` 未登録の `ClientTimer` を server / local 双方から返す純粋関数）。アラート音は持たない（端が鳴らす）
     - _Requirements: 6.1, 6.2, 6.5, 7.1, 7.2, 8.1, 8.3, 2.1, 2.2, 5.2, 11.5, 11.6, 11.7_
 
   - [ ]* 2.5 decideView の純粋性・決定性の property テストを書く
     - **Property 2: Client_Decide は決定的かつ純粋（時刻を引数に取り暗黙時計に漏れない）**
+    - **監査結果（部分カバー・残余だけを書く）:** 純粋性は `tests/offline-degradation.static.test.ts:544-587` がソース検査でカバー済み（純粋層スライスに `Date` / `crypto` / `WebSocket` / `document` / `window` / `setInterval` / `setTimeout` / `localStorage` が現れないこと）
+    - 残る不足は**決定性**（二度評価の一致・列畳み込みの一致）。`Tick` と `Classify` の分岐は現時点で一度も実行されていない
     - **Validates: Requirements 4.1, 4.2, 4.3**
 
   - [ ]* 2.6 degraded ローカル start の property テストを書く
     - **Property 3: degraded のローカル start は範囲内でちょうど 1 件の Provisional_Timer を注入し、範囲外では不変**
+    - **監査結果（部分カバー・残余だけを書く）:** `tests/client/degraded-slot-superimposition.gate.property.test.ts:298`（Property 2・`numRuns: 200`）が範囲内注入をほぼ完全に主張済み（local がちょうど 1 件増える・`id === newTimerId`・`endTime === correctedNow + boilSeconds * 1000` の厳密一致・`slotIds` 一致・残滓解除・既存 Timer が失われない）
+    - 残る不足は「**範囲外 `boilSeconds` × 空きスロット → ビュー不変**」のみ。gate 側は占有を前提とするため、実装（`decideLocalStart`）が占有ゲートを範囲検査より先に return する経路を踏まない
+    - 要件 9.1 の表示走行中化と `processedIds` 不変も未主張
     - **Validates: Requirements 6.1, 6.2, 6.5, 9.1**
 
   - [ ]* 2.7 degraded ローカル cancel の property テストを書く
     - **Property 4: degraded のローカル cancel は起源別に正しく作用する**
+    - 実装（`decideView` の `LocalCancel` 分岐）の実際の作用は次のとおり。イベントは `{ timerId, now }` を運ぶ。対象が存在すれば `origin` を問わず `timers` から除去し、**除去直前の麺種を対象の各駆動スロット（`slotIds`）へ `lastResults[slotId] = { noodleType, at: now }` として記録する**（中断でも完了でも一様な残滓・`snapshot-broadcast` 要件5.2。`LocalComplete` と同一手順）。`origin:"server"` の場合はさらに `markProcessed` で `processedIds` へ登録し、`origin:"local"` では `processedIds` を変えない。対象が非存在なら参照同一のビューを返す（`lastResults` も不変）
+    - 旧本文は起源別の除去と `markProcessed` だけを挙げ、`lastResults` への記録と `now` の受け取りを落としていた（実装より狭い記述だった）。`processedIds` の主張に加え `lastResults` の主張も置く
+    - **監査結果（未カバー・新規に書く）:** 既存カバーなし
     - **Validates: Requirements 7.1, 7.2**
 
   - [ ]* 2.8 ローカル茹で上がりの冪等性の property テストを書く
-    - **Property 5: ローカル茹で上がりは各 timerId につき高々 1 回だけ処理される（後続サーバ done と冪等）**
+    - **Property 5: ローカル茹で上がりは各 timerId につき高々 1 回だけ処理される（後続 snapshot でも再発火しない）**
+    - 現行 `ServerMessage` に `done` 種別は無い（`snapshot` / `config` / `error` のみ）。サーバ側の完了は全量 `snapshot` から当該 Timer が消えることとして現れるため、混在列は `LocalDone` の重複＋`snapshot` 消失の 2 経路で組む（design.md Property 5 の改訂注記を参照）
+    - **監査結果（部分カバー・残余だけを書く）:** `tests/client/notification.property.test.ts:19`（Property 16・200 runs）が `shouldHandleDone` / `markProcessed` の「高々 1 回」・登録後 false・id 間の不干渉を主張済み（`LocalDone` 分岐はこれへ委譲している）
+    - 残る不足は **`dueLocalTimers` の全域特徴づけ**（両包含・`endTime === correctedNow` 境界）と、**`decideView` 経由の混在列の畳み込み**
     - **Validates: Requirements 8.1, 8.2, 8.3, 8.4**
 
   - [ ]* 2.9 クロックオフセット凍結の property テストを書く
-    - **Property 7: degraded 系イベントはクロックオフセットを凍結する（変えない）**
+    - **Property 7: クロックオフセットを更新するのは `Server` 受信だけで、他のすべてのイベントは凍結する**
+    - 凍結側は `Server` 以外の全 `ClientEvent`（`Reconcile` / `LocalStart` / `LocalCancel` / `LocalComplete` / `Connectivity` / `Classify` / `LocalDone` / `Tick`）。`Reconcile` は `serverTime` を運ばないため凍結側に属する
+    - **監査結果（未カバー・新規に書く）:** 既存カバーなし
     - **Validates: Requirements 5.2**
 
   - [ ]* 2.10 Reconcile 保存性の property テストを書く
-    - **Property 8: Reconcile は server-confirmed のみを置換し、provisional と抑止記録を保存する**
+    - **Property 8: Reconcile は server-confirmed のみを置換し、provisional と抑止記録を保存する（争いが無い入力の下で）**
+    - 生成器は前提（スナップショットのスロット集合と provisional のスロット集合が互いに素）を満たすよう構成する。争いのある入力では `degraded-slot-superimposition` の占有解決により provisional / server-confirmed が落ちうるため、その主張は当該 spec の Property 3〜6 に委ねて重複させない
+    - **監査結果（部分カバー・残余だけを書く）:** 既存 3 ファイルが大半を押さえている。`tests/client/degraded-slot-superimposition.resolution.property.test.ts:362`（300 runs・争い無し前提で `timers` が「全置換 server ＋ 保持 provisional」に厳密一致・`processedIds` の刈り取りも厳密一致）／`:286`（争い有り・生存者は非敗者）、`tests/client/convergence.property.test.ts:116`（200 runs・server-confirmed 集合が `snapshot.timers` に完全一致）、`tests/client/reconcile.property.test.ts:278`（200 runs・復活 id の抑止保持・単調減少・不動点）
+    - 残る不足は **`decideView({ kind: "Reconcile" })` を入口にした主張**（既存はすべて `reconcileServerConfirmed` の直呼び）**と要件 12.4 の主張**
     - **Validates: Requirements 11.5, 11.6, 11.7, 12.4**
 
   - [ ]* 2.11 残り時間導出クランプの property テストを書く
     - 既存 `clock.ts` の `remainingMs` を再利用対象として検証する（新規実装はしない）
     - **Property 6: 残り時間の導出は常に 0 以上にクランプされる**
+    - **監査結果（完全カバー・実装しない）:** 既存 `tests/client/clock.property.test.ts:15`（残り ≥ 0・`numRuns: 200`）と `:27`（`correctedNow ≥ endTime` で厳密 0・`numRuns: 200`）が `clockOffset → remainingMs` の連鎖を広域の絶対時刻で検証済み。時刻はすべて引数で、`Date.now` スタブも faketime も使っていない。表示側は `tests/client/format.property.test.ts:10`（200 runs・MM:SS・`-` を含まない）
+    - **重複を作らないため新規テストを書かない。** チェックボックスは既存カバーの確認をもって完了とする
     - **Validates: Requirements 5.1, 5.3**
 
 - [x] 3. 純粋層: 永続コーデック（serializeView / parsePersistedView）
@@ -97,6 +116,8 @@
 
   - [ ]* 3.2 永続ブロブ round-trip の property テストを書く
     - **Property 9: 永続ブロブは直列化→解析で全フィールドを保存する（round-trip）**
+    - **監査結果（部分カバー・残余だけを書く）:** `tests/client/persistence-scope.property.test.ts:124-145`（200 runs）が IO 経由の往復を主張済み（ただし 3 フィールドのみ）
+    - 残る不足は**純粋コーデック単体の往復**・**`version: 1` の保持**・**不正ブロブ → `EMPTY_VIEW`**
     - **Validates: Requirements 11.1, 11.2, 11.3**
 
 - [x] 4. チェックポイント — 純粋層（decideView / mode / dueLocalTimers / 永続コーデック）の全テストが通ることを確認
@@ -109,6 +130,8 @@
 
   - [ ]* 5.2 Persistence_Port の IO example テストを書く
     - 保存 → 読み出しの往復、不在 / 不正ブロブで `EMPTY_VIEW` 復帰（`connectivity` が `"down"` 起点）、書き込み失敗時に例外を投げず劣化することを 1〜2 例で固める
+    - **監査結果（部分カバー・残余だけを書く）:** 往復（`tests/client/persistence-scope.property.test.ts:131-138`）と不在 → `EMPTY_VIEW`（`:140`・`:147-160`）、再水和起点（`tests/client/complete.example.test.ts:179-192` / `:333-341`）は既存
+    - 残る不足は**不正ブロブ → `EMPTY_VIEW`** と、**書き込み失敗で例外を投げず劣化すること**（`src/client/persistence.ts:250-258` の catch が未踏）
     - _Requirements: 11.2, 11.4_
 
 - [-] 6. 端: Connectivity_Watch（WS 生存検出・二段階 down 検出）
@@ -123,6 +146,7 @@
 
   - [ ]* 6.3 二段階 Connectivity 検出の統合テストを書く（mock WS + faketime）
     - 既存 `SocketOpener` 注入のモック WS と faketime で、(a) pong タイムアウト 2 連続で `down`、(b) close / error で `down`、(c) open + snapshot で `up`、(d) pong 受信で `up` を 1〜3 例ずつ確認する
+    - **監査結果（未カバー・新規に書く）:** 既存カバーなし
     - _Requirements: 1.3, 1.4, 2.1, 2.2, 2.3_
 
 - [x] 7. 端: Sync_Mediator（openTimerConnection / TimerConnection の拡張）
@@ -137,10 +161,14 @@
 
   - [ ]* 7.3 Mode 経路選択の統合テストを書く（mock WS + faketime）
     - degraded で `start` / `cancel` が WS 送信されず Provisional_Timer を注入 / 除去すること、live で `ClientMessage` が送信されることを 1〜3 例で確認する
+    - **監査結果（部分カバー・残余だけを書く）:** degraded の start が未送信で provisional を注入すること（`tests/client/connection.example.test.ts:148-152`）、live の start / cancel が送信されること（`:210-231` / `:166-185`）は既存
+    - 残る不足は **degraded の cancel による Provisional 除去（＋ server-confirmed への `processedIds` 登録）**。degraded の「送らない」は socket 不在と交絡している点にも注意する（ハーネス自身がコメントで明記）
     - _Requirements: 4.5, 6.3, 7.3_
 
   - [ ]* 7.4 Reconcile 契機づけと boot 再水和発火の example テストを書く
     - down→up 遷移で次の snapshot が `Reconcile` として畳まれ provisional が保持されること、再水和ビューの期限到来分が boot 直後にローカル発火することを example で固める
+    - **監査結果（部分カバー・残余だけを書く）:** provisional 保持は `tests/client/complete.example.test.ts:544-548` が down→up 後の snapshot 経路で主張している。**ただし「Reconcile として畳まれた」ことは未主張**——`receiveSnapshot` が offset を常に 0 にするため通常 snapshot と識別できず、`pendingReconcile` の配線が壊れても緑のままになる
+    - 残る不足は (1) **Reconcile 経路と通常 snapshot 経路の識別**、(2) **boot 再水和直後のローカル発火**（`onBoilAlert` を注入するテストが現時点で 0 件。渡しているのは `tools/offline/degrade-cli.ts:119` だけ）
     - _Requirements: 2.4, 11.2, 11.3_
 
 - [x] 8. 端: slotDisplay の未確定フラグとダブルブッキングゲート
@@ -149,7 +177,11 @@
     - _Requirements: 6.4_
 
   - [ ]* 8.2 走行中ゲートと未確定表示の example テストを書く
-    - 走行中（`running`）の Slot に Start の口が現れない（既存 `SlotCard` が `idle` / `boiled` のみ Start を描画する構造ゲートが効く）こと、Provisional_Timer が未確定表示（`unconfirmed`）で server-confirmed と区別されることを example で確認する
+    - 走行中（`running`）の Slot に Start の口が現れない（既存 `SlotCard` が **`idle` 分岐でのみ** Start を描く構造ゲートが効く）こと、Provisional_Timer が未確定表示（`unconfirmed`）で server-confirmed と区別されることを example で確認する
+    - `SlotCard.tsx` の実装は 4 種別で操作の口を出し分ける。`idle` は Start（`aria-label` が `Slot {slot} — Start`）、`running` は Cancel（`Cancel` / armed 時は `Tap again to cancel`）、`boiled` は Complete（`aria-label` が `Complete`）、`unreceived` は操作の口を持たない。**Start を描くのは `idle` だけである**（旧本文の「`idle` / `boiled` のみ Start を描画する」は誤り）
+    - 既存 `tests/client/assignment-ui.example.test.ts` の `operationsOf` は SlotCard の分岐をテスト側へ写したヘルパであり、**構造の写しであって行動の主張ではない**（実 `SlotCard` を書き換えても落ちない）。ゆえに実 `SlotCard` に対する主張が別に要る。実現手段（React テスティングライブラリは未導入・同テストの冒頭コメント参照）は実装着手前に確認する
+    - **監査結果（部分カバー・残余だけを書く）:** 既存 `tests/client/assignment-ui.example.test.ts:21-32` ＋ `:97-99` は `operationsOf` という構造の写しで、実 `SlotCard` を書き換えても落ちない。`unconfirmed` の assert は 0 件（唯一の出現は `tests/client/complete.example.test.ts:74` の fixture 値）
+    - `unconfirmed` は `src/client/components/slotDisplay.ts:76` で導出されるだけで UI が消費していない——要件 6.4 の「視覚的に区別可能な未確定表示」の描画は未実装で、example で主張できるのは `assignedSlotDisplays` の返り値まで。React テスティングライブラリは未導入
     - _Requirements: 6.4, 9.1, 9.2_
 
 - [x] 9. チェックポイント — 端（Persistence_Port / Connectivity_Watch / Sync_Mediator / slotDisplay）のテストが通ることを確認
@@ -162,6 +194,7 @@
 
   - [ ]* 10.2 auto-response が wake させない統合テストを書く（@cloudflare/vitest-pool-workers）
     - Workers pool で DO へ ping を送り、auto-response で pong が返ること、`webSocketMessage`（broadcast 等）の継ぎ目が発火せず hibernate が維持されること（既存 `hibernation-observability` ハーネスの計装と併用可）を確認する
+    - **監査結果（未カバー・新規に書く）:** 既存カバーなし
     - _Requirements: 1.1, 1.5, 12.3_
 
 - [x] 11. PWA 基盤（App Shell precache・standalone・overscroll）
@@ -175,6 +208,9 @@
 
   - [ ]* 11.3 PWA 設定の smoke テストを書く
     - manifest が `display: standalone` であること、App Shell precache が設定されていること、`overscroll-behavior` が適用されていること、**IndexedDB / Background Sync を使用していない**ことを静的に確認する
+    - **監査結果（部分カバー・残余だけを書く）:** IndexedDB / Background Sync 不使用は `tests/offline-degradation.static.test.ts:507` / `:515` が既にカバー
+    - 残る不足は 3 つ——**`manifest.display === "standalone"`**・**`workbox.globPatterns`（App Shell precache）**・**CSS の `overscroll-behavior`**
+    - `tests/service-worker-config.static.test.ts` は同じ `vite.config.ts` を読むが主張は重ならない（あちらは `navigateFallbackDenylist` と `/entry/` の `runtimeCaching` 不在）。同ファイルの AST ヘルパ（`vitePwaOptions()` `:48` / `property()` `:60` / `toPattern()` `:82`）をそのまま流用でき、同ファイルへの追記で書ける
     - _Requirements: 10.1, 10.3, 10.4, 11.4_
 
 - [x] 12. dev 限定フォルトインジェクション（ping blackhole・要件14）
@@ -184,10 +220,17 @@
 
   - [ ]* 12.2 blackhole ライフサイクルの統合テストを書く（mock WS + faketime）
     - blackhole 有効化で送信 ping のみ捨て通常メッセージ・受信を素通しすること、silent-loss 検知（要件1.4）を通じて degraded に入り Mode を直接書き換えないこと、無効化でランタイム可逆に ping 再開 →`up` 復帰 → down→up 遷移で Reconcile を契機づけることを 1〜2 例で確認する
+    - **監査結果（未カバー・新規に書く）＋実測:** Workers pool（`vitest.config.ts:139-140` の `workers` プロジェクト）で `import.meta.env.DEV` は **true**、`MODE` は `"test"`（実測）。`withPingBlackhole` は恒等関数にならず、`PING_REQUEST` だけが実際に落ちることを確認済み。**空虚な緑にはならないのでそのまま書ける**
+    - 留意点 (1): `VITE_PING_BLACKHOLE_DEBUG` は `MODE === "test"` では undefined ゆえ `pingBlackholeDebugEnabled()` は false で、`src/client/connection.ts:832` の自動配線は効かない → `options.openSocket` へ `withPingBlackhole(fakeOpener, isPingBlackholeActive)` を明示的に渡す
+    - 留意点 (2): silent-loss 検知（要件1.4）を通す必要があるため既定の `watchConnectivity` を通す側（`openConnectionWithFakeSockets` 系）を使う。偽 Watch の `openConnectionWithFakeWatch` は ping/pong を飛び越えるので使えない
+    - 留意点 (3): `tests/client/support/timerConnection.ts:55` の `openConnectionWithFakeSockets()` は偽 `openSocket` をハードコードして引数を取らないため、opener を受け取れるようにするか、テスト内にローカルで据え付ける。`PONG_TIMEOUT_MS × SILENT_LOSS_MISSES` を進めるので `vi.useFakeTimers()` が要る
     - _Requirements: 14.1, 14.2, 14.3_
 
   - [ ]* 12.3 本番バンドル除外・UI 非露出の静的検査を書く
     - blackhole 切替手段が `import.meta.env.DEV` / デバッグフラグでゲートされ本番ユーザー向け UI に露出しないこと、本番バンドルへ含まれないことを静的に検証する
+    - **監査結果（未カバー・新規に書く）＋実測:** **AST 検査に絞る。dist を読む検査にしない。** `dist/` は `.gitignore` にあり、CI（`.github/workflows/ci-cd.yml`）は `pnpm test` を build より前に走らせるため、dist を読む検査は CI で必ず失敗か skip になる（＝空虚な緑）
+    - `tests/service-worker-config.static.test.ts` と同型に TypeScript AST で「ゲートの形」を主張する。ゲートは実装の 5 箇所——`src/client/connectivity.ts:473`（`pingBlackholeDebugEnabled` 先頭の `if (!import.meta.env.DEV) return false;`）・`:474`（`VITE_PING_BLACKHOLE_DEBUG === "1"`）・`:511`（`withPingBlackhole` 先頭の early return）・`src/client/connection.ts:832`（`import.meta.env.DEV && pingBlackholeDebugEnabled()`）・`src/client/App.tsx:127`（`degradationTestable` の初期化子。`:268` の `{degradationTestable && (` がトグル JSX（`:275` の `"Simulate offline (dev)"`）を包む唯一の経路）
+    - **新ファイルは `vitest.config.ts` の `static` の `include` と `workers` の `exclude` の両方へ登録する**（片方だけでは二重実行または未実行）
     - _Requirements: 14.4_
 
 - [x] 13. 静的検査と規律の不変点
@@ -209,6 +252,7 @@
   - [ ]* 15.2 Classify 畳み込みの property テストを書く
     - **Property 10: Classify は到達不能理由だけを畳み、up の Connectivity はそれを offline へ戻す**
     - `Classify(reason)` 後に `unreachableReason === reason` かつ他フィールド（`timers` / `offset` / `processedIds` / `connectivity` / `sync` / `error`）が不変、`Connectivity{status:"up"}` の畳み込みで `unreachableReason === "offline"` に戻ることを検証する
+    - **監査結果（未カバー・新規に書く）:** 既存カバーなし
     - **Validates: Requirements 15.7, 15.8, 15.12**
 
   - [x] 15.3 端: probeReachability を connectivity.ts に実装する
@@ -227,10 +271,15 @@
 
   - [ ]* 15.6 probeReachability 分類の example テストを書く（mock fetch）
     - throw→`offline` / 403→`signInRequired` / 200 リスト在→`offline` / 200 リスト不在→`noAccess` / 404・非配列・パース失敗→`offline` の各分岐を網羅する。加えて、down 確定契機で 1 回だけ probe すること・常駐ポーリングにしないこと・`up` 復帰で `unreachableReason` が `offline` へ戻ることを mock WS ＋ faketime で確認する
+    - **監査結果（部分カバー・残余だけを書く）: 判定表は書かない。** `tests/client/reachability.example.test.ts:88-171`（mock fetch）と `tests/client/reachability.property.test.ts:110-238`（全域 property・`numRuns: 300` ＋ example 表）が同じ表を既に二重に縛っており、ここで書けば同じ判断の 3 箇所目になる。`requirements.md:229` 自身が「現行の正本はあちらの記録」と明記している
+    - 残るのは**配線 3 点のみ**——down 確定契機で 1 回だけ probe すること・常駐ポーリングにしないこと・`up` 復帰で `unreachableReason` が `offline` へ戻ること。継ぎ目は `tests/client/support/timerConnection.ts:107` の `openConnectionWithFakeWatch` の `setConnectivity` と `vi.stubGlobal("fetch")` の呼び出し回数
     - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.13_
 
   - [ ]* 15.7 UI 3 分岐の example テストを書く
     - `connectionStatus(view)` が `unreachableReason` で英語文言（"Offline — running locally" / "No access to this store" / "Sign-in required"）を出し分けることを確認する
+    - **監査結果（当面保留）:** 理由は 2 つ。(1) `connectionStatus` は `src/client/components/ConnectionStatus.tsx:25` の module-private で、export するなら公開シンボルの追加＝`naming.md` によりユーザー確認が要る。React 描画の経路も無い（テスティングライブラリ未導入）
+    - (2) 文言が動く予定——`signin-required-misreported-as-offline` タスク 8（未完・`[~]`）が `signInRequired` を `Sign-in required — tap to sign in` へ変える計画（同 tasks.md 156-162 行）。いま現行文言 `"Sign-in required"` を固定すると、あちらの完了時に赤くなる
+    - **あちらのタスク 7（実機の認証往復検証）と 8 が決着してから着手する。** `offline` / `noAccess` の据え置きは両 spec で一致している
     - _Requirements: 15.9, 15.10, 15.11_
 
   - [x] 15.8 チェックポイント — 要件15 追加後に全ゲートが通ることを確認する
@@ -247,6 +296,10 @@
 - **core（`src/engine/`）は追加・変更・削除しない。** 変更は `src/client/` 配下と `src/shell/store-timer-do.ts` への `setWebSocketAutoResponse` 一点のみ。既存ワイヤ形式（`ClientMessage` / `ServerMessage`）のみを使う。SSOT 規律（サーバ snapshot が正本・Provisional_Timer は起源タグ付き未確定意図・競合源にしない）と hibernation 規律（heartbeats は auto-response 経路限定・常駐ループは wake させない）を崩さない。書き戻し（reconciliation）はスコープ外。
 - 公開シンボル名は 1.1 で確定してからコードに用いる。本計画中の名前はすべて暫定候補。特に `Sync_Mediator` のパターン名忌避（既存 `TimerConnection` 据え置きが規律に適う）・`Reconcile` の独立性・ping/pong 文字列 / `STORAGE_KEY` の置き場所は実装前に確定する。
 - WS 生存検出の実時間タイミング（ping 間隔・pong タイムアウト・二段階検出）・Mode による経路選択・localStorage の同期 IO・PWA / Service Worker のプラットフォーム挙動・shell の auto-response（wake 抑止）・dev 限定フォルトインジェクションは、入力で振る舞いが変わらない／外部依存／実時間依存の**端**であり、Integration / Example / Smoke（静的検査・実機 E2E）で検証する。degraded → ローカル権限 → 再接続 → provisional 保持の手動 E2E ライフサイクルと「茹で上がりが各 timerId につきちょうど一度鳴る」安全要は iPad 実機で確認する（要件8）。
+- **監査で確定した規律（未完了テストタスク）** — 未完了テストタスクの監査（`.kiro/specs/offline-degradation` 全体）で、**既存テストが同じ主張を持つ部分は書かない**方針を確定した。重複は二つの真実になる。各タスク本文に既存カバー分と残余を明記してある。
+- `Feature: offline-degradation, Property N: ...` のタグを持つテストは現時点で 0 件だが、後続 spec（`degraded-slot-superimposition` / `snapshot-broadcast` / `sync-set-batch-complete`）の property が P3・P5・P8 の相当部分を先に押さえている。**新規に書くのは残余だけで、タグはその残余のテストに付す。**
+- 既存 property の反復回数はすべて 100 以上（clock 200 / notification 200 / reconcile 200 / gate 200 / resolution 300 / display 200 / convergence 200 / exploration 100 / boiledGroup 100）。形式の不足は「タグコメント欠如」と「`Validates: Requirements` 欠如」に限る。
+- 生成器の足場（`tests/client/generators.ts`）は公開型 import へ差し替え済み。ローカル型定義を置き直さない。
 - **要件15（到達不能理由）の不変点** — 分類の追加でも core（`src/engine/`）は変更せず、`ClientMessage` / `ServerMessage` に新種別・新フィールドを足さない（分類は HTTP fetch であって WebSocket メッセージではない・要件15.14）。既存 `GET /entry/stores` は**再利用のみ**で新設・改変しない。`unreachableReason`（既定 `offline`）は `down` 時のみ意味を持つ分類結果で、Connectivity（二値）・Mode（導出）とは独立の別軸であり状態へ昇格させない。`Classify` は純粋畳み込み（fetch / HTTP / DOM / 時計に触れない）で、fetch という作用は `probeReachability`（`connectivity.ts` の端）に隔離する（計算と作用の分離）。`unreachableReason` は永続しない（`PersistedView` に含めず再水和は `offline` 起点）。命名（`unreachableReason` / `UnreachableReason` / `Classify` / `probeReachability` / `denied` tone）は naming.md 確認済みの**確定**値で暫定ではない。
 
 ## Task Dependency Graph

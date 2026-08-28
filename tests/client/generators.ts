@@ -1,15 +1,17 @@
 // tests/client/generators.ts — offline-degradation 純粋層の Property テストが共有する fast-check 生成器の土台。
 //
-// 本ファイルは「クライアント純粋層を先に検証する（PURE LAYER FIRST）」計画の足場である。
-// 検証対象の純粋関数（decideView / mode / dueLocalTimers / serializeView / parsePersistedView）と
-// その入力型（ClientView / ClientTimer / ClientEvent / PersistedView）は後続タスク 2.1 / 3.1 で
-// src/client/connection.ts・src/client/persistence.ts に定義される。型本体がまだ無い段階でも本タスクを
-// 破綻させないため、ここでは design.md「公開シンボル命名の確認 > 確定」節の確定命名に厳密に沿った
-// tests 側のローカル型を置く。2.1 / 3.1 が公開型を定義した時点で、本ファイルの型定義は当該公開型の
-// import へ差し替える（生成器の出力形は確定命名で固定済みのため差し替えは機械的）。
+// 検証対象の純粋関数（decideView / mode / dueLocalTimers / serializeView / parsePersistedView）とその入力型は
+// すでに src/client/ に在る。**型は実装の公開型をそのまま import する**（ClientView / ClientTimer / ClientEvent /
+// Connectivity / TimerOrigin / SyncPhase / UnreachableReason は src/client/connection.ts、PersistedView は
+// src/client/persistence.ts、TimerFact / NonEmptyArray は src/domain/timer.ts）。同じ概念をテスト側で二度
+// 定義しない——かつてここには公開型が生まれる前の暫定ローカル型が置かれており、公開型が育つ間に取り残されて
+// 「6 フィールドの ClientView」「7 系統の ClientEvent」という古い形を語り続けていた（重複は必ず二つの真実になる）。
 //
-// ワイヤ型（TimerFact / ServerMessage）は src/domain/messages.ts の既存定義をそのまま用いる
-// （要件12.2: ワイヤ形式は不変）。core（src/engine/）には一切依存しない。
+// ビューは EMPTY_VIEW を基点に差分を上書きして組む。公開型にフィールドが増えたとき、生成器は既定値で
+// 追随して壊れず、意味のある次元だけを明示的に上書きする形が残る。
+//
+// ワイヤ型（TimerFact / ServerMessage / PendingOrder / CookRecommendation）は src/domain/ の既存定義を
+// そのまま用いる（要件12.2: ワイヤ形式は不変）。core（src/engine/）には一切依存しない。
 //
 // 入力空間の方針（design.md「生成器の前提」・要件13.3）— 次を構造的にサンプリングできること:
 //   - server / local 混在の Timer（起源タグ TimerOrigin = "server" | "local" 両方）
@@ -17,12 +19,26 @@
 //   - 範囲外 boilSeconds（0・負・1801 以上・非整数）
 //   - 処理済み id の重複（processedIds が timers の id と重なる／無関係 id を含む）
 //   - cancel 済み server の snapshot 復活（processedIds 登録済み id が snapshot/Reconcile に再出現）
+//   - 直前結果（lastResults）の空 / 占有スロット上 / 空きスロット上（占有クリアと差分記録の双方を踏む）
+//   - 到達不能理由 unreachableReason の 3 値（offline / noAccess / signInRequired）
 //   - 不正 / 不在の永続ブロブ（壊れた JSON・未知 version・型不一致・空文字・null）
 
 import * as fc from "fast-check";
-import type { ServerMessage } from "../../src/domain/messages";
+import type { CookRecommendation, ServerMessage } from "../../src/domain/messages";
+import type { PendingOrder } from "../../src/domain/order";
 import type { TimerFact, NonEmptyArray } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
+import { EMPTY_VIEW } from "../../src/client/connection";
+import type {
+  ClientEvent,
+  ClientTimer,
+  ClientView,
+  Connectivity,
+  SyncPhase,
+  TimerOrigin,
+  UnreachableReason,
+} from "../../src/client/connection";
+import type { PersistedView } from "../../src/client/persistence";
 import {
   DEFAULT_ARMS,
   DEFAULT_TOLERANCE_RATIO,
@@ -35,66 +51,13 @@ import {
   DEFAULT_SLOT_OFFSETS,
   DEFAULT_FIRMNESS_CODES,
   DEFAULT_MENU_ITEMS,
+  DEFAULT_NOODLE_PRESETS,
+  SLOT_SPAN_MAX,
+  SLOT_SPAN_MIN,
   defaultUnitOrigins,
 } from "../../src/domain/store";
+import type { NoodlePreset } from "../../src/domain/store";
 import { nonEmpty } from "../nonEmpty";
-
-// ── 確定命名に沿ったローカル型（2.1 / 3.1 の公開型が定義され次第 import へ差し替える） ──────────────
-
-/** Connectivity — 到達可能性の事実（ビューが保持する）。Mode はこれから導出する（確定: up / down）。 */
-export type Connectivity = "up" | "down";
-
-/** 起源タグ — server-confirmed と Provisional_Timer（unconfirmed）を区別する（確定: server / local）。 */
-export type TimerOrigin = "server" | "local";
-
-/** 同期フェーズ（既存 connection.ts の SyncPhase に同じ）。 */
-export type SyncPhase = "connecting" | "synced" | "syncFailed";
-
-/** クライアントが保持する Timer。TimerFact に起源タグ origin を足したもの（確定: ClientTimer）。 */
-export interface ClientTimer {
-  readonly id: string;
-  readonly slotIds: NonEmptyArray<string>;
-  readonly noodleType: string;
-  readonly firmness: Firmness; // 茹で加減（安定 id・v5）。
-  readonly startTime: number; // 茹で開始の絶対時刻（事実・v4）。
-  readonly endTime: number; // エポックミリ秒（事実）。残り秒は導出（clock.ts）。
-  readonly origin: TimerOrigin; // "local" = Provisional_Timer（未確定）
-}
-
-/** 受信ビュー — クライアントが保持する事実の集合。残り秒・Mode のような導出値は持たない。 */
-export interface ClientView {
-  readonly timers: readonly ClientTimer[]; // server-confirmed ＋ provisional（起源タグ付き）
-  readonly offset: number; // クロックオフセット。degraded 中は最新値を凍結
-  readonly processedIds: ReadonlySet<string>; // 茹で上がり/キャンセル処理済み（表示制御用）
-  readonly connectivity: Connectivity; // 到達性の事実。Mode の導出元
-  readonly sync: SyncPhase;
-  readonly error: { readonly code: string; readonly message: string } | null;
-}
-
-/** タグ付きイベント — decideView が網羅的に分岐する 7 系統（確定タグ・Reconcile は独立イベント）。 */
-export type ClientEvent =
-  | { readonly kind: "Server"; readonly message: ServerMessage; readonly receivedAt: number }
-  | {
-      readonly kind: "LocalStart";
-      readonly slotIds: NonEmptyArray<string>;
-      readonly noodleType: string;
-      readonly boilSeconds: number;
-      readonly newTimerId: string;
-      readonly correctedNow: number;
-    }
-  | { readonly kind: "LocalCancel"; readonly timerId: string }
-  | { readonly kind: "Connectivity"; readonly status: Connectivity }
-  | { readonly kind: "LocalDone"; readonly timerId: string }
-  | { readonly kind: "Tick" }
-  | { readonly kind: "Reconcile"; readonly timers: readonly TimerFact[]; readonly receivedAt: number };
-
-/** 永続ブロブの形（version 付き）。Set は配列へ、Connectivity / sync / error は永続しない（確定: ViewStore の codec 形）。 */
-export interface PersistedView {
-  readonly version: 1;
-  readonly timers: readonly ClientTimer[]; // server-confirmed ＋ provisional（起源タグ込み）
-  readonly offset: number;
-  readonly processedIds: readonly string[];
-}
 
 // ── 共有プール（id / slotId / noodleType の小さなプールで衝突・重複・復活を意図的に誘発する） ───────
 
@@ -110,6 +73,18 @@ const NEW_ID_POOL = ["t-new-1", "t-new-2", ...TIMER_ID_POOL] as const;
 const SLOT_ID_POOL = ["0", "1", "2", "3"] as const;
 /** 麺種プール。 */
 const NOODLE_POOL = ["thin", "thick", "curly", "ramen", "soba", "udon"] as const;
+/**
+ * 既存の直前結果（残滓）に載せる麺種プール。NOODLE_POOL と**意図的に重ならない**名前にする——
+ * 畳み込みで残滓が上書きされたのか、既存残滓が残ったのかを値で見分けられるようにする
+ * （tests/client/boiledGroupGenerators.ts の STALE_NOODLE_POOL と同じ流儀）。
+ */
+const RESIDUAL_NOODLE_POOL = ["last-thin", "last-thick"] as const;
+/** 外部オーダー識別子のプール（待ち行列と推奨が同じ品目を指す組を誘発する小さめプール）。 */
+const EXTERNAL_ORDER_ID_POOL = ["o-1", "o-2", "o-3"] as const;
+/** 卓 id プール。null（単独グループ）も混ぜる。 */
+const TABLE_ID_POOL = ["tb-1", "tb-2"] as const;
+
+const FIRMNESS_POOL: readonly Firmness[] = ["extraHard", "hard", "normal", "soft"];
 
 /** 非空のスロット集合（NonEmptyArray<string>）。SLOT_ID_POOL の非空部分集合で多スロット・overlap を誘発する。 */
 const genSlotIds: fc.Arbitrary<NonEmptyArray<string>> = fc
@@ -124,7 +99,7 @@ const genEndTime: fc.Arbitrary<number> = fc.integer({ min: -5_000, max: 5_000 })
 /** クロックオフセット。負・0・正をまたぐ。 */
 const genOffset: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: -200_000, max: 200_000 }));
 
-/** 受信時刻 / serverTime のエポックミリ秒。 */
+/** 受信時刻 / serverTime / 除去時刻のエポックミリ秒。既存残滓の at（負）と重ならない非負域から引く。 */
 const genReceivedAt: fc.Arbitrary<number> = fc.integer({ min: 0, max: 10_000_000 });
 
 /** 起源タグ。server / local 双方。 */
@@ -133,12 +108,22 @@ const genTimerOrigin: fc.Arbitrary<TimerOrigin> = fc.constantFrom<TimerOrigin>("
 /** Connectivity の二値。 */
 export const genConnectivity: fc.Arbitrary<Connectivity> = fc.constantFrom<Connectivity>("up", "down");
 
+/** 到達不能理由の 3 値（down 時のみ意味を持つ独立軸・要件15.7 / 15.12）。 */
+export const genUnreachableReason: fc.Arbitrary<UnreachableReason> = fc.constantFrom<UnreachableReason>(
+  "offline",
+  "noAccess",
+  "signInRequired",
+);
+
 /** 同期フェーズ。 */
 const genSyncPhase: fc.Arbitrary<SyncPhase> = fc.constantFrom<SyncPhase>("connecting", "synced", "syncFailed");
 
+/** 茹で加減。 */
+const genFirmness: fc.Arbitrary<Firmness> = fc.constantFrom(...FIRMNESS_POOL);
+
 /** 直近エラー。null と具体エラーの双方。 */
-const genError: fc.Arbitrary<{ readonly code: string; readonly message: string } | null> = fc.oneof(
-  fc.constant(null),
+const genError: fc.Arbitrary<ClientView["error"]> = fc.oneof(
+  fc.constant<ClientView["error"]>(null),
   fc.record({ code: fc.string({ maxLength: 8 }), message: fc.string({ maxLength: 16 }) }),
 );
 
@@ -154,6 +139,53 @@ export const genBoilSeconds: fc.Arbitrary<number> = fc.oneof(
   fc.integer({ min: 0, max: 1800 }).map((n) => n + 0.5), // 非整数
 );
 
+// ── サーバ権威の店舗設定（ビューが写して持つ事実） ────────────────────────────────────────────────
+
+/** 既定と異なる麺種プリセット（config 受信で確定が置き換わることを見分けられるようにする）。 */
+const ALT_NOODLE_PRESETS: readonly NoodlePreset[] = [
+  { noodleType: "thin", boilSeconds: { extraHard: 40, hard: 50, normal: 60, soft: 70 } },
+  { noodleType: "thick", boilSeconds: { extraHard: 100, hard: 110, normal: 120, soft: 140 } },
+];
+
+/** 麺種プリセット。既定と別値の二択（開始 UI の選択肢の元。畳み込みの主張には関与しない）。 */
+const genNoodlePresets: fc.Arbitrary<readonly NoodlePreset[]> = fc.constantFrom<readonly NoodlePreset[]>(
+  DEFAULT_NOODLE_PRESETS,
+  ALT_NOODLE_PRESETS,
+);
+
+/** ユニット総数（担当範囲のクランプ元）。 */
+const genUnitCount: fc.Arbitrary<number> = fc.integer({ min: 1, max: 4 });
+
+// ── 待ち行列 / 推奨（サーバだけが確定させる事実。ビューは写しを持つ） ──────────────────────────────
+
+/** 未着手オーダー 1 件。id プールが小さいため、推奨と同じ品目を指す組が密に生じる。 */
+const genPendingOrder: fc.Arbitrary<PendingOrder> = fc.record({
+  externalOrderId: fc.constantFrom(...EXTERNAL_ORDER_ID_POOL),
+  itemIndex: fc.integer({ min: 0, max: 2 }),
+  noodleType: fc.constantFrom(...NOODLE_POOL),
+  firmness: genFirmness,
+  tableId: fc.oneof(fc.constant<string | null>(null), fc.constantFrom(...TABLE_ID_POOL)),
+  arrivalTime: genReceivedAt,
+  slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }),
+});
+
+/** 未着手オーダーの全量（空・複数の双方）。(externalOrderId, itemIndex) の組で一意化する。 */
+const genPendingOrders: fc.Arbitrary<readonly PendingOrder[]> = fc.uniqueArray(genPendingOrder, {
+  selector: (order) => `${order.externalOrderId}#${order.itemIndex}`,
+  maxLength: 4,
+});
+
+/** 開始推奨 1 件（Committed_Plan からの導出値の写し）。ワイヤ表現ゆえ slotIds は素の配列。 */
+const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
+  externalOrderId: fc.constantFrom(...EXTERNAL_ORDER_ID_POOL),
+  itemIndex: fc.integer({ min: 0, max: 2 }),
+  slotIds: fc.subarray([...SLOT_ID_POOL], { minLength: 1 }),
+  startAt: genReceivedAt,
+});
+
+/** 開始推奨の全量（空・複数の双方）。 */
+const genRecommendations: fc.Arbitrary<readonly CookRecommendation[]> = fc.array(genRecommendation, { maxLength: 3 });
+
 // ── Timer / View 生成器 ────────────────────────────────────────────────────────────────────────
 
 /** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。 */
@@ -161,7 +193,7 @@ export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
   slotIds: genSlotIds,
   noodleType: fc.constantFrom(...NOODLE_POOL),
-  firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
+  firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
   origin: genTimerOrigin,
@@ -178,21 +210,56 @@ function genProcessedIds(timerIds: readonly string[]): fc.Arbitrary<ReadonlySet<
 }
 
 /**
- * ClientView — 0〜プール件数の ClientTimer（id をビュー内で一意化・server/local 混在）・offset（負/0/正）・
- * processedIds（空/timers と一致/無関係）・connectivity（up/down）・sync・error を持つ。
- * 空ビュー・provisional のみ・server のみ・両混在を境界として含む（要件13.3）。
+ * 直前結果（残滓）— 空と「既存残滓が在る状態」の双方。キーは SLOT_ID_POOL ゆえ timers の駆動スロットと
+ * 重なる場合（占有クリアの対象）と重ならない場合（差分記録の対象）の双方を踏む。
+ *
+ * 記録時刻 at は負域から引く。イベントが運ぶ除去時刻（genReceivedAt は非負）と重ならないため、
+ * 残滓が上書きされたか既存のまま残ったかを at でも見分けられる。
+ */
+const genLastResults: fc.Arbitrary<ClientView["lastResults"]> = fc.oneof(
+  fc.constant<ClientView["lastResults"]>(new Map()),
+  fc
+    .uniqueArray(
+      fc.tuple(
+        fc.constantFrom(...SLOT_ID_POOL),
+        fc.record({
+          noodleType: fc.constantFrom(...RESIDUAL_NOODLE_POOL),
+          at: fc.integer({ min: -1_000_000, max: -1 }),
+        }),
+      ),
+      { selector: ([slotId]) => slotId, minLength: 1, maxLength: SLOT_ID_POOL.length },
+    )
+    .map((entries): ClientView["lastResults"] => new Map(entries)),
+);
+
+/**
+ * ClientView — 実装の公開型（src/client/connection.ts）そのもの。EMPTY_VIEW を基点に、意味のある次元だけを
+ * 上書きして組む。
+ *
+ * timers は 0〜プール件数の ClientTimer（id をビュー内で一意化・server/local 混在）で、空ビュー・provisional
+ * のみ・server のみ・両混在を境界として含む（要件13.3）。offset は負/0/正、processedIds は空/timers と一致/
+ * 無関係、lastResults は空/占有スロット上/空きスロット上、connectivity は up/down、unreachableReason は 3 値、
+ * pendingOrders / recommendations は空/複数、unitCount / noodlePresets はサーバ権威の写しとして 2 種以上を踏む。
  */
 export const genClientView: fc.Arbitrary<ClientView> = fc
   .uniqueArray(genClientTimer, { selector: (t) => t.id, maxLength: TIMER_ID_POOL.length })
   .chain((timers) =>
-    fc.record({
-      timers: fc.constant<readonly ClientTimer[]>(timers),
-      offset: genOffset,
-      processedIds: genProcessedIds(timers.map((t) => t.id)),
-      connectivity: genConnectivity,
-      sync: genSyncPhase,
-      error: genError,
-    }),
+    fc
+      .record({
+        offset: genOffset,
+        processedIds: genProcessedIds(timers.map((t) => t.id)),
+        lastResults: genLastResults,
+        pendingOrders: genPendingOrders,
+        recommendations: genRecommendations,
+        connectivity: genConnectivity,
+        unreachableReason: genUnreachableReason,
+        sync: genSyncPhase,
+        error: genError,
+        unitCount: genUnitCount,
+        noodlePresets: genNoodlePresets,
+      })
+      // EMPTY_VIEW を基点にするのは、公開型がフィールドを増やしたとき生成器を壊さず既定値で追随させるため。
+      .map((rest): ClientView => ({ ...EMPTY_VIEW, ...rest, timers })),
   );
 
 /**
@@ -221,7 +288,7 @@ const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
   slotIds: genSlotIds,
   noodleType: fc.constantFrom(...NOODLE_POOL),
-  firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
+  firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
 });
@@ -237,33 +304,21 @@ const genWireTimers: fc.Arbitrary<readonly TimerFact[]> = fc.uniqueArray(genWire
  * 意味論メッセージ（started / cancelled / boiled / completed / adjusted）は snapshot 単一表現へ畳まれ撤去済み。
  * 状態変化は snapshot（server-confirmed の全量 TimerFact 列）だけで伝わる。 */
 export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
-  // pendingOrders / recommendations は client の畳み込みが読まない（後続タスクで受ける）。要らない次元へ
-  // 生成の分散を広げず空で固定する。
   fc.record({
     type: fc.constant("snapshot" as const),
     serverTime: genReceivedAt,
     timers: genWireTimers,
-    pendingOrders: fc.constant([]),
-    recommendations: fc.constant([]),
+    pendingOrders: genPendingOrders,
+    recommendations: genRecommendations,
   }),
-  // 重み・許容幅・レイアウトも同様に既定値で固定する（unitOrigins だけは生成した unitCount と整合させる）。
-  fc.integer({ min: 1, max: 4 }).chain((unitCount) =>
+  // 計画の重み・許容幅・レイアウトは client の畳み込みが読まない（unitCount / noodlePresets だけが確定される）。
+  // 要らない次元へ生成の分散を広げず既定値で固定する（unitOrigins だけは生成した unitCount と整合させる）。
+  genUnitCount.chain((unitCount) =>
     fc.record({
       type: fc.constant("config" as const),
       serverTime: genReceivedAt,
       unitCount: fc.constant(unitCount),
-      noodlePresets: fc.array(
-        fc.record({
-          noodleType: fc.string({ minLength: 1, maxLength: 12 }),
-          boilSeconds: fc.record({
-            extraHard: fc.integer({ min: 1, max: 1800 }),
-            hard: fc.integer({ min: 1, max: 1800 }),
-            normal: fc.integer({ min: 1, max: 1800 }),
-            soft: fc.integer({ min: 1, max: 1800 }),
-          }),
-        }),
-        { minLength: 1, maxLength: 6 },
-      ),
+      noodlePresets: genNoodlePresets,
       arms: fc.constant(DEFAULT_ARMS),
       toleranceRatio: fc.constant(DEFAULT_TOLERANCE_RATIO),
       orderSyncWeight: fc.constant(DEFAULT_ORDER_SYNC_WEIGHT),
@@ -298,9 +353,12 @@ function genEventTimerId(view: ClientView): fc.Arbitrary<string> {
 }
 
 /**
- * タグ付きイベント 1 件 — 7 系統を分布する（要件4.2 の網羅分岐に対応）。
+ * タグ付きイベント 1 件 — 公開型 ClientEvent の 9 系統すべてを分布する（要件4.2 の網羅分岐に対応）。
+ *
  * LocalStart の correctedNow はビュー endTime に対する境界を踏み、boilSeconds は範囲内/外双方。
- * LocalCancel / LocalDone の timerId は存在 / 非存在双方。
+ * LocalCancel / LocalComplete / LocalDone の timerId は存在 / 非存在双方で、LocalCancel / LocalComplete は
+ * 除去時刻 now（残滓の提示時間窓の起点）を運ぶ。Classify は到達不能理由の 3 値を踏む。
+ * Reconcile は server-confirmed 全量に加え、待ち行列と推奨も運ぶ（snapshot と同じ全置換）。
  */
 export function genEvent(view: ClientView): fc.Arbitrary<ClientEvent> {
   const localStart = genCorrectedNow(view).chain((correctedNow) =>
@@ -316,17 +374,26 @@ export function genEvent(view: ClientView): fc.Arbitrary<ClientEvent> {
   return fc.oneof(
     fc.record({ kind: fc.constant("Server" as const), message: genServerMessage, receivedAt: genReceivedAt }),
     localStart,
-    fc.record({ kind: fc.constant("LocalCancel" as const), timerId: genEventTimerId(view) }),
+    fc.record({ kind: fc.constant("LocalCancel" as const), timerId: genEventTimerId(view), now: genReceivedAt }),
+    fc.record({ kind: fc.constant("LocalComplete" as const), timerId: genEventTimerId(view), now: genReceivedAt }),
     fc.record({ kind: fc.constant("Connectivity" as const), status: genConnectivity }),
+    fc.record({ kind: fc.constant("Classify" as const), reason: genUnreachableReason }),
     fc.record({ kind: fc.constant("LocalDone" as const), timerId: genEventTimerId(view) }),
     fc.record({ kind: fc.constant("Tick" as const) }),
-    fc.record({ kind: fc.constant("Reconcile" as const), timers: genWireTimers, receivedAt: genReceivedAt }),
+    fc.record({
+      kind: fc.constant("Reconcile" as const),
+      timers: genWireTimers,
+      pendingOrders: genPendingOrders,
+      recommendations: genRecommendations,
+      receivedAt: genReceivedAt,
+    }),
   );
 }
 
 /**
- * イベント列 — 初期ビューに対するイベントの列。LocalDone と Server done の混在・Connectivity の up/down 往復・
- * LocalStart → LocalCancel の対などを、7 系統の混合列として構造的に踏む（要件13.3）。
+ * イベント列 — 初期ビューに対するイベントの列。LocalDone と Server snapshot の混在・Connectivity の up/down
+ * 往復と Classify の分類・LocalStart → LocalCancel / LocalComplete の対などを、9 系統の混合列として構造的に
+ * 踏む（要件13.3）。
  */
 export function genEventStream(view: ClientView): fc.Arbitrary<readonly ClientEvent[]> {
   return fc.array(genEvent(view), { maxLength: 30 });

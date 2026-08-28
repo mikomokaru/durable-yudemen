@@ -574,7 +574,7 @@ type SlotDisplay =
 
 ### ダブルブッキングの構造的 UI ゲート（最善努力）
 
-Provisional_Timer が当該 Slot に注入されると、`assignedSlotDisplays` の導出で当該 Slot は `running` になる。既存 `SlotCard` は **`idle` / `boiled` のときだけ Start の口を描画**するため、走行中（`running`）の Slot には Start が現れない。これにより**同一デバイス上の再起動が構造的に防がれる**——新たなサーバルールも新たな状態も足さず、既存の表示ゲートがそのまま効く（要件9.1 / 9.2）。クロスデバイスはオフラインでは防止不能であり受容する（要件9.3）。
+Provisional_Timer が当該 Slot に注入されると、`assignedSlotDisplays` の導出で当該 Slot は `running` になる。既存 `SlotCard` は **`idle` のときだけ Start の口を描画**する（`running` は Cancel、`boiled` は Complete、`unreceived` は操作の口を持たない）ため、走行中（`running`）の Slot には Start が現れない。これにより**同一デバイス上の再起動が構造的に防がれる**——新たなサーバルールも新たな状態も足さず、既存の表示ゲートがそのまま効く（要件9.1 / 9.2）。クロスデバイスはオフラインでは防止不能であり受容する（要件9.3）。
 
 ### 永続ブロブ（単一 JSON・version 付き）
 
@@ -629,11 +629,15 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 
 **Validates: Requirements 7.1, 7.2**
 
-### Property 5: ローカル茹で上がりは各 timerId につき高々 1 回だけ処理される（後続サーバ done と冪等）
+### Property 5: ローカル茹で上がりは各 timerId につき高々 1 回だけ処理される（後続 snapshot でも再発火しない）
 
-*任意の* `ClientView` と `correctedNow` について、`dueLocalTimers(view, correctedNow)` は `endTime ≤ correctedNow` かつ `id` が `processedIds` 未登録の `ClientTimer`（server / local 双方）だけを返す。さらに、*任意の* `LocalDone` と `Server done` の混在通知列（同一 `timerId` の重複を含む）を空でない／空の `processedIds` から畳み込むと、各 `timerId` に対して処理（`shouldHandleDone` が `true`）は**高々 1 回**だけ起こり、一度処理された後の同一 `timerId`（`LocalDone` でも `Server done` でも）は以後すべて無視される。判定は `timerId` 基準であり、異なる `timerId` は互いの処理可否に影響しない。これらは純粋関数であり `Store_Timer_DO` の正本を一切変更しない。
+*任意の* `ClientView` と `correctedNow` について、`dueLocalTimers(view, correctedNow)` は `endTime ≤ correctedNow` かつ `id` が `processedIds` 未登録の `ClientTimer`（server / local 双方）だけを返す。さらに、*任意の* `LocalDone` の列（同一 `timerId` の重複を含む）を空でない／空の `processedIds` から畳み込むと、各 `timerId` に対して処理（`shouldHandleDone` が `true`）は**高々 1 回**だけ起こり、一度処理された後の同一 `timerId` は以後すべて無視される。ローカル発火のあとにサーバ側の完了が届く経路も、再発火を生まない。サーバ側の完了は当該 Timer が全量 `snapshot` から消えることで伝わり、`reconcileServerConfirmed` が server-confirmed を全置換して当該 Timer を `timers` から除くため、以後の `dueLocalTimers` は当該 Timer を返さない。当該 Timer が `snapshot` になお在るあいだは `processedIds` の登録が保持され（Property 8 (c)）、発火対象から除外され続ける。判定は `timerId` 基準であり、異なる `timerId` は互いの処理可否に影響しない。これらは純粋関数であり `Store_Timer_DO` の正本を一切変更しない。
 
 **Validates: Requirements 8.1, 8.2, 8.3, 8.4**
+
+> **改訂（言明の訂正・実装は変えていない）。** 旧本文は「後続サーバ done と冪等」と述べ、`LocalDone` と `Server done` の混在通知列を検証対象に置いていた。現行の `ServerMessage`（`src/domain/messages.ts`）は `snapshot` / `config` / `error` の 3 種別だけで `done` を持たない。存在しないメッセージとの冪等性は書けないため、主張を実際に起こる 2 経路（`LocalDone` の重複と、`snapshot` からの消失）へ言い換えた。
+>
+> **要件 8.2 / 8.4 の「done」の読み替え。** 要件本文は「Store_Timer_DO から同一 timerId の done を受信したとき」と書くが、現行ワイヤでは**サーバ側の完了は全量 `snapshot` から当該 Timer が消えることとして現れる**（意味論メッセージは `snapshot-broadcast` で撤去され、`snapshot` が唯一の権威表現になった）。要件本文は書き換えず、読み替えをここに記録する。抑止の目的（アラートを二度鳴らさない）は、除去（`timers` からの消失）と `processedIds` の保持の両方で満たされる。
 
 ### Property 6: 残り時間の導出は常に 0 以上にクランプされる
 
@@ -641,17 +645,23 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 
 **Validates: Requirements 5.1, 5.3**
 
-### Property 7: degraded 系イベントはクロックオフセットを凍結する（変えない）
+### Property 7: クロックオフセットを更新するのは `Server` 受信だけで、他のすべてのイベントは凍結する
 
-*任意の* `ClientView` と、`Connectivity` / `Tick` / `LocalStart` / `LocalCancel` / `LocalDone` のいずれかのイベントについて、`decideView` の結果ビューの `offset` は元ビューの `offset` と等しい。すなわち degraded 中に作用するイベントは、接続中に確立した最新 `offset` を変えず、新規 `serverTime` を導出に持ち込まない。`offset` が更新されるのは `serverTime` を伴うサーバ受信（`Server` / `Reconcile`）のときに限る。
+*任意の* `ClientView` と、`Server` 以外の**すべての** `ClientEvent`（`Reconcile` / `LocalStart` / `LocalCancel` / `LocalComplete` / `Connectivity` / `Classify` / `LocalDone` / `Tick`）について、`decideView` の結果ビューの `offset` は元ビューの `offset` と等しい。`offset` を書き換える分岐は `Server` ただ一つで、そこでは `clockOffset(message.serverTime, receivedAt)` により再確立される（`snapshot` / `config` / `error` の 3 種別はいずれも `serverTime` を伴う）。`Reconcile` は全量スナップショットを運ぶが `serverTime` を運ばないため、`offset` を変えない。すなわち degraded 中に作用するイベントは、接続中に確立した最新 `offset` を変えず、新規 `serverTime` を導出に持ち込まない。
 
 **Validates: Requirements 5.2**
 
-### Property 8: Reconcile は server-confirmed のみを置換し、provisional と抑止記録を保存する
+> **改訂（言明の訂正・実装は変えていない）。** 旧本文は凍結するイベントを「`Connectivity` / `Tick` / `LocalStart` / `LocalCancel` / `LocalDone`」に限り、更新契機を「`Server` / `Reconcile`」としていた。実装では `Reconcile` も `serverTime` を運ばず `reconcileServerConfirmed` が `offset` を触らないため、凍結する集合は「degraded 系」より広い。また現行の `ClientEvent` には旧本文が想定していない `LocalComplete` と `Classify` が在る。ゆえに列挙を「`Server` 以外のすべて」へ改めた——例外の列挙より、書き換える唯一の分岐を名指す形が実装に忠実である。
 
-*任意の* `ClientView` と *任意の* 全量スナップショット `timers`（`WireTimer[]`）について、`Reconcile`（および同一規律の `Server: snapshot`）を適用した結果ビューは、次を同時に満たす。(a) **provisional 保持** — 元ビューの `origin === "local"` の Timer はすべて結果ビューに同一内容で残る。(b) **server 全置換** — 結果ビューの `origin === "server"` の Timer 集合は、入力スナップショット `timers` とちょうど一致する（元の server-confirmed は残らず、スナップショットのものだけになる）。(c) **抑止の保存** — 元ビューで `processedIds` に登録済みの `timerId` は、それがスナップショットに再出現しても（degraded 中にローカル cancel した server-confirmed の復活）`processedIds` に残り続け、`dueLocalTimers` は当該 Timer を発火対象から除外する。`processedIds` は「スナップショットの id ∪ 保持された provisional の id」へ刈り取られ有界に保たれる。
+### Property 8: Reconcile は server-confirmed のみを置換し、provisional と抑止記録を保存する（争いが無い入力の下で）
+
+**前提（書かれた premise であり暗黙にしない）**: 入力は**争いを含まない**——スナップショットが運ぶ `timers` のスロット集合と、元ビューの provisional のスロット集合が互いに素である。`degraded-slot-superimposition` が導入した占有の解決（`resolveSlotOccupancy`・同 design 判断 2）は、1 スロットに server 側と local 側が重なったとき一方を落とすため、争いのある入力では (a) の無条件な保持も (b) の厳密一致も成り立たない。落ちる条件は次のとおり。あるスロットに server 側の主張と local 側の主張が同時に在るとき、(i) 双方が running なら両方残る（残余の contested）、(ii) local 側だけが running なら server 側が落ちる、(iii) それ以外（server 側だけが running・双方 boiled）は local 側が落ちる。running / boiled は `endTime` と補正後現在時刻の比較からの導出で、境界（`endTime === correctedNow`）は boiled 側に属する。多スロット Timer は 1 つのスロットで負けたら丸ごと落ちる。既存の `tests/client/degraded-slot-superimposition.resolution.property.test.ts` の Property 6 が同じ前提（互いに素＝争い無し）の下で厳密一致を主張しており、本 property もその前提を共有する。
+
+この前提を満たす *任意の* `ClientView` と *任意の* 全量スナップショット `timers`（`WireTimer[]`）について、`Reconcile`（および同一規律の `Server: snapshot`）を適用した結果ビューは、次を同時に満たす。(a) **provisional 保持** — 元ビューの `origin === "local"` の Timer はすべて結果ビューに同一内容で残る。(b) **server 全置換** — 結果ビューの `origin === "server"` の Timer 集合は、入力スナップショット `timers` とちょうど一致する（元の server-confirmed は残らず、スナップショットのものだけになる）。(c) **抑止の保存** — 元ビューで `processedIds` に登録済みの `timerId` は、それがスナップショットに再出現しても（degraded 中にローカル cancel した server-confirmed の復活）`processedIds` に残り続け、`dueLocalTimers` は当該 Timer を発火対象から除外する。`processedIds` は「スナップショットの id ∪ 保持された provisional の id」へ刈り取られ有界に保たれる。
 
 **Validates: Requirements 11.5, 11.6, 11.7, 12.4**
+
+> **改訂（言明の訂正・実装は変えていない）。** 旧本文は前提を持たず、(a) を「元ビューの provisional はすべて結果ビューに同一内容で残る」と無条件に述べていた。後続 spec `degraded-slot-superimposition` が同一スロットの重ね合わせを解決する統一規則を `reconcileServerConfirmed` の末尾へ加えたため、争いのあるスロットでは provisional（規則の裏面では server-confirmed も）が落ちうる。無条件の保持は現状では偽であり、前提を明記した。争いのある入力に対する主張は当該 spec の Property 3〜6 が担う——ここで重複して定義しない。
 
 ### Property 9: 永続ブロブは直列化→解析で全フィールドを保存する（round-trip）
 
@@ -666,6 +676,17 @@ degraded 中は新規 `serverTime` を受け取れないため、接続中に確
 **Validates: Requirements 15.7, 15.8, 15.12**
 
 > **`probeReachability` の HTTP ステータス → `UnreachableReason` マッピングは PBT 不適で Integration/Example が担う。** 分類そのもの（判定表・要件15.2〜15.6）は fetch と `response.status` という作用の端であり、入力で振る舞いが変わらない純粋関数ではない。したがって PBT ではなく、モック fetch で throw / 403 / 200(list 在/不在) / 404 / 非配列 の各分岐を Integration/Example で網羅する（Testing Strategy 参照）。純粋層で検証するのは、端が分類し終えた結果を畳む Property 10 に限る。
+
+### 改訂記録 — 言明の訂正であって実装の変更ではない
+
+P5 / P7 / P8 の本文は、実装との食い違いが見つかった時点で改訂した。**3 件はいずれも言明の訂正であり、`src/**` の実装は変更していない。** 食い違いは、本 spec が書かれたあとに起きた 2 つの変化に由来する。
+
+- **後続 spec `degraded-slot-superimposition`** が `reconcileServerConfirmed` の末尾へ占有の解決を加え、争いのあるスロットでは provisional（および server-confirmed）が落ちうるようになった → P8 に「争いが無い入力」の前提を明記した。
+- **現行ワイヤ**（`snapshot-broadcast` 以降の `ServerMessage`）は `snapshot` / `config` / `error` の 3 種別だけで、`done` を持たない。`Reconcile` は `serverTime` を運ばない → P5 の「サーバ done」を snapshot からの消失へ言い換え、P7 の凍結集合を「`Server` 以外のすべて」へ改めた。
+
+あわせて「ダブルブッキングの構造的 UI ゲート」節の記述も訂正した。旧文は「既存 `SlotCard` は `idle` / `boiled` のときだけ Start の口を描画する」と書いていたが、`SlotCard.tsx` が Start を描くのは `idle` 分岐だけである（`boiled` は Complete、`running` は Cancel）。結論（走行中の Slot に Start が現れない）は変わらないが、根拠の記述が実装と食い違っていた。
+
+言明を実装へ合わせたのは、書かれた主張のまま property テストを実装すれば赤くなるか、さもなくば実装に合わせて主張を歪めることになるためである。要件本文（`requirements.md` の WHEN / THEN）は変更していない——要件 8.2 / 8.4 の「done」の読み替えは P5 の改訂注記に記録した。
 
 ---
 

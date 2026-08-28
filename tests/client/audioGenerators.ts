@@ -9,16 +9,13 @@
 //   - 同一 timerId の重複出現（複数 boiled スロット）
 //   - PreAlertWatch を畳み込む単調増加 now 列（開始・閾値クロス・boiled 化・done/cancel 除去を踏む）
 //
-// 検証対象の純粋関数は real ClientView（src/client/connection.ts）を受ける assignedSlotDisplays を組み合わせる
-// ため、view 生成器は connection.ts の ClientView 形を生成する（generators.ts のローカル view にフィールドを足す）。
+// 検証対象の純粋関数は ClientView（src/client/connection.ts の公開型）を受ける assignedSlotDisplays を
+// 組み合わせる。genClientView がその公開型をそのまま生成するため、本ファイルは boiled 導出に効かない次元を
+// 既定へ固定するだけに留める（型の写し替えは要らない）。
 
 import * as fc from "fast-check";
-import {
-  genClientView,
-  genClientTimer,
-  type ClientTimer as LocalClientTimer,
-} from "./generators";
-import type { ClientView } from "../../src/client/connection";
+import { genClientView, genClientTimer } from "./generators";
+import type { ClientTimer, ClientView } from "../../src/client/connection";
 import type { SlotDisplay } from "../../src/client/components/slotDisplay";
 import type { TimerFact, NonEmptyArray } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
@@ -56,25 +53,21 @@ export const genUnits: fc.Arbitrary<readonly number[]> = fc.uniqueArray(fc.integ
   maxLength: 5,
 });
 
-// ── real ClientView 生成器（connection.ts の形） ─────────────────────────────────────────────────
+// ── ClientView 生成器（音声キューの入力空間へ絞った差分） ────────────────────────────────────────
 
 /**
- * real ClientView — generators.ts の genClientView（timers/offset/processedIds/connectivity/sync/error）に、
- * assignedSlotDisplays が要求する残りのフィールド（lastResults/unitCount/noodlePresets）を足して構成する。
- * これらは boiled 導出に影響しないため既定値で固定し、入力空間の本質（timers/offset/now/units）に集中する。
+ * 音声キュー判定の入力となる ClientView。generators.ts の genClientView（公開型 ClientView をそのまま生成する）
+ * を土台に、boiled 導出に効かない次元だけを既定へ固定して生成の分散を本質（timers / offset / now / units）へ集める。
+ *
+ * 固定するのは待ち行列・推奨・残滓・ユニット総数・麺種プリセット。いずれも assignedSlotDisplays の boiled 導出に
+ * 現れないため、振らせても検証の強さは増えず探索空間だけが広がる。
  */
 export const genAudioView: fc.Arbitrary<ClientView> = genClientView.map(
   (view): ClientView => ({
-    timers: view.timers,
-    // 待ち行列と推奨は boiled 導出（音声キューの入力）に影響しないため空に据える。
+    ...view,
     pendingOrders: [],
     recommendations: [],
-    offset: view.offset,
-    processedIds: view.processedIds,
-    connectivity: view.connectivity,
     unreachableReason: "offline",
-    sync: view.sync,
-    error: view.error,
     lastResults: new Map(),
     unitCount: DEFAULT_UNIT_COUNT,
     noodlePresets: DEFAULT_NOODLE_PRESETS,
@@ -149,7 +142,7 @@ export const genEvalCase: fc.Arbitrary<{
 // ── 担当 Timer 群（advancePreAlert の直接入力・id 一意） ─────────────────────────────────────────
 
 /** id 一意な担当 Timer 群（TimerFact）。genClientTimer を再利用し、id 一意化のみ追加で課す。 */
-export const genAssignedTimers: fc.Arbitrary<readonly LocalClientTimer[]> = fc.uniqueArray(genClientTimer, {
+export const genAssignedTimers: fc.Arbitrary<readonly ClientTimer[]> = fc.uniqueArray(genClientTimer, {
   selector: (t) => t.id,
   maxLength: TIMER_ID_POOL.length,
 });
@@ -174,7 +167,7 @@ function genMonotonicNowStream(timers: readonly TimerFact[], offset: number): fc
 
 /** P2 の畳み込みケース — 固定の担当 Timer 群・offset・単調増加 now 列。 */
 export const genPreAlertFold: fc.Arbitrary<{
-  assigned: readonly LocalClientTimer[];
+  assigned: readonly ClientTimer[];
   offset: number;
   stream: readonly number[];
 }> = fc
@@ -187,7 +180,7 @@ export const genPreAlertFold: fc.Arbitrary<{
  */
 export const genPreAlertSteps: fc.Arbitrary<{
   offset: number;
-  steps: readonly { assigned: readonly LocalClientTimer[]; now: number }[];
+  steps: readonly { assigned: readonly ClientTimer[]; now: number }[];
 }> = genAssignedTimers.chain((pool) =>
   fc.record({
     offset: genOffsetValue,

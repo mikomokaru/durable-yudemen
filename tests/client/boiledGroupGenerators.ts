@@ -4,14 +4,12 @@
 // 既存 tests/client/generators.ts の genClientView / genCorrectedNow を再利用し、本機能に要る次元だけを
 // 足す（同じ生成器を二度定義しない）。genClientTimer は genClientView 経由で再利用する——Timer の
 // id / 麺種 / 硬さ / startTime / origin はそこから来て、本ファイルは endTime / slotIds だけを差し替える。
-// 足す次元は次の 3 つに尽きる。
+// 足す次元は次の 2 つに尽きる（genClientView は src/client/connection.ts の公開型 ClientView をそのまま
+// 生成するため、型を写し替える補完は要らない）。
 //
-//   1. production 型への補完 — genClientView は tests ローカルの ClientView（6 フィールド）を返すが、
-//      boiledGroup / decideView は src/client/connection.ts の ClientView（12 フィールド）を受ける。
-//      tests/client/audioGenerators.ts の genAudioView と同形の adapter で埋める。
-//   2. 群が実際に立つ入力 — endTime を少数の候補から引いて同値衝突を意図的に多く生み、slotIds を
+//   1. 群が実際に立つ入力 — endTime を少数の候補から引いて同値衝突を意図的に多く生み、slotIds を
 //      担当ユニット境界（unit u = slot 6u..6u+5）をまたぐプールから引く。
-//   3. 反映順 — 群の並びの置換（permutation）。Property 8 は「反映順で最後のメンバーが勝つ」を検査する。
+//   2. 反映順 — 群の並びの置換（permutation）。Property 8 は「反映順で最後のメンバーが勝つ」を検査する。
 //
 // design.md「生成器の前提」が要求する入力空間を構造的にサンプリングできること:
 //   - 同一 endTime の boiled 複数件（群が 2 件以上に立つ）と、endTime === correctedNow の境界（boiled 側）
@@ -24,7 +22,7 @@
 // 純粋層の生成器ゆえ時刻はすべて引数値として吐く（Date.now のスタブも vi.useFakeTimers() も用いない）。
 
 import * as fc from "fast-check";
-import { genClientView, genCorrectedNow, type ClientTimer as LocalClientTimer } from "./generators";
+import { genClientView, genCorrectedNow } from "./generators";
 import type { ClientTimer, ClientView } from "../../src/client/connection";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { boiledGroup } from "../../src/client/boiledGroup";
@@ -85,7 +83,7 @@ const genClusteredFacet: fc.Arbitrary<ClusteredFacet> = fc.record({
  * genClientTimer が吐いた Timer の endTime / slotIds だけを差し替える。
  * TimerFact のフィールドを列挙せず spread で写す——芯（TimerFact）が育っても生成器が自動追従する。
  */
-function withClusteredFacet(timer: LocalClientTimer, facet: ClusteredFacet): ClientTimer {
+function withClusteredFacet(timer: ClientTimer, facet: ClusteredFacet): ClientTimer {
   return { ...timer, ...facet };
 }
 
@@ -123,7 +121,7 @@ const genLastResults: fc.Arbitrary<LastResults> = fc.oneof(
     .map((entries): LastResults => new Map(entries)),
 );
 
-// ── production ClientView（12 フィールド）の生成器 ───────────────────────────────────────────────
+// ── ClientView 生成器（群が立つ盤面へ絞った差分） ───────────────────────────────────────────────
 
 /**
  * genClientView の Timer 列の endTime / slotIds だけを差し替える（id は保つ）。
@@ -131,36 +129,31 @@ const genLastResults: fc.Arbitrary<LastResults> = fc.oneof(
  * id を保つのは processedIds の意味を壊さないため——genClientView の processedIds は自身の Timer id と
  * 一部一致するよう作られており、id を差し替えるとその次元（要件5.4 の処理済み記録）が失われる。
  */
-function genClusteredTimers(timers: readonly LocalClientTimer[]): fc.Arbitrary<ClientTimer[]> {
+function genClusteredTimers(timers: readonly ClientTimer[]): fc.Arbitrary<ClientTimer[]> {
   if (timers.length === 0) return fc.constant<ClientTimer[]>([]);
   return fc.tuple(...timers.map((timer) => genClusteredFacet.map((facet) => withClusteredFacet(timer, facet))));
 }
 
 /**
- * production の ClientView（src/client/connection.ts の 12 フィールド）。
+ * 一括消し込みの入力となる ClientView（src/client/connection.ts の公開型）。
  *
- * genClientView（tests ローカルの 6 フィールド）を土台に、audioGenerators.ts の genAudioView と同形の
- * adapter で残りを補う。pendingOrders / recommendations / unreachableReason / unitCount / noodlePresets は
- * 群の再構成にも LocalComplete の畳み込みにも影響しないため既定値で固定し、生成の分散を本質
- * （timers / correctedNow / lastResults）へ集める。lastResults だけは Property 8 の検査対象ゆえ生成する。
- *
- * 共有 generators.ts を production 型へ移行する作業は本 spec のスコープ外（既存の全 Property テストへ波及する）。
+ * genClientView を土台に、群が立つ盤面へ効く次元（timers の endTime / slotIds・lastResults）だけを差し替え、
+ * 群の再構成にも LocalComplete の畳み込みにも影響しない次元（pendingOrders / recommendations /
+ * unreachableReason / unitCount / noodlePresets）は既定へ固定して生成の分散を本質へ集める
+ * （audioGenerators.ts の genAudioView と同形）。lastResults は Property 8 の検査対象ゆえ本ファイルの
+ * genLastResults で上書きする——群のスロットプールに合わせた既存残滓を密に載せるため。
  */
 export const genBatchView: fc.Arbitrary<ClientView> = genClientView.chain((view) =>
   fc
     .record({ timers: genClusteredTimers(view.timers), lastResults: genLastResults })
     .map(
       ({ timers, lastResults }): ClientView => ({
+        ...view,
         timers,
         pendingOrders: [],
         recommendations: [],
-        offset: view.offset,
-        processedIds: view.processedIds,
         lastResults,
-        connectivity: view.connectivity,
         unreachableReason: "offline",
-        sync: view.sync,
-        error: view.error,
         unitCount: DEFAULT_UNIT_COUNT,
         noodlePresets: DEFAULT_NOODLE_PRESETS,
       }),

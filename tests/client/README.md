@@ -51,19 +51,26 @@ fc.assert(
 ## 生成器の土台（`generators.ts`）
 
 本機能の property テストが共有する fast-check 生成器を `tests/client/generators.ts` に集約する。
+
+**型は実装の公開型を import する。** テスト側で同じ概念を再定義しない（`ClientView` / `ClientTimer` /
+`ClientEvent` / `Connectivity` / `TimerOrigin` / `SyncPhase` / `UnreachableReason` は
+`src/client/connection.ts`、`PersistedView` は `src/client/persistence.ts`、ワイヤ型（`TimerFact` /
+`ServerMessage` / `PendingOrder` / `CookRecommendation`）は `src/domain/` から引く・要件12.2）。ビューは
+`EMPTY_VIEW` を基点に差分を上書きして組む——公開型にフィールドが増えても生成器は既定値で追随する。
+
 次を構造的にサンプリングできる（要件13.3・design.md「生成器の前提」）:
 
 - server / local 混在の `ClientTimer`（起源タグ `TimerOrigin` = `server` / `local` 双方）
 - `endTime == correctedNow` 境界（および直前・直後）— `genCorrectedNow(view)`
 - 範囲外 `boilSeconds`（0・負・1801 以上・非整数）— `genBoilSeconds`
 - 処理済み id の重複（`processedIds` が `timers` の id と重なる／無関係 id を含む）
+- 直前結果 `lastResults` の 空 / 占有スロット上 / 空きスロット上（占有クリアと差分記録の双方）
+- 到達不能理由 `unreachableReason` の 3 値（`offline` / `noAccess` / `signInRequired`）
+- `ClientEvent` の 9 系統すべて（`LocalComplete` / `Classify` を含む。`LocalCancel` / `LocalComplete` は
+  除去時刻 `now` を運ぶ）— `genEvent(view)` / `genEventStream(view)`
 - cancel 済み server の snapshot 復活（`processedIds` 登録済み id が snapshot / Reconcile に再出現）
 - 不正 / 不在の永続ブロブ（壊れた JSON・未知 version・型不一致・空文字・null）— `genPersistedBlob`
 
-> 注: 検証対象の公開型（`ClientView` / `ClientTimer` / `ClientEvent` / `PersistedView`）は後続タスク
-> 2.1 / 3.1 で `src/client/` に定義される。`generators.ts` は確定命名（design.md「公開シンボル命名の確認
-> > 確定」節）に沿ったローカル型を暫定的に置いており、当該公開型が定義され次第 import へ差し替える。
-> ワイヤ型（`WireTimer` / `ServerMessage`）は `src/shared/messages.ts` の既存定義をそのまま用いる（要件12.2）。
-
-`generators.smoke.test.ts` は、これらの生成器が単体で実行可能で上記入力空間を踏むことだけを確認する
-スモークである（Correctness Property 本体ではない）。
+`generators.smoke.test.ts` は、これらの生成器が単体で実行可能で上記入力空間を**実際に踏む**ことを確認する
+スモークである（Correctness Property 本体ではない）。ビューのフィールド集合を `EMPTY_VIEW` と突き合わせ、
+イベントは 9 系統すべての出現を要求する——公開型が育ったときに生成器の取り残しを実行時に検出する番人。
