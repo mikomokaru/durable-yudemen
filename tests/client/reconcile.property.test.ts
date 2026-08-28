@@ -267,21 +267,36 @@ describe("client/connection reconcileServerConfirmed — snapshot-broadcast Prop
   });
 
   // Feature: snapshot-broadcast, Property 6: 冪等性
-  // 同一 serverTimers を二度適用すると timers・processedIds は不変、lastResults はキー集合不変（at 更新のみ）で
-  // 新規残滓を生じない。**Validates: Requirements 4.5**
-  it("Property 6: 冪等性 — 同一 serverTimers の二度適用で timers・processedIds・残滓が不変", () => {
+  // timers と lastResults は厳密に冪等。processedIds は解決で落ちた provisional の id を 2 回目で失うが、
+  // 単調減少で 2 回目以降は不動点。server 起源の id は失われない（刈り取りの入力が解決前の serverTimers ゆえ）。
+  // **Validates: Requirements 4.5**
+  //
+  // processedIds を弱めた出所は degraded-slot-superimposition の判断 6 / 判断 9 である。占有解決は
+  // reconcileServerConfirmed の末尾に乗り、刈り取りは解決**前**の集合を入力とする。ゆえに 1 回目は解決で
+  // 落ちる provisional の id が残り、2 回目は当該 provisional が居ないため刈られる。retainedIds ⊇ newIds は
+  // 常に成り立つので、刈り取りの目的（復活した server-confirmed のローカル再発火抑止）は保たれる。
+  it("Property 6: 冪等性 — timers・残滓は厳密に不変、processedIds は server 起源を保ち 2 回目以降が不動点", () => {
     fc.assert(
       fc.property(genView, genServerTimers, genAt, (view, serverTimers, at) => {
         const once = reconcileServerConfirmed(view, serverTimers, at);
         const twice = reconcileServerConfirmed(once, serverTimers, at);
+        const thrice = reconcileServerConfirmed(twice, serverTimers, at);
 
-        // timers（順序含む）は不変。
+        // timers（順序含む）は厳密に不変。
         expect(twice.timers).toEqual(once.timers);
-        // processedIds は不変。
-        expect([...twice.processedIds].sort()).toEqual([...once.processedIds].sort());
         // lastResults はキー集合不変・新規残滓なし・値（麺種/at）も不変。
         expect([...twice.lastResults.keys()].sort()).toEqual([...once.lastResults.keys()].sort());
         expect(sortedResults(twice.lastResults)).toEqual(sortedResults(once.lastResults));
+
+        // processedIds (a): server 起源の id（newIds ∩ 入力 processedIds）は 1 回目も 2 回目も保たれる。
+        for (const t of serverTimers) {
+          if (!view.processedIds.has(t.id)) continue;
+          expect(once.processedIds.has(t.id)).toBe(true);
+          expect(twice.processedIds.has(t.id)).toBe(true);
+        }
+        // processedIds (b): 単調減少（2 回目は 1 回目の部分集合）で、3 回目は 2 回目と一致する（不動点）。
+        for (const id of twice.processedIds) expect(once.processedIds.has(id)).toBe(true);
+        expect([...thrice.processedIds].sort()).toEqual([...twice.processedIds].sort());
       }),
       { numRuns: NUM_RUNS },
     );

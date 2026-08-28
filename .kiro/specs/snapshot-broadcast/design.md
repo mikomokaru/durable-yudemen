@@ -442,9 +442,15 @@ const next = decideView(view, { kind: "Server", message: snapshotMsg, receivedAt
 **Validates: Requirements 4.6**
 
 ### Property 6: 冪等性
-同一 `serverTimers` を二度適用すると、`timers`・`processedIds` は不変、`lastResults` はキー集合不変（`at` の更新のみ）。二度目に新規残滓は生じない。
+`timers` と `lastResults` は厳密に冪等。`processedIds` は解決で落ちた provisional の id を 2 回目で失うが、単調減少で 2 回目以降は不動点。server 起源の id は失われない（刈り取りの入力が解決前の `serverTimers` ゆえ）。
 
-**Validates: Requirements 4.5**
+同一 `serverTimers` を二度適用したとき、`timers` は順序を含めて不変、`lastResults` はキー集合も値も不変で、二度目に新規残滓は生じない。
+
+`processedIds` を弱めた出所は `degraded-slot-superimposition` の判断 6 / 判断 9 である。同 spec の占有解決は `reconcileServerConfirmed` の末尾に乗り、刈り取りは解決**前**の集合を入力とする。ゆえに 1 回目は解決で落ちる provisional の id が残り、2 回目は当該 provisional が居ないため刈られる。`retainedIds ⊇ newIds` は常に成り立つので、刈り取りの目的（復活した server-confirmed のローカル再発火抑止）は保たれる。失うのはもう存在しない provisional の id だけで、ローカル id は `serverTimers` に現れないため戻る経路が無い。
+
+**申し送り**: 要件 4.5 の本文は `timers`・`processedIds`・Residual の同一性を無条件に求めている。実態は上のとおり `processedIds` だけが弱い。要件本文を改めるかは本 spec の判断として別途扱う。
+
+**Validates: Requirements 4.5**（`processedIds` は部分充足）
 
 ### Property 7: offset 再確立
 `snapshot` / `config` / `error` の受信ごとに `offset = clockOffset(serverTime, receivedAt)` が更新される。

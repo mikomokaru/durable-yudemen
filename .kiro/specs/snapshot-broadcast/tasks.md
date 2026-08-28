@@ -99,7 +99,8 @@
     - _Validates: Requirements 4.6_
 
   - [x]* 5.6 冪等性の property test（Property 6）
-    - **Property 6: 冪等性** — 同一 `serverTimers` を二度適用すると `timers`・`processedIds` は不変、`lastResults` はキー集合不変（`at` 更新のみ）で新規残滓を生じない。
+    - **Property 6: 冪等性** — `timers` と `lastResults` は厳密に冪等。`processedIds` は解決で落ちた provisional の id を 2 回目で失うが、単調減少で 2 回目以降は不動点。server 起源の id は失われない（刈り取りの入力が解決前の `serverTimers` ゆえ）。
+    - 同一 `serverTimers` を二度適用して `timers`（順序含む）と `lastResults`（キー集合・値）の厳密一致を主張する。`processedIds` は **`newIds` の全要素が保たれること**と **3 回目が 2 回目と一致すること**（単調減少の不動点）を主張する。弱めた理由は `degraded-slot-superimposition` の判断 9 にある。
     - fast-check・`numRuns: 100` 以上。タグ `Feature: snapshot-broadcast, Property 6: 冪等性`。
     - 配置 `tests/client/reconcile.property.test.ts`（既定 pool）。
     - _Validates: Requirements 4.5_

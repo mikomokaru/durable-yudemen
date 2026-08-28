@@ -461,28 +461,46 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("live の占有スロットの残滓 — 新 serverTimers が占有すれば記録を見送り既存の残滓も消える（要件8.7）", () => {
-      const { connection, send, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
+      const { connection, send, setConnectivity, receiveSnapshot, setNow } = openConnectionWithFakeWatch();
       // 先に残滓の種を仕込む。A / B が slot "0" を占有する間、snapshot の (c) は毎回その slot の残滓を
       // 消すため、この窓で残滓を作れるのはローカル畳み込みだけである（boot は degraded ゆえ provisional が生まれる）。
+      //
+      // なぜ「走行中の A / B を受けてから時刻を進める」形にするか: この窓は provisional と server-confirmed が
+      // 同一スロットに同席することを要するが、修正後にその同席が snapshot を越えて残るのは**双方が走行中**の
+      // ときだけである（degraded-slot-superimposition 判断 2 の真理値表の最終行＝両側 running の残余）。
+      // boiled な A / B を走行中の provisional と同席させる盤面は解決が A / B を落とすため到達不能であり、
+      // それを fixture に組めば死んだ振る舞いを守ることになる。ゆえに走行中で受け、そのあと上がらせる。
+      const BOTH_RUNNING_UNTIL = START_NOW + 60_000;
       connection.start(["0"], "seed-noodle", 120);
       const seed = connection.getView().timers.find((t) => t.origin === "local");
       expect(seed).toBeDefined();
 
       setConnectivity("up");
-      // 同一スロット "0" を駆動する server-confirmed 2 件（同一 endTime ゆえ同一群）。
-      receiveSnapshot([timerAt("A", "0", BOILED_AT), timerAt("B", "0", BOILED_AT)]);
+      // 同一スロット "0" を駆動する走行中の server-confirmed 2 件（同一 endTime ゆえ同一群）。
+      receiveSnapshot([timerAt("A", "0", BOTH_RUNNING_UNTIL), timerAt("B", "0", BOTH_RUNNING_UNTIL)]);
+      // 双方走行中ゆえ解決は決着させない——A / B と seed（120 秒ゆえより後に上がる）が同席する。
+      expect(connection.getView().timers.map((t) => t.id)).toEqual(["A", "B", seed!.id]);
+
+      // A / B が上がる（seed はまだ走行中）。
+      setNow(BOTH_RUNNING_UNTIL);
       // provisional を cancel してローカルに残滓を書く（除去理由を問わない一様残滓・要件8.2 と同じ規律）。
       connection.cancel(seed!.id);
-      expect(connection.getView().lastResults.get("0")).toEqual({ noodleType: "seed-noodle", at: START_NOW });
+      expect(connection.getView().lastResults.get("0")).toEqual({
+        noodleType: "seed-noodle",
+        at: BOTH_RUNNING_UNTIL,
+      });
 
       connection.complete("A");
 
       // live × server-confirmed ゆえ押下時点でビューは動かない。除去は snapshot が運ぶ。
       expect(completeSends(send)).toEqual(["A", "B"]);
-      expect(connection.getView().lastResults.get("0")).toEqual({ noodleType: "seed-noodle", at: START_NOW });
+      expect(connection.getView().lastResults.get("0")).toEqual({
+        noodleType: "seed-noodle",
+        at: BOTH_RUNNING_UNTIL,
+      });
 
       // その snapshot が slot "0" を新しい server-confirmed N で占有している。
-      receiveSnapshot([timerAt("N", "0", START_NOW + 90_000)]);
+      receiveSnapshot([timerAt("N", "0", BOTH_RUNNING_UNTIL + 90_000)]);
 
       const after = connection.getView();
       expect(after.timers.map((t) => t.id)).toEqual(["N"]);
@@ -494,28 +512,43 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     });
 
     it("live の占有スロットの残滓 — 保持 provisional が占有しても同じ（要件8.7）", () => {
-      const { connection, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
-      // occupied は「新 serverTimers ∪ 保持 provisional」のスロット。占有役の provisional（残す）と、
-      // 残滓の種になる provisional（あとで cancel する）を degraded の boot で作る。
+      const { connection, setConnectivity, receiveSnapshot, setNow } = openConnectionWithFakeWatch();
+      // occupied は「新 serverTimers ∪ 保持 provisional」のスロット。ゆえに要るのは三つである——slot "0" を
+      // 最後まで占有し続ける provisional keep、その slot に既に在る残滓、そして最後の snapshot で消える prev server。
+      //
+      // なぜ provisional を 2 本作らないか: 同一スロットへの 2 度目の start は修正後に拒否されるため
+      // （degraded-slot-superimposition 要件2.2）、provisional 2 本で slot "0" を埋める盤面は到達不能である。
+      // keep が占有している slot "0" に残滓を書ける経路は、同席する server-confirmed をローカルで消し込む道
+      // （degraded の消し込みは占有を見ずに記録する・要件8.8）だけになる。
+      //
+      // なぜ走行中の A / B を受けてから時刻を進めるか: その同席が snapshot を越えて残るのは**双方が走行中**の
+      // ときだけである（判断 2 の真理値表の最終行＝両側 running の残余）。A と B の endTime を分けるのは、
+      // A だけを群として消し込み（残滓の種）、B を最後の snapshot で消える prev server として残すためである。
+      const A_UP_AT = START_NOW + 30_000;
+      const B_UP_AT = START_NOW + 60_000;
       connection.start(["0"], "keep-noodle", 180);
-      connection.start(["0"], "seed-noodle", 120);
-      const locals = connection.getView().timers.filter((t) => t.origin === "local");
-      expect(locals).toHaveLength(2);
-      const keep = locals[0]!;
-      const seed = locals[1]!;
+      const keep = connection.getView().timers.find((t) => t.origin === "local");
+      expect(keep).toBeDefined();
 
       setConnectivity("up");
-      receiveSnapshot([timerAt("A", "0", BOILED_AT), timerAt("B", "0", BOILED_AT)]);
-      connection.cancel(seed.id);
-      expect(connection.getView().lastResults.get("0")).toEqual({ noodleType: "seed-noodle", at: START_NOW });
+      receiveSnapshot([timerAt("A", "0", A_UP_AT), timerAt("B", "0", B_UP_AT)]);
+      // 双方走行中ゆえ解決は決着させない——A / B と keep（180 秒ゆえ最後まで走行中）が同席する。
+      expect(connection.getView().timers.map((t) => t.id)).toEqual(["A", "B", keep!.id]);
 
+      // A が上がったところで回線が落ちる。degraded ゆえローカル権限で消し込み、残滓が slot "0" に載る。
+      setNow(A_UP_AT);
+      setConnectivity("down");
       connection.complete("A");
+      expect(connection.getView().timers.map((t) => t.id)).toEqual(["B", keep!.id]);
+      expect(connection.getView().lastResults.get("0")).toEqual({ noodleType: "noodle-A", at: A_UP_AT });
 
-      // 除去を運ぶ snapshot に server-confirmed は残らないが、保持 provisional keep が slot "0" を占有する。
+      // 回線復帰。除去を運ぶ snapshot に server-confirmed は残らないが、保持 provisional keep が slot "0" を占有する。
+      setConnectivity("up");
       receiveSnapshot([]);
 
       const after = connection.getView();
-      expect(after.timers.map((t) => t.id)).toEqual([keep.id]);
+      expect(after.timers.map((t) => t.id)).toEqual([keep!.id]);
+      // (c) が既存の残滓（noodle-A）を消し、(b) は消えた B の麺種を占有スロットへ書かない。
       expect(after.lastResults.has("0")).toBe(false);
 
       connection.close();

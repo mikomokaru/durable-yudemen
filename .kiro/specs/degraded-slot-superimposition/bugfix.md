@@ -2,9 +2,9 @@
 
 ## Introduction
 
-degraded（縮退）中に、down 前から在った server-confirmed タイマーが endTime 到達でクライアント側にローカル発火する。しかし発火は `processedIds` への記録にとどまり、`view.timers` からは除去されない。その茹で上がった（boiled）スロットに対しユーザーが同じスロットへ local provisional タイマーを start すると、1 スロットに `origin="server"`（boiled）と `origin="local"`（provisional）の 2 本が**重ね合わせ**になる。`slotDisplay` は 1 スロットにつき最早 endTime の 1 本しか描画しないため、片方が隠れる。
+degraded（縮退）中に、down 前から在った server-confirmed タイマーが endTime 到達でクライアント側にローカル発火する。しかし発火は `processedIds` への記録にとどまり、`view.timers` からは除去されない。その茹で上がった（boiled）スロットに対しユーザーが同じスロットへ local provisional タイマーを start すると、1 スロットに `origin="server"`（boiled）と `origin="local"`（provisional）の 2 本が**重ね合わせ**になる。`slotDisplay` は 1 スロットにつき 1 本しか描画しない。走行中（`remainingMs > 0`）だけを先に絞り、その区分内で最早 `endTime` を採る。走行中が 1 本も無いときだけ boiled の最早 `endTime` を採る。よって片方が隠れる。
 
-その後サーバを再起動して再接続（down→up）すると、最初の全量 snapshot が `Reconcile` として畳まれる。write-back は既存スコープ外のため、ローカルで消化したはずの古い server タイマーはサーバ側にまだ残っており snapshot で**復活**する（`reconcileServerConfirmed` の server 集合全置換で戻る）。`processedIds` は保持 id 集合に入るためローカル再発火は抑止される（ここは仕様どおり）。復活した server タイマーがサーバ側で消える（茹で上がり/消し込み）と、隠れていた local provisional が表示へ再出現し、ユーザーには「ローカルのタイマーが復活した」ように見える。
+その後サーバを再起動して再接続（down→up）すると、最初の全量 snapshot が `Reconcile` として畳まれる。write-back は既存スコープ外のため、ローカルで消化したはずの古い server タイマーはサーバ側にまだ残っており snapshot で**復活**する（`reconcileServerConfirmed` の server 集合全置換で戻る）。`processedIds` は保持 id 集合に入るためローカル再発火は抑止される（ここは仕様どおり）。復活した server タイマーがサーバ側で消える（茹で上がり/消し込み）と、隠れていた local provisional が表示へ再出現し、ユーザーには「ローカルのタイマーが復活した」ように見える。この再出現が起きるのは local provisional 自身も boiled になっている窓の内側のみである。provisional が走行中のあいだは走行中優先で provisional 側が表示されており、隠れていたのは server（boiled）の側である。
 
 破られている不変条件は「**1 スロット ≤ 1 タイマー**」であり、これが degraded の boiled 経路で崩れる（重ね合わせ）。write-back 不在（既存スコープ外）と組み合わさることで、上記の「復活して見える」症状に至る。
 
@@ -41,7 +41,7 @@ END FUNCTION
 
 1.1 WHEN degraded 中に down 前からの server-confirmed タイマーが endTime に到達してローカル発火する THEN the system はそれを `processedIds` に記録するのみで `view.timers` から除去せず、当該スロットを boiled 表示のまま在席させ続ける
 
-1.2 WHEN その boiled なスロット（server-confirmed が在席）へユーザーが local provisional を start する THEN the system は同一スロットを `origin="server"` と `origin="local"` の 2 本で同時占有させ（重ね合わせ）、`slotDisplay` が最早 endTime の 1 本だけを描画するため他方を隠す
+1.2 WHEN その boiled なスロット（server-confirmed が在席）へユーザーが local provisional を start する THEN the system は同一スロットを `origin="server"` と `origin="local"` の 2 本で同時占有させ（重ね合わせ）、`slotDisplay` が 1 本だけを描画する（走行中を先に絞り、その区分内で最早 `endTime`。走行中が 1 本も無いときだけ boiled の最早 `endTime`）ため他方を隠す
 
 1.3 WHEN サーバ再起動後に再接続（down→up）して最初の全量 snapshot を Reconcile する THEN the system は `reconcileServerConfirmed` の server 集合全置換により、ローカルで消化したはずの古い server-confirmed タイマーをサーバ残存データから復活させる
 
@@ -84,7 +84,7 @@ END FUNCTION
 ### Affected Components（調査済み）
 
 - `src/client/connection.ts` — `decideView`（`LocalDone` は `processedIds` 記録のみで `timers` 非除去）、`decideLocalStart`（占有スロットの既存タイマーを除去せず provisional を追加）、`reconcileServerConfirmed`（server 集合全置換で残存 server タイマーが復活）、`dueLocalTimers` / `fireDue`（ローカル発火経路）。
-- `src/client/components/slotDisplay.ts` — `assignedSlotDisplays`（1 スロットにつき最早 endTime の 1 本のみ描画＝重ね合わせの片方を隠す）。
+- `src/client/components/slotDisplay.ts` — `assignedSlotDisplays`（1 スロットにつき 1 本のみ描画。走行中を先に絞りその区分内で最早 `endTime`、走行中が 1 本も無いときだけ boiled の最早 `endTime`＝重ね合わせの片方を隠す）。
 - `src/client/assignment.ts` — `assignedTimers` / `slotOf` / `slotsOfUnits`（スロット射影。any-overlap）。
 
 ### Candidate Fix Directions（options のみ・未実装）
@@ -98,3 +98,22 @@ END FUNCTION
 - engine 契約（`src/engine`, `src/domain`）は不変。変更は `src/client` 内に閉じる想定。
 - write-back / クロスデバイス二重投入は既存 `offline-degradation` スペックでスコープ外。
 - 関連スペック: `.kiro/specs/offline-degradation/`（`design.md` の Provisional_Timer・Reconcile・決定 B、要件 6/7/8/9/11）、`.kiro/specs/snapshot-broadcast/`（`reconcileServerConfirmed` の残滓/刈り取り規律）。
+
+---
+
+## 設計フェーズで確定した事項（後から追記・上記の節は不変）
+
+上の節（Introduction / バグ条件 C(X) / Current・Expected・Unchanged Behavior / Reference Notes）は**記録専用のまま変更していない**。設計フェーズで下した判断の正本は `design.md` である。ここには、後から読む人が迷わないための対応表だけを置く。
+
+- **到達可能性は確定した。** `tests/client/degraded-slot-superimposition.exploration.property.test.ts`（実行済み）が C(X) の到達可能性を反例つきで示した。**最初の破れは `Reconcile` ではなく `LocalStart`** である（反例: `slotId=0` / server `srv-a` endTime=1000000 / local `loc-a` endTime=1001000）。
+- **修正は 2 層。** (1) `decideLocalStart` の占有ゲート（要求スロットのいずれかが在席済みならビュー不変）と (2) `reconcileServerConfirmed` の統一規則（争いになるのは双方が running を主張したときだけ）。公開シンボル・`ClientView` のフィールド・`SlotDisplay` の種別・`ClientEvent` の種別はいずれも増減しない。
+- **「Candidate Fix Directions」の帰結**（上の Reference Notes は当時の選択肢の記録として残す）:
+
+| 候補 | 帰結 |
+| --- | --- |
+| (A) 暗黙 complete して注入 | **却下**（SSOT がまだ保持する事実について嘘をつく）。代わりに修正(1) が拒否する |
+| (B) complete を経ないと start させないゲート | **採用。ただし UI ではなく遷移（`decideLocalStart`）に置く**（start の入口が 2 つあり、待ち行列の推奨は占有を見ない） |
+| (C) 復活した server Timer の表示上の扱い | **採用。修正(2) の統一規則として実装する** |
+
+- **却下した他案**（`design.md` に理由を記録）: `clearedIds`・書き戻し（write-back）・degraded 中はローカル消し込みを禁じる案・`contested` 表示種別と `SlotResolved` イベント。
+- **既知の限界**（`design.md` が正本）: 両側 running の残余は次の reconcile まで残る／再水和直後は解決契機が無い／占有スロットへの start は沈黙する／server 起源同士の重ね合わせは規則の外／write-back 不在ゆえ落とした server Timer はサーバに残る。
