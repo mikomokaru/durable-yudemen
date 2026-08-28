@@ -53,6 +53,9 @@ export default defineConfig({
             "tests/sync-set-batch-complete.static.test.ts",
             // Boil_Sync の純粋性検査（synchronized-boil-adjustment タスク12.1）。TypeScript AST でソースを読む。
             "tests/static/boil-sync-purity.test.ts",
+            // 占有ゲート・解決規則が src/client に閉じていることの検査（degraded-slot-superimposition
+            // タスク5.2）。node:fs で src/engine / src/domain のソースを読むため node 環境で実行する。
+            "tests/degraded-slot-superimposition.static.test.ts",
           ],
         },
       },
@@ -161,6 +164,7 @@ export default defineConfig({
             "tests/service-worker-config.static.test.ts",
             "tests/sync-set-batch-complete.static.test.ts",
             "tests/static/boil-sync-purity.test.ts",
+            "tests/degraded-slot-superimposition.static.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
             // src/registry/ の純粋層テストは registry プロジェクト（node）が担当する。

@@ -27,7 +27,7 @@ import { DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS } from "../domain/store";
 import type { NoodlePreset } from "../domain/store";
 import { DEFAULT_FIRMNESS, type Firmness } from "../domain/firmness";
 import { boiledGroup } from "./boiledGroup";
-import { clockOffset } from "./clock";
+import { clockOffset, correctedNow, remainingMs } from "./clock";
 import {
   isPingBlackholeActive,
   pingBlackholeDebugEnabled,
@@ -257,16 +257,39 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
 }
 
 /**
+ * 要求スロットのいずれかが既存 Timer に占有されているか（any-overlap の述語）。
+ *
+ * 起源も running / boiled も問わない——釜の排他性は接続性にも起源にも依らない物理的事実であり、
+ * 茹で上がった麺は消し込むまで釜に入っている（boiled であっても釜は空いていない）。
+ * 判定を集合の等値ではなく交わりの有無で行うのは、1 Timer が複数スロットを駆動しうるため
+ * （src/client/assignment.ts の射影規律と同じ any-overlap）。
+ */
+function occupiesAny(timers: readonly ClientTimer[], slotIds: readonly string[]): boolean {
+  return timers.some((timer) => timer.slotIds.some((slotId) => slotIds.includes(slotId)));
+}
+
+/**
  * LocalStart の畳み込み — degraded 中のローカル start を Provisional_Timer として注入する（decideView の分岐）。
  *
- * boilSeconds が 1〜1800 の整数（両端含む）のときだけ、origin:"local" の Timer をちょうど 1 件足す。
- * 範囲外（0・負・1801 以上・非整数・非有限）はビュー不変として view をそのまま返す（要件6.1/6.2/6.5）。
+ * 要求スロットが空いており、かつ boilSeconds が 1〜1800 の整数（両端含む）のときだけ、origin:"local" の
+ * Timer をちょうど 1 件足す。占有スロットへの要求、および範囲外（0・負・1801 以上・非整数・非有限）は
+ * いずれもビュー不変として view をそのまま返す（要件6.1/6.2/6.5・degraded-slot-superimposition 要件2.1/2.2）。
  * 範囲境界はサーバ core の検証規律（BOIL_SECONDS_MIN / BOIL_SECONDS_MAX）と同じ値を共有し二度定義しない。
  */
 function decideLocalStart(
   view: ClientView,
   event: Extract<ClientEvent, { kind: "LocalStart" }>,
 ): ClientView {
+  // 占有スロットへの注入は「拒否」する。修復（占有 Timer を暗黙に complete して入れ替える）を採らないのは、
+  // SSOT がまだ保持している事実についてローカルで「完了した」と主張することになり、状態について嘘をつくため
+  // （design.md 判断 1・却下 A）。正しい手順は「消し込み → 空き → start」である。
+  //
+  // boilSeconds の範囲検査より前に置く。占有は注入先の可用性であり、要求の内容（茹で秒）に依らず定まる
+  // 外側の前件である——注入先が塞がっているなら、注入物の妥当性を検べる意味がない。どちらも
+  // 「不正な遷移はビュー不変」ゆえ、順序を入れ替えても結果（view をそのまま返す）は変わらない。
+  if (occupiesAny(view.timers, event.slotIds)) {
+    return view;
+  }
   // 非整数・非有限・範囲外はローカルでも構築させない（サーバ core の検証規律に整合・要件6.5）。
   if (
     !Number.isInteger(event.boilSeconds) ||
@@ -364,12 +387,12 @@ function clearLastResults(
 /**
  * degraded 中のローカル発火対象を導出する純粋関数（端が毎ティック呼ぶ・要件8.1/8.3）。
  *
- * endTime が補正後現在時刻 correctedNow 以下に達し、かつ id が processedIds に未登録の Timer を
+ * endTime が補正後現在時刻 correctedNowMs 以下に達し、かつ id が processedIds に未登録の Timer を
  * server / local 双方から返す。アラート音は持たない（音を鳴らすのは端の責務・計算と作用の分離）。
  */
-export function dueLocalTimers(view: ClientView, correctedNow: number): readonly ClientTimer[] {
+export function dueLocalTimers(view: ClientView, correctedNowMs: number): readonly ClientTimer[] {
   return view.timers.filter(
-    (timer) => timer.endTime <= correctedNow && shouldHandleDone(timer.id, view.processedIds),
+    (timer) => timer.endTime <= correctedNowMs && shouldHandleDone(timer.id, view.processedIds),
   );
 }
 
@@ -440,6 +463,70 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
 }
 
 /**
+ * 釜の排他性による占有の解決 — 1 スロットに server 側と local 側が重なったときの決着（統一規則）。
+ *
+ * 規則はただ 1 つである。**あるスロットが争いになるのは、server 側と local 側の双方が running な Timer を
+ * 主張したときだけで、それ以外はすべて自動的に決着する**（争いは両方残し、決着したスロットでは負けた側を落とす）。
+ * 走行中でない側が負けるのは、走行中の Timer が「いま誰かがこの釜で茹でている」ことを示すのに対し、boiled は
+ * 「上げ忘れているかもしれない」ことしか示さないためである。双方 boiled なら SSOT の側（server）を残す
+ * ——現場がもう一度消し込めば、今度はサーバへ届いて恒久的に消える（自己治癒）。
+ *
+ * **「boiled は占有の証拠として弱い」は仮定である。** 厳密には偽である——boiled ＝ 茹で上がったが消し込み前
+ * ゆえ、麺は物理的にまだ釜にある。規則が成り立つ根拠は「boiled ＝ 空」ではなく反対側の証拠の強さであって、
+ * 走行中を落とせば走っている麺の秒読みが消えるのに対し、boiled を落として失われるのは既に鳴り終わった通知の
+ * 残骸だけである。この仮定が崩れる要求（boiled の在席が会計や在庫の根拠になる等）が生まれたら、規則そのものを
+ * 見直すことになる。定理と読み違えないために明示する。
+ *
+ * 第 2 の判断軸（復活した server の特別扱い・processedIds 済みの締め出し）は持ち込まない。running / boiled は
+ * endTime からの導出であって状態ではないため、入力は timers と補正後現在時刻だけで閉じる。
+ *
+ * 重なりは any-overlap（slotIds の交わり）。多スロット Timer は 1 つの釜で負けたら丸ごと落ちる——負けたスロット
+ * に残せばそのスロットは依然 2 本に占有され、不変条件（1 スロット ≤ 1 タイマー）が回復しない。
+ *
+ * 落とす集合は**解決前の入力集合から一度に**決め、そのあと 1 回だけ絞る。逐次に落としながら再評価すれば
+ * 「A を落としたので B の相手が消え、B は勝つ」という順序依存が生まれる（合流性）。連鎖で双方が落ちてスロットが
+ * 空になる組み合わせは在り得るが、不変条件（≤ 1）は保たれる。
+ */
+function resolveSlotOccupancy(
+  timers: readonly ClientTimer[],
+  correctedNowMs: number,
+): readonly ClientTimer[] {
+  // running / boiled は endTime からの導出値。判定は clock.ts の remainingMs を通し、素の比較を三つ目の
+  // 書き下しにしない（意味は slotDisplay の remainingMs(...) > 0 と boiledGroup の endTime <= correctedNow で
+  // 既に定義済み）。補正は呼び出し元で済んでいるゆえ残りの offset は 0。境界（endTime === correctedNow）は
+  // remainingMs が 0 を返すため boiled 側に属する。
+  const isRunning = (timer: ClientTimer): boolean => remainingMs(timer.endTime, 0, correctedNowMs) > 0;
+
+  // スロットごとの主張を起源別に束ねる（キーは slotId 文字列。表示のためのスロット別束ね＝slotDisplay の
+  // timersBySlot とは別概念で、あちらは担当射影を掛けた表示のため、こちらは全量に対する占有の解決）。
+  const claims = new Map<string, { readonly server: ClientTimer[]; readonly local: ClientTimer[] }>();
+  for (const timer of timers) {
+    for (const slotId of timer.slotIds) {
+      let claim = claims.get(slotId);
+      if (claim === undefined) {
+        claim = { server: [], local: [] };
+        claims.set(slotId, claim);
+      }
+      (timer.origin === "server" ? claim.server : claim.local).push(timer);
+    }
+  }
+
+  const losers = new Set<string>();
+  for (const { server, local } of claims.values()) {
+    // 片側だけの在席は争いにならない（server のみ＝全置換の結果／local のみ＝provisional 保持。既存の決定 B）。
+    if (server.length === 0 || local.length === 0) continue;
+    const serverRunning = server.some(isRunning);
+    const localRunning = local.some(isRunning);
+    // 双方が走行を主張したスロットは決着させない（残余の contested。争いを表示で語る手段は本 spec の外）。
+    if (serverRunning && localRunning) continue;
+    // local だけが走行を主張したなら server 側が落ちる。それ以外（server だけが走行／双方 boiled）は local 側。
+    for (const loser of localRunning ? server : local) losers.add(loser.id);
+  }
+
+  return timers.filter((timer) => !losers.has(timer.id));
+}
+
+/**
  * server-confirmed を全置換し provisional は保持しつつ、直前集合との差分で一様残滓を導く共有規律
  * （snapshot と Reconcile が共有・要件4.1〜4.7 / 5.1 / 5.3）。
  *
@@ -454,10 +541,13 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
  *   - (c) 占有スロット（新 serverTimers ∪ 保持 provisional）の残滓は消去する（要件4.3 / 5.3）。
  *   - (d) processedIds は「serverTimers の id ∪ 保持 provisional の id」に属するものだけ残す（記録を有界に保ちつつ、
  *     復活した server-confirmed のローカル発火抑止を維持する・要件4.4）。
+ *   - (e) 最後に resolveSlotOccupancy で 1 スロットの重ね合わせを解決する（degraded-slot-superimposition 要件2.3）。
+ *     (a)〜(d) の入力は解決前の集合のままであり、順序も変えない。
  *
  * boiled / running 状態とアラート dedup は endTime からの導出を維持し、状態へ昇格させない（要件4.4）。
- * 同一 serverTimers を二度適用しても timers・processedIds は不変、lastResults はキー集合不変で新規残滓を生まない
- * （at の更新のみ・冪等・要件4.5）。残滓は (直前 server-confirmed, serverTimers, at) のみから導出し、
+ * 同一 serverTimers を二度適用しても timers は不変、lastResults はキー集合不変で新規残滓を生まない
+ * （at の更新のみ・冪等・要件4.5）。processedIds の冪等性は厳密ではない——(e) の解決で落ちた provisional の id は
+ * 2 回目の適用で刈られる（単調減少ゆえ 2 回目以降は不動点。server 起源の id は失われない・要件2.3）。残滓は (直前 server-confirmed, serverTimers, at) のみから導出し、
  * TimerFact への追加フィールドに依存しない（要件4.6）。
  */
 export function reconcileServerConfirmed(
@@ -505,7 +595,13 @@ export function reconcileServerConfirmed(
 
   return {
     ...view,
-    timers: [...confirmed, ...provisional],
+    // (e) 最後に 1 回だけ占有を解決する。(a)〜(d) の順序と入力を変えないのは、刈り取り (d) を**解決前**の保持 id
+    //     集合で行う必要があるためである——落とした server Timer の id が processedIds から抜けると、その Timer が
+    //     次の snapshot で（local 側が消えた後に決定 B で）在席を取り戻したとき、endTime が過去ゆえ dueLocalTimers が
+    //     拾い、鳴り終わった通知がもう一度鳴る。
+    //     代償: processedIds の厳密な冪等性が破れる（2 回目は provisional が居らず、落ちた provisional の id が
+    //     刈られる）。retainedIds ⊇ newIds ゆえ server 起源の id は失われず、抑止の目的は保たれる。
+    timers: resolveSlotOccupancy([...confirmed, ...provisional], correctedNow(view.offset, at)),
     lastResults: nextLastResults,
     processedIds: prunedProcessed,
   };

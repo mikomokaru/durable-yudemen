@@ -205,3 +205,33 @@ describe("client/connection — provisional への操作は origin で経路分�
     connection.close();
   });
 });
+
+describe("client/connection — 占有ゲートは degraded の畳み込みにしか無い（degraded-slot-superimposition）", () => {
+  it("live では占有スロットへの start も従来どおりサーバへ送る（要件3.4）", () => {
+    const { connection, send, setConnectivity, receiveSnapshot, setNow } = openConnectionWithFakeWatch();
+
+    setConnectivity("up");
+    // slot "0" を駆動する server-confirmed を受け、その endTime まで時刻を進めて boiled にする。
+    // degraded ならこのスロットへの start は占有ゲートが拒む形（釜は茹で上がっても消し込みまで塞がって
+    // いる）であり、その同じ形で live が従来どおり送信することを見る——ゲートは decideLocalStart の
+    // 先頭にしか無く、live の start はそこを通らない。拒否の側は Property 1 の領分ゆえ重ねない。
+    const occupant: TimerFact = {
+      id: "S",
+      slotIds: ["0"],
+      noodleType: "ramen",
+      firmness: "normal",
+      startTime: START_NOW,
+      endTime: START_NOW + 120_000,
+    };
+    receiveSnapshot([occupant]);
+    expect(mode(connection.getView())).toBe("live");
+    setNow(occupant.endTime);
+
+    connection.start(["0"], "udon", 90);
+    expect(send).toHaveBeenCalledWith({ type: "start", slotIds: ["0"], noodleType: "udon", boilSeconds: 90 });
+    // 送るだけで、ローカルには provisional を注入しない（live は LocalStart の畳み込み経路を通らない）。
+    expect(connection.getView().timers.map((t) => t.id)).toEqual(["S"]);
+
+    connection.close();
+  });
+});
