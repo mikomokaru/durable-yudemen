@@ -70,17 +70,18 @@
     - **この段で `complete.example.test.ts`「保持 provisional が占有しても同じ（要件8.7）」が赤化する**（同一スロット `"0"` への 2 度目の `start` が拒否され `expect(locals).toHaveLength(2)` が落ちる）。予期された波及であり、回収は 4.2 で行う。
     - _Requirements: 2.1, 2.2, 3.1_
 
-  - [ ]* 2.2 Property 1 の property test — 占有スロットへの `LocalStart` はビュー不変
+  - [x]* 2.2 Property 1 の property test — 占有スロットへの `LocalStart` はビュー不変
     - **Property 1: 占有スロットへの LocalStart はビュー不変**
     - **Validates: Requirements 2.1, 2.2**
     - 重なりを誘発する小さな slot プールを使い、多スロット Timer の**部分重なり**も踏む。主張は `toBe`（参照同一）——`toEqual` では早期 return の性質を捉えられない。
-    - 置き場は `tests/client/`。タグは `// Feature: degraded-slot-superimposition, Property 1: …`＋`**Validates: Requirements 2.1, 2.2**`。`numRuns: 100` 以上。
+    - 置き場は `tests/client/degraded-slot-superimposition.gate.property.test.ts`（Property 2 と同一ファイル——ゲートの両面を 1 箇所で読む）。タグは `// Feature: degraded-slot-superimposition, Property 1: …`＋`**Validates: Requirements 2.1, 2.2**`。`numRuns: 100` 以上。
 
-  - [ ]* 2.3 Property 2 の property test — 空きスロットへの start は従来どおり
+  - [x]* 2.3 Property 2 の property test — 空きスロットへの start は従来どおり
     - **Property 2: 空きスロットへの LocalStart は従来どおり単一の provisional を注入し残滓を解除する**
     - **Validates: Requirements 3.1**
     - **ゲートを広く取りすぎる誤りを捕まえるのがこのテストの役割である。** 要求スロットが既存 Timer とどの `slotId` も共有しないビューを生成し、provisional がちょうど 1 件増えること・`endTime === correctedNow + boilSeconds * 1000`・要求 `slotIds` の `lastResults` が消えることを主張する。
     - 範囲外 `boilSeconds` の再検証は既存 offline-degradation Property 3 に委ね、ここでは重複させない。
+    - 置き場は `tests/client/degraded-slot-superimposition.gate.property.test.ts`（Property 1 と同一ファイル）。
 
   - [x] 2.4 経路 A の C(X) 主張が緑・経路 B が赤であることを確認する（中間状態の記録）
     - タスク 1 の探索テストを実行し、**経路 A の `isBugCondition` 主張が緑へ転じ、経路 B の同主張が赤のまま**であることを確認する。
@@ -101,7 +102,7 @@
     - **「boiled は占有の証拠として弱い」は仮定である**ことを、規則のコメントに明示する。boiled ＝ 茹で上がったが消し込み前 なので麺は物理的にまだ釜にある。規則が成り立つ根拠は反対側の証拠の強さであって「boiled ＝ 空」ではない。
     - _Requirements: 2.3, 2.4, 3.3_
 
-  - [ ]* 3.2 Property 3 の property test — 統一規則の真理値表
+  - [x]* 3.2 Property 3 の property test — 統一規則の真理値表
     - **Property 3: 統一規則の真理値表**
     - **Validates: Requirements 2.3**
     - **表を「各 slotId の生存者」として literal に主張するテストを書かない。** それは判断 4（多スロット Timer は 1 つの釜で負けたら丸ごと落ちる）と判断 5（落とす集合は解決前の集合から一度に決める）と矛盾し、**意図した実装に対して失敗する**。本タスクは多スロット Timer を生成するため、この誤りは確実に踏む。
@@ -109,17 +110,20 @@
     - 6 行（不在×在席 2 行・boiled/running・running/boiled・boiled/boiled・running/running）を**全行**踏む。生成器はスロットの重なりと running / boiled の組み合わせを誘発するよう組む（`tests/client/reconcile.property.test.ts` の小さな共有プール方式に倣う）。
     - 境界（`endTime === correctedNow`）を必ず踏む。`genCorrectedNow` 相当の境界サンプリングを使う。
     - 多スロット Timer と複数主張者（1 スロットに server 2 本 + local 1 本 等）も生成する。**server 起源同士の争いは規則の外**（限界 4）ゆえ、その領域では「server 側は落とされない」ことだけを主張する。
+    - 置き場は `tests/client/degraded-slot-superimposition.resolution.property.test.ts`（Property 6 / 7 と同一ファイル——いずれも `reconcileServerConfirmed` 単体を観測点にする）。
 
-  - [ ]* 3.3 Property 6 の property test — 争いが無い入力では従来と一致する
+  - [x]* 3.3 Property 6 の property test — 争いが無い入力では従来と一致する
     - **Property 6: 争いが無い入力では reconcile の結果が従来と一致する**
     - **Validates: Requirements 3.3**
     - server 集合と provisional 集合のスロットが**互いに素**になるよう生成し、`timers`（順序を含む）・`lastResults`・`processedIds` のすべてが解決なしの計算結果と一致することを主張する。
     - これが「修正(2) が既存の規律を動かしていない」ことの防具である。
+    - 置き場は `tests/client/degraded-slot-superimposition.resolution.property.test.ts`（Property 3 / 7 と同一ファイル）。
 
-  - [ ]* 3.4 Property 7 の property test — 落とした Timer の id は処理済み記録に残る
+  - [x]* 3.4 Property 7 の property test — 落とした Timer の id は処理済み記録に残る
     - **Property 7: 落とした Timer の id は処理済み記録に残る**
     - **Validates: Requirements 2.3, 3.3**
     - 解決で落とされた server 起源 Timer の `id` が入力の `processedIds` に在ったなら結果にも在ることを主張する。刈り取りを解決**後**の集合で行う実装に変えた瞬間に赤くなる位置に置く（順序の規律を検査で固定する）。
+    - 置き場は `tests/client/degraded-slot-superimposition.resolution.property.test.ts`（Property 3 / 6 と同一ファイル）。
 
 - [x] 4. 探索テストを緑へ転じ、回帰の防具へ役割を移す
   - [x] 4.1 探索テストの役割を転換する（**Property 5**）
@@ -148,7 +152,7 @@
     - `pnpm test` の失敗一覧が正本である。上記 3 件以外に落ちたものがあれば、同じ判断基準（「その状態は到達可能か」）で回収する。**到達可能なら fixture を保ち、期待値を新しい真実へ改める。到達不能なら fixture を合法な形へ組み替える。**
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-  - [ ]* 4.3 Property 4 の property test — 解決後は隠れが存在しない
+  - [x]* 4.3 Property 4 の property test — 解決後は隠れが存在しない
     - **Property 4: 解決後は隠れが存在しない（在席と表示が一致する）**
     - **Validates: Requirements 2.4, 3.5**
     - `reconcileServerConfirmed` の結果と `assignedSlotDisplays` を突き合わせる。在席しているのに表示されない Timer が存在しないこと、在席 0 件なら `idle` / `unreceived` になることを主張する。
@@ -156,7 +160,7 @@
       - **両側 running の残余**（限界 1）——規則が決着させないため 1 スロット 2 本が残る。
       - **server 起源同士のスロット重なり**（限界 4）——規則が解くのは server 側 × local 側だけであり、server 起源 2 本の同一スロット在席は解決後も残る。engine は start 時に釜の占有を検査しないため snapshot はこの形を運べる（`complete.example.test.ts` の `timerAt("A","0")` / `timerAt("B","0")` が実例）。**この除外を落とすとテストは意図した実装に対して失敗する。**
     - 生成器は **`genTimerFacts` と同じく各集合内のスロットを互いに素**に保ち、重なりを集合間だけに誘発する。これを**書かれた前提**として Property のタグ・コメントに残す（暗黙の生成器都合にしない）。
-    - **置き場は 3.2 / 3.3 / 3.4 とは別ファイルにする。** Property 4 の観測点は「遷移の結果 × 表示導出の突き合わせ」であり、`reconcileServerConfirmed` 単体を見る Property 群（3.2 / 3.3 / 3.4）とは違う。**`tests/client/reconcile.property.test.ts` にも置かない**（4.4 がそのファイルを書き換えるため）。この分離が、4.3 を 3.3 と同じ波に置ける根拠である（波の分割理由＝同一ファイルへの同時書き込み回避）。
+    - **置き場は 3.2 / 3.3 / 3.4 とは別ファイルにする**——`tests/client/degraded-slot-superimposition.display.property.test.ts`。Property 4 の観測点は「遷移の結果 × 表示導出の突き合わせ」であり、`reconcileServerConfirmed` 単体を見る Property 群（3.2 / 3.3 / 3.4）とは違う。**`tests/client/reconcile.property.test.ts` にも置かない**（4.4 がそのファイルを書き換えるため）。この分離が、4.3 を 3.3 と同じ波に置ける根拠である（波の分割理由＝同一ファイルへの同時書き込み回避）。
 
   - [x] 4.4 別 spec の改訂 — `snapshot-broadcast` Property 6「冪等性」（要件 4.5）の言明とテストを改める
     - **このサブタスクは任意にしない。** 本修正は他 spec の Property を狭義に破る。放置すればスイートは緑にならず、`snapshot-broadcast` の文書は嘘を語り続ける。
@@ -167,14 +171,15 @@
     - **`snapshot-broadcast` の要件 4.5 の本文をどう扱うかは当該 spec の判断である。** 本タスクでは Property の言明とテストを実態へ合わせ、要件本文の改訂が要るかを当該 spec へ申し送る。
     - _Requirements: 2.3, 3.3_
 
-- [ ] 5. 回帰の防具（bugfix.md 3.1〜3.6）
-  - [ ]* 5.1 example test — live 経路はゲートを通らず、provisional の消し込みは不変
+- [x] 5. 回帰の防具（bugfix.md 3.1〜3.6）
+  - [x]* 5.1 example test — live 経路はゲートを通らず、provisional の消し込みは不変
     - live で**占有スロットへ** `start` しても WS へ送信されること（ゲートは `decideLocalStart` にしか無く、live の start はそこを通らない）。既存の偽 Socket / 偽 Connectivity_Watch 据え付け（`tests/client/support/timerConnection.ts`）を使う。
     - provisional の `cancel` / `complete` が従来どおりローカル除去のみで、`origin === "server"` の記録経路を発動させないこと。既存 example の緑を維持するだけでよければ新規テストを足さない（重複を作らない）。
+    - 置き場は既存 `tests/client/connection.example.test.ts` へ 1 件追加（live の占有スロットへの `start` が WS へ送信されること）。**provisional の `cancel` / `complete` は既存 example が既に緑で保っているため重複させなかった。**
     - _Requirements: 3.2, 3.4_
 
-  - [ ]* 5.2 静的検査 — 変更は `src/client` に閉じている
-    - `src/engine` / `src/domain` に占有ゲート・解決規則の識別子（`occupiesAny` / `resolveSlotOccupancy`）が現れないことを、`node:fs` でソースを読む静的検査で 1 回確認する。既存 `tests/offline-degradation.static.test.ts` と同型。
+  - [x]* 5.2 静的検査 — 変更は `src/client` に閉じている
+    - `src/engine` / `src/domain` に占有ゲート・解決規則の識別子（`occupiesAny` / `resolveSlotOccupancy`）が現れないことを、`node:fs` でソースを読む静的検査で 1 回確認する。既存 `tests/offline-degradation.static.test.ts` と同型。置き場は `tests/degraded-slot-superimposition.static.test.ts`。
     - `vitest.config.ts` の `static` プロジェクトの `include` と `workers` の `exclude` の**両方**へ登録する（片方だけでは二重実行または未実行になる）。
     - _Requirements: 3.6_
 
@@ -307,3 +312,8 @@ graph TD
 - **修正(2) 投入後の波及は予測どおりだった。** `snapshot-broadcast` Property 3 / 4 / 5 / 7 は緑を維持し、Property 6 のみ赤化した。赤化の反例は判断 9 に記録した `l-a` と同一である。読解による予測が実行で確認された。
 - **未実施の任意タスクは残タスクである。** Property 1〜4・6・7 の property test、example、静的検査（`2.2` / `2.3` / `3.2` / `3.3` / `3.4` / `4.3` / `5.1` / `5.2`）。
 - **`snapshot-broadcast` 要件 4.5 の本文は未改訂である。** `processedIds` について実態と食い違ったまま残っており、改訂の要否は当該 spec の判断に委ねた。
+- **任意タスク 8 件（Property 1〜4・6・7 の property test、example、静的検査）を実施し、全量 172 files / 1076 tests が緑になった。** production 差分はゼロで、追加はテストと `vitest.config.ts` の登録だけである。
+- **Property 3 は領域を実測で踏んだ。** 真理値表の 6 行・境界（`endTime === correctedNow`）・多スロット Timer・複数主張者・限界 4 の領域・判断 5 の連鎖でスロットが空になる場面を、主張ではなく実測（実行後の `expect`）で踏んだことを確認している。空振りする生成器を検査で弾く形にした。
+- **Property 7 は空虚な主張になっていない。** 「落とされ、かつ入力 `processedIds` に在った server 起源 Timer」を実際に踏んだことを実行後に確認している。
+- **Property 4 は限界 1 の除外を解決前の主張から同定する。** 解決後の生存者から逆算すると、判断 4 / 5 で別スロットの敗北により落ちた場合と区別できない。
+- **5.1 の fact 2 は既存 example が覆っており重複を作らなかった。** `processedIds` 側で主張する案は採らなかった——`decideLocalComplete` は起源に依らず `markProcessed` するため、「記録経路」を `processedIds` と読むと実装について嘘になる。
