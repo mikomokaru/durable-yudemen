@@ -343,7 +343,7 @@ interface SyncMediatorOptions {
   readonly now?: () => number;                 // 既定 Date.now（補正後現在時刻・受信時刻の採取）
   readonly newId?: () => string;               // 既定 crypto.randomUUID（Provisional_Timer の id 生成）
   readonly openSocket?: SocketOpener;          // 既存の注入継ぎ目を再利用（トランスポートのポート）
-  readonly persistence?: PersistencePort;      // 既定 localStorage 裏側（要件4.7）
+  readonly persistence?: ViewStore;            // 既定 localStorageViewStore(storeId)（要件4.7）
   readonly connectivity?: ConnectivityWatchFactory; // 既定 WS 生存検出（要件1/2）
   readonly tickMs?: number;                    // 残り再算出・ローカル発火判定の間隔。既定 1000（≤1000・要件5.1）
 }
@@ -385,6 +385,15 @@ interface ConnectivityWatch {
   readonly send: (message: ClientMessage) => void;
   /** 受信した ServerMessage を購読する（Sync_Mediator が Client_Decide へ畳み込む）。 */
   readonly onServerMessage: (handler: (message: ServerMessage, receivedAt: number) => void) => void;
+  /**
+   * ★本 spec 外の要件が足した公開面（`per-store-provisioning` 要件7.6）。
+   * サーバがアプリ固有の拒否符号（`REJECTION_CLOSE_CODE`・`src/transport/rejection.ts`）で接続を閉じたことを
+   * 購読する。未プロビジョニング / Roster 不一致 / deactivated による接続拒否の合図であり、到達性の down
+   * （一過性の切断・再接続で回復しうる）とは別系統。**ビュー状態には昇格させない**——`Classify` も
+   * `unreachableReason` も経由せず、端の作用として通知するだけで、呼び出し側は Entry へ戻って行き先を
+   * 解決し直す。再接続では回復しないため down の予約より先に通知する。
+   */
+  readonly onRejected: (handler: () => void) => void;
   readonly close: () => void;
 }
 
@@ -393,6 +402,8 @@ type ConnectivityWatchFactory = (url: string, openSocket: SocketOpener, now: () 
 /** 既定の生存検出。WebSocket を開き、ping/pong と close/error から Connectivity を導く。 */
 function watchConnectivity(url: string, openSocket: SocketOpener, now: () => number): ConnectivityWatch;
 ```
+
+> **訂正（言明の訂正であって実装の変更ではない）— `onRejected` の追記。** 上記擬似コードはタスク 6.1 / 6.2 時点の形のままで、`onRejected` を欠いていた。実装（`src/client/connectivity.ts`）は既にこれを公開している。追加の由来は**本 spec 外**——`per-store-provisioning` 要件7.6（「WHEN 店舗 DO に接続を拒否されたとき、THE iPad_Client SHALL Entry へ戻って行き先を解決し直す」）である。本 spec の Connectivity（二値）にも `unreachableReason`（要件15 の分類軸）にも属さない第三の合図であり、ビュー状態へ昇格させず端の作用として通知するに留まる。ゆえに本 spec の Correctness Property は一つも変わらない。
 
 Connectivity 確定規律（二系統を独立に扱い、いずれか一方の成立で down・要件2.3）:
 
@@ -488,22 +499,32 @@ function withPingBlackhole(inner: SocketOpener, isEnabled: () => boolean): Socke
 
 
 
-### Persistence_Port（作用の端・抽象境界 ＋ 純粋 codec）
+### Persistence_Port（作用の端・抽象境界 ＋ 純粋 codec）— 確定名 `ViewStore`
 
 状態の永続化と読み出しの抽象境界。既定の裏側は localStorage。ブロブの直列化／解析は純粋関数として分離し、round-trip を property で検証する（要件11）。
 
 ```ts
 // src/client/persistence.ts — 抽象境界（端）＋ codec（純粋）。
 
-interface PersistencePort {
+interface ViewStore {
   /** ビューを単一 JSON ブロブとして保存する（要件11.1）。 */
   readonly save: (view: ClientView) => void;
   /** 保存済みブロブを同期的に読み出してビューへ再水和する。無ければ EMPTY_VIEW（要件11.2）。 */
   readonly load: () => ClientView;
 }
 
-/** localStorage の保存キー（暫定値・確認対象）。 */
-const STORAGE_KEY = "yudemen.offline.view.v1" as const; // 暫定
+/** 保存キーの接頭辞（version 込み）。単独ではキーにならない。 */
+const STORAGE_KEY_PREFIX = "yudemen.offline.view.v1" as const;
+
+/**
+ * ★本 spec 外の要件が足した公開面（`per-store-provisioning` 要件1.5 / 1.6）。
+ * 実キーは常に storeId でスコープする（`yudemen.offline.view.v1:${storeId}`）。店舗ごとに別キーへ書き分け、
+ * 店舗を跨いだビューの漏洩（前店舗の表示が次店舗に出ること）をキー空間の分離だけで構造的に防ぐ。
+ * 現在の storeId のキーだけを読む限り、別店舗・未スコープのブロブは参照されず getItem が null を返し、
+ * parsePersistedView が EMPTY_VIEW を返す——前店舗のビューを再水和せず空から始める（要件1.6）。
+ * スコープは「あれば付ける」条件付きではなく必須ゆえ、storeId は省略不能な引数にして欠落を型で排除する。
+ */
+function scopedStorageKey(storeId: string): string;
 
 /** 永続ブロブの形（version 付き・要件11.1）。Set は配列へ、Connectivity/sync/error は永続しない。 */
 interface PersistedView {
@@ -519,8 +540,10 @@ function serializeView(view: ClientView): string;
 function parsePersistedView(raw: string | null): ClientView;
 
 /** 既定の localStorage 裏側実装。save は同期書き込み、load はページ内同期読み出し（要件11.2/11.4）。 */
-function localStoragePersistence(): PersistencePort;
+function localStorageViewStore(storeId: string): ViewStore;
 ```
+
+> **訂正（言明の訂正であって実装の変更ではない）— 実態は `ViewStore` / `localStorageViewStore(storeId)` / storeId スコープのキー。** 上記擬似コードは `PersistencePort` / `localStoragePersistence()` / 単一キー `STORAGE_KEY` のままだった。ポート名 `ViewStore` は本設計「確定（タスク 1.1・ユーザー確認済み）」表の確定値であり、擬似コードが追いついていなかった。キーの storeId スコープ化（`scopedStorageKey` / 接頭辞 `STORAGE_KEY_PREFIX`）は**本 spec 外**の `per-store-provisioning` 要件1.5 / 1.6 による後続変更である。節の見出しに残る `Persistence_Port` は概念語（層の名）であり、実装のシンボル名ではない。
 
 > **なぜ Connectivity / sync / error / unreachableReason を永続しないか:** これらは「今この瞬間の接続の事実」であって、リロードを跨いで持ち越す事実ではない。boot 時は接続未確立ゆえ Connectivity を `down`（＝degraded）起点とし、Connectivity_Watch の検出で `up` へ確定させる。`unreachableReason` も同様に一過性で、boot 時は既定 `"offline"` 起点とし、次の `down` 確定契機で `probeReachability` → `Classify` が上書きする（要件15.7 / 15.12）。永続するのは「これ以上分解できない事実」——timers（起源タグ込み）・offset・processedIds——に絞る（導出値・一過性の状態を永続に昇格させない）。
 
@@ -684,6 +707,11 @@ P5 / P7 / P8 の本文は、実装との食い違いが見つかった時点で�
 - **後続 spec `degraded-slot-superimposition`** が `reconcileServerConfirmed` の末尾へ占有の解決を加え、争いのあるスロットでは provisional（および server-confirmed）が落ちうるようになった → P8 に「争いが無い入力」の前提を明記した。
 - **現行ワイヤ**（`snapshot-broadcast` 以降の `ServerMessage`）は `snapshot` / `config` / `error` の 3 種別だけで、`done` を持たない。`Reconcile` は `serverTime` を運ばない → P5 の「サーバ done」を snapshot からの消失へ言い換え、P7 の凍結集合を「`Server` 以外のすべて」へ改めた。
 
+**あわせて 2 件の擬似コードを実態へ合わせた。いずれも本 spec 外の要件が公開面を足したもので、実装は正しく、記述が古かった。**
+
+- **`ConnectivityWatch` に `onRejected` を追記した**（`per-store-provisioning` 要件7.6）。接続拒否（`REJECTION_CLOSE_CODE` での close）を端の作用として通知する公開面で、ビュー状態には昇格させない。本 spec の Connectivity（二値）とも `unreachableReason` とも別系統ゆえ、Correctness Property は一つも変わらない。
+- **永続ポートを `ViewStore` / `localStorageViewStore(storeId)` / storeId スコープのキーへ改めた**（ポート名は本設計の確定表どおり、スコープ化は `per-store-provisioning` 要件1.5 / 1.6）。P9（round-trip）が対象とする純粋コーデック（`serializeView` / `parsePersistedView`）はキーを知らないため、こちらも Property は変わらない。
+
 あわせて「ダブルブッキングの構造的 UI ゲート」節の記述も訂正した。旧文は「既存 `SlotCard` は `idle` / `boiled` のときだけ Start の口を描画する」と書いていたが、`SlotCard.tsx` が Start を描くのは `idle` 分岐だけである（`boiled` は Complete、`running` は Cancel）。結論（走行中の Slot に Start が現れない）は変わらないが、根拠の記述が実装と食い違っていた。
 
 言明を実装へ合わせたのは、書かれた主張のまま property テストを実装すれば赤くなるか、さもなくば実装に合わせて主張を歪めることになるためである。要件本文（`requirements.md` の WHEN / THEN）は変更していない——要件 8.2 / 8.4 の「done」の読み替えは P5 の改訂注記に記録した。
@@ -784,7 +812,7 @@ P5 / P7 / P8 の本文は、実装との食い違いが見つかった時点で�
 | | 4.4 UI は Sync_Mediator のみ経由・トランスポート隠蔽 | `SyncMediator` 窓口 / `SocketOpener` ポート | Smoke（静的） |
 | | 4.5 Mode で経路選択（live 送信 / degraded ローカル） | `Sync_Mediator` 経路選択 | Integration |
 | | 4.6 Connectivity_Watch は検出のみ | `Connectivity_Watch`（ビュー非保持） | Smoke（静的） |
-| | 4.7 永続を Persistence_Port 経由・既定 localStorage | `Persistence_Port` / `localStoragePersistence` | Smoke（静的） |
+| | 4.7 永続を Persistence_Port 経由・既定 localStorage | `ViewStore` / `localStorageViewStore` | Smoke（静的） |
 | 5 | 5.1 残りを endTime-(local+offset) で ≤1000ms ごと再算出 | `remainingMs`（既存）/ `Sync_Mediator` ティック | P6 + Example（間隔） |
 | | 5.2 最新 offset を凍結・serverTime 非要求 | `decideView`（offset 不変規律）/ degraded 経路 | P7 + Example（非問い合わせ） |
 | | 5.3 残り 0 以下で 00:00 固定・負を出さない | `remainingMs` クランプ | P6 |
@@ -808,10 +836,10 @@ P5 / P7 / P8 の本文は、実装との食い違いが見つかった時点で�
 | | 10.3 standalone・リロードボタン非提示・プルリフレッシュ抑止 | PWA manifest / CSS | Smoke |
 | | 10.4 プルリフレッシュ抑止を overscroll-behavior で実現 | CSS `overscroll-behavior` | Smoke |
 | | 10.5 リロード抑止を standalone+overscroll に限定（決定 A） | 設計記述（追加層なし） | Smoke |
-| 11 | 11.1 ビュー変化で単一 JSON ブロブ保存 | `Persistence_Port.save` / `serializeView` | P9 + Integration（契機） |
-| | 11.2 boot 時に同期読み出し再水和 | `Persistence_Port.load` / `parsePersistedView` | P9 + Integration（配線） |
+| 11 | 11.1 ビュー変化で単一 JSON ブロブ保存 | `ViewStore.save` / `serializeView` | P9 + Integration（契機） |
+| | 11.2 boot 時に同期読み出し再水和 | `ViewStore.load` / `parsePersistedView` | P9 + Integration（配線） |
 | | 11.3 再水和ビューの due を 8.1 に従い発火 | `dueLocalTimers`（boot 適用） | P5 + Integration（配線） |
-| | 11.4 既定 localStorage・IndexedDB/Background Sync 非依存 | `localStoragePersistence` | Smoke（静的） |
+| | 11.4 既定 localStorage・IndexedDB/Background Sync 非依存 | `localStorageViewStore`（storeId スコープ） | Smoke（静的） |
 | | 11.5 Reconcile で server のみ置換・provisional 保持（決定 B） | `decideView` Reconcile / `reconcileServerConfirmed` | P8 |
 | | 11.6 Reconcile 後も provisional を未確定保持・消えない | `decideView` Reconcile | P8 + Example |
 | | 11.7 復活した cancel 済み server のローカル発火を抑止 | `decideView` Reconcile（processedIds 保持）/ `dueLocalTimers` | P8 |

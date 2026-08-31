@@ -49,6 +49,9 @@ export default defineConfig({
             "tests/entry-routing.static.test.ts",
             // Service_Worker が認証経路を横取りしないことの設定検査。node:fs で vite.config.ts を読む。
             "tests/service-worker-config.static.test.ts",
+            // ping blackhole が dev/test 限定に閉じていることのゲート検査（offline-degradation タスク12.3）。
+            // node:fs で src/client のソースを読み TypeScript AST で判定するため node 環境で実行する。
+            "tests/ping-blackhole.static.test.ts",
             // 一括消し込みの不変点検査（sync-set-batch-complete タスク5.1）。node:fs で src のソースを読む。
             "tests/sync-set-batch-complete.static.test.ts",
             // Boil_Sync の純粋性検査（synchronized-boil-adjustment タスク12.1）。TypeScript AST でソースを読む。
@@ -162,6 +165,7 @@ export default defineConfig({
             "tests/client/audioWakeLock.example.test.ts",
             "tests/entry-routing.static.test.ts",
             "tests/service-worker-config.static.test.ts",
+            "tests/ping-blackhole.static.test.ts",
             "tests/sync-set-batch-complete.static.test.ts",
             "tests/static/boil-sync-purity.test.ts",
             "tests/degraded-slot-superimposition.static.test.ts",

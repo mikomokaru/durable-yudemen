@@ -123,20 +123,23 @@
 - [x] 4. チェックポイント — 純粋層（decideView / mode / dueLocalTimers / 永続コーデック）の全テストが通ることを確認
   - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 5. 端: Persistence_Port の localStorage 裏側実装
-  - [x] 5.1 localStoragePersistence（save / load IO）を実装する
-    - `src/client/persistence.ts`（続き）: `PersistencePort`（`save(view)` / `load()`）と既定実装 `localStoragePersistence()` を実装する。`save` は `serializeView` の結果を単一キー `STORAGE_KEY` へ同期書き込み、`load` はページ内同期読み出し → `parsePersistedView`。**IndexedDB および Background Sync に依存しない**（要件11.4）。書き込み失敗は握り潰さず劣化（表示・発火は継続し次のビュー変化で再試行）
+- [x] 5. 端: ViewStore の localStorage 裏側実装
+  - [x] 5.1 localStorageViewStore（save / load IO）を実装する
+    - `src/client/persistence.ts`（続き）: `ViewStore`（`save(view)` / `load()`）と既定実装 `localStorageViewStore(storeId)` を実装する。`save` は `serializeView` の結果を `scopedStorageKey(storeId)`（`yudemen.offline.view.v1:${storeId}`）へ同期書き込み、`load` は同一キーのページ内同期読み出し → `parsePersistedView`。**IndexedDB および Background Sync に依存しない**（要件11.4）。書き込み失敗は握り潰さず劣化（`console.error` で観測可能に残し、表示・発火は継続して次のビュー変化で再試行）
+    - **訂正（記述の食い違い・実装は変えていない）:** 旧本文は `PersistencePort` / `localStoragePersistence()` / 単一キー `STORAGE_KEY` と書いていた。ポート名 `ViewStore` は design.md「確定（タスク 1.1・ユーザー確認済み）」表の確定値であり、本タスク本文が追いついていなかった。キーの storeId スコープ化（`scopedStorageKey`・接頭辞は `STORAGE_KEY_PREFIX`）は**本 spec 外の `per-store-provisioning` 要件1.5 / 1.6 による後続変更**で、店舗を跨いだビューの漏洩（前店舗の表示が次店舗に出ること）をキー空間の分離で防ぐためのもの
     - _Requirements: 4.7, 11.1, 11.2, 11.4_
 
-  - [ ]* 5.2 Persistence_Port の IO example テストを書く
+  - [ ]* 5.2 ViewStore の IO example テストを書く
     - 保存 → 読み出しの往復、不在 / 不正ブロブで `EMPTY_VIEW` 復帰（`connectivity` が `"down"` 起点）、書き込み失敗時に例外を投げず劣化することを 1〜2 例で固める
     - **監査結果（部分カバー・残余だけを書く）:** 往復（`tests/client/persistence-scope.property.test.ts:131-138`）と不在 → `EMPTY_VIEW`（`:140`・`:147-160`）、再水和起点（`tests/client/complete.example.test.ts:179-192` / `:333-341`）は既存
-    - 残る不足は**不正ブロブ → `EMPTY_VIEW`** と、**書き込み失敗で例外を投げず劣化すること**（`src/client/persistence.ts:250-258` の catch が未踏）
+    - 残る不足は**不正ブロブ → `EMPTY_VIEW`** と、**書き込み失敗で例外を投げず劣化すること**（`localStorageViewStore` の `save` の catch が未踏。`load` の catch＝`getItem` 失敗も同様に未踏）
+    - **訂正（記述の食い違い・実装は変えていない）:** 旧本文は未踏の catch を `src/client/persistence.ts:250-258` と行番号で指していた。実際は save の catch が 252 行、load の catch が 262 行である。実装が動けば行番号はズレるため、指し先を関数名・シンボル名（`localStorageViewStore` の `save` / `load` の catch）へ改めた。既存テストの参照先として記した行番号は監査時点の事実の記録ゆえ残す
     - _Requirements: 11.2, 11.4_
 
 - [-] 6. 端: Connectivity_Watch（WS 生存検出・二段階 down 検出）
   - [x] 6.1 ping/pong 定数・閾値と watchConnectivity の WS ライフサイクルを実装する
-    - `src/client/connectivity.ts`（新規）: `PING_REQUEST` / `PONG_RESPONSE`（shell の auto-response と同一確定値）・`PING_INTERVAL_MS`(15000)・`PONG_TIMEOUT_MS`(10000)・`SILENT_LOSS_MISSES`(2) を定義。`ConnectivityWatch` / `ConnectivityWatchFactory` と `watchConnectivity` を実装し、WS の開閉・`PING_INTERVAL_MS` 以下での ping 送信・ServerMessage 受信購読・`send` を担う。WS open ＋ 全量 snapshot 受信で `up`、pong 受信で `up` を確定する（既存 `Socket` / `SocketOpener` 注入の継ぎ目を再利用）
+    - `src/client/connectivity.ts`（新規）: `PING_REQUEST` / `PONG_RESPONSE`（shell の auto-response と同一確定値）・`PING_INTERVAL_MS`(4000)・`PONG_TIMEOUT_MS`(2000)・`SILENT_LOSS_MISSES`(2) を定義。`ConnectivityWatch` / `ConnectivityWatchFactory` と `watchConnectivity` を実装し、WS の開閉・`PING_INTERVAL_MS` 以下での ping 送信・ServerMessage 受信購読・`send` を担う。WS open ＋ 全量 snapshot 受信で `up`、pong 受信で `up` を確定する（既存 `Socket` / `SocketOpener` 注入の継ぎ目を再利用）
+    - **訂正（記述の食い違い・実装は変えていない）:** 旧本文は `PING_INTERVAL_MS`(15000)・`PONG_TIMEOUT_MS`(10000) と書いていた。実装（`src/client/connectivity.ts`）と design.md はいずれも 4000 / 2000 / 2 であり、outlier は本タスク本文の括弧内の数値だけだった。要件との整合も確認済み——要件1.2 は「15000 ミリ秒以下」ゆえ 4000 は充足し、要件1.4 は「2000 ミリ秒以内」「down 確定の目安 ≈ 10 秒」で `2 × 4000 + 2000 = 10000` が実装値に一致する
     - 到達性検出の常駐ループは DO を wake させる通常メッセージを送らない（heartbeats は auto-response 経路に限る・要件1.6）
     - _Requirements: 1.2, 1.3, 1.6, 2.2_
 
@@ -151,7 +154,7 @@
 
 - [x] 7. 端: Sync_Mediator（openTimerConnection / TimerConnection の拡張）
   - [x] 7.1 Mode 経路選択・Reconcile 契機づけ・永続化・boot 再水和を配線する
-    - `src/client/connection.ts`: 既存 `openTimerConnection` / `TimerConnection` を拡張し、UI の `start` / `cancel` を `mode(view)` で経路選択する（**live: `ClientMessage` を WS 送信。degraded: 補正後現在時刻と生成 id を端で採取して `LocalStart` / `LocalCancel` を `decideView` へ畳み込み、WS へは送らない**）。Connectivity_Watch から `up` を受け、直前が `down`（down→up 遷移）なら次の全量 snapshot を `Reconcile` として畳み込む。ビューが変化するたび `Persistence_Port.save(view)` を呼び、boot 時は `Persistence_Port.load()` で同期再水和してから接続する。UI はこの窓口のみと対話し、トランスポートはポート背後に隠す
+    - `src/client/connection.ts`: 既存 `openTimerConnection` / `TimerConnection` を拡張し、UI の `start` / `cancel` を `mode(view)` で経路選択する（**live: `ClientMessage` を WS 送信。degraded: 補正後現在時刻と生成 id を端で採取して `LocalStart` / `LocalCancel` を `decideView` へ畳み込み、WS へは送らない**）。Connectivity_Watch から `up` を受け、直前が `down`（down→up 遷移）なら次の全量 snapshot を `Reconcile` として畳み込む。ビューが変化するたび `ViewStore.save(view)` を呼び、boot 時は `ViewStore.load()` で同期再水和してから接続する。UI はこの窓口のみと対話し、トランスポートはポート背後に隠す
     - 再水和ビューに endTime が補正後現在以下かつ未登録の Timer があれば、boot 直後に `dueLocalTimers` で導出してローカル発火する（要件11.3）
     - _Requirements: 4.4, 4.5, 6.3, 7.3, 2.4, 11.1, 11.2, 11.3_
 
@@ -181,7 +184,7 @@
     - `SlotCard.tsx` の実装は 4 種別で操作の口を出し分ける。`idle` は Start（`aria-label` が `Slot {slot} — Start`）、`running` は Cancel（`Cancel` / armed 時は `Tap again to cancel`）、`boiled` は Complete（`aria-label` が `Complete`）、`unreceived` は操作の口を持たない。**Start を描くのは `idle` だけである**（旧本文の「`idle` / `boiled` のみ Start を描画する」は誤り）
     - 既存 `tests/client/assignment-ui.example.test.ts` の `operationsOf` は SlotCard の分岐をテスト側へ写したヘルパであり、**構造の写しであって行動の主張ではない**（実 `SlotCard` を書き換えても落ちない）。ゆえに実 `SlotCard` に対する主張が別に要る。実現手段（React テスティングライブラリは未導入・同テストの冒頭コメント参照）は実装着手前に確認する
     - **監査結果（部分カバー・残余だけを書く）:** 既存 `tests/client/assignment-ui.example.test.ts:21-32` ＋ `:97-99` は `operationsOf` という構造の写しで、実 `SlotCard` を書き換えても落ちない。`unconfirmed` の assert は 0 件（唯一の出現は `tests/client/complete.example.test.ts:74` の fixture 値）
-    - `unconfirmed` は `src/client/components/slotDisplay.ts:76` で導出されるだけで UI が消費していない——要件 6.4 の「視覚的に区別可能な未確定表示」の描画は未実装で、example で主張できるのは `assignedSlotDisplays` の返り値まで。React テスティングライブラリは未導入
+    - `unconfirmed` は `assignedSlotDisplays`（`src/client/components/slotDisplay.ts`）の `running` 分岐で `earliest.origin === "local"` から導出されるだけで UI が消費していない——要件 6.4 の「視覚的に区別可能な未確定表示」の描画は未実装で、example で主張できるのは `assignedSlotDisplays` の返り値まで。React テスティングライブラリは未導入
     - _Requirements: 6.4, 9.1, 9.2_
 
 - [x] 9. チェックポイント — 端（Persistence_Port / Connectivity_Watch / Sync_Mediator / slotDisplay）のテストが通ることを確認
@@ -221,7 +224,7 @@
   - [ ]* 12.2 blackhole ライフサイクルの統合テストを書く（mock WS + faketime）
     - blackhole 有効化で送信 ping のみ捨て通常メッセージ・受信を素通しすること、silent-loss 検知（要件1.4）を通じて degraded に入り Mode を直接書き換えないこと、無効化でランタイム可逆に ping 再開 →`up` 復帰 → down→up 遷移で Reconcile を契機づけることを 1〜2 例で確認する
     - **監査結果（未カバー・新規に書く）＋実測:** Workers pool（`vitest.config.ts:139-140` の `workers` プロジェクト）で `import.meta.env.DEV` は **true**、`MODE` は `"test"`（実測）。`withPingBlackhole` は恒等関数にならず、`PING_REQUEST` だけが実際に落ちることを確認済み。**空虚な緑にはならないのでそのまま書ける**
-    - 留意点 (1): `VITE_PING_BLACKHOLE_DEBUG` は `MODE === "test"` では undefined ゆえ `pingBlackholeDebugEnabled()` は false で、`src/client/connection.ts:832` の自動配線は効かない → `options.openSocket` へ `withPingBlackhole(fakeOpener, isPingBlackholeActive)` を明示的に渡す
+    - 留意点 (1): `VITE_PING_BLACKHOLE_DEBUG` は `MODE === "test"` では undefined ゆえ `pingBlackholeDebugEnabled()` は false で、`openTimerConnection`（`src/client/connection.ts`）内の自動配線は効かない → `options.openSocket` へ `withPingBlackhole(fakeOpener, isPingBlackholeActive)` を明示的に渡す
     - 留意点 (2): silent-loss 検知（要件1.4）を通す必要があるため既定の `watchConnectivity` を通す側（`openConnectionWithFakeSockets` 系）を使う。偽 Watch の `openConnectionWithFakeWatch` は ping/pong を飛び越えるので使えない
     - 留意点 (3): `tests/client/support/timerConnection.ts:55` の `openConnectionWithFakeSockets()` は偽 `openSocket` をハードコードして引数を取らないため、opener を受け取れるようにするか、テスト内にローカルで据え付ける。`PONG_TIMEOUT_MS × SILENT_LOSS_MISSES` を進めるので `vi.useFakeTimers()` が要る
     - _Requirements: 14.1, 14.2, 14.3_
@@ -229,7 +232,7 @@
   - [ ]* 12.3 本番バンドル除外・UI 非露出の静的検査を書く
     - blackhole 切替手段が `import.meta.env.DEV` / デバッグフラグでゲートされ本番ユーザー向け UI に露出しないこと、本番バンドルへ含まれないことを静的に検証する
     - **監査結果（未カバー・新規に書く）＋実測:** **AST 検査に絞る。dist を読む検査にしない。** `dist/` は `.gitignore` にあり、CI（`.github/workflows/ci-cd.yml`）は `pnpm test` を build より前に走らせるため、dist を読む検査は CI で必ず失敗か skip になる（＝空虚な緑）
-    - `tests/service-worker-config.static.test.ts` と同型に TypeScript AST で「ゲートの形」を主張する。ゲートは実装の 5 箇所——`src/client/connectivity.ts:473`（`pingBlackholeDebugEnabled` 先頭の `if (!import.meta.env.DEV) return false;`）・`:474`（`VITE_PING_BLACKHOLE_DEBUG === "1"`）・`:511`（`withPingBlackhole` 先頭の early return）・`src/client/connection.ts:832`（`import.meta.env.DEV && pingBlackholeDebugEnabled()`）・`src/client/App.tsx:127`（`degradationTestable` の初期化子。`:268` の `{degradationTestable && (` がトグル JSX（`:275` の `"Simulate offline (dev)"`）を包む唯一の経路）
+    - `tests/service-worker-config.static.test.ts` と同型に TypeScript AST で「ゲートの形」を主張する。ゲートは実装の 5 箇所——`src/client/connectivity.ts` の `pingBlackholeDebugEnabled` 先頭の `if (!import.meta.env.DEV) return false;`・同関数の `VITE_PING_BLACKHOLE_DEBUG === "1"`・`withPingBlackhole` 先頭の early return・`src/client/connection.ts` の `openTimerConnection` 内の `import.meta.env.DEV && pingBlackholeDebugEnabled()` 分岐・`src/client/App.tsx` の `degradationTestable` の初期化子（`{degradationTestable && (` がトグル JSX（`"Simulate offline (dev)"`）を包む唯一の経路）。**指し先は行番号ではなくシンボル名で書く**（実装が動けば行番号はズレる）
     - **新ファイルは `vitest.config.ts` の `static` の `include` と `workers` の `exclude` の両方へ登録する**（片方だけでは二重実行または未実行）
     - _Requirements: 14.4_
 
@@ -277,7 +280,7 @@
 
   - [ ]* 15.7 UI 3 分岐の example テストを書く
     - `connectionStatus(view)` が `unreachableReason` で英語文言（"Offline — running locally" / "No access to this store" / "Sign-in required"）を出し分けることを確認する
-    - **監査結果（当面保留）:** 理由は 2 つ。(1) `connectionStatus` は `src/client/components/ConnectionStatus.tsx:25` の module-private で、export するなら公開シンボルの追加＝`naming.md` によりユーザー確認が要る。React 描画の経路も無い（テスティングライブラリ未導入）
+    - **監査結果（当面保留）:** 理由は 2 つ。(1) `connectionStatus` は `src/client/components/ConnectionStatus.tsx` の module-private で、export するなら公開シンボルの追加＝`naming.md` によりユーザー確認が要る。React 描画の経路も無い（テスティングライブラリ未導入）
     - (2) 文言が動く予定——`signin-required-misreported-as-offline` タスク 8（未完・`[~]`）が `signInRequired` を `Sign-in required — tap to sign in` へ変える計画（同 tasks.md 156-162 行）。いま現行文言 `"Sign-in required"` を固定すると、あちらの完了時に赤くなる
     - **あちらのタスク 7（実機の認証往復検証）と 8 が決着してから着手する。** `offline` / `noAccess` の据え置きは両 spec で一致している
     - _Requirements: 15.9, 15.10, 15.11_
@@ -300,6 +303,8 @@
 - `Feature: offline-degradation, Property N: ...` のタグを持つテストは現時点で 0 件だが、後続 spec（`degraded-slot-superimposition` / `snapshot-broadcast` / `sync-set-batch-complete`）の property が P3・P5・P8 の相当部分を先に押さえている。**新規に書くのは残余だけで、タグはその残余のテストに付す。**
 - 既存 property の反復回数はすべて 100 以上（clock 200 / notification 200 / reconcile 200 / gate 200 / resolution 300 / display 200 / convergence 200 / exploration 100 / boiledGroup 100）。形式の不足は「タグコメント欠如」と「`Validates: Requirements` 欠如」に限る。
 - 生成器の足場（`tests/client/generators.ts`）は公開型 import へ差し替え済み。ローカル型定義を置き直さない。
+- **指し先の書き方** — `src/**` の実装を指すときは行番号ではなく関数名・シンボル名で書く（実装が動けば行番号はズレ、読み手が辿れなくなる）。既存テストの参照先として記した行番号は監査時点の事実の記録なので残す。
+- **申し送り（本 spec の担当外・記録がどこにも無いと失われるため残す）** — `tests/shell/store-timer-alarm.integration.test.ts` のフレークを修正した。原因は `waitForSnapshot` が全履歴を遡るのに述語が「Timer 件数」だったため、cancel（件数が減る）の待機が開始フェーズの過去の一致で即座に解けていたこと。待機が空振りし、DO の処理と永続 / Alarm の読みが競走していた。修正は遡る範囲を `since`（到着列の添字）以降に限る形。**同型の「件数述語 ＋ 全履歴遡り」パターンが `tests/shell/cook-scheduling.integration.test.ts`・`boil-sync-persist-failure.integration.test.ts`・`boil-sync-broadcast-recovery.integration.test.ts`・`store-timer-broadcast-order.integration.test.ts` にも複製されている**（いずれも `since` を持たない）。件数が減る遷移を待つ箇所は同じフレークを踏みうる。
 - **要件15（到達不能理由）の不変点** — 分類の追加でも core（`src/engine/`）は変更せず、`ClientMessage` / `ServerMessage` に新種別・新フィールドを足さない（分類は HTTP fetch であって WebSocket メッセージではない・要件15.14）。既存 `GET /entry/stores` は**再利用のみ**で新設・改変しない。`unreachableReason`（既定 `offline`）は `down` 時のみ意味を持つ分類結果で、Connectivity（二値）・Mode（導出）とは独立の別軸であり状態へ昇格させない。`Classify` は純粋畳み込み（fetch / HTTP / DOM / 時計に触れない）で、fetch という作用は `probeReachability`（`connectivity.ts` の端）に隔離する（計算と作用の分離）。`unreachableReason` は永続しない（`PersistedView` に含めず再水和は `offline` 起点）。命名（`unreachableReason` / `UnreachableReason` / `Classify` / `probeReachability` / `denied` tone）は naming.md 確認済みの**確定**値で暫定ではない。
 
 ## Task Dependency Graph
