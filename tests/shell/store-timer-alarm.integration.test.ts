@@ -76,6 +76,9 @@ const PAIR_BOIL_SECONDS = 62;
 const MID_BOIL_SECONDS = 120;
 const LATE_BOIL_SECONDS = 300;
 
+/** snapshot の待機を打ち切る猶予。実時間ゆえ主張には効かず、取り違えを待ち続けないための上限である。 */
+const WAIT_TIMEOUT_MS = 5_000;
+
 /** snapshot ServerMessage の絞り込み型（Timer 集合を読むのはこの種別だけ）。 */
 type SnapshotMessage = Extract<ServerMessage, { readonly type: "snapshot" }>;
 
@@ -124,8 +127,15 @@ async function provision(storeId: string): Promise<DurableObjectStub<StoreTimerD
 interface WsProbe {
   /** 到着順の全メッセージ（config を含む）。broadcast の不在を件数で見るために生の列を持つ。 */
   readonly messages: readonly ServerMessage[];
-  /** 条件を満たす snapshot を待つ（既受信にも遡って一致する）。 */
-  waitForSnapshot(predicate: (message: SnapshotMessage) => boolean, timeoutMs?: number): Promise<SnapshotMessage>;
+  /**
+   * 条件を満たす snapshot を待つ。既受信にも遡って一致するが、遡る範囲は `since`（到着列の添字）以降に限る。
+   *
+   * **なぜ範囲を切れるようにするか。** 遡りは、送出の完了を待つ間に broadcast が先に届いてしまう発火の経路
+   * （`fireAlarmAt` の後）で必要になる。だが件数のような**再訪する述語**では、遡りが過去の一致を拾って
+   * 待機そのものを無効化する——当該遷移がまだ処理されていない時点で先へ進み、直後の永続 / Alarm の読みが
+   * DO の処理と競走する。ゆえに「この遷移より後に届いた snapshot」を指定できる形にする。
+   */
+  waitForSnapshot(predicate: (message: SnapshotMessage) => boolean, since?: number): Promise<SnapshotMessage>;
   send(message: unknown): void;
   close(): void;
 }
@@ -157,13 +167,13 @@ async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> 
 
   return {
     messages,
-    waitForSnapshot(predicate, timeoutMs = 5_000) {
-      const already = messages.find(
-        (message): message is SnapshotMessage => message.type === "snapshot" && predicate(message),
-      );
+    waitForSnapshot(predicate, since = 0) {
+      const already = messages
+        .slice(since)
+        .find((message): message is SnapshotMessage => message.type === "snapshot" && predicate(message));
       if (already !== undefined) return Promise.resolve(already);
       return new Promise<SnapshotMessage>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("snapshot の待機がタイムアウトした")), timeoutMs);
+        const timer = setTimeout(() => reject(new Error("snapshot の待機がタイムアウトした")), WAIT_TIMEOUT_MS);
         waiters.push({
           predicate,
           resolve: (message) => {
@@ -249,14 +259,21 @@ async function startAtSlot(
   boilSeconds: number,
   expectedTimers: number,
 ): Promise<SnapshotMessage> {
+  // 送る前の到着数を控え、以降に届いた snapshot だけを当該 start の確定と見なす（過去の一致を拾わない）。
+  const since = client.messages.length;
   client.send({ type: "start", slotIds: [slotId], noodleType: NOODLE, boilSeconds });
-  return client.waitForSnapshot((message) => message.timers.length === expectedTimers);
+  return client.waitForSnapshot((message) => message.timers.length === expectedTimers, since);
 }
 
 /** timerId をキャンセルし、確定の broadcast を待って返す。 */
 async function cancelTimer(client: WsProbe, timerId: string, expectedTimers: number): Promise<SnapshotMessage> {
+  // **範囲を切るのがここでは不可欠である。** cancel は Timer 件数を減らすため、同じ件数の snapshot が
+  // 開始の途中で既に配信されている（4 本を積む列は 1・2・3・4 件を通る）。全履歴へ遡ると待機はその過去の
+  // 一致で即座に解け、cancel が処理される前に永続 / Alarm を読む競走が生まれる——1 本目の cancel なら
+  // 「近接ペアがそろえられたまま」の Alarm（BASE+60,900）を読み、期待の BASE+62,000 と 1,100ms 食い違う。
+  const since = client.messages.length;
   client.send({ type: "cancel", timerId });
-  return client.waitForSnapshot((message) => message.timers.length === expectedTimers);
+  return client.waitForSnapshot((message) => message.timers.length === expectedTimers, since);
 }
 
 /** ワイヤ snapshot から、当該釜を占める Timer の timerId を引く。 */
