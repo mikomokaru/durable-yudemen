@@ -202,6 +202,7 @@ sequenceDiagram
 - **`state.setWebSocketAutoResponse(new WebSocketRequestResponsePair(request, response))`** — DurableObjectState 上に**所定の ping 要求文字列に対し所定の pong 応答文字列を自動返信する**ペアを登録する。auto-response は**ランタイムが直接応答**するため、`webSocketMessage` ハンドラを起動せず、hibernate からの wake を伴わない（要件1.5・hibernation 互換を保つ・要件12.3）。これは「待つなら寝かせる」規律と完全に整合する——心拍が課金とリソースを浪費しない。
 - **登録位置** — 既存 `fetch()` の `this.ctx.acceptWebSocket(server)` の直後（snapshot 送信の前後どちらでもよいが、accept 直後に置く）。これが shell への**唯一の追加**であり、`webSocketMessage` / `webSocketClose` / `alarm` / core には一切触れない。
 - **観測ハーネスでの確認余地** — `hibernation-observability` の計装は、ping に対して `webSocketMessage`（broadcast 等の継ぎ目）が**発火しない**ことを観測できる（auto-response は継ぎ目を通らない）。
+  - **訂正（タスク 10.2 実装時に判明・実装は変えていない）:** これは **Workers pool では成立せず**、実デプロイ + `wrangler tail` なら成立しうる。理由は 2 つ。(1) 計装 `emitSeam` の継ぎ目は construct / rehydrate / alarm / broadcast の 4 種だけで、`webSocketMessage` 自体の継ぎ目を持たない（ping で「何も出ない」のは、通っていないからではなく継ぎ目が無いからでもありうる）。(2) 計装は `this.env.OBSERVE_DEBUG === "1"` でゲートされ `wrangler.jsonc` の vars 既定が `"0"`。`cloudflare:test` の `env` は test worker のもので DO の `this.env` へ伝播しないため、`vitest.config.ts` を変えずに DO 側で `"1"` にする手段が無い。Workers pool で実際に採った観測手段（`getWebSocketAutoResponse` の実効値・`getWebSocketAutoResponseTimestamp` の変化・インスタンスの `webSocketMessage` へ被せた包み＋対照）と、実 hibernate 自体は観測できていないという限界は tasks.md 10.2 に記録した。
 - **`ctx.getWebSockets()` は auto-response 越しに接続を維持する** — ping/pong は接続を生かし続けるだけで、サーバ状態を一切変えない。
 
 ---
