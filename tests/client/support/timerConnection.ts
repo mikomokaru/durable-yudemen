@@ -22,11 +22,14 @@
 // 利用者:
 //   - tests/client/connection.example.test.ts（要件4.2 / 4.5 / 4.6 / 5.2 / 5.3・provisional の経路分け）
 //   - tests/client/complete.example.test.ts（明示完了・同時上がり群の一括消し込み・残滓・拒否の畳み込み）
+//   - tests/client/degradedRouting.example.test.ts（degraded の cancel・Reconcile 契機づけ・boot 再水和発火・
+//     到達不能理由の分類の契機づけ）
 
 import { vi } from "vitest";
 import {
   EMPTY_VIEW,
   openTimerConnection,
+  type ClientTimer,
   type ClientView,
   type Connectivity,
   type Socket,
@@ -38,6 +41,15 @@ import type { TimerFact } from "../../../src/domain/timer";
 
 /** 任意の固定エポックミリ秒。両ハーネスの now の起点であり、受信時刻・endTime の基準になる。 */
 export const START_NOW = 1_000_000;
+
+/**
+ * 両ハーネスが接続する storeId。
+ *
+ * 到達不能理由の分類（probeReachability）は「この storeId が `GET /entry/stores` の返却リストに在るか」で
+ * noAccess / offline を分ける。ゆえに呼び出し側は据え付けが名乗る storeId を知る必要がある——テスト側に
+ * 同じ文字列を書けば、据え付けを変えたときに気づけない第二の真実になる。
+ */
+export const STORE_ID = "test-store";
 
 /** 1 回の接続試行で生成された偽 Socket（送信・切断のモック）とそのリスナの組。 */
 export interface OpenedSocket {
@@ -57,7 +69,7 @@ export function openConnectionWithFakeSockets() {
   let currentNow = START_NOW;
 
   const connection = openTimerConnection({
-    storeId: "test-store",
+    storeId: STORE_ID,
     url: "wss://test/ws",
     now: () => currentNow,
     openSocket: (_url, listeners) => {
@@ -103,10 +115,16 @@ export function receiveFrame(opened: OpenedSocket, message: unknown): void {
  * 外へ出ている。load は既定で EMPTY_VIEW にして boot 再水和の雑音を消し、未同期経路（要件2.7）だけ
  * 再水和ビューを渡す——`openTimerConnection` は接続前に load で再水和するため、hydration 前の
  * `sync === "connecting"` を作れる入口はここだけである。
+ *
+ * **なぜ onBoilAlert を常に数えるか:** 茹で上がりの発火は音という作用であり、ビューに残る痕跡は
+ * `processedIds` への登録だけである。「鳴って記録された」と「鳴らずに記録された」はビューからは同じ形に
+ * 見えるため、安全要（各 timerId につきちょうど一度鳴る・要件8）は呼び出し回数でしか外から観測できない。
+ * 既定は no-op ゆえ、常に数える形にしても振る舞いは変わらない——引数で有無を切り替える理由が無い。
  */
 export function openConnectionWithFakeWatch(rehydrated: ClientView = EMPTY_VIEW) {
   const send = vi.fn<(message: ClientMessage) => void>();
   const save = vi.fn<(view: ClientView) => void>();
+  const boilAlert = vi.fn<(timer: ClientTimer) => void>();
   let currentNow = START_NOW;
   let connectivityHandler: ((status: Connectivity) => void) | null = null;
   let serverMessageHandler: ((message: ServerMessage, receivedAt: number) => void) | null = null;
@@ -123,18 +141,20 @@ export function openConnectionWithFakeWatch(rehydrated: ClientView = EMPTY_VIEW)
   };
   let idCounter = 0;
   const connection = openTimerConnection({
-    storeId: "test-store",
+    storeId: STORE_ID,
     url: "wss://test/ws",
     now: () => currentNow,
     newId: () => `local-${(idCounter += 1)}`,
     connectivity: () => watch,
     persistence: { save, load: () => rehydrated },
+    onBoilAlert: boilAlert,
   });
 
   return {
     connection,
     send,
     save,
+    boilAlert,
     setConnectivity: (status: Connectivity) => connectivityHandler?.(status),
     /**
      * サーバメッセージを受信させる一次口。serverTime と受信時刻を独立に置けるため、offset
