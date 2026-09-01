@@ -32,18 +32,43 @@ const records = [
 
 // 不正な Operation_Record が型として構築できないことの検証。実行はせず、型検査だけが目的である。
 const rejectedByType = (): void => {
-  // @ts-expect-error completed は endTime を許可しない。
-  const completedWithEndTime: OperationRecord = { ...common, operationKind: "completed", endTime: timestamp(1) };
+  const completedWithEndTime: OperationRecord = {
+    ...common,
+    operationKind: "completed",
+    // @ts-expect-error completed は endTime を許可しない。
+    endTime: timestamp(1),
+  };
+  // 欠落は識別子の位置に報告されるため、この一つだけ宣言の直上に置く。
   // @ts-expect-error boiled は boiledAt を必須とする。
-  const boiledWithoutBoiledAt: OperationRecord = { ...common, operationKind: "boiled", endTime: timestamp(1) };
-  // @ts-expect-error slotIds は非空でなければならない。
-  const emptySlots: OperationRecord = { ...common, operationKind: "cancelled", slotIds: [] };
-  // @ts-expect-error timestamp は検証されていない number を直接受け入れない。
-  const unverifiedTimestamp: OperationRecord = { ...common, operationKind: "cancelled", eventTime: 0 };
-  // @ts-expect-error 自然人属性は既知契約に含めない。
-  const withPerson: OperationRecord = { ...common, operationKind: "cancelled", operatorName: "person" };
-  // @ts-expect-error 採番属性は既知契約に含めない。
-  const withSequence: OperationRecord = { ...common, operationKind: "cancelled", seq: 1 };
+  const boiledWithoutBoiledAt: OperationRecord = {
+    ...common,
+    operationKind: "boiled",
+    endTime: timestamp(1),
+  };
+  const emptySlots: OperationRecord = {
+    ...common,
+    operationKind: "cancelled",
+    // @ts-expect-error slotIds は非空でなければならない。
+    slotIds: [],
+  };
+  const unverifiedTimestamp: OperationRecord = {
+    ...common,
+    operationKind: "cancelled",
+    // @ts-expect-error timestamp は検証されていない number を直接受け入れない。
+    eventTime: 0,
+  };
+  const withPerson: OperationRecord = {
+    ...common,
+    operationKind: "cancelled",
+    // @ts-expect-error 自然人属性は既知契約に含めない。
+    operatorName: "person",
+  };
+  const withSequence: OperationRecord = {
+    ...common,
+    operationKind: "cancelled",
+    // @ts-expect-error 採番属性は既知契約に含めない。
+    seq: 1,
+  };
   void [completedWithEndTime, boiledWithoutBoiledAt, emptySlots, unverifiedTimestamp, withPerson, withSequence];
 };
 void rejectedByType;
