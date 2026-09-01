@@ -415,7 +415,8 @@ describe("(a) core 無変更・shell は auto-response 一点のみ（要件12.1
     ).toBe(1);
     // 登録するのは PING_REQUEST → PONG_RESPONSE の心拍ペアただ一つ（client と同一の確定値を共有）。
     expect(code, "auto-response が PING_REQUEST/PONG_RESPONSE のペアを登録していない").toMatch(
-      /setWebSocketAutoResponse\s*\(\s*new\s+WebSocketRequestResponsePair\s*\(\s*PING_REQUEST\s*,\s*PONG_RESPONSE\s*\)\s*\)/,
+      // 末尾カンマは整形の産物であり登録の事実ではないため、任意で受ける。
+      /setWebSocketAutoResponse\s*\(\s*new\s+WebSocketRequestResponsePair\s*\(\s*PING_REQUEST\s*,\s*PONG_RESPONSE\s*,?\s*\)\s*,?\s*\)/,
     );
   });
 
