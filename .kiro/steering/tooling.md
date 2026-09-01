@@ -15,6 +15,7 @@
 | テスト | **Vitest**（v4 系）＋ **@cloudflare/vitest-pool-workers** | 単体・PBT・DO 統合テスト | engine/domain は workerd 不要、shell/DO は Workers pool |
 | Property-Based Testing | **fast-check**（v4 系） | Correctness Property 検証 | PBT は自前実装しない |
 | Lint | **Oxc / oxlint**（v1 系） | 静的解析 | ESLint は使わない |
+| フォーマット | **Oxc / oxfmt**（`0.65.0` 厳密固定） | 整形・Tailwind クラス並べ替え | Prettier は使わない。0.x のため `^` を付けない |
 
 ## Wrangler の位置づけ（確定採用）
 
@@ -34,6 +35,20 @@ UI のスタイルは **Tailwind CSS v4** に統一する。素の CSS クラス
 - **取り込み点は 1 つ。** `main.tsx` が `styles.css` を副作用 import する唯一の経路を保つ。CSS の二重取り込みをしない。
 - **状態の色分けは条件付きクラス**（`cn` ヘルパ＝`src/client/cn.ts`）で TSX 側に出し分ける。`color-mix` を含む複数 box-shadow など、ユーティリティ化が辛いものだけ `@keyframes` として CSS に残す。実行時に変わる値（ラジアルの花びら座標）はインライン `style`。
 - **Lint は引き続き oxlint。** Tailwind 用の追加 lint は導入しない。
+- **クラスの並び順は oxfmt が決める。** `sortTailwindcss` を有効にしているため、`className` と `cn()` 引数のクラス順は整形時に正規化される。並び順を手で議論しない。`prettier-plugin-tailwindcss` は導入しない（oxfmt に内蔵）。
+
+## oxfmt の位置づけ（整形の正本）
+
+整形は **oxfmt** に一元化する。整形は設計判断ではない——判断を含まない領域を機械へ渡し、差分が意味の変化だけを指すようにするための道具である。
+
+- **設定は `.oxfmtrc.json`（リポジトリ直下）が唯一の出所。** CLI での上書き（`--no-semi` 等）はそもそも非対応。エディタ統合と CLI で同一の結果を得るため、設定はこのファイルだけに置く。
+- **版は厳密固定（`^` を付けない）。** oxfmt は 0.x であり、マイナー更新で出力が変わりうる。固定しない限り、無関係な更新がリポジトリ全体の再整形差分を生む。**版を上げるときは、整形差分だけの単独コミットで行う。**
+- **設定は既定値を明示しない。** `printWidth`（既定 100）・`tabWidth`（既定 2）・`semi`・引用符は書かない。版が固定されている以上、既定は勝手に動かない。書けば二つ目の真実になる。
+- **Markdown は対象外。** `ignorePatterns` で `**/*.md` / `**/*.mdx` を除外する。`.kiro/specs/` と `docs/` の日本語散文が大半で、改行位置の書き換えは要件文・EARS 文の差分をレビュー不能にする。得るものがない。
+- **`pnpm-lock.yaml` は対象外。** 生成物であり、整形の対象にすると pnpm の出力と競合する。
+- **`.gitignore` は自動で尊重される。** `dist` / `.wrangler` / `worker-configuration.d.ts` / `graphify-out` は明示的な除外を書かなくても飛ばされる（oxfmt は `.gitignore` を既定の ignore ファイルとして読む）。
+- **`sortImports` は無効のまま。** 有効化は import 順をリポジトリ全体で書き換える判断であり、導入と分けて決める。
+- **一括整形は未了。** 導入時点で 382 ファイル中 269 ファイルが未整形である。作業ツリーがクリーンなときに `main` から専用ブランチを切り、`pnpm fmt` の結果だけを単独コミットにして入れる。そのコミットハッシュを `.git-blame-ignore-revs` に載せる。**CI の `fmt:check` ステップは、その一括整形と同じコミットで追加する**（先に入れると未整形のコードで CI が落ちる）。
 
 ## コマンド（package.json scripts）
 
@@ -41,6 +56,8 @@ UI のスタイルは **Tailwind CSS v4** に統一する。素の CSS クラス
 - `pnpm build` — `tsc --noEmit && vite build`（型検査 → 本番ビルド）
 - `pnpm typecheck` — `tsc --noEmit`
 - `pnpm lint` — `oxlint`
+- `pnpm fmt` — `oxfmt`（整形して書き込む）
+- `pnpm fmt:check` — `oxfmt --check`（書き込まず差分の有無を検査。CI 用）
 - `pnpm test` — `vitest --run`（単発実行。watch は使わない）
 - `pnpm cf-typegen` — `wrangler types`（`Env` 型の再生成）
 
@@ -58,6 +75,7 @@ Kiro はパッケージ追加に `pnpm add` / `pnpm add -D` を用い、`npm` / 
       workerd: true
     ```
   - 本プロジェクトの確定値: **`workerd: true`・`esbuild: true`**（Vite/Wrangler の実行に必須）。**`sharp: false`**（ソースビルドに失敗する間接依存で、本プロジェクトでは不要）。
+- **oxlint / oxfmt は `allowBuilds` への追記が不要。** どちらもプラットフォーム別のプリビルド binding を `optionalDependencies` で配るだけで、`scripts` を持たない。ビルドが走らないため承認の対象にならない。
 - `pnpm install` が `ERR_PNPM_IGNORED_BUILDS` を出すと **exit code 1** になり、`wrangler types` など内部で `pnpm install` を呼ぶコマンドが連鎖的に失敗する。先に `allowBuilds` を確定させること。
 - `pnpm-workspace.yaml` は単一パッケージでも pnpm の設定ファイルとして機能する（ワークスペースでなくても可）。
 

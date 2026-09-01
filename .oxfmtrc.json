@@ -1,0 +1,7 @@
+{
+  "ignorePatterns": ["**/*.md", "**/*.mdx", "pnpm-lock.yaml"],
+  "sortTailwindcss": {
+    "functions": ["cn"],
+    "stylesheet": "./src/client/styles.css"
+  }
+}
