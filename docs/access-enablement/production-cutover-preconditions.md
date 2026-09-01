@@ -127,7 +127,8 @@
 - [ ] **許可する IdP 集合**が一致（EntraID_IdP と Whereami_IdP の**両方**）
   - Pilot にのみ OTP_Login を追加していること・**本番には OTP_Login を追加していない**こと（要件 10.7）
 - [ ] **認証対象に含める経路**が一致（Entry `/`・`/s/{storeId}/`・`/s/{storeId}/ws`）
-- [ ] **認証対象から除外する経路**が一致（`/admin/*`・既存アセット経路 例: `/favicon.svg` を bypass 用アプリ定義 ＋ 全員 Bypass ポリシーで実現・個数は店舗数非依存の定数個）
+- [ ] **認証対象から除外する経路**が一致（`/admin/*`・`/pos/records`・既存アセット経路 例: `/favicon.svg` を bypass 用アプリ定義 ＋ 全員 Bypass ポリシーで実現・個数は店舗数非依存の定数個）
+  - ポリシーが同一（全員 Bypass）ゆえ 3 経路は 1 つの bypass 用アプリにまとめられる。Action は **Bypass**（`Allow ＋ Everyone` では認証を要求し 302 が出続ける）
 - [ ] **audience が単一値に固定されている**という構成が一致
   - 揃えるのは「aud が単一値に固定されている」という**構成次元**であって、**aud 値そのものではない**。Pilot と本番は別の Access アプリゆえ aud 値は各アプリ固有であり**異なってよい**（要件 1.5）
 - [ ] **issuer** が `TEAM_DOMAIN` に単一固定という構成が一致（両 IdP 経路で同一）
