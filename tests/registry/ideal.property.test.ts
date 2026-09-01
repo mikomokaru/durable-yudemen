@@ -81,7 +81,10 @@ const genIdentity: fc.Arbitrary<Identity> = fc.string({ maxLength: 32 });
 const genRoster: fc.Arbitrary<Roster> = fc.array(genIdentity, { maxLength: 6 });
 
 /** Policy の mode。 */
-const genPolicyMode: fc.Arbitrary<PolicyMode> = fc.constantFrom<PolicyMode[]>("enforced", "default");
+const genPolicyMode: fc.Arbitrary<PolicyMode> = fc.constantFrom<PolicyMode[]>(
+  "enforced",
+  "default",
+);
 
 /** mode 付きの値。 */
 function genModedValue<T>(valueArb: fc.Arbitrary<T>): fc.Arbitrary<ModedValue<T>> {
@@ -145,7 +148,19 @@ const genStore: fc.Arbitrary<Store> = fc.record(
     updatedAt: fc.integer({ min: 0, max: 4_102_444_800_000 }),
   },
   // storeCode は任意（外部マスタ由来）。それ以外は必須。
-  { requiredKeys: ["storeId", "chainId", "name", "policyIds", "override", "storeRoster", "active", "createdAt", "updatedAt"] },
+  {
+    requiredKeys: [
+      "storeId",
+      "chainId",
+      "name",
+      "policyIds",
+      "override",
+      "storeRoster",
+      "active",
+      "createdAt",
+      "updatedAt",
+    ],
+  },
 );
 
 /** 妥当な任意のイデア（Chain / Policy / Store のいずれか）。 */

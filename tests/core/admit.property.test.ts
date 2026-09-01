@@ -51,7 +51,12 @@ import type { ScheduleParams } from "../../src/engine/objective";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
-import { DEFAULT_NOODLE_PRESETS, SLOTS_PER_UNIT, UNIT_COUNT_MAX, UNIT_COUNT_MIN } from "../../src/domain/store";
+import {
+  DEFAULT_NOODLE_PRESETS,
+  SLOTS_PER_UNIT,
+  UNIT_COUNT_MAX,
+  UNIT_COUNT_MIN,
+} from "../../src/domain/store";
 import {
   KNOWN_NOODLE_TYPES,
   NOW,
@@ -188,13 +193,22 @@ function spliced(first: CookSchedule, second: CookSchedule): CookSchedule {
   const bySecond = new Map(second.slices.map((slice) => [slice.tableKey, slice]));
   return {
     ...first,
-    slices: first.slices.map((slice, index) => (index % 2 === 0 ? slice : (bySecond.get(slice.tableKey) ?? slice))),
+    slices: first.slices.map((slice, index) =>
+      index % 2 === 0 ? slice : (bySecond.get(slice.tableKey) ?? slice),
+    ),
   };
 }
 
 /** 現在の採用済み計画から確定計画を導く（admit の比較基準そのもの）。 */
 function committedOf(scene: AdmitScene, accepted: readonly AcceptedSlice[]): CookSchedule {
-  return committedSchedule(accepted, scene.pending, scene.running, scene.now, DEFAULT_NOODLE_PRESETS, scene.params);
+  return committedSchedule(
+    accepted,
+    scene.pending,
+    scene.running,
+    scene.now,
+    DEFAULT_NOODLE_PRESETS,
+    scene.params,
+  );
 }
 
 /** 1 本の外部計画をゲートへ通す。採用があれば採用済み計画は返された接頭辞へ置き換わる。 */

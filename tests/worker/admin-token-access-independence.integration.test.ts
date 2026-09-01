@@ -42,8 +42,15 @@ const TEST_ADMIN_TOKEN = "test-admin-token-hermetic";
 async function callAdmin(accessRequired: string, authorization: string | null): Promise<Response> {
   const headers = new Headers();
   if (authorization !== null) headers.set("Authorization", authorization);
-  const request = new Request(`https://admin.invalid${ADMIN_PROBE_PATH}`, { method: "GET", headers });
-  const testEnv = { ...env, ACCESS_REQUIRED: accessRequired, ADMIN_TOKEN: TEST_ADMIN_TOKEN } as unknown as Env;
+  const request = new Request(`https://admin.invalid${ADMIN_PROBE_PATH}`, {
+    method: "GET",
+    headers,
+  });
+  const testEnv = {
+    ...env,
+    ACCESS_REQUIRED: accessRequired,
+    ADMIN_TOKEN: TEST_ADMIN_TOKEN,
+  } as unknown as Env;
   return worker.fetch(request, testEnv);
 }
 

@@ -15,7 +15,7 @@
   // root と同一の日付に揃える（tooling.md の確定値）。Worker 間で挙動の既定が食い違わないようにする。
   "compatibility_date": "2026-06-26",
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   // ネットワークへ露出させない。この Worker への正当な到達経路は Queue delivery だけであり、fetch handler も
   // route も持たない。Producer を起動できる経路（route、Service binding、DO namespace／stub、
@@ -36,9 +36,9 @@
       {
         "queue": "operation-records",
         "max_retries": 5,
-        "dead_letter_queue": "operation-records-dlq"
-      }
-    ]
+        "dead_letter_queue": "operation-records-dlq",
+      },
+    ],
   },
   // raw arrival の保存先。binding 名はタスク1 で確定済み。object key は delivery identity だけから決まり、
   // 重複配送でも既存 object を消さず上書きもしない（要件5.5 / 5.7。src/data-platform/raw-arrival-consumer.ts）。
@@ -46,7 +46,7 @@
   "r2_buckets": [
     {
       "binding": "OPERATION_RAW_ARRIVALS",
-      "bucket_name": "operation-raw-arrivals"
-    }
-  ]
+      "bucket_name": "operation-raw-arrivals",
+    },
+  ],
 }

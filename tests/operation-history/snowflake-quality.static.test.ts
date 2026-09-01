@@ -9,10 +9,8 @@
 //   3. 判定の根拠 raw arrival を削除しないこと（要件 5.7）。閾値の実値をリポジトリに置かないこと。
 
 import { describe, expect, it } from "vitest";
-import correlationAndConvergenceSql
-  from "../../config/operation-history-snowflake/03-correlation-and-convergence.sql?raw";
-import qualityRatesSql
-  from "../../config/operation-history-snowflake/04-quality-rates-and-trusted-analysis.sql?raw";
+import correlationAndConvergenceSql from "../../config/operation-history-snowflake/03-correlation-and-convergence.sql?raw";
+import qualityRatesSql from "../../config/operation-history-snowflake/04-quality-rates-and-trusted-analysis.sql?raw";
 // 以下 3 つの `?raw` の default は vite/client の `declare module '*?raw'` が与えるため tsc は通る。oxlint の resolver は
 // その宣言を読まず `?raw` を落として実ファイルへ解決するので、実在する .ts を指すときだけ default 無しと誤判定する
 // （上の .sql?raw は resolver が解決できず黙る）。ゆえに抑制は .ts?raw の import に限る。
@@ -47,8 +45,9 @@ function creationOf(object: string): string {
 
 /** 一文の GROUP BY 句に並ぶ列名。 */
 function groupByColumns(statement: string): readonly (readonly string[])[] {
-  return [...statement.matchAll(/GROUP BY (.+?)(?=\)|LEFT JOIN|$)/g)]
-    .map(([, columns]) => columns!.split(",").map((column) => column.trim()));
+  return [...statement.matchAll(/GROUP BY (.+?)(?=\)|LEFT JOIN|$)/g)].map(([, columns]) =>
+    columns!.split(",").map((column) => column.trim()),
+  );
 }
 
 const camelToUpperSnake = (name: string): string =>
@@ -63,9 +62,7 @@ const qualityRateNames = [
 
 /** quality.ts が受け取る counts の属性名（宣言順）。 */
 const countNames = [
-  ...qualitySource
-    .match(/counts: Readonly<\{([\s\S]*?)\}>/)![1]!
-    .matchAll(/(\w+): number;/g),
+  ...qualitySource.match(/counts: Readonly<\{([\s\S]*?)\}>/)![1]!.matchAll(/(\w+): number;/g),
 ].map(([, name]) => name!);
 
 // Requirements 5.9, 5.10, 5.11, 5.12
@@ -108,8 +105,8 @@ describe("純粋層の定義との一対一対応", () => {
       expect(countNames).toContain(denominator);
       expect(rate).toMatch(
         new RegExp(
-          `'${name}' AS QUALITY_RATE, ${camelToUpperSnake(numerator)} AS NUMERATOR, `
-          + `${camelToUpperSnake(denominator)} AS DENOMINATOR`,
+          `'${name}' AS QUALITY_RATE, ${camelToUpperSnake(numerator)} AS NUMERATOR, ` +
+            `${camelToUpperSnake(denominator)} AS DENOMINATOR`,
         ),
       );
     }
@@ -138,7 +135,9 @@ describe("相関 key と収束 key", () => {
   it("一次相関候補の key が correlation.ts と同じ四属性だけである", () => {
     const primary = [
       ...correlationSource
-        .match(/function primaryCandidate\(record: OperationRecord\): PrimaryCandidate \{([\s\S]*?)\n\}/)![1]!
+        .match(
+          /function primaryCandidate\(record: OperationRecord\): PrimaryCandidate \{([\s\S]*?)\n\}/,
+        )![1]!
         .matchAll(/(\w+): record\.\w+,/g),
     ].map(([, name]) => camelToUpperSnake(name!));
 
@@ -189,7 +188,9 @@ describe("相関 key と収束 key", () => {
     expect(arrival).toContain(
       "TO_CHAR(TO_TIMESTAMP_NTZ(KNOWN:eventTime::NUMBER, 3), 'YYYY-MM-DD') AS PERIOD",
     );
-    expect(arrival).not.toMatch(/(?:FIRST_OBSERVED_AT|SNOWFLAKE_ARRIVED_AT|R2_LAST_MODIFIED_AT)[^,]*AS PERIOD/);
+    expect(arrival).not.toMatch(
+      /(?:FIRST_OBSERVED_AT|SNOWFLAKE_ARRIVED_AT|R2_LAST_MODIFIED_AT)[^,]*AS PERIOD/,
+    );
   });
 });
 
@@ -212,7 +213,9 @@ describe("四品質状態と復元規則", () => {
       expect(expected).not.toContain(`'${kind}'`);
     }
     // 既存の表明（統合テストの recoverableLifecycleRecords）と同じ規則であること。
-    expect(unobservedTelemetrySource).toContain('if (record.operationKind !== "boil-started") return [];');
+    expect(unobservedTelemetrySource).toContain(
+      'if (record.operationKind !== "boil-started") return [];',
+    );
     expect(unobservedTelemetrySource).toContain('operationKind: "boiled",');
     expect(unobservedTelemetrySource).toContain("eventTime: record.endTime,");
   });
@@ -234,7 +237,9 @@ describe("分母 0 の算出不能と信頼済み分析からの除外", () => {
 
     expect(rate).toContain("IFF(RATE.DENOMINATOR = 0, 'not-calculable', 'calculated') AS STATUS");
     expect(rate).toContain("RATE.NUMERATOR / NULLIF(RATE.DENOMINATOR, 0) AS VALUE");
-    expect(rate).toContain("IFF(RATE.DENOMINATOR = 0, 'denominator-is-zero', NULL) AS NOT_CALCULABLE_REASON");
+    expect(rate).toContain(
+      "IFF(RATE.DENOMINATOR = 0, 'denominator-is-zero', NULL) AS NOT_CALCULABLE_REASON",
+    );
     // 0 で埋める形が混ざっていないこと。
     expect(rate).not.toMatch(/ZEROIFNULL|(?:COALESCE|IFNULL)\(\s*(?:RATE\.NUMERATOR \/|VALUE)/i);
   });
@@ -278,8 +283,9 @@ describe("この層の責務境界", () => {
     expect(sql).toContain("ANY_VALUE(CANONICAL_LINE)");
     // record 全体を VARIANT から再直列化しない（属性順が正規化されて bytes が失われる）。
     expect(sql).not.toMatch(/TO_JSON\(\s*KNOWN\s*\)/);
-    expect([...sql.matchAll(/TO_JSON\(([^)]*)\)/g)].map(([, argument]) => argument!.trim()))
-      .toEqual(["KNOWN:slotIds"]);
+    expect(
+      [...sql.matchAll(/TO_JSON\(([^)]*)\)/g)].map(([, argument]) => argument!.trim()),
+    ).toEqual(["KNOWN:slotIds"]);
   });
 
   it("閾値の実値をリポジトリに持たず、運用設定として分離する", () => {

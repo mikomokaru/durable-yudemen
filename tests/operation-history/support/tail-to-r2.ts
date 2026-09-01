@@ -68,7 +68,10 @@ export type Pipeline = {
 
 export async function runTailToR2(
   events: readonly TraceItem[],
-  options: { readonly queueSendFails?: boolean; readonly putFailsFor?: (key: string) => boolean } = {},
+  options: {
+    readonly queueSendFails?: boolean;
+    readonly putFailsFor?: (key: string) => boolean;
+  } = {},
 ): Promise<Pipeline> {
   const queued: OperationRecordMessage[] = [];
   let sendBatchCalls = 0;

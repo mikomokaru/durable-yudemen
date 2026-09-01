@@ -61,7 +61,9 @@ export function toUniqueKey(payload: Record<string, unknown>): string | null {
 function quoteUpstream(value: string): string {
   let quoted = "";
   for (const byte of utf8.encode(value)) {
-    quoted += isPassThroughByte(byte) ? String.fromCharCode(byte) : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+    quoted += isPassThroughByte(byte)
+      ? String.fromCharCode(byte)
+      : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
   }
   return quoted;
 }

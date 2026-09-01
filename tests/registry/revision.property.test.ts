@@ -49,8 +49,14 @@ const genScenario = fc
         overrides: fc.array(genOverride, { minLength: storeCount, maxLength: storeCount }),
         updates: fc.array(
           fc.oneof(
-            fc.record({ tag: fc.constant("chain" as const), index: fc.nat({ max: chainCount - 1 }) }),
-            fc.record({ tag: fc.constant("store" as const), index: fc.nat({ max: storeCount - 1 }) }),
+            fc.record({
+              tag: fc.constant("chain" as const),
+              index: fc.nat({ max: chainCount - 1 }),
+            }),
+            fc.record({
+              tag: fc.constant("store" as const),
+              index: fc.nat({ max: storeCount - 1 }),
+            }),
           ),
           { minLength: 1, maxLength: 15 },
         ),

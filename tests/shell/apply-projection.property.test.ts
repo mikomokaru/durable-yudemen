@@ -149,7 +149,9 @@ describe("shell/applyProjection — version 単調ガード", () => {
           const maxProjection = sequence.reduce((best, current) =>
             current.version > best.version ? current : best,
           );
-          const finalStored = (await state.storage.get(PROJECTION_KEY)) as StoreProjection | undefined;
+          const finalStored = (await state.storage.get(PROJECTION_KEY)) as
+            | StoreProjection
+            | undefined;
           expect(finalStored).toEqual(maxProjection);
           expect(expectedPersisted).toEqual(maxProjection);
         });

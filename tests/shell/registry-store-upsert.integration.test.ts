@@ -1,6 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { env, runInDurableObject, reset } from "cloudflare:test";
-import { REGISTRY_NAME, REVISION_KEY, type StoreRegistryDO } from "../../src/shell/store-registry-do";
+import {
+  REGISTRY_NAME,
+  REVISION_KEY,
+  type StoreRegistryDO,
+} from "../../src/shell/store-registry-do";
 
 // registry-store-upsert.integration.test.ts — PUT /admin/stores/{id} の冪等 upsert の統合テスト（Workers pool）。
 //
@@ -34,7 +38,9 @@ async function getStore(
   stub: DurableObjectStub<StoreRegistryDO>,
   storeId: string,
 ): Promise<{ status: number; body: Record<string, unknown> | null }> {
-  const res = await stub.fetch(new Request(`https://registry/admin/stores/${storeId}`, { method: "GET" }));
+  const res = await stub.fetch(
+    new Request(`https://registry/admin/stores/${storeId}`, { method: "GET" }),
+  );
   const body = res.status === 200 ? ((await res.json()) as Record<string, unknown>) : null;
   return { status: res.status, body };
 }
@@ -104,7 +110,11 @@ describe("PUT /admin/stores/{id} — 冪等 upsert（Requirements 2.8, 3.5）", 
 
     // 1st PUT: 作成（名簿 A）。
     await stub.fetch(
-      putStore(storeId, { chainId: "yamaokaya", name: "更新対象店", storeRoster: ["a@example.com"] }),
+      putStore(storeId, {
+        chainId: "yamaokaya",
+        name: "更新対象店",
+        storeRoster: ["a@example.com"],
+      }),
     );
     // 2nd PUT: 更新（名簿 B へ差し替え）。
     const res = await stub.fetch(putStore(storeId, { storeRoster: ["b@example.com"] }));
@@ -123,7 +133,11 @@ describe("PUT /admin/stores/{id} — 冪等 upsert（Requirements 2.8, 3.5）", 
     const revisionBefore = await readRevision(stub);
 
     const res = await stub.fetch(
-      putStore(storeId, { chainId: "yamaokaya", name: "不正名簿店", storeRoster: ["ok@example.com", ""] }),
+      putStore(storeId, {
+        chainId: "yamaokaya",
+        name: "不正名簿店",
+        storeRoster: ["ok@example.com", ""],
+      }),
     );
 
     expect(res.status).toBe(400);

@@ -47,7 +47,11 @@ describe("core/start", () => {
         fc.string({ minLength: 1, maxLength: 6 }),
         fc.integer({ min: 0, max: 5_000_000 }),
         (state, boilSeconds, slotId, noodleType, now) => {
-          const outcome = startTimer(state, startEvent({ slotIds: [slotId], noodleType, boilSeconds, now }), PARAMS);
+          const outcome = startTimer(
+            state,
+            startEvent({ slotIds: [slotId], noodleType, boilSeconds, now }),
+            PARAMS,
+          );
           expect(outcome.ok).toBe(true);
           if (outcome.ok) {
             expect(outcome.state.timers.length).toBe(state.timers.length + 1);
@@ -67,7 +71,11 @@ describe("core/start", () => {
       // boilSeconds が範囲外（slot/noodle は妥当）→ InvalidBoilSeconds。
       fc
         .record({
-          boilSeconds: fc.oneof(fc.integer({ max: 0 }), fc.integer({ min: 1801 }), fc.constantFrom(Number.NaN, Infinity, -Infinity)),
+          boilSeconds: fc.oneof(
+            fc.integer({ max: 0 }),
+            fc.integer({ min: 1801 }),
+            fc.constantFrom(Number.NaN, Infinity, -Infinity),
+          ),
           slotIds: fc.constant<readonly string[]>(["0"]),
           noodleType: fc.string({ minLength: 1, maxLength: 6 }),
         })
@@ -83,20 +91,27 @@ describe("core/start", () => {
           ),
           noodleType: fc.oneof(fc.constant(""), fc.string({ minLength: 1, maxLength: 6 })),
         })
-        .filter((r) => r.slotIds.length === 0 || r.slotIds.some((s) => s === "") || r.noodleType === "")
+        .filter(
+          (r) => r.slotIds.length === 0 || r.slotIds.some((s) => s === "") || r.noodleType === "",
+        )
         .map((input) => ({ input, expected: "InvalidSlotOrNoodle" as const })),
     );
 
     fc.assert(
-      fc.property(genState, genInvalidStart, fc.integer({ min: 0, max: 5_000_000 }), (state, { input, expected }, now) => {
-        const before = plain(state);
-        const outcome = startTimer(state, startEvent({ ...input, now }), PARAMS);
-        expect(outcome.ok).toBe(false);
-        if (!outcome.ok) {
-          expect(outcome.rejection.code).toBe(expected);
-        }
-        expect(plain(state)).toEqual(before);
-      }),
+      fc.property(
+        genState,
+        genInvalidStart,
+        fc.integer({ min: 0, max: 5_000_000 }),
+        (state, { input, expected }, now) => {
+          const before = plain(state);
+          const outcome = startTimer(state, startEvent({ ...input, now }), PARAMS);
+          expect(outcome.ok).toBe(false);
+          if (!outcome.ok) {
+            expect(outcome.rejection.code).toBe(expected);
+          }
+          expect(plain(state)).toEqual(before);
+        },
+      ),
       { numRuns: 200 },
     );
   });
@@ -108,7 +123,10 @@ describe("core/start", () => {
       fc.property(
         genStateExact(100),
         fc.record({
-          slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 3 }),
+          slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), {
+            minLength: 1,
+            maxLength: 3,
+          }),
           noodleType: fc.string({ minLength: 1, maxLength: 6 }),
           boilSeconds: fc.integer({ min: 1, max: 1800 }),
         }),

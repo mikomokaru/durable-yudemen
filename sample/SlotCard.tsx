@@ -41,7 +41,7 @@ export function SlotCard({ index, slot, onStart, onStop, onClear }: SlotCardProp
     <article
       aria-label={`Slot ${index}`}
       className={cn(
-        "relative min-h-0 flex flex-col justify-center",
+        "relative flex min-h-0 flex-col justify-center",
         "gap-[clamp(4px,1vh,10px)] rounded-[14px] border border-line",
         "border-l-[5px] bg-panel p-[clamp(10px,1.6vh,18px)_clamp(14px,1.8vw,20px)]",
         "shadow-[0_1px_0_rgba(255,255,255,.03)_inset,0_8px_24px_rgba(0,0,0,.35)]",
@@ -54,7 +54,7 @@ export function SlotCard({ index, slot, onStart, onStop, onClear }: SlotCardProp
       <div className="flex items-center justify-between gap-4">
         <header
           className={cn(
-            "text-[clamp(11px,1.5vh,13px)] font-bold uppercase tracking-[.08em]",
+            "text-[clamp(11px,1.5vh,13px)] font-bold tracking-[.08em] uppercase",
             slot.status === "idle" ? "text-idle" : "text-muted",
           )}
         >
@@ -63,7 +63,7 @@ export function SlotCard({ index, slot, onStart, onStop, onClear }: SlotCardProp
         {slot.status !== "idle" && (
           <p
             className={cn(
-              "m-0 font-mono font-medium leading-[.95] tabular-nums tracking-[.02em]",
+              "m-0 font-mono leading-[.95] font-medium tracking-[.02em] tabular-nums",
               "text-[clamp(30px,7vh,64px)]",
               timeColor,
             )}
@@ -78,7 +78,7 @@ export function SlotCard({ index, slot, onStart, onStop, onClear }: SlotCardProp
         <p
           className={cn(
             "m-0 inline-flex min-w-0 items-center gap-2 text-[clamp(13px,1.8vh,16px)] font-bold",
-            slot.status === "boiled" ? "text-boiled tracking-[.04em]" : "text-muted",
+            slot.status === "boiled" ? "tracking-[.04em] text-boiled" : "text-muted",
           )}
         >
           {slot.status === "boiled" && (

@@ -48,7 +48,10 @@ const genTime: fc.Arbitrary<number> = fc.integer({ min: -5_000, max: 5_000 });
 /** 受信時刻 / serverTime / 残滓記録時刻 at。 */
 const genAt: fc.Arbitrary<number> = fc.integer({ min: 0, max: 10_000_000 });
 /** クロックオフセット。負・0・正をまたぐ。 */
-const genOffset: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: -200_000, max: 200_000 }));
+const genOffset: fc.Arbitrary<number> = fc.oneof(
+  fc.constant(0),
+  fc.integer({ min: -200_000, max: 200_000 }),
+);
 const genFirmness: fc.Arbitrary<Firmness> = fc.constantFrom(...FIRMNESS_POOL);
 
 // ── Timer 集合生成器（集合内スロット互いに素・id 一意） ────────────────────────────────────────────
@@ -58,45 +61,49 @@ const genFirmness: fc.Arbitrary<Firmness> = fc.constantFrom(...FIRMNESS_POOL);
  * 一意な id 群を引き、共有スロット列の重ならない区間を各 Timer へ割り当てる（多スロット Timer も踏む）。
  */
 function genTimerFacts(idPool: readonly string[]): fc.Arbitrary<readonly TimerFact[]> {
-  return fc
-    .uniqueArray(fc.constantFrom(...idPool), { maxLength: idPool.length })
-    .chain((ids) => {
-      if (ids.length === 0) return fc.constant<readonly TimerFact[]>([]);
-      return fc
-        .record({
-          // 各 Timer のスロット数（1〜2）。互いに素な区間として共有スロット列から切り出す。
-          counts: fc.array(fc.integer({ min: 1, max: 2 }), { minLength: ids.length, maxLength: ids.length }),
-          // 集合全体で使う互いに素なスロット列（各 Timer に十分な数を確保）。
-          slots: fc.uniqueArray(fc.constantFrom(...SLOT_POOL), {
-            minLength: Math.min(ids.length * 2, SLOT_POOL.length),
-            maxLength: SLOT_POOL.length,
-          }),
-          noodles: fc.array(fc.constantFrom(...NOODLE_POOL), { minLength: ids.length, maxLength: ids.length }),
-          firmnesses: fc.array(genFirmness, { minLength: ids.length, maxLength: ids.length }),
-          startTimes: fc.array(genTime, { minLength: ids.length, maxLength: ids.length }),
-          endTimes: fc.array(genTime, { minLength: ids.length, maxLength: ids.length }),
-        })
-        .map(({ counts, slots, noodles, firmnesses, startTimes, endTimes }): readonly TimerFact[] => {
-          const facts: TimerFact[] = [];
-          let idx = 0;
-          for (let i = 0; i < ids.length; i++) {
-            const remaining = slots.length - idx;
-            if (remaining <= 0) break; // スロットを使い切ったら以降の Timer は作らない
-            const count = Math.min(counts[i]!, remaining);
-            const slotSlice = slots.slice(idx, idx + count);
-            idx += count;
-            facts.push({
-              id: ids[i]!,
-              slotIds: nonEmpty(slotSlice),
-              noodleType: noodles[i]!,
-              firmness: firmnesses[i]!,
-              startTime: startTimes[i]!,
-              endTime: endTimes[i]!,
-            });
-          }
-          return facts;
-        });
-    });
+  return fc.uniqueArray(fc.constantFrom(...idPool), { maxLength: idPool.length }).chain((ids) => {
+    if (ids.length === 0) return fc.constant<readonly TimerFact[]>([]);
+    return fc
+      .record({
+        // 各 Timer のスロット数（1〜2）。互いに素な区間として共有スロット列から切り出す。
+        counts: fc.array(fc.integer({ min: 1, max: 2 }), {
+          minLength: ids.length,
+          maxLength: ids.length,
+        }),
+        // 集合全体で使う互いに素なスロット列（各 Timer に十分な数を確保）。
+        slots: fc.uniqueArray(fc.constantFrom(...SLOT_POOL), {
+          minLength: Math.min(ids.length * 2, SLOT_POOL.length),
+          maxLength: SLOT_POOL.length,
+        }),
+        noodles: fc.array(fc.constantFrom(...NOODLE_POOL), {
+          minLength: ids.length,
+          maxLength: ids.length,
+        }),
+        firmnesses: fc.array(genFirmness, { minLength: ids.length, maxLength: ids.length }),
+        startTimes: fc.array(genTime, { minLength: ids.length, maxLength: ids.length }),
+        endTimes: fc.array(genTime, { minLength: ids.length, maxLength: ids.length }),
+      })
+      .map(({ counts, slots, noodles, firmnesses, startTimes, endTimes }): readonly TimerFact[] => {
+        const facts: TimerFact[] = [];
+        let idx = 0;
+        for (let i = 0; i < ids.length; i++) {
+          const remaining = slots.length - idx;
+          if (remaining <= 0) break; // スロットを使い切ったら以降の Timer は作らない
+          const count = Math.min(counts[i]!, remaining);
+          const slotSlice = slots.slice(idx, idx + count);
+          idx += count;
+          facts.push({
+            id: ids[i]!,
+            slotIds: nonEmpty(slotSlice),
+            noodleType: noodles[i]!,
+            firmness: firmnesses[i]!,
+            startTime: startTimes[i]!,
+            endTime: endTimes[i]!,
+          });
+        }
+        return facts;
+      });
+  });
 }
 
 /** 新 snapshot の全量 serverTimers（server-confirmed の id 空間を共有し、生存/新出現を誘発する）。 */
@@ -105,10 +112,19 @@ const genServerTimers: fc.Arbitrary<readonly TimerFact[]> = genTimerFacts(SERVER
 // ── 残滓（lastResults）生成器 ──────────────────────────────────────────────────────────────────
 
 /** 既存の直前結果。占有/非占有どちらのスロットにも載りうる（占有クリアと差分記録の双方を踏む）。 */
-const genLastResults: fc.Arbitrary<ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>> = fc
-  .array(fc.record({ slot: fc.constantFrom(...SLOT_POOL), noodleType: fc.constantFrom(...NOODLE_POOL), at: genAt }), {
-    maxLength: SLOT_POOL.length,
-  })
+const genLastResults: fc.Arbitrary<
+  ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>
+> = fc
+  .array(
+    fc.record({
+      slot: fc.constantFrom(...SLOT_POOL),
+      noodleType: fc.constantFrom(...NOODLE_POOL),
+      at: genAt,
+    }),
+    {
+      maxLength: SLOT_POOL.length,
+    },
+  )
   .map((entries) => new Map(entries.map((e) => [e.slot, { noodleType: e.noodleType, at: e.at }])));
 
 // ── 完全な ClientView 生成器 ───────────────────────────────────────────────────────────────────
@@ -119,7 +135,11 @@ const genLastResults: fc.Arbitrary<ReadonlyMap<string, { readonly noodleType: st
  */
 const genView: fc.Arbitrary<ClientView> = genTimerFacts(SERVER_ID_POOL).chain((serverFacts) =>
   genTimerFacts(LOCAL_ID_POOL).chain((localFacts) => {
-    const allIds = [...serverFacts.map((t) => t.id), ...localFacts.map((t) => t.id), ...UNRELATED_ID_POOL];
+    const allIds = [
+      ...serverFacts.map((t) => t.id),
+      ...localFacts.map((t) => t.id),
+      ...UNRELATED_ID_POOL,
+    ];
     return fc
       .record({
         offset: genOffset,
@@ -246,22 +266,28 @@ describe("client/connection reconcileServerConfirmed — snapshot-broadcast Prop
   // **Validates: Requirements 4.6**
   it("Property 5: 純粋差分 — 残滓と processedIds は TimerFact の追加/非本質フィールドに依存しない", () => {
     fc.assert(
-      fc.property(genView, genServerTimers, genAt, fc.integer({ min: -1_000, max: 1_000 }), (view, serverTimers, at, delta) => {
-        const baseline = reconcileServerConfirmed(view, serverTimers, at);
+      fc.property(
+        genView,
+        genServerTimers,
+        genAt,
+        fc.integer({ min: -1_000, max: 1_000 }),
+        (view, serverTimers, at, delta) => {
+          const baseline = reconcileServerConfirmed(view, serverTimers, at);
 
-        // id / slotIds / noodleType / origin を保ったまま、非本質フィールドを摂動し追加フィールドを付与する。
-        const pollutedView: ClientView = {
-          ...view,
-          timers: view.timers.map((t) => polluteFact(t, delta)),
-        };
-        const pollutedServerTimers = serverTimers.map((t) => polluteFact(t, delta));
-        const polluted = reconcileServerConfirmed(pollutedView, pollutedServerTimers, at);
+          // id / slotIds / noodleType / origin を保ったまま、非本質フィールドを摂動し追加フィールドを付与する。
+          const pollutedView: ClientView = {
+            ...view,
+            timers: view.timers.map((t) => polluteFact(t, delta)),
+          };
+          const pollutedServerTimers = serverTimers.map((t) => polluteFact(t, delta));
+          const polluted = reconcileServerConfirmed(pollutedView, pollutedServerTimers, at);
 
-        // 残滓（キー・麺種・記録時刻）は不変。
-        expect(sortedResults(polluted.lastResults)).toEqual(sortedResults(baseline.lastResults));
-        // processedIds の刈り取り結果も不変。
-        expect([...polluted.processedIds].sort()).toEqual([...baseline.processedIds].sort());
-      }),
+          // 残滓（キー・麺種・記録時刻）は不変。
+          expect(sortedResults(polluted.lastResults)).toEqual(sortedResults(baseline.lastResults));
+          // processedIds の刈り取り結果も不変。
+          expect([...polluted.processedIds].sort()).toEqual([...baseline.processedIds].sort());
+        },
+      ),
       { numRuns: NUM_RUNS },
     );
   });

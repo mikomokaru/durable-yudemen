@@ -23,7 +23,11 @@ const genStoreId: fc.Arbitrary<unknown> = fc.oneof(
 
 /** 4 つの構造を満たす ArrivalRecord。store_id 以外は分配の判断に関わらない。 */
 const genRecord: fc.Arbitrary<ArrivalRecord> = fc
-  .tuple(genStoreId, fc.integer({ min: 0, max: 4_000_000_000_000 }), fc.string({ minLength: 1, maxLength: 8 }))
+  .tuple(
+    genStoreId,
+    fc.integer({ min: 0, max: 4_000_000_000_000 }),
+    fc.string({ minLength: 1, maxLength: 8 }),
+  )
   .map(([storeId, arrivalTimestampMs, sequenceNumber]) => ({
     path: "/lio/order",
     // undefined は「キーの欠落」として表す（AC 6.18 の欠落に当たる形を実際に作る）。
@@ -55,7 +59,9 @@ describe("ingress/store-code — groupByStoreCode", () => {
     fc.assert(
       fc.property(genRecords, (records) => {
         const groups = groupByStoreCode(records);
-        const distributed = [...groups.byStoreCode.values()].flat().concat(groups.unreadableStoreCode);
+        const distributed = [...groups.byStoreCode.values()]
+          .flat()
+          .concat(groups.unreadableStoreCode);
         expect(distributed.length).toBe(records.length);
         expect(countByRecord(distributed)).toEqual(countByRecord(records));
       }),
@@ -83,7 +89,10 @@ describe("ingress/store-code — groupByStoreCode", () => {
 });
 
 /** group の各要素が records に同じ相対順序で現れるか（参照の重複にも耐える走査）。 */
-function isSubsequence(group: readonly ArrivalRecord[], records: readonly ArrivalRecord[]): boolean {
+function isSubsequence(
+  group: readonly ArrivalRecord[],
+  records: readonly ArrivalRecord[],
+): boolean {
   let cursor = 0;
   for (const record of group) {
     const found = records.indexOf(record, cursor);

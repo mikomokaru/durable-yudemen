@@ -13,10 +13,7 @@ type ObservedArrival = Readonly<{
   firstSnowflakeAt?: number | null;
 }>;
 
-type ArrivalLagBand =
-  | "under-thirty-minutes"
-  | "thirty-to-sixty-minutes"
-  | "sixty-minutes-or-more";
+type ArrivalLagBand = "under-thirty-minutes" | "thirty-to-sixty-minutes" | "sixty-minutes-or-more";
 
 type ConvergedObservedTelemetry = Readonly<{
   record: OperationRecord;
@@ -30,12 +27,14 @@ function utcMonthFromEpochMillis(epochMillis: number): string {
   const era = Math.floor(shiftedDays / 146_097);
   const dayOfEra = shiftedDays - era * 146_097;
   const yearOfEra = Math.floor(
-    (dayOfEra - Math.floor(dayOfEra / 1_460) + Math.floor(dayOfEra / 36_524)
-      - Math.floor(dayOfEra / 146_096)) / 365,
+    (dayOfEra -
+      Math.floor(dayOfEra / 1_460) +
+      Math.floor(dayOfEra / 36_524) -
+      Math.floor(dayOfEra / 146_096)) /
+      365,
   );
-  const yearDay = dayOfEra - (
-    365 * yearOfEra + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100)
-  );
+  const yearDay =
+    dayOfEra - (365 * yearOfEra + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100));
   const shiftedMonth = Math.floor((5 * yearDay + 2) / 153);
   const month = shiftedMonth + (shiftedMonth < 10 ? 3 : -9);
   const year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0);
@@ -60,25 +59,28 @@ function convergedObservedTelemetry(
     converged.set(key, {
       record: existing.record,
       firstObservedAt: Math.min(existing.firstObservedAt, arrival.firstObservedAt),
-      firstSnowflakeAt: existing.firstSnowflakeAt === null
-        ? snowflakeAt
-        : snowflakeAt === null
-          ? existing.firstSnowflakeAt
-          : Math.min(existing.firstSnowflakeAt, snowflakeAt),
+      firstSnowflakeAt:
+        existing.firstSnowflakeAt === null
+          ? snowflakeAt
+          : snowflakeAt === null
+            ? existing.firstSnowflakeAt
+            : Math.min(existing.firstSnowflakeAt, snowflakeAt),
     });
   }
   return [...converged.values()];
 }
 
 /** 重複除外後の Observed telemetry を初回観測 UTC 月へ一度だけ所属させる。 */
-export function operationArrivalSloByUtcMonth(input: Readonly<{
-  arrivals: readonly ObservedArrival[];
-  utcMonths: readonly string[];
-}>) {
+export function operationArrivalSloByUtcMonth(
+  input: Readonly<{
+    arrivals: readonly ObservedArrival[];
+    utcMonths: readonly string[];
+  }>,
+) {
   const converged = convergedObservedTelemetry(input.arrivals);
   return input.utcMonths.map((utcMonth) => {
-    const population = converged.filter(({ firstObservedAt }) =>
-      utcMonthFromEpochMillis(firstObservedAt) === utcMonth
+    const population = converged.filter(
+      ({ firstObservedAt }) => utcMonthFromEpochMillis(firstObservedAt) === utcMonth,
     );
     const arrivedWithinFifteenMinutesCount = population.filter((arrival) => {
       if (arrival.firstSnowflakeAt === null) return false;
@@ -86,11 +88,16 @@ export function operationArrivalSloByUtcMonth(input: Readonly<{
       return elapsed >= 0 && elapsed <= FIFTEEN_MINUTES;
     }).length;
     const populationCount = population.length;
-    const arrivalRate = populationCount === 0 ? null : arrivedWithinFifteenMinutesCount / populationCount;
-    const assessment = arrivalRate === null
-      ? "not-applicable" as const
-      : arrivalRate >= ARRIVAL_SLO_TARGET ? "met" as const : "missed" as const;
-    const rateDisplay = arrivalRate === null ? "not applicable" : `${(arrivalRate * 100).toFixed(2)}%`;
+    const arrivalRate =
+      populationCount === 0 ? null : arrivedWithinFifteenMinutesCount / populationCount;
+    const assessment =
+      arrivalRate === null
+        ? ("not-applicable" as const)
+        : arrivalRate >= ARRIVAL_SLO_TARGET
+          ? ("met" as const)
+          : ("missed" as const);
+    const rateDisplay =
+      arrivalRate === null ? "not applicable" : `${(arrivalRate * 100).toFixed(2)}%`;
 
     return {
       utcMonth,
@@ -111,17 +118,18 @@ function lagBand(elapsed: number): ArrivalLagBand {
 }
 
 /** 未到達最古 record の 30/60 分帯への遷移を、連続状態ごとに一度だけ通知判断へ写す。 */
-export function snowflakeArrivalNotificationTransition(input: Readonly<{
-  arrivals: readonly ObservedArrival[];
-  now: number;
-  previousBand?: ArrivalLagBand;
-}>) {
+export function snowflakeArrivalNotificationTransition(
+  input: Readonly<{
+    arrivals: readonly ObservedArrival[];
+    now: number;
+    previousBand?: ArrivalLagBand;
+  }>,
+) {
   const oldestPending = convergedObservedTelemetry(input.arrivals)
     .filter(({ firstSnowflakeAt }) => firstSnowflakeAt === null)
     .reduce<ConvergedObservedTelemetry | null>(
-      (oldest, arrival) => oldest === null || arrival.firstObservedAt < oldest.firstObservedAt
-        ? arrival
-        : oldest,
+      (oldest, arrival) =>
+        oldest === null || arrival.firstObservedAt < oldest.firstObservedAt ? arrival : oldest,
       null,
     );
   const previousBand = input.previousBand ?? "under-thirty-minutes";
@@ -131,11 +139,12 @@ export function snowflakeArrivalNotificationTransition(input: Readonly<{
 
   const elapsed = Math.max(0, input.now - oldestPending.firstObservedAt);
   const nextBand = lagBand(elapsed);
-  const notificationKind = nextBand === "thirty-to-sixty-minutes" && previousBand === "under-thirty-minutes"
-    ? "warning" as const
-    : nextBand === "sixty-minutes-or-more" && previousBand !== "sixty-minutes-or-more"
-      ? "critical" as const
-      : null;
+  const notificationKind =
+    nextBand === "thirty-to-sixty-minutes" && previousBand === "under-thirty-minutes"
+      ? ("warning" as const)
+      : nextBand === "sixty-minutes-or-more" && previousBand !== "sixty-minutes-or-more"
+        ? ("critical" as const)
+        : null;
   const transitionOffset = notificationKind === "warning" ? THIRTY_MINUTES : SIXTY_MINUTES;
   const transitionedAt = oldestPending.firstObservedAt + transitionOffset;
   const oldestCorrelation = {
@@ -147,14 +156,21 @@ export function snowflakeArrivalNotificationTransition(input: Readonly<{
 
   return {
     nextBand,
-    oldestPending: { ...oldestCorrelation, firstObservedAt: oldestPending.firstObservedAt, elapsed },
-    notification: notificationKind === null ? null : {
-      kind: notificationKind,
+    oldestPending: {
       ...oldestCorrelation,
-      transitionedAt,
-      notifyBy: transitionedAt + FIVE_MINUTES,
-      detectedAt: input.now,
-      withinFiveMinuteWindow: input.now <= transitionedAt + FIVE_MINUTES,
+      firstObservedAt: oldestPending.firstObservedAt,
+      elapsed,
     },
+    notification:
+      notificationKind === null
+        ? null
+        : {
+            kind: notificationKind,
+            ...oldestCorrelation,
+            transitionedAt,
+            notifyBy: transitionedAt + FIVE_MINUTES,
+            detectedAt: input.now,
+            withinFiveMinuteWindow: input.now <= transitionedAt + FIVE_MINUTES,
+          },
   };
 }

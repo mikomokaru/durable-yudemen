@@ -29,7 +29,10 @@ export function drivesAssignedSlot(timer: ClientTimer, units: readonly number[])
  * 与えた反映順で、そのスロットを駆動する最後のメンバー（誰も駆動しなければ undefined）。
  * 要件8.4 の競合規則そのものの形で書く——Map の上書き手順を写さない。
  */
-export function lastDriverOf(order: readonly ClientTimer[], slotId: string): ClientTimer | undefined {
+export function lastDriverOf(
+  order: readonly ClientTimer[],
+  slotId: string,
+): ClientTimer | undefined {
   return order.reduce<ClientTimer | undefined>(
     (last, member) => (member.slotIds.includes(slotId) ? member : last),
     undefined,

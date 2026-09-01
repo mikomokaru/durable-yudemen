@@ -3,10 +3,7 @@ import { recordsFromCommittedDiff } from "./derive";
 import type { OperationObservation } from "./derive";
 
 /** 確定差分を一件一行の同期 console 出力として best-effort に試行する。 */
-export function tryWriteOperationLines(
-  enabled: boolean,
-  observation: OperationObservation,
-): void {
+export function tryWriteOperationLines(enabled: boolean, observation: OperationObservation): void {
   if (!enabled) return;
 
   try {

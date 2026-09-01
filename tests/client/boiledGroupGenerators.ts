@@ -66,7 +66,9 @@ const STALE_NOODLE_POOL = ["stale-thin", "stale-thick"] as const;
 const genClusteredEndTime: fc.Arbitrary<number> = fc.constantFrom(...END_TIME_POOL);
 
 /** 非空のスロット集合。担当ユニット境界をまたぐ小さめプールの非空部分集合。 */
-const genSpanningSlotIds = fc.subarray([...SLOT_ID_POOL], { minLength: 1 }).map((slots) => nonEmpty(slots));
+const genSpanningSlotIds = fc
+  .subarray([...SLOT_ID_POOL], { minLength: 1 })
+  .map((slots) => nonEmpty(slots));
 
 /** 本 spec が genClientTimer から差し替える 2 面（群が立つ盤面を密にするための次元）。 */
 interface ClusteredFacet {
@@ -91,7 +93,10 @@ function withClusteredFacet(timer: ClientTimer, facet: ClusteredFacet): ClientTi
  * 対象が boiled であることを保証する超過分（correctedNow − endTime）。
  * 0 を必ず含める——`endTime === correctedNow` は boiled 側の境界（述語は `endTime <= correctedNow`）。
  */
-const genOverdue: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: 1, max: 5_000 }));
+const genOverdue: fc.Arbitrary<number> = fc.oneof(
+  fc.constant(0),
+  fc.integer({ min: 1, max: 5_000 }),
+);
 
 /**
  * 残滓の記録時刻 at（LocalComplete が運ぶ）。既存残滓の at（負）と重ならない非負域から引く——
@@ -131,7 +136,9 @@ const genLastResults: fc.Arbitrary<LastResults> = fc.oneof(
  */
 function genClusteredTimers(timers: readonly ClientTimer[]): fc.Arbitrary<ClientTimer[]> {
   if (timers.length === 0) return fc.constant<ClientTimer[]>([]);
-  return fc.tuple(...timers.map((timer) => genClusteredFacet.map((facet) => withClusteredFacet(timer, facet))));
+  return fc.tuple(
+    ...timers.map((timer) => genClusteredFacet.map((facet) => withClusteredFacet(timer, facet))),
+  );
 }
 
 /**
@@ -146,18 +153,16 @@ function genClusteredTimers(timers: readonly ClientTimer[]): fc.Arbitrary<Client
 export const genBatchView: fc.Arbitrary<ClientView> = genClientView.chain((view) =>
   fc
     .record({ timers: genClusteredTimers(view.timers), lastResults: genLastResults })
-    .map(
-      ({ timers, lastResults }): ClientView => ({
-        ...view,
-        timers,
-        pendingOrders: [],
-        recommendations: [],
-        lastResults,
-        unreachableReason: "offline",
-        unitCount: DEFAULT_UNIT_COUNT,
-        noodlePresets: DEFAULT_NOODLE_PRESETS,
-      }),
-    ),
+    .map(({ timers, lastResults }): ClientView => ({
+      ...view,
+      timers,
+      pendingOrders: [],
+      recommendations: [],
+      lastResults,
+      unreachableReason: "offline",
+      unitCount: DEFAULT_UNIT_COUNT,
+      noodlePresets: DEFAULT_NOODLE_PRESETS,
+    })),
 );
 
 // ── 押下 1 回分の入力（view × 対象 timerId × 補正後現在時刻） ────────────────────────────────────
@@ -200,11 +205,13 @@ export const genBatchCase: fc.Arbitrary<BatchCase> = genBatchView.chain((view) =
 export const genBoiledCase: fc.Arbitrary<BatchCase> = genBatchView
   .filter((view) => view.timers.length > 0)
   .chain((view) =>
-    fc
-      .constantFrom(...view.timers)
-      .chain((target) =>
-        genOverdue.map((overdue) => ({ view, timerId: target.id, correctedNow: target.endTime + overdue })),
-      ),
+    fc.constantFrom(...view.timers).chain((target) =>
+      genOverdue.map((overdue) => ({
+        view,
+        timerId: target.id,
+        correctedNow: target.endTime + overdue,
+      })),
+    ),
   );
 
 // ── 反映順（群の並びの置換） ────────────────────────────────────────────────────────────────────
@@ -227,22 +234,25 @@ export interface ReflectionOrderCase extends BatchCase {
  * 既存前例（tests/registry/compose.property.test.ts の genComposeInput ほか）と同形。
  * 元の並びも fc.constant で一緒に運ぶ——Property 8 は「群の全メンバー」と「反映順」の両方を要する。
  */
-export const genReflectionOrderCase: fc.Arbitrary<ReflectionOrderCase> = genBoiledCase.chain((base) => {
-  const group = boiledGroup(base.view, base.timerId, base.correctedNow);
-  return fc
-    .record({
-      group: fc.constant(group),
-      reflected: fc.shuffledSubarray([...group], { minLength: group.length, maxLength: group.length }),
-      at: genRecordedAt,
-    })
-    .map(
-      (order): ReflectionOrderCase => ({
+export const genReflectionOrderCase: fc.Arbitrary<ReflectionOrderCase> = genBoiledCase.chain(
+  (base) => {
+    const group = boiledGroup(base.view, base.timerId, base.correctedNow);
+    return fc
+      .record({
+        group: fc.constant(group),
+        reflected: fc.shuffledSubarray([...group], {
+          minLength: group.length,
+          maxLength: group.length,
+        }),
+        at: genRecordedAt,
+      })
+      .map((order): ReflectionOrderCase => ({
         view: base.view,
         timerId: base.timerId,
         correctedNow: base.correctedNow,
         group: order.group,
         reflected: order.reflected,
         at: order.at,
-      }),
-    );
-});
+      }));
+  },
+);

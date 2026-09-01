@@ -105,7 +105,12 @@ async function startTimer(instance: StoreTimerDO, slotId: string): Promise<void>
   const ws = new WebSocketPair()[0];
   await instance.webSocketMessage(
     ws,
-    JSON.stringify({ type: "start", slotIds: [slotId], noodleType: NOODLE, boilSeconds: BOIL_SECONDS }),
+    JSON.stringify({
+      type: "start",
+      slotIds: [slotId],
+      noodleType: NOODLE,
+      boilSeconds: BOIL_SECONDS,
+    }),
   );
 }
 

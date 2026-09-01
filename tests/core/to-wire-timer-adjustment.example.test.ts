@@ -6,9 +6,14 @@ import type { TimerFact } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
 
 const ORIGINAL_END_TIME = 1_700_000_180_000 as EpochMillis;
-const WIRE_TIMER_KEYS = ["endTime", "firmness", "id", "noodleType", "slotIds", "startTime"] as const satisfies readonly (
-  keyof TimerFact
-)[];
+const WIRE_TIMER_KEYS = [
+  "endTime",
+  "firmness",
+  "id",
+  "noodleType",
+  "slotIds",
+  "startTime",
+] as const satisfies readonly (keyof TimerFact)[];
 
 function fixedTimer(id: string, adjustment: number, seq: number): Timer {
   return createTimer({

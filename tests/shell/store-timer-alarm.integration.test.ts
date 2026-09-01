@@ -135,14 +135,19 @@ interface WsProbe {
    * 待機そのものを無効化する——当該遷移がまだ処理されていない時点で先へ進み、直後の永続 / Alarm の読みが
    * DO の処理と競走する。ゆえに「この遷移より後に届いた snapshot」を指定できる形にする。
    */
-  waitForSnapshot(predicate: (message: SnapshotMessage) => boolean, since?: number): Promise<SnapshotMessage>;
+  waitForSnapshot(
+    predicate: (message: SnapshotMessage) => boolean,
+    since?: number,
+  ): Promise<SnapshotMessage>;
   send(message: unknown): void;
   close(): void;
 }
 
 /** WS を張り、client 端を accept して受信を収集する（cook-scheduling.integration.test.ts と同形）。 */
 async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> {
-  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", { headers: { Upgrade: "websocket" } });
+  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", {
+    headers: { Upgrade: "websocket" },
+  });
   const ws = upgrade.webSocket;
   if (ws === null) throw new Error(`WS 接続が確立されなかった（status=${upgrade.status}）`);
 
@@ -170,10 +175,16 @@ async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> 
     waitForSnapshot(predicate, since = 0) {
       const already = messages
         .slice(since)
-        .find((message): message is SnapshotMessage => message.type === "snapshot" && predicate(message));
+        .find(
+          (message): message is SnapshotMessage =>
+            message.type === "snapshot" && predicate(message),
+        );
       if (already !== undefined) return Promise.resolve(already);
       return new Promise<SnapshotMessage>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("snapshot の待機がタイムアウトした")), WAIT_TIMEOUT_MS);
+        const timer = setTimeout(
+          () => reject(new Error("snapshot の待機がタイムアウトした")),
+          WAIT_TIMEOUT_MS,
+        );
         waiters.push({
           predicate,
           resolve: (message) => {
@@ -230,7 +241,9 @@ function earliestEffectiveEndTime(snapshot: StoreSnapshot): number | null {
  *
  * 返すのは、次の発火をその予定時刻に起こすためである（実機の Alarm は予定時刻に起動する）。
  */
-async function expectAlarmAtEffectiveEarliest(stub: DurableObjectStub<StoreTimerDO>): Promise<number | null> {
+async function expectAlarmAtEffectiveEarliest(
+  stub: DurableObjectStub<StoreTimerDO>,
+): Promise<number | null> {
   const expected = earliestEffectiveEndTime(await readSnapshot(stub));
   expect(await readAlarm(stub)).toBe(expected);
   return expected;
@@ -266,7 +279,11 @@ async function startAtSlot(
 }
 
 /** timerId をキャンセルし、確定の broadcast を待って返す。 */
-async function cancelTimer(client: WsProbe, timerId: string, expectedTimers: number): Promise<SnapshotMessage> {
+async function cancelTimer(
+  client: WsProbe,
+  timerId: string,
+  expectedTimers: number,
+): Promise<SnapshotMessage> {
   // **範囲を切るのがここでは不可欠である。** cancel は Timer 件数を減らすため、同じ件数の snapshot が
   // 開始の途中で既に配信されている（4 本を積む列は 1・2・3・4 件を通る）。全履歴へ遡ると待機はその過去の
   // 一致で即座に解け、cancel が処理される前に永続 / Alarm を読む競走が生まれる——1 本目の cancel なら
@@ -339,7 +356,9 @@ describe("12.2 / 22.3 DO レベルの多重発火（Requirements 2.5, 2.6, 2.7�
     // Persist（列の先頭）が一度も走らない。Persist が走らないことは、その上に立つ SetAlarm / Broadcast も
     // 出ないことの根拠でもある（SSOT 規律）。
     const secondRun = await runInDurableObject(stub, async (instance, state) => {
-      const originalPut = state.storage.put.bind(state.storage) as (...args: unknown[]) => Promise<void>;
+      const originalPut = state.storage.put.bind(state.storage) as (
+        ...args: unknown[]
+      ) => Promise<void>;
       let puts = 0;
       (state.storage as { put: unknown }).put = (...args: unknown[]) => {
         puts += 1;
@@ -427,14 +446,18 @@ describe("22.5 複数 Timer 並走の Alarm 張り直し（Requirements 3.2, 3.3
 
     // ── 2 回目の発火（要件3.3）。走行中は 1 本だけ残り、Alarm はその実効 endTime へ動く。
     await fireAlarmAt(stub, BASE_TIME + MID_BOIL_SECONDS * 1000);
-    await client.waitForSnapshot((message) => message.serverTime === BASE_TIME + MID_BOIL_SECONDS * 1000);
+    await client.waitForSnapshot(
+      (message) => message.serverTime === BASE_TIME + MID_BOIL_SECONDS * 1000,
+    );
     expect(runningSlots(await readSnapshot(stub))).toEqual([LATE_SLOT]);
     expect(await expectAlarmAtEffectiveEarliest(stub)).toBe(BASE_TIME + LATE_BOIL_SECONDS * 1000);
 
     // ── 3 回目の発火（要件3.4）。走行中が尽きたので Alarm は解除される。boiled 4 本は残ったままである
     // ——「残存 0」が指すのは走行中の 0 件であって、集合が空であることではない。
     await fireAlarmAt(stub, BASE_TIME + LATE_BOIL_SECONDS * 1000);
-    await client.waitForSnapshot((message) => message.serverTime === BASE_TIME + LATE_BOIL_SECONDS * 1000);
+    await client.waitForSnapshot(
+      (message) => message.serverTime === BASE_TIME + LATE_BOIL_SECONDS * 1000,
+    );
     const afterLast = await readSnapshot(stub);
     expect(runningSlots(afterLast)).toEqual([]);
     expect(boiledSlots(afterLast)).toEqual([NEAR_SLOT, PAIR_SLOT, MID_SLOT, LATE_SLOT].sort());

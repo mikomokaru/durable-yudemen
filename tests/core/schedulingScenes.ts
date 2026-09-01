@@ -86,7 +86,10 @@ function genEventFor(
   const orderIds = fc.constantFrom("o-0", "o-1", "o-new");
   const timerId: fc.Arbitrary<string> =
     timers.length > 0
-      ? fc.oneof(fc.constantFrom(...timers.map((timer) => timer.id as string)), fc.constant("absent"))
+      ? fc.oneof(
+          fc.constantFrom(...timers.map((timer) => timer.id as string)),
+          fc.constant("absent"),
+        )
       : fc.constant("absent");
 
   return fc.oneof(
@@ -114,31 +117,29 @@ function genEventFor(
       ),
     timerId.map((id) => ({ type: "Cancel", timerId: id, now }) satisfies Event),
     timerId.map((id) => ({ type: "Complete", timerId: id, now }) satisfies Event),
-    fc
-      .record({ timerId, firmness: fc.constantFrom<Firmness>(...FIRMNESS) })
-      .map(
-        (adjust) =>
-          ({
-            type: "Adjust",
-            timerId: adjust.timerId,
-            firmness: adjust.firmness,
-            boilSeconds: 180,
-            now,
-          }) satisfies Event,
-      ),
+    fc.record({ timerId, firmness: fc.constantFrom<Firmness>(...FIRMNESS) }).map(
+      (adjust) =>
+        ({
+          type: "Adjust",
+          timerId: adjust.timerId,
+          firmness: adjust.firmness,
+          boilSeconds: 180,
+          now,
+        }) satisfies Event,
+    ),
     fc.constant({ type: "AlarmFired", now } satisfies Event),
     fc.constant({ type: "Reconcile", now } satisfies Event),
-    fc
-      .record({ spec: genOrderSpec(KNOWN_NOODLE_TYPES), externalOrderId: orderIds })
-      .map(
-        (arrival) =>
-          ({
-            type: "OrderArrived",
-            arrival: toArrival(arrival.spec, arrival.externalOrderId),
-            now,
-          }) satisfies Event,
-      ),
-    orderIds.map((externalOrderId) => ({ type: "OrderCancelled", externalOrderId, now }) satisfies Event),
+    fc.record({ spec: genOrderSpec(KNOWN_NOODLE_TYPES), externalOrderId: orderIds }).map(
+      (arrival) =>
+        ({
+          type: "OrderArrived",
+          arrival: toArrival(arrival.spec, arrival.externalOrderId),
+          now,
+        }) satisfies Event,
+    ),
+    orderIds.map(
+      (externalOrderId) => ({ type: "OrderCancelled", externalOrderId, now }) satisfies Event,
+    ),
     fc.constant({ type: "PlanArrived", plan, now } satisfies Event),
   );
 }

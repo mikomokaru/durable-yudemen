@@ -56,7 +56,7 @@ vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
   return {
     ...actual,
-    useSyncExternalStore: <T,>(_subscribe: unknown, getSnapshot: () => T): T => getSnapshot(),
+    useSyncExternalStore: <T>(_subscribe: unknown, getSnapshot: () => T): T => getSnapshot(),
   };
 });
 
@@ -83,9 +83,8 @@ vi.mock("../../src/client/components/RadialMenu", async (importOriginal) => {
 });
 
 vi.mock("../../src/client/components/FirmnessCornerControl", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../src/client/components/FirmnessCornerControl")
-  >();
+  const actual =
+    await importOriginal<typeof import("../../src/client/components/FirmnessCornerControl")>();
   const { createElement: element } = await import("react");
   return {
     FirmnessCornerControl: (props: FirmnessProps) => {
@@ -183,7 +182,8 @@ function renderBoard(playTouchCue: () => void) {
      */
     firmnessOfRunning: (): FirmnessProps => {
       const props = capture.firmnesses.find((control) => control.disabled !== true);
-      if (props === undefined) throw new Error("走行中カードの茹で加減コントロールが描画されていない");
+      if (props === undefined)
+        throw new Error("走行中カードの茹で加減コントロールが描画されていない");
       return props;
     },
   };
@@ -226,7 +226,9 @@ describe("Touch_Cue の配線（タスク5.4・要件1.3 / 1.5）", () => {
     const board = renderBoard(cue);
     const firmness = board.firmnessOfRunning();
     // 開閉の口が実在することを先に確かめる（無ければ以下の呼び出しは空振りし、主張が空になる）。
-    expect(firmness.onOpenChange, "SlotCard が開閉通知の口を受け取っていない").toBeTypeOf("function");
+    expect(firmness.onOpenChange, "SlotCard が開閉通知の口を受け取っていない").toBeTypeOf(
+      "function",
+    );
 
     // 開閉はカード内のローカル状態（操作ボタンを隠すか）だけを動かす。確定ではないので adjust も鳴動も伴わない。
     firmness.onOpenChange?.(true);
@@ -245,9 +247,14 @@ describe("Touch_Cue の配線（タスク5.4・要件1.3 / 1.5）", () => {
     // playTouchCue は現れない。App は window.location と接続の生成を要して描画できないため、ここは
     // ソーステキストで見る（audioWakeLock.example.test.ts と同じ静的検査の形）。
     const toggleSites = appSource.split("\n").filter((line) => line.includes("setSettingsOpen("));
-    expect(toggleSites.length, "App.tsx に setSettingsOpen の呼び出しが見当たらない").toBeGreaterThanOrEqual(2);
+    expect(
+      toggleSites.length,
+      "App.tsx に setSettingsOpen の呼び出しが見当たらない",
+    ).toBeGreaterThanOrEqual(2);
     for (const site of toggleSites) {
-      expect(site, "設定ポップオーバーの開閉に playTouchCue が配線されている").not.toContain("playTouchCue");
+      expect(site, "設定ポップオーバーの開閉に playTouchCue が配線されている").not.toContain(
+        "playTouchCue",
+      );
     }
     // 受け取った再生口の行き先はボードだけである（指定外に配線されていないことの裏付け）。
     expect(appSource, "App が playTouchCue を SlotBoard へ渡していない").toMatch(

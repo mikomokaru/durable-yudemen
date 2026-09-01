@@ -102,7 +102,9 @@ describe("Wake_Lock マウントの依存確認（タスク6.1・要件5.8）", 
   it("App は本体で useWakeLock() を呼んでマウントしている（前面維持の主戦略）", () => {
     const code = stripCommentsAndStrings(readRaw(APP_FILE));
     // コメント/文字列を除いた実コード上に useWakeLock() の呼び出しがある。
-    expect(code, "App.tsx の実コードに useWakeLock() の呼び出しがない").toMatch(/\buseWakeLock\s*\(\s*\)/);
+    expect(code, "App.tsx の実コードに useWakeLock() の呼び出しがない").toMatch(
+      /\buseWakeLock\s*\(\s*\)/,
+    );
   });
 
   it("依存先 useWakeLock は当該シンボルを公開している（本 spec では再実装しない）", () => {

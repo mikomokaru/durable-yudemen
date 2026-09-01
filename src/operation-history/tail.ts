@@ -8,13 +8,15 @@ import type { OperationLineFailure } from "./codec";
 const PRODUCER_SCRIPTS: ReadonlySet<string> = new Set(["yude-men-timer"]);
 
 /** 想定 Producer の canonical Operation Record と codec 失敗を観測側で分離する。 */
-export function operationLinesFromTailEvents(events: readonly {
-  readonly scriptName: string | null;
-  readonly logs: readonly {
-    readonly level: string;
-    readonly message: readonly unknown[];
-  }[];
-}[]): {
+export function operationLinesFromTailEvents(
+  events: readonly {
+    readonly scriptName: string | null;
+    readonly logs: readonly {
+      readonly level: string;
+      readonly message: readonly unknown[];
+    }[];
+  }[],
+): {
   readonly candidates: readonly string[];
   readonly failures: readonly {
     readonly lineNumber: number;

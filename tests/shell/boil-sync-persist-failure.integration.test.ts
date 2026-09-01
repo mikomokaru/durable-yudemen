@@ -35,7 +35,10 @@ const storeConfig: StoreConfig = {
 
 interface WsProbe {
   readonly messages: readonly ServerMessage[];
-  waitForSnapshot(predicate: (message: SnapshotMessage) => boolean, timeoutMs?: number): Promise<SnapshotMessage>;
+  waitForSnapshot(
+    predicate: (message: SnapshotMessage) => boolean,
+    timeoutMs?: number,
+  ): Promise<SnapshotMessage>;
   send(message: unknown): void;
   close(): void;
 }
@@ -56,7 +59,9 @@ async function provision(storeId: string): Promise<DurableObjectStub<StoreTimerD
 }
 
 async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> {
-  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", { headers: { Upgrade: "websocket" } });
+  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", {
+    headers: { Upgrade: "websocket" },
+  });
   const ws = upgrade.webSocket;
   if (ws === null) throw new Error(`WS 接続が確立されなかった（status=${upgrade.status}）`);
 
@@ -87,7 +92,10 @@ async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> 
       );
       if (received !== undefined) return Promise.resolve(received);
       return new Promise<SnapshotMessage>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("snapshot の待機がタイムアウトした")), timeoutMs);
+        const timeout = setTimeout(
+          () => reject(new Error("snapshot の待機がタイムアウトした")),
+          timeoutMs,
+        );
         waiters.push({
           predicate,
           resolve: (message) => {
@@ -108,13 +116,16 @@ function idle(ms: number): Promise<void> {
 
 async function readSnapshot(stub: DurableObjectStub<StoreTimerDO>): Promise<StoreSnapshot> {
   const snapshot = await runInDurableObject(stub, (_instance, state) =>
-    state.storage.get<StoreSnapshot>(SNAPSHOT_KEY));
+    state.storage.get<StoreSnapshot>(SNAPSHOT_KEY),
+  );
   if (snapshot === undefined) throw new Error("activeTimers が永続されていない");
   return snapshot;
 }
 
 function effectiveEndTimes(snapshot: StoreSnapshot): Readonly<Record<string, number>> {
-  return Object.fromEntries(snapshot.timers.map((timer) => [timer.id, timer.endTime + timer.adjustment]));
+  return Object.fromEntries(
+    snapshot.timers.map((timer) => [timer.id, timer.endTime + timer.adjustment]),
+  );
 }
 
 function projectedEndTimes(snapshot: SnapshotMessage): Readonly<Record<string, number>> {
@@ -136,7 +147,9 @@ describe("Feature: synchronized-boil-adjustment, Integration: Persist failure su
     client.send({ type: "start", slotIds: ["0"], noodleType: NOODLE, boilSeconds: 100 });
     await client.waitForSnapshot((message) => message.timers.length === 1);
     client.send({ type: "start", slotIds: ["1"], noodleType: NOODLE, boilSeconds: 110 });
-    const confirmedBroadcast = await client.waitForSnapshot((message) => message.timers.length === 2);
+    const confirmedBroadcast = await client.waitForSnapshot(
+      (message) => message.timers.length === 2,
+    );
     await idle(200);
 
     const confirmed = await readSnapshot(stub);

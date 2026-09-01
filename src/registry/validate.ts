@@ -123,15 +123,19 @@ function validateStoreConfigFields(
     if (!(field in object)) continue; // optional — 欠落は拒否しない
     const range = NUMERIC_FIELD_RANGE[field];
     if (target === "policyFields") {
-      rejections.push(...validateModed(object[field], `${field}`, (value, path) =>
-        validateNumeric(value, range, path),
-      ));
+      rejections.push(
+        ...validateModed(object[field], `${field}`, (value, path) =>
+          validateNumeric(value, range, path),
+        ),
+      );
     } else {
       rejections.push(...validateNumeric(object[field], range, field));
     }
   }
 
-  for (const field of Object.keys(ARRAY_FIELD_VALIDATOR) as (keyof typeof ARRAY_FIELD_VALIDATOR)[]) {
+  for (const field of Object.keys(
+    ARRAY_FIELD_VALIDATOR,
+  ) as (keyof typeof ARRAY_FIELD_VALIDATOR)[]) {
     if (!(field in object)) continue; // optional — 欠落は拒否しない
     const validateElements = ARRAY_FIELD_VALIDATOR[field];
     if (target === "policyFields") {
@@ -160,7 +164,11 @@ function validateModed(
   if (!("mode" in object)) {
     rejections.push({ path: `${path}.mode`, reason: "missing-required", detail: "mode は必須" });
   } else if (typeof object.mode !== "string") {
-    rejections.push({ path: `${path}.mode`, reason: "type-mismatch", detail: "文字列である必要がある" });
+    rejections.push({
+      path: `${path}.mode`,
+      reason: "type-mismatch",
+      detail: "文字列である必要がある",
+    });
   } else if (!POLICY_MODES.includes(object.mode)) {
     rejections.push({
       path: `${path}.mode`,
@@ -179,7 +187,11 @@ function validateModed(
 }
 
 /** 整数値域 [min, max] を、クランプ前に拒否する（domain の to* を呼ばない）。 */
-function validateNumeric(raw: unknown, range: { min: number; max: number }, path: string): Rejection[] {
+function validateNumeric(
+  raw: unknown,
+  range: { min: number; max: number },
+  path: string,
+): Rejection[] {
   if (typeof raw !== "number" || !Number.isFinite(raw)) {
     return [{ path, reason: "type-mismatch", detail: "有限の数値である必要がある" }];
   }
@@ -187,7 +199,9 @@ function validateNumeric(raw: unknown, range: { min: number; max: number }, path
     return [{ path, reason: "type-mismatch", detail: "整数である必要がある" }];
   }
   if (raw < range.min || raw > range.max) {
-    return [{ path, reason: "out-of-range", detail: `${range.min}〜${range.max} の範囲（受領: ${raw}）` }];
+    return [
+      { path, reason: "out-of-range", detail: `${range.min}〜${range.max} の範囲（受領: ${raw}）` },
+    ];
   }
   return [];
 }
@@ -224,7 +238,11 @@ function validateNoodlePreset(raw: unknown, path: string): Rejection[] {
   ];
 
   if (!("boilSeconds" in object)) {
-    rejections.push({ path: `${path}.boilSeconds`, reason: "missing-required", detail: "boilSeconds は必須" });
+    rejections.push({
+      path: `${path}.boilSeconds`,
+      reason: "missing-required",
+      detail: "boilSeconds は必須",
+    });
   } else {
     rejections.push(...validateBoilSeconds(object.boilSeconds, `${path}.boilSeconds`));
   }
@@ -244,16 +262,28 @@ function validateBoilSeconds(raw: unknown, path: string): Rejection[] {
   for (const firmness of FIRMNESS_ORDER) {
     const fieldPath = `${path}.${firmness}`;
     if (!(firmness in object)) {
-      rejections.push({ path: fieldPath, reason: "missing-required", detail: `${firmness} は必須` });
+      rejections.push({
+        path: fieldPath,
+        reason: "missing-required",
+        detail: `${firmness} は必須`,
+      });
       continue;
     }
     const sec = object[firmness];
     if (typeof sec !== "number" || !Number.isFinite(sec)) {
-      rejections.push({ path: fieldPath, reason: "type-mismatch", detail: "有限の数値である必要がある" });
+      rejections.push({
+        path: fieldPath,
+        reason: "type-mismatch",
+        detail: "有限の数値である必要がある",
+      });
     } else if (!Number.isInteger(sec)) {
       rejections.push({ path: fieldPath, reason: "type-mismatch", detail: "整数である必要がある" });
     } else if (sec <= 0) {
-      rejections.push({ path: fieldPath, reason: "out-of-range", detail: `正の秒数（受領: ${sec}）` });
+      rejections.push({
+        path: fieldPath,
+        reason: "out-of-range",
+        detail: `正の秒数（受領: ${sec}）`,
+      });
     }
   }
 
@@ -295,7 +325,11 @@ function validateFirmnessCode(raw: unknown, path: string): Rejection[] {
   if (!("firmness" in object)) {
     rejections.push({ path: firmnessPath, reason: "missing-required", detail: "firmness は必須" });
   } else if (typeof object.firmness !== "string") {
-    rejections.push({ path: firmnessPath, reason: "type-mismatch", detail: "文字列である必要がある" });
+    rejections.push({
+      path: firmnessPath,
+      reason: "type-mismatch",
+      detail: "文字列である必要がある",
+    });
   } else if (!isFirmness(object.firmness)) {
     rejections.push({
       path: firmnessPath,
@@ -404,7 +438,11 @@ function validateRoster(raw: unknown, path: string): Rejection[] {
   raw.forEach((item, index) => {
     const itemPath = `${path}[${index}]`;
     if (typeof item !== "string") {
-      rejections.push({ path: itemPath, reason: "type-mismatch", detail: "文字列である必要がある" });
+      rejections.push({
+        path: itemPath,
+        reason: "type-mismatch",
+        detail: "文字列である必要がある",
+      });
     } else if (item.length === 0) {
       rejections.push({ path: itemPath, reason: "out-of-range", detail: "空文字列は不可" });
     }
@@ -437,7 +475,9 @@ function validateProductCode(
     return [{ path: fieldPath, reason: "type-mismatch", detail: "整数である必要がある" }];
   }
   if (value <= 0) {
-    return [{ path: fieldPath, reason: "out-of-range", detail: `正の商品コード（受領: ${value}）` }];
+    return [
+      { path: fieldPath, reason: "out-of-range", detail: `正の商品コード（受領: ${value}）` },
+    ];
   }
   return [];
 }
@@ -471,7 +511,11 @@ function unknownFieldRejections(
   const rejections: Rejection[] = [];
   for (const key of Object.keys(object)) {
     if (!allowed.includes(key)) {
-      rejections.push({ path: `${path}.${key}`, reason: "unknown-field", detail: "許可されないフィールド" });
+      rejections.push({
+        path: `${path}.${key}`,
+        reason: "unknown-field",
+        detail: "許可されないフィールド",
+      });
     }
   }
   return rejections;

@@ -394,7 +394,9 @@ describe("(a) core 無変更・shell は auto-response 一点のみ（要件12.1
       expect(code, `${file} が client を import している`).not.toMatch(
         /from\s+["'][^"']*\/client[/"']/,
       );
-      expect(code, `${file} が shell を import している`).not.toMatch(/from\s+["'][^"']*\/shell[/"']/);
+      expect(code, `${file} が shell を import している`).not.toMatch(
+        /from\s+["'][^"']*\/shell[/"']/,
+      );
       expect(code, `${file} が heartbeat を import している`).not.toMatch(
         /from\s+["'][^"']*\/heartbeat["']/,
       );
@@ -447,9 +449,10 @@ describe("(b) src/domain/messages の既存ワイヤ形式のみを用いる（�
 
   it("messages.ts に心拍（ping/pong）をワイヤ形式として持ち込んでいない", () => {
     const code = readCodeWithStrings(MESSAGES_FILE);
-    expect(code, "messages.ts に ping/pong が混入している（ワイヤ形式への新フィールド）").not.toMatch(
-      /\b(?:ping|pong)\b/i,
-    );
+    expect(
+      code,
+      "messages.ts に ping/pong が混入している（ワイヤ形式への新フィールド）",
+    ).not.toMatch(/\b(?:ping|pong)\b/i);
   });
 
   it("心拍は素の文字列定数であり、messages.ts のワイヤ型に手を加えていない", () => {
@@ -498,7 +501,9 @@ describe("(c) UI が Socket を直接持たず TimerConnection（窓口）のみ
   it("UI のサーバ対話は TimerConnection のメソッド（getView / subscribe / start / cancel）に限る", () => {
     // 窓口（TimerConnection）を介すること。App は openTimerConnection で窓口を開き、子は型のみ受け取る。
     const appCode = readBareCode("src/client/App.tsx");
-    expect(appCode, "App が窓口 openTimerConnection を開いていない").toMatch(/\bopenTimerConnection\s*\(/);
+    expect(appCode, "App が窓口 openTimerConnection を開いていない").toMatch(
+      /\bopenTimerConnection\s*\(/,
+    );
   });
 });
 
@@ -556,8 +561,13 @@ describe("(e) クライアント純粋遷移層が暗黙の作用に触れない
     const code = readBareCode(CONNECTION_FILE);
     const start = code.indexOf("export function mode(");
     const end = code.indexOf("export interface Socket");
-    expect(start, "純粋層の開始アンカー（export function mode）が見つからない").toBeGreaterThanOrEqual(0);
-    expect(end, "純粋層の終了アンカー（export interface Socket）が見つからない").toBeGreaterThan(start);
+    expect(
+      start,
+      "純粋層の開始アンカー（export function mode）が見つからない",
+    ).toBeGreaterThanOrEqual(0);
+    expect(end, "純粋層の終了アンカー（export interface Socket）が見つからない").toBeGreaterThan(
+      start,
+    );
     return code.slice(start, end);
   }
 
@@ -581,7 +591,9 @@ describe("(e) クライアント純粋遷移層が暗黙の作用に触れない
   });
 
   it("純粋遷移層は localStorage に触れない", () => {
-    expect(pureTransitionSlice(), "純粋層が localStorage を参照している").not.toMatch(/\blocalStorage\b/);
+    expect(pureTransitionSlice(), "純粋層が localStorage を参照している").not.toMatch(
+      /\blocalStorage\b/,
+    );
   });
 });
 
@@ -604,7 +616,10 @@ describe("(f) ユーザー向け画面コンテンツは英語・コードコメ
         code = code.split(label).join("");
       }
       const match = JAPANESE.exec(code);
-      expect(match, `${file} のユーザー向けコンテンツに日本語 "${match?.[0] ?? ""}" が含まれる`).toBeNull();
+      expect(
+        match,
+        `${file} のユーザー向けコンテンツに日本語 "${match?.[0] ?? ""}" が含まれる`,
+      ).toBeNull();
     }
   });
 
@@ -617,9 +632,10 @@ describe("(f) ユーザー向け画面コンテンツは英語・コードコメ
     ];
     for (const file of documented) {
       const comments = readCommentsOnly(file);
-      expect(JAPANESE.test(comments), `${file} のコメントに日本語が無い（コメントは日本語・要件13.6）`).toBe(
-        true,
-      );
+      expect(
+        JAPANESE.test(comments),
+        `${file} のコメントに日本語が無い（コメントは日本語・要件13.6）`,
+      ).toBe(true);
     }
   });
 });

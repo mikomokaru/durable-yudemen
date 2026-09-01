@@ -79,7 +79,10 @@ interface Inbox {
 /** client 側 WebSocket に受信箱を張る。accept は呼び出し側が済ませてから渡す。 */
 function attachInbox(ws: WebSocket): Inbox {
   const messages: ServerMessage[] = [];
-  const waiters: { predicate: (m: ServerMessage) => boolean; settle: (m: ServerMessage) => void }[] = [];
+  const waiters: {
+    predicate: (m: ServerMessage) => boolean;
+    settle: (m: ServerMessage) => void;
+  }[] = [];
 
   ws.addEventListener("message", (event) => {
     const message = JSON.parse(event.data as string) as ServerMessage;
@@ -190,7 +193,9 @@ describe("非活性化（deactivated）時の接続閉鎖と拒否・状態保�
     // ── 5. タイマー状態・投影・Alarm は保持され、物理削除は起きていない（要件6.6 / 9.6）──
     await runInDurableObject(stub, async (_instance, state) => {
       // 投影は残り、active=false・version=2 が確定している（非活性の事実は消さず保持する）。
-      const storedProjection = (await state.storage.get(PROJECTION_KEY)) as StoreProjection | undefined;
+      const storedProjection = (await state.storage.get(PROJECTION_KEY)) as
+        | StoreProjection
+        | undefined;
       expect(storedProjection).toBeDefined();
       expect(storedProjection!.active).toBe(false);
       expect(storedProjection!.version).toBe(2);

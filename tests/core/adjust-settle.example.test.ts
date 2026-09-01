@@ -35,7 +35,13 @@ describe("adjust — settle no-op 判定は endTime/firmness を確定変化と�
   it("単独 running への茹で加減変更は Persist + Broadcast を出し、状態を引き直す", () => {
     const outcome = decide(
       singleRunning(),
-      { type: "Adjust", timerId: "t1", firmness: "hard", boilSeconds: 52, now: 10_000 as EpochMillis },
+      {
+        type: "Adjust",
+        timerId: "t1",
+        firmness: "hard",
+        boilSeconds: 52,
+        now: 10_000 as EpochMillis,
+      },
       params,
     );
 
@@ -68,7 +74,13 @@ describe("adjust — settle no-op 判定は endTime/firmness を確定変化と�
     // 現在と同じ normal・同じ 60s。確定結果は変わらないので no-op であるべき。
     const outcome = decide(
       state,
-      { type: "Adjust", timerId: "t1", firmness: "normal", boilSeconds: 60, now: 10_000 as EpochMillis },
+      {
+        type: "Adjust",
+        timerId: "t1",
+        firmness: "normal",
+        boilSeconds: 60,
+        now: 10_000 as EpochMillis,
+      },
       params,
     );
     expect(outcome.ok).toBe(true);

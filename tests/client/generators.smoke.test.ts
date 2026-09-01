@@ -156,25 +156,29 @@ describe("client/generators 生成器土台のスモーク", () => {
     const view = sampleNonEmptyView();
     const reconciles = fc.sample(genEvent(view), 600).filter((e) => e.kind === "Reconcile");
     expect(reconciles.length).toBeGreaterThan(0);
-    expect(reconciles.every((e) => Array.isArray(e.pendingOrders) && Array.isArray(e.recommendations))).toBe(true);
+    expect(
+      reconciles.every((e) => Array.isArray(e.pendingOrders) && Array.isArray(e.recommendations)),
+    ).toBe(true);
     expect(reconciles.some((e) => e.pendingOrders.length > 0)).toBe(true);
   });
 
   it("genEvent の Reconcile は cancel 済み server の snapshot 復活を踏みうる（processedIds 登録 id の再出現）", () => {
     // processedIds に id を持つビューに対し、Reconcile/Server の timers が同じ id を再出現させる組を探す。
-    const found = fc.sample(
-      genClientView.chain((view) => genEvent(view).map((event) => ({ view, event }))),
-      600,
-    ).some(({ view, event }) => {
-      if (view.processedIds.size === 0) return false;
-      const timers =
-        event.kind === "Reconcile"
-          ? event.timers
-          : event.kind === "Server" && event.message.type === "snapshot"
-            ? event.message.timers
-            : [];
-      return timers.some((t) => view.processedIds.has(t.id));
-    });
+    const found = fc
+      .sample(
+        genClientView.chain((view) => genEvent(view).map((event) => ({ view, event }))),
+        600,
+      )
+      .some(({ view, event }) => {
+        if (view.processedIds.size === 0) return false;
+        const timers =
+          event.kind === "Reconcile"
+            ? event.timers
+            : event.kind === "Server" && event.message.type === "snapshot"
+              ? event.message.timers
+              : [];
+        return timers.some((t) => view.processedIds.has(t.id));
+      });
     expect(found).toBe(true);
   });
 

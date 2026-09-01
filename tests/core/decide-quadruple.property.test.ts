@@ -23,7 +23,12 @@ import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Event } from "../../src/engine/event";
 import type { Outcome } from "../../src/engine/effect";
 import type { SettleParams } from "../../src/engine/settle";
-import { DEFAULT_NOODLE_PRESETS, SLOTS_PER_UNIT, UNIT_COUNT_MAX, UNIT_COUNT_MIN } from "../../src/domain/store";
+import {
+  DEFAULT_NOODLE_PRESETS,
+  SLOTS_PER_UNIT,
+  UNIT_COUNT_MAX,
+  UNIT_COUNT_MIN,
+} from "../../src/domain/store";
 import {
   KNOWN_NOODLE_TYPES,
   NOW,
@@ -58,15 +63,16 @@ function withDigest(state: TimerState, requestedDigest: InputDigest | null): Tim
 }
 
 /** 場面に `requestedDigest` の変化を足す（null＝未要求 と 現在の入力の指紋＝抑制が効く側の双方を踏む）。 */
-const genSceneWithDigest: fc.Arbitrary<QuadrupleScene> = genScheduledScene.chain((scene: ScheduledScene) =>
-  fc.boolean().map((requested) => ({
-    state: withDigest(
-      scene.state,
-      requested ? digestInput(scene.state.pendingOrders, scene.state.timers, scene.params) : null,
-    ),
-    event: scene.event,
-    params: scene.params,
-  })),
+const genSceneWithDigest: fc.Arbitrary<QuadrupleScene> = genScheduledScene.chain(
+  (scene: ScheduledScene) =>
+    fc.boolean().map((requested) => ({
+      state: withDigest(
+        scene.state,
+        requested ? digestInput(scene.state.pendingOrders, scene.state.timers, scene.params) : null,
+      ),
+      event: scene.event,
+      params: scene.params,
+    })),
 );
 
 /**
@@ -130,10 +136,16 @@ const genDeliveryScene: fc.Arbitrary<QuadrupleScene> = fc
  * であり、**受領の採用経路を一度も踏まない**。採用が起きる受領は `genDeliveryScene` だけが作る——採用の
  * 側で状態を破壊的に書き換える実装は、前者だけでは見つからない。
  */
-const genQuadrupleScene: fc.Arbitrary<QuadrupleScene> = fc.oneof(genSceneWithDigest, genDeliveryScene);
+const genQuadrupleScene: fc.Arbitrary<QuadrupleScene> = fc.oneof(
+  genSceneWithDigest,
+  genDeliveryScene,
+);
 
 /** イベントを 1 回適用する（受領は必ず ok ゆえ、状態と Effect 列を取り出せる）。 */
-function applyOnce(scene: QuadrupleScene, state: TimerState): { state: TimerState; effects: readonly unknown[] } {
+function applyOnce(
+  scene: QuadrupleScene,
+  state: TimerState,
+): { state: TimerState; effects: readonly unknown[] } {
   const outcome = decide(state, scene.event, scene.params);
   if (!outcome.ok) throw new Error("受領は拒否を持たない遷移である（生成器の不変条件違反）");
   return { state: outcome.state, effects: outcome.effects };
@@ -152,7 +164,11 @@ describe("engine/decide — 四つ組に対する決定性と冪等", () => {
         // 同じインスタンスへの再適用。入力を破壊的に触る実装なら、二度目はもう同じ四つ組を見ない。
         const again: Outcome = decide(scene.state, scene.event, scene.params);
         // 値だけを写した別インスタンス。決定性は参照の一致ではなく値の一致に対する主張である。
-        const onCopies: Outcome = decide(copyOf(scene.state), copyOf(scene.event), copyOf(scene.params));
+        const onCopies: Outcome = decide(
+          copyOf(scene.state),
+          copyOf(scene.event),
+          copyOf(scene.params),
+        );
 
         expect(again).toEqual(first);
         expect(onCopies).toEqual(first);

@@ -77,7 +77,8 @@ interface ClientProbe {
 /** client 端の WebSocket を accept し、受信メッセージを収集する。既受信にも遡って waitFor を満たせる。 */
 function probe(ws: WebSocket): ClientProbe {
   const received: WireMessage[] = [];
-  const waiters: { predicate: (m: WireMessage) => boolean; resolve: (m: WireMessage) => void }[] = [];
+  const waiters: { predicate: (m: WireMessage) => boolean; resolve: (m: WireMessage) => void }[] =
+    [];
   ws.accept();
   ws.addEventListener("message", (event) => {
     const message = JSON.parse(event.data as string) as WireMessage;

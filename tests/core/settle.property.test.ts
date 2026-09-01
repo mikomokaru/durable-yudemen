@@ -39,7 +39,10 @@ function genEventFor(state: TimerState, now: EpochMillis): fc.Arbitrary<Event> {
     existingIds.length > 0
       ? fc.oneof(fc.constantFrom(...existingIds), fc.constantFrom("absent-1", "absent-2"))
       : fc.constantFrom("absent-1", "absent-2");
-  const slotIds = fc.array(fc.string({ minLength: 1, maxLength: 4 }), { minLength: 1, maxLength: 3 });
+  const slotIds = fc.array(fc.string({ minLength: 1, maxLength: 4 }), {
+    minLength: 1,
+    maxLength: 3,
+  });
   const noodleType = fc.constantFrom("thin", "thick", "ramen", "soba", "udon");
   const validBoil = fc.integer({ min: 1, max: 1800 });
   const firmness = fc.constantFrom<Firmness>(...FIRMNESS);
@@ -52,8 +55,16 @@ function genEventFor(state: TimerState, now: EpochMillis): fc.Arbitrary<Event> {
     newTimerId: fc.constantFrom("new-a", "new-b", "new-c").map((s) => s as TimerId),
     now: fc.constant(now),
   });
-  const cancel = fc.record({ type: fc.constant("Cancel" as const), timerId: targetId, now: fc.constant(now) });
-  const complete = fc.record({ type: fc.constant("Complete" as const), timerId: targetId, now: fc.constant(now) });
+  const cancel = fc.record({
+    type: fc.constant("Cancel" as const),
+    timerId: targetId,
+    now: fc.constant(now),
+  });
+  const complete = fc.record({
+    type: fc.constant("Complete" as const),
+    timerId: targetId,
+    now: fc.constant(now),
+  });
   const adjust = fc.record({
     type: fc.constant("Adjust" as const),
     timerId: targetId,
@@ -68,8 +79,9 @@ function genEventFor(state: TimerState, now: EpochMillis): fc.Arbitrary<Event> {
 }
 
 /** 状態・イベントの組（イベントの now は状態の endTime 群に対し境界を踏む）。 */
-const genStateAndEvent: fc.Arbitrary<{ state: TimerState; event: Event }> = genState.chain((state) =>
-  nowArbFor(state).chain((now) => genEventFor(state, now).map((event) => ({ state, event }))),
+const genStateAndEvent: fc.Arbitrary<{ state: TimerState; event: Event }> = genState.chain(
+  (state) =>
+    nowArbFor(state).chain((now) => genEventFor(state, now).map((event) => ({ state, event }))),
 );
 
 // ── Property 8 用：フィールドサイズ有界の TimerFact 生成器 ─────────────────────────────────────────
@@ -92,7 +104,13 @@ const genBoundedWireTimer: fc.Arbitrary<TimerFact> = fc.record({
 /** snapshot メッセージの UTF-8 バイト長（文字数ではなくエンコード後のバイト数で測る）。 */
 function snapshotByteLength(serverTime: number, timers: readonly TimerFact[]): number {
   // 待ち行列・推奨の同乗（タスク 14.2）はこの計測の関心事ではないため空で載せる。
-  const message: ServerMessage = { type: "snapshot", serverTime, timers, pendingOrders: [], recommendations: [] };
+  const message: ServerMessage = {
+    type: "snapshot",
+    serverTime,
+    timers,
+    pendingOrders: [],
+    recommendations: [],
+  };
   return new TextEncoder().encode(JSON.stringify(message)).length;
 }
 

@@ -32,7 +32,10 @@ import { jsoncToJson } from "./support/jsonc";
 
 /** `--` 行コメントを除いた SQL 本文。コメント中の語で判定しないため。 */
 const activeSql = (sql: string): string =>
-  sql.split("\n").filter((line) => !line.trimStart().startsWith("--")).join("\n");
+  sql
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n");
 
 const statements = activeSql(retentionSql);
 
@@ -43,7 +46,11 @@ const matched = (pattern: RegExp, text = statements): readonly string[] => {
 };
 
 // R2 側の宣言的正本。wrangler r2 bucket lifecycle set が読む形そのままである。
-type LifecycleCondition = { readonly type: string; readonly maxAge?: number; readonly date?: string };
+type LifecycleCondition = {
+  readonly type: string;
+  readonly maxAge?: number;
+  readonly date?: string;
+};
 type LifecycleRule = {
   readonly id: string;
   readonly enabled: boolean;
@@ -64,12 +71,19 @@ const consumerKey = rawArrivalObject(
     firstObservedAt: Date.UTC(2026, 5, 1, 12, 34, 56, 789),
     producerScript: "yude-men-timer",
   },
-  { queueMessageId: "message-1", deliveryAttempt: 1, arrivedAt: Date.UTC(2026, 5, 1), canonicalHash: "hash" },
+  {
+    queueMessageId: "message-1",
+    deliveryAttempt: 1,
+    arrivedAt: Date.UTC(2026, 5, 1),
+    canonicalHash: "hash",
+  },
 ).key;
 
-const bucketName = (JSON.parse(jsoncToJson(consumerConfig)) as {
-  readonly r2_buckets: readonly { readonly bucket_name: string }[];
-}).r2_buckets[0]!.bucket_name;
+const bucketName = (
+  JSON.parse(jsoncToJson(consumerConfig)) as {
+    readonly r2_buckets: readonly { readonly bucket_name: string }[];
+  }
+).r2_buckets[0]!.bucket_name;
 
 // Requirements 6.7, 6.9
 describe("R2 の 90 日保持", () => {
@@ -148,7 +162,9 @@ describe("Snowflake の 25 UTC 暦月保持", () => {
     expect(expiresAt(monthStart)).toBe(expiresAt(monthEnd));
     // 期限は月初 00:00 UTC であり、session timezone に依らない。
     expect(statements).toContain("CONVERT_TIMEZONE('UTC', FIRST_SNOWFLAKE_AT)");
-    expect(statements).toContain("CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) >= RETENTION_EXPIRES_AT");
+    expect(statements).toContain(
+      "CONVERT_TIMEZONE('UTC', CURRENT_TIMESTAMP()) >= RETENTION_EXPIRES_AT",
+    );
   });
 
   it("第 25 月の最終瞬間は期限前である", () => {
@@ -192,11 +208,15 @@ describe("期限前の保持期限削除が 0 件である", () => {
     expect(deleteStatement).toContain("OPERATION_HISTORY.RAW.OPERATION_RAW_ARRIVAL_RETENTION");
     expect(deleteStatement).toContain("WHERE IS_EXPIRED");
     // 期限以外の述語（品質、店舗、期間、行数上限）で消さない。
-    expect(deleteStatement).not.toMatch(/IS_MISSING|IS_ORPHAN|DUPLICATE_COUNT|STORE_ID|PERIOD|LIMIT/);
+    expect(deleteStatement).not.toMatch(
+      /IS_MISSING|IS_ORPHAN|DUPLICATE_COUNT|STORE_ID|PERIOD|LIMIT/,
+    );
   });
 
   it("record の全到達行を一度に消す（一到達だけ残さない）", () => {
-    expect(statements).toMatch(/DELETE FROM OPERATION_HISTORY\.RAW\.OPERATION_RAW_ARRIVAL\s+WHERE CANONICAL_LINE IN/);
+    expect(statements).toMatch(
+      /DELETE FROM OPERATION_HISTORY\.RAW\.OPERATION_RAW_ARRIVAL\s+WHERE CANONICAL_LINE IN/,
+    );
     expect(statements).not.toMatch(/OBJECT_KEY\s*(?:=|IN)/);
   });
 

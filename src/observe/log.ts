@@ -344,7 +344,10 @@ export function parseInstrumentationLine(line: string): ParsedInstrumentationLin
       if (hasMessageType || !isNonNegativeInteger(record.restoredCount)) {
         return { ok: false, raw: line };
       }
-      return { ok: true, entry: { seam, at, atIso, instanceId, restoredCount: record.restoredCount } };
+      return {
+        ok: true,
+        entry: { seam, at, atIso, instanceId, restoredCount: record.restoredCount },
+      };
     }
     case "broadcast": {
       if (hasRestoredCount || typeof record.messageType !== "string") {
@@ -372,9 +375,6 @@ function isLogDirection(value: unknown): value is LogDirection {
 /** 4 継ぎ目のいずれかか（要件4.9）。 */
 function isSeamKind(value: unknown): value is SeamKind {
   return (
-    value === "construct" ||
-    value === "rehydrate" ||
-    value === "alarm" ||
-    value === "broadcast"
+    value === "construct" || value === "rehydrate" || value === "alarm" || value === "broadcast"
   );
 }

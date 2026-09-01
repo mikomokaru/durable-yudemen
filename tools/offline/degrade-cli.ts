@@ -122,7 +122,12 @@ async function run(storeId: string, url: string): Promise<number> {
   try {
     // 1. 接続 → live。
     log(`connecting to ${url} ...`);
-    await waitFor(connection, (view) => mode(view) === "live", 15_000, "live (connected + snapshot)");
+    await waitFor(
+      connection,
+      (view) => mode(view) === "live",
+      15_000,
+      "live (connected + snapshot)",
+    );
     log(`LIVE. server-confirmed timers = ${serverTimers(connection.getView()).length}`);
 
     // 2. （best-effort）live で start を 1 件送り、server-confirmed が乗るのを観測する。
@@ -130,10 +135,19 @@ async function run(storeId: string, url: string): Promise<number> {
     log("live start on slot kama-1 (server-confirmed, best-effort) ...");
     connection.start(["kama-1"], "Thin", 1800);
     try {
-      await waitFor(connection, (view) => serverTimers(view).length >= 1, 8_000, "server-confirmed timer");
-      log(`server-confirmed timer observed (count = ${serverTimers(connection.getView()).length}).`);
+      await waitFor(
+        connection,
+        (view) => serverTimers(view).length >= 1,
+        8_000,
+        "server-confirmed timer",
+      );
+      log(
+        `server-confirmed timer observed (count = ${serverTimers(connection.getView()).length}).`,
+      );
     } catch {
-      log("note: no server-confirmed timer observed; continuing with the degrade/recover lifecycle.");
+      log(
+        "note: no server-confirmed timer observed; continuing with the degrade/recover lifecycle.",
+      );
     }
 
     // 3. リンク遮断 → degraded。
@@ -145,9 +159,16 @@ async function run(storeId: string, url: string): Promise<number> {
     // 4. degraded 中のローカル start → Provisional_Timer 注入（要件6）。
     log("degraded local start on slot kama-2 (provisional) ...");
     connection.start(["kama-2"], "Thick", 1800);
-    await waitFor(connection, (view) => provisionalTimers(view).length >= 1, 5_000, "provisional timer injected");
+    await waitFor(
+      connection,
+      (view) => provisionalTimers(view).length >= 1,
+      5_000,
+      "provisional timer injected",
+    );
     const provisionalBefore = provisionalTimers(connection.getView());
-    log(`provisional timers injected = ${provisionalBefore.length} (ids: ${provisionalBefore.map((t) => t.id).join(", ")}).`);
+    log(
+      `provisional timers injected = ${provisionalBefore.length} (ids: ${provisionalBefore.map((t) => t.id).join(", ")}).`,
+    );
 
     // 5. リンク復旧 → 再接続 + snapshot で live へ復帰。
     log("restoring the link ...");
@@ -167,7 +188,9 @@ async function run(storeId: string, url: string): Promise<number> {
     );
 
     if (recoveredLive && provisionalRetained) {
-      log("PASS: recovered to live; server-confirmed reconciled from snapshot; provisional retained (decision B).");
+      log(
+        "PASS: recovered to live; server-confirmed reconciled from snapshot; provisional retained (decision B).",
+      );
       connection.close();
       return EXIT_SUCCESS;
     }

@@ -62,7 +62,9 @@ describe("engine/sync — example and edge cases", () => {
       [residual.id],
     ]);
 
-    const synchronizedById = new Map(synchronize(running, PARAMS).map((timer) => [timer.id, timer]));
+    const synchronizedById = new Map(
+      synchronize(running, PARAMS).map((timer) => [timer.id, timer]),
+    );
     const synchronizedTimer = (id: TimerId): Timer => {
       const timer = synchronizedById.get(id);
       if (timer === undefined) throw new Error(`同期結果に ${id} が存在しない`);
@@ -88,6 +90,8 @@ describe("engine/sync — example and edge cases", () => {
     expect(residualTarget).toBeLessThanOrEqual(RESIDUAL_INTERSECTION.right);
 
     expect(running.map((timer) => timer.adjustment)).toEqual([45, -55, 25]);
-    expect([laterResult.adjustment, residualResult.adjustment, earlierResult.adjustment]).toEqual([-100, 100, -100]);
+    expect([laterResult.adjustment, residualResult.adjustment, earlierResult.adjustment]).toEqual([
+      -100, 100, -100,
+    ]);
   });
 });

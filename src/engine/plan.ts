@@ -49,7 +49,11 @@ type PlanArrivedEvent = Extract<Event, { type: "PlanArrived" }>;
  * Persist も Broadcast も行わない）は無条件の断言であり、`settle` の副次的な性質に委ねてよい主張ではない。
  * 返す状態が引数の `state` そのものであることが、「状態を変更しない」を構造で示す。
  */
-export function receivePlan(state: TimerState, args: PlanArrivedEvent, params: SettleParams): Outcome {
+export function receivePlan(
+  state: TimerState,
+  args: PlanArrivedEvent,
+  params: SettleParams,
+): Outcome {
   const committed = committedSchedule(
     state.acceptedSlices,
     state.pendingOrders,

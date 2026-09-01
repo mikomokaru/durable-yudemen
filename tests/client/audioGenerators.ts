@@ -36,7 +36,10 @@ const NOODLE_POOL = ["thin", "thick", "curly", "ramen", "soba", "udon"] as const
 const FIRMNESS_POOL: readonly Firmness[] = ["extraHard", "hard", "normal", "soft"];
 
 /** クロックオフセット。負・0・正をまたぐ。 */
-const genOffsetValue: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: -200_000, max: 200_000 }));
+const genOffsetValue: fc.Arbitrary<number> = fc.oneof(
+  fc.constant(0),
+  fc.integer({ min: -200_000, max: 200_000 }),
+);
 
 /** 非空のスロット集合（NonEmptyArray<string>）。担当内外を跨ぐ小さめプールの非空部分集合。 */
 const genSlotIds: fc.Arbitrary<NonEmptyArray<string>> = fc
@@ -49,9 +52,12 @@ const genSlotIds: fc.Arbitrary<NonEmptyArray<string>> = fc
  * 担当ユニット集合 — 空・単一・複数・総数超の窓を含む。0..4 の小さめ非負整数。
  * units が 0 を含むか否かで同じ slotIds が被担当/非担当に転ぶため、担当内外の双方を構造的に踏む。
  */
-export const genUnits: fc.Arbitrary<readonly number[]> = fc.uniqueArray(fc.integer({ min: 0, max: 4 }), {
-  maxLength: 5,
-});
+export const genUnits: fc.Arbitrary<readonly number[]> = fc.uniqueArray(
+  fc.integer({ min: 0, max: 4 }),
+  {
+    maxLength: 5,
+  },
+);
 
 // ── ClientView 生成器（音声キューの入力空間へ絞った差分） ────────────────────────────────────────
 
@@ -62,17 +68,15 @@ export const genUnits: fc.Arbitrary<readonly number[]> = fc.uniqueArray(fc.integ
  * 固定するのは待ち行列・推奨・残滓・ユニット総数・麺種プリセット。いずれも assignedSlotDisplays の boiled 導出に
  * 現れないため、振らせても検証の強さは増えず探索空間だけが広がる。
  */
-export const genAudioView: fc.Arbitrary<ClientView> = genClientView.map(
-  (view): ClientView => ({
-    ...view,
-    pendingOrders: [],
-    recommendations: [],
-    unreachableReason: "offline",
-    lastResults: new Map(),
-    unitCount: DEFAULT_UNIT_COUNT,
-    noodlePresets: DEFAULT_NOODLE_PRESETS,
-  }),
-);
+export const genAudioView: fc.Arbitrary<ClientView> = genClientView.map((view): ClientView => ({
+  ...view,
+  pendingOrders: [],
+  recommendations: [],
+  unreachableReason: "offline",
+  lastResults: new Map(),
+  unitCount: DEFAULT_UNIT_COUNT,
+  noodlePresets: DEFAULT_NOODLE_PRESETS,
+}));
 
 /**
  * 現在時刻 now — view.offset と endTime 群に対し remaining の境界を踏む。
@@ -99,7 +103,11 @@ function genNowForView(view: ClientView): fc.Arbitrary<number> {
 }
 
 /** view + 担当ユニット + 境界を踏む now の組（P1 / P5 が共有する基本ケース）。 */
-export const genAudioCase: fc.Arbitrary<{ view: ClientView; units: readonly number[]; now: number }> = fc
+export const genAudioCase: fc.Arbitrary<{
+  view: ClientView;
+  units: readonly number[];
+  now: number;
+}> = fc
   .record({ view: genAudioView, units: genUnits })
   .chain(({ view, units }) => genNowForView(view).map((now) => ({ view, units, now })));
 
@@ -116,9 +124,12 @@ export const genPreAlertWatch: fc.Arbitrary<PreAlertWatch> = fc.record({
 });
 
 /** 前回 Done_Cue 鳴動時刻。null（未鳴動）と具体値の双方。 */
-export const genLastRingAt: fc.Arbitrary<number | null> = fc.option(fc.integer({ min: -300_000, max: 300_000 }), {
-  nil: null,
-});
+export const genLastRingAt: fc.Arbitrary<number | null> = fc.option(
+  fc.integer({ min: -300_000, max: 300_000 }),
+  {
+    nil: null,
+  },
+);
 
 /** P1 の評価ケース — 基本ケースに観測位相・前回鳴動時刻・interval を足す。 */
 export const genEvalCase: fc.Arbitrary<{
@@ -142,16 +153,22 @@ export const genEvalCase: fc.Arbitrary<{
 // ── 担当 Timer 群（advancePreAlert の直接入力・id 一意） ─────────────────────────────────────────
 
 /** id 一意な担当 Timer 群（TimerFact）。genClientTimer を再利用し、id 一意化のみ追加で課す。 */
-export const genAssignedTimers: fc.Arbitrary<readonly ClientTimer[]> = fc.uniqueArray(genClientTimer, {
-  selector: (t) => t.id,
-  maxLength: TIMER_ID_POOL.length,
-});
+export const genAssignedTimers: fc.Arbitrary<readonly ClientTimer[]> = fc.uniqueArray(
+  genClientTimer,
+  {
+    selector: (t) => t.id,
+    maxLength: TIMER_ID_POOL.length,
+  },
+);
 
 /**
  * 単調増加 now 列 — 与えた Timer 群と offset に対し、remaining が 閾値超 → 0 まで降りるよう範囲を張る。
  * 昇順ソート済み。Pre_Alert の armed → 発火、boiled 化（remaining 0）までを列として踏む。
  */
-function genMonotonicNowStream(timers: readonly TimerFact[], offset: number): fc.Arbitrary<readonly number[]> {
+function genMonotonicNowStream(
+  timers: readonly TimerFact[],
+  offset: number,
+): fc.Arbitrary<readonly number[]> {
   if (timers.length === 0) {
     return fc
       .array(fc.integer({ min: -100_000, max: 100_000 }), { minLength: 1, maxLength: 8 })
@@ -172,7 +189,9 @@ export const genPreAlertFold: fc.Arbitrary<{
   stream: readonly number[];
 }> = fc
   .record({ assigned: genAssignedTimers, offset: genOffsetValue })
-  .chain(({ assigned, offset }) => genMonotonicNowStream(assigned, offset).map((stream) => ({ assigned, offset, stream })));
+  .chain(({ assigned, offset }) =>
+    genMonotonicNowStream(assigned, offset).map((stream) => ({ assigned, offset, stream })),
+  );
 
 /**
  * P3 のステップ列 — 担当集合がステップごとに変動する（部分集合・空を含む）。
@@ -223,7 +242,10 @@ const genRunningDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
   unconfirmed: fc.boolean(),
 });
 
-const genIdleDisplay: fc.Arbitrary<SlotDisplay> = fc.record({ kind: fc.constant("idle" as const), slot: genSlot });
+const genIdleDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
+  kind: fc.constant("idle" as const),
+  slot: genSlot,
+});
 const genUnreceivedDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
   kind: fc.constant("unreceived" as const),
   slot: genSlot,
@@ -237,7 +259,9 @@ const genDisplay: fc.Arbitrary<SlotDisplay> = fc.oneof(
 );
 
 /** SlotDisplay[] — running/boiled/idle/unreceived が混在。boiled の重複 timerId・複数件同時 boiled を含む。 */
-export const genDisplays: fc.Arbitrary<readonly SlotDisplay[]> = fc.array(genDisplay, { maxLength: 12 });
+export const genDisplays: fc.Arbitrary<readonly SlotDisplay[]> = fc.array(genDisplay, {
+  maxLength: 12,
+});
 
 /** P4 の Done_Cue ケース — 表示集合・now・前回鳴動時刻・interval（既定 5s と任意値）。 */
 export const genDoneCueCase: fc.Arbitrary<{

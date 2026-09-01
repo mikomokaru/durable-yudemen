@@ -23,7 +23,14 @@ import {
 
 /** テスト用 TimerFact 生成。endTime は START_NOW から十分先に置く。startTime は START_NOW（開始時刻の事実）。 */
 function makeTimer(id: string, endTime = START_NOW + 180_000): TimerFact {
-  return { id, slotIds: [`slot-${id}`], noodleType: "ramen", firmness: "normal", startTime: START_NOW, endTime };
+  return {
+    id,
+    slotIds: [`slot-${id}`],
+    noodleType: "ramen",
+    firmness: "normal",
+    startTime: START_NOW,
+    endTime,
+  };
 }
 
 beforeEach(() => {
@@ -208,7 +215,8 @@ describe("client/connection — provisional への操作は origin で経路分�
 
 describe("client/connection — 占有ゲートは degraded の畳み込みにしか無い（degraded-slot-superimposition）", () => {
   it("live では占有スロットへの start も従来どおりサーバへ送る（要件3.4）", () => {
-    const { connection, send, setConnectivity, receiveSnapshot, setNow } = openConnectionWithFakeWatch();
+    const { connection, send, setConnectivity, receiveSnapshot, setNow } =
+      openConnectionWithFakeWatch();
 
     setConnectivity("up");
     // slot "0" を駆動する server-confirmed を受け、その endTime まで時刻を進めて boiled にする。
@@ -228,7 +236,12 @@ describe("client/connection — 占有ゲートは degraded の畳み込みに�
     setNow(occupant.endTime);
 
     connection.start(["0"], "udon", 90);
-    expect(send).toHaveBeenCalledWith({ type: "start", slotIds: ["0"], noodleType: "udon", boilSeconds: 90 });
+    expect(send).toHaveBeenCalledWith({
+      type: "start",
+      slotIds: ["0"],
+      noodleType: "udon",
+      boilSeconds: 90,
+    });
     // 送るだけで、ローカルには provisional を注入しない（live は LocalStart の畳み込み経路を通らない）。
     expect(connection.getView().timers.map((t) => t.id)).toEqual(["S"]);
 

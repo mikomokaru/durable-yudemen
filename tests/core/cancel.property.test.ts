@@ -25,7 +25,9 @@ function anchorOf(t: Timer): unknown {
  */
 function isSubset(result: readonly Timer[], origin: readonly Timer[]): boolean {
   return result.every((r) =>
-    origin.some((o) => o.id === r.id && JSON.stringify(anchorOf(o)) === JSON.stringify(anchorOf(r))),
+    origin.some(
+      (o) => o.id === r.id && JSON.stringify(anchorOf(o)) === JSON.stringify(anchorOf(r)),
+    ),
   );
 }
 
@@ -34,17 +36,22 @@ describe("core/cancel", () => {
   // 状態に存在しない任意の timerId について、cancelTimer は TimerNotFound を返し状態を変えない。
   it("Property 8: 非存在 timerId のキャンセルは TimerNotFound で拒否され状態は不変", () => {
     fc.assert(
-      fc.property(genState, fc.string(), fc.integer({ min: 0, max: 5_000_000 }), (state, suffix, now) => {
-        const timerId = `absent-${suffix}`; // 生成器の id は "timer-N"。前置で衝突を排除する。
-        fc.pre(!state.timers.some((t) => t.id === timerId));
-        const before = structuredClone({ timers: state.timers, nextSeq: state.nextSeq });
-        const outcome = cancelTimer(state, timerId, now as EpochMillis, PARAMS);
-        expect(outcome.ok).toBe(false);
-        if (!outcome.ok) {
-          expect(outcome.rejection.code).toBe("TimerNotFound");
-        }
-        expect({ timers: state.timers, nextSeq: state.nextSeq }).toEqual(before);
-      }),
+      fc.property(
+        genState,
+        fc.string(),
+        fc.integer({ min: 0, max: 5_000_000 }),
+        (state, suffix, now) => {
+          const timerId = `absent-${suffix}`; // 生成器の id は "timer-N"。前置で衝突を排除する。
+          fc.pre(!state.timers.some((t) => t.id === timerId));
+          const before = structuredClone({ timers: state.timers, nextSeq: state.nextSeq });
+          const outcome = cancelTimer(state, timerId, now as EpochMillis, PARAMS);
+          expect(outcome.ok).toBe(false);
+          if (!outcome.ok) {
+            expect(outcome.rejection.code).toBe("TimerNotFound");
+          }
+          expect({ timers: state.timers, nextSeq: state.nextSeq }).toEqual(before);
+        },
+      ),
       { numRuns: 200 },
     );
   });
@@ -54,7 +61,10 @@ describe("core/cancel", () => {
   // 元集合の部分集合であり、キャンセル対象は残らない。
   it("Property 10: 発火後の id は元集合に含まれ件数不変・キャンセル後は部分集合でキャンセル対象は残らない", () => {
     const genStateNowCancel = genState.chain((state) => {
-      const idArb = state.timers.length > 0 ? fc.constantFrom(...state.timers.map((t) => t.id as string)) : fc.constant("absent");
+      const idArb =
+        state.timers.length > 0
+          ? fc.constantFrom(...state.timers.map((t) => t.id as string))
+          : fc.constant("absent");
       return fc.record({ state: fc.constant(state), now: nowArbFor(state), cancelId: idArb });
     });
 

@@ -30,7 +30,8 @@ function pathFromRoot(absolutePath: string): string {
 
 function nodeName(name: ts.PropertyName | ts.BindingName | undefined): string | undefined {
   if (name === undefined) return undefined;
-  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) return name.text;
+  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name))
+    return name.text;
   return undefined;
 }
 
@@ -44,9 +45,9 @@ function relativeImports(file: ts.SourceFile): readonly string[] {
     if (ts.isImportDeclaration(statement) && ts.isStringLiteralLike(statement.moduleSpecifier)) {
       imports.push(statement.moduleSpecifier.text);
     } else if (
-      ts.isExportDeclaration(statement)
-      && statement.moduleSpecifier !== undefined
-      && ts.isStringLiteralLike(statement.moduleSpecifier)
+      ts.isExportDeclaration(statement) &&
+      statement.moduleSpecifier !== undefined &&
+      ts.isStringLiteralLike(statement.moduleSpecifier)
     ) {
       imports.push(statement.moduleSpecifier.text);
     }
@@ -83,7 +84,8 @@ function producerImportGraph(): {
 
 function classDeclaration(file: ts.SourceFile, name: string): ts.ClassDeclaration {
   const found = file.statements.find(
-    (statement): statement is ts.ClassDeclaration => ts.isClassDeclaration(statement) && statement.name?.text === name,
+    (statement): statement is ts.ClassDeclaration =>
+      ts.isClassDeclaration(statement) && statement.name?.text === name,
   );
   if (found === undefined) throw new Error(`${file.fileName}: class ${name} がない`);
   return found;
@@ -91,7 +93,8 @@ function classDeclaration(file: ts.SourceFile, name: string): ts.ClassDeclaratio
 
 function functionDeclaration(file: ts.SourceFile, name: string): ts.FunctionDeclaration {
   const found = file.statements.find(
-    (statement): statement is ts.FunctionDeclaration => ts.isFunctionDeclaration(statement) && statement.name?.text === name,
+    (statement): statement is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(statement) && statement.name?.text === name,
   );
   if (found === undefined) throw new Error(`${file.fileName}: function ${name} がない`);
   return found;
@@ -99,35 +102,45 @@ function functionDeclaration(file: ts.SourceFile, name: string): ts.FunctionDecl
 
 function methodDeclaration(target: ts.ClassDeclaration, name: string): ts.MethodDeclaration {
   const found = target.members.find(
-    (member): member is ts.MethodDeclaration => ts.isMethodDeclaration(member) && nodeName(member.name) === name,
+    (member): member is ts.MethodDeclaration =>
+      ts.isMethodDeclaration(member) && nodeName(member.name) === name,
   );
   if (found === undefined) throw new Error(`${target.name?.text ?? "class"}.${name} がない`);
   return found;
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
-  return ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) ?? false);
+  return (
+    ts.canHaveModifiers(node) &&
+    (ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) ?? false)
+  );
 }
 
 function constructorDeclaration(target: ts.ClassDeclaration): ts.ConstructorDeclaration {
-  const found = target.members.find(
-    (member): member is ts.ConstructorDeclaration => ts.isConstructorDeclaration(member),
+  const found = target.members.find((member): member is ts.ConstructorDeclaration =>
+    ts.isConstructorDeclaration(member),
   );
   if (found === undefined) throw new Error(`${target.name?.text ?? "class"}.constructor がない`);
   return found;
 }
 
 function projectFiles(relativeDirectory: string): readonly string[] {
-  const ignoredDirectories = new Set([".git", ".kiro", ".wrangler", "dist", "node_modules", "public"]);
+  const ignoredDirectories = new Set([
+    ".git",
+    ".kiro",
+    ".wrangler",
+    "dist",
+    "node_modules",
+    "public",
+  ]);
   const absoluteDirectory = resolve(repoRoot, relativeDirectory);
   if (!existsSync(absoluteDirectory)) return [];
 
   return readdirSync(absoluteDirectory, { withFileTypes: true })
     .sort((left, right) => left.name.localeCompare(right.name))
     .flatMap((entry): readonly string[] => {
-      const relativePath = relativeDirectory.length === 0
-        ? entry.name
-        : `${relativeDirectory}/${entry.name}`;
+      const relativePath =
+        relativeDirectory.length === 0 ? entry.name : `${relativeDirectory}/${entry.name}`;
       if (entry.isDirectory()) {
         return ignoredDirectories.has(entry.name) ? [] : projectFiles(relativePath);
       }
@@ -144,9 +157,18 @@ function hasAncestor(node: ts.Node, ancestor: ts.Node): boolean {
 
 const graph = producerImportGraph();
 const graphFiles = graph.files.map((path) => ({ path, file: parse(path) }));
-const forbiddenCapabilityName = /^(?:ctx|context|env|bindings?|storage|alarm|alarminvocationinfo|scheduled(?:event)?|queue|r2(?:bucket)?|websocket|fetch(?:er)?|httpclient|durableobject(?:namespace|stub)?|workerstub|servicebinding|tailworker|consumer|snowpipe|snowflake|logpush|client)$/i;
+const forbiddenCapabilityName =
+  /^(?:ctx|context|env|bindings?|storage|alarm|alarminvocationinfo|scheduled(?:event)?|queue|r2(?:bucket)?|websocket|fetch(?:er)?|httpclient|durableobject(?:namespace|stub)?|workerstub|servicebinding|tailworker|consumer|snowpipe|snowflake|logpush|client)$/i;
 const forbiddenObservationMarker = /(?:operation[-_ ]?history|telemetry)/i;
-const eventCallbackNames = new Set(["fetch", "alarm", "webSocketMessage", "webSocketClose", "webSocketError", "scheduled", "queue"]);
+const eventCallbackNames = new Set([
+  "fetch",
+  "alarm",
+  "webSocketMessage",
+  "webSocketClose",
+  "webSocketError",
+  "scheduled",
+  "queue",
+]);
 /** Validates: Requirements 1.3, 1.8, 1.9, 2.15 */
 describe("Operation History O1 — Producer capability の閉包", () => {
   it("推移 import graph を純粋層だけに閉じ、platform・下流 client を取り込まない", () => {
@@ -154,10 +176,10 @@ describe("Operation History O1 — Producer capability の閉包", () => {
     expect(graph.files).toContain(producerRoot);
     for (const path of graph.files) {
       expect(
-        path.startsWith("src/operation-history/")
-          || path.startsWith("src/engine/")
-          || path.startsWith("src/domain/")
-          || path.startsWith("src/registry/"),
+        path.startsWith("src/operation-history/") ||
+          path.startsWith("src/engine/") ||
+          path.startsWith("src/domain/") ||
+          path.startsWith("src/registry/"),
         `${path} が Producer の許可された純粋層外にある`,
       ).toBe(true);
       expect(path, `${path} が作用の端または下流 client である`).not.toMatch(
@@ -172,7 +194,9 @@ describe("Operation History O1 — Producer capability の閉包", () => {
   it("graph の import・識別子・引数に runtime capability を持たない", () => {
     for (const { path, file } of graphFiles) {
       for (const specifier of relativeImports(file)) {
-        expect(specifier, `${path} が platform module を import している`).not.toBe("cloudflare:workers");
+        expect(specifier, `${path} が platform module を import している`).not.toBe(
+          "cloudflare:workers",
+        );
       }
       walk(file, (node) => {
         if (ts.isIdentifier(node)) {
@@ -183,10 +207,9 @@ describe("Operation History O1 — Producer capability の閉包", () => {
         }
         if (ts.isParameter(node)) {
           const parameter = node.getText(file);
-          expect(
-            parameter,
-            `${path} の引数が runtime capability を受け取る`,
-          ).not.toMatch(/\b(?:ctx|env|binding|storage|Alarm|Queue|R2|WebSocket|Fetcher|HTTPClient|DurableObjectNamespace|DurableObjectStub|WorkerStub|TailWorker|Consumer)\b/i);
+          expect(parameter, `${path} の引数が runtime capability を受け取る`).not.toMatch(
+            /\b(?:ctx|env|binding|storage|Alarm|Queue|R2|WebSocket|Fetcher|HTTPClient|DurableObjectNamespace|DurableObjectStub|WorkerStub|TailWorker|Consumer)\b/i,
+          );
         }
       });
     }
@@ -197,7 +220,12 @@ describe("Operation History O1 — Producer capability の閉包", () => {
     const terminal = functionDeclaration(file, "tryWriteOperationLines");
     expect(hasModifier(terminal, ts.SyntaxKind.AsyncKeyword)).toBe(false);
     expect(terminal.type?.getText(file)).toBe("void");
-    expect(terminal.parameters.map((parameter) => [nodeName(parameter.name), parameter.type?.getText(file)])).toEqual([
+    expect(
+      terminal.parameters.map((parameter) => [
+        nodeName(parameter.name),
+        parameter.type?.getText(file),
+      ]),
+    ).toEqual([
       ["enabled", "boolean"],
       ["observation", "OperationObservation"],
     ]);
@@ -208,7 +236,11 @@ describe("Operation History O1 — Producer capability の閉包", () => {
       if (ts.isCallExpression(node)) calls.push(node.expression.getText(file));
       if (ts.isAwaitExpression(node)) awaits += 1;
     });
-    expect(calls).toEqual(["recordsFromCommittedDiff", "printCanonicalOperationLine", "console.log"]);
+    expect(calls).toEqual([
+      "recordsFromCommittedDiff",
+      "printCanonicalOperationLine",
+      "console.log",
+    ]);
     expect(awaits).toBe(0);
   });
 });
@@ -218,7 +250,10 @@ describe("Operation History O2 — 観測に由来する起動原因ゼロ", () 
       walk(file, (node) => {
         if (!ts.isMethodDeclaration(node) && !ts.isMethodSignature(node)) return;
         const name = nodeName(node.name);
-        expect(eventCallbackNames.has(name ?? ""), `${path} が event callback ${name ?? "?"} を定義する`).toBe(false);
+        expect(
+          eventCallbackNames.has(name ?? ""),
+          `${path} が event callback ${name ?? "?"} を定義する`,
+        ).toBe(false);
       });
     }
   });
@@ -226,13 +261,15 @@ describe("Operation History O2 — 観測に由来する起動原因ゼロ", () 
   it("Worker と StoreTimerDO に scheduled・Queue callback や観測用公開 RPC を追加しない", () => {
     const worker = parse(workerPath);
     const defaultExport = worker.statements.find(
-      (statement): statement is ts.ExportAssignment => ts.isExportAssignment(statement) && !statement.isExportEquals,
+      (statement): statement is ts.ExportAssignment =>
+        ts.isExportAssignment(statement) && !statement.isExportEquals,
     );
     expect(defaultExport).toBeDefined();
     const defaultExpression = defaultExport?.expression;
-    const defaultHandler = defaultExpression !== undefined && ts.isSatisfiesExpression(defaultExpression)
-      ? defaultExpression.expression
-      : defaultExpression;
+    const defaultHandler =
+      defaultExpression !== undefined && ts.isSatisfiesExpression(defaultExpression)
+        ? defaultExpression.expression
+        : defaultExpression;
     expect(defaultHandler !== undefined && ts.isObjectLiteralExpression(defaultHandler)).toBe(true);
     if (defaultHandler === undefined || !ts.isObjectLiteralExpression(defaultHandler)) return;
     expect(defaultHandler.properties.map((property) => nodeName(property.name))).toEqual(["fetch"]);
@@ -247,7 +284,10 @@ describe("Operation History O2 — 観測に由来する起動原因ゼロ", () 
     for (const member of storeTimer.members) {
       const name = nodeName(member.name);
       if (name !== undefined && forbiddenObservationMarker.test(name)) {
-        expect(hasModifier(member, ts.SyntaxKind.PrivateKeyword), `${name} が観測用公開 RPC になっている`).toBe(true);
+        expect(
+          hasModifier(member, ts.SyntaxKind.PrivateKeyword),
+          `${name} が観測用公開 RPC になっている`,
+        ).toBe(true);
       }
     }
   });
@@ -257,26 +297,38 @@ describe("Operation History O2 — 観測に由来する起動原因ゼロ", () 
       const file = parse(path);
       walk(file, (node) => {
         if (ts.isStringLiteralLike(node)) {
-          expect(node.text, `${path} に観測専用 route/frame がある`).not.toMatch(forbiddenObservationMarker);
+          expect(node.text, `${path} に観測専用 route/frame がある`).not.toMatch(
+            forbiddenObservationMarker,
+          );
         }
       });
-      expect(relativeImports(file).some((specifier) => specifier.includes("operation-history"))).toBe(false);
+      expect(
+        relativeImports(file).some((specifier) => specifier.includes("operation-history")),
+      ).toBe(false);
     }
 
     const shell = parse(shellPath);
     const parser = functionDeclaration(shell, "parseClientMessage");
     const frames = new Set<string>();
     walk(parser, (node) => {
-      if (ts.isCaseClause(node) && ts.isStringLiteralLike(node.expression)) frames.add(node.expression.text);
+      if (ts.isCaseClause(node) && ts.isStringLiteralLike(node.expression))
+        frames.add(node.expression.text);
     });
     expect(frames).toEqual(new Set(["start", "cancel", "complete", "adjust"]));
   });
 
   it("生成 Env の観測能力を同期 ON/OFF flag だけに限定する", () => {
-    const generated = source("worker-configuration.d.ts").split("// Begin runtime types", 1)[0] ?? "";
-    const file = ts.createSourceFile("worker-configuration.d.ts", generated, ts.ScriptTarget.Latest, true);
+    const generated =
+      source("worker-configuration.d.ts").split("// Begin runtime types", 1)[0] ?? "";
+    const file = ts.createSourceFile(
+      "worker-configuration.d.ts",
+      generated,
+      ts.ScriptTarget.Latest,
+      true,
+    );
     const baseEnv = file.statements.find(
-      (statement): statement is ts.InterfaceDeclaration => ts.isInterfaceDeclaration(statement) && statement.name.text === "__BaseEnv_Env",
+      (statement): statement is ts.InterfaceDeclaration =>
+        ts.isInterfaceDeclaration(statement) && statement.name.text === "__BaseEnv_Env",
     );
     expect(baseEnv).toBeDefined();
     const observationFields: ts.PropertySignature[] = [];
@@ -287,9 +339,13 @@ describe("Operation History O2 — 観測に由来する起動原因ゼロ", () 
         observationFields.push(member);
       }
     }
-    expect(observationFields.map((member) => nodeName(member.name))).toEqual(["OPERATION_HISTORY_ENABLED"]);
+    expect(observationFields.map((member) => nodeName(member.name))).toEqual([
+      "OPERATION_HISTORY_ENABLED",
+    ]);
     expect(observationFields[0]?.type?.getText(file)).toBe('"0"');
-    expect(observationFields[0]?.type?.getText(file)).not.toMatch(/Queue|R2|Fetcher|DurableObject|WorkerStub|Service/i);
+    expect(observationFields[0]?.type?.getText(file)).not.toMatch(
+      /Queue|R2|Fetcher|DurableObject|WorkerStub|Service/i,
+    );
   });
 });
 describe("Operation History O3 — 観測用の永続 read/write ゼロ", () => {
@@ -298,18 +354,18 @@ describe("Operation History O3 — 観測用の永続 read/write ゼロ", () => 
       walk(file, (node) => {
         if (ts.isVariableDeclaration(node)) {
           const name = nodeName(node.name);
-          expect(name ?? "", `${path} が観測用 storage key/state ${name ?? "?"} を定義する`).not.toMatch(
-            /(?:_KEY$|STORAGE|OUTBOX|RECORD_SEQ|DELIVERY_STATE|CHECKPOINT)/i,
-          );
+          expect(
+            name ?? "",
+            `${path} が観測用 storage key/state ${name ?? "?"} を定義する`,
+          ).not.toMatch(/(?:_KEY$|STORAGE|OUTBOX|RECORD_SEQ|DELIVERY_STATE|CHECKPOINT)/i);
         }
         if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
           const receiver = node.expression.expression.getText(file);
           const method = node.expression.name.text;
           if (/^(?:get|put|set|delete|list|transaction|transactionSync)$/i.test(method)) {
-            expect(
-              receiver,
-              `${path} が ${receiver}.${method} で永続層へ到達する`,
-            ).not.toMatch(/(?:storage|kv|r2|bucket|database|\bdb\b)/i);
+            expect(receiver, `${path} が ${receiver}.${method} で永続層へ到達する`).not.toMatch(
+              /(?:storage|kv|r2|bucket|database|\bdb\b)/i,
+            );
           }
         }
       });
@@ -318,15 +374,17 @@ describe("Operation History O3 — 観測用の永続 read/write ゼロ", () => 
 
   it("StoreTimerDO の観測境界は既存 readonly 値を Producer へ渡すだけで永続処理を起動しない", () => {
     const shell = parse(shellPath);
-    const boundary = methodDeclaration(classDeclaration(shell, "StoreTimerDO"), "tryWriteCommittedOperation");
+    const boundary = methodDeclaration(
+      classDeclaration(shell, "StoreTimerDO"),
+      "tryWriteCommittedOperation",
+    );
     const calls: string[] = [];
     walk(boundary, (node) => {
       if (ts.isCallExpression(node)) calls.push(node.expression.getText(shell));
       if (ts.isIdentifier(node)) {
-        expect(
-          node.text,
-          `観測境界が永続・再起動能力 ${node.text} を参照する`,
-        ).not.toMatch(/^(?:storage|ensureLoaded|ensureProvisioned|runEffects|setAlarm|deleteAlarm|transaction|list|put|get)$/);
+        expect(node.text, `観測境界が永続・再起動能力 ${node.text} を参照する`).not.toMatch(
+          /^(?:storage|ensureLoaded|ensureProvisioned|runEffects|setAlarm|deleteAlarm|transaction|list|put|get)$/,
+        );
       }
     });
     expect(calls).toEqual(["effects.some", "tryWriteOperationLines"]);
@@ -336,7 +394,10 @@ describe("Operation History O3 — 観測用の永続 read/write ゼロ", () => 
 describe("Operation History O4 — Data Platform からの逆方向到達不能", () => {
   const dataPlatformSources = projectFiles("src").filter((path) => {
     if (!/\.(?:ts|tsx)$/.test(path) || !/(?:tail|consumer)/i.test(path)) return false;
-    return /operation-history/i.test(path) || /OperationRecord|operationLinesFromTailEvents|operation-history/.test(source(path));
+    return (
+      /operation-history/i.test(path) ||
+      /OperationRecord|operationLinesFromTailEvents|operation-history/.test(source(path))
+    );
   });
   const dataPlatformConfigs = projectFiles("").filter((path) => {
     if (path === "wrangler.jsonc" || !/(?:^|\/)wrangler[^/]*\.jsonc$/.test(path)) return false;
@@ -394,15 +455,18 @@ describe("Operation History O4 — Data Platform からの逆方向到達不能"
           );
         }
         if (
-          (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertyAssignment(node))
-          && forbiddenCallbacks.has(nodeName(node.name) ?? "")
+          (ts.isMethodDeclaration(node) ||
+            ts.isMethodSignature(node) ||
+            ts.isPropertyAssignment(node)) &&
+          forbiddenCallbacks.has(nodeName(node.name) ?? "")
         ) {
           expect.fail(`${path} が逆方向 callback ${nodeName(node.name) ?? "?"} を定義する`);
         }
         if (ts.isNewExpression(node)) {
-          expect(node.expression.getText(file), `${path} が逆方向 connection/stub を構築する`).not.toMatch(
-            /(?:WebSocket|DurableObject|WorkerStub|EventSource)/i,
-          );
+          expect(
+            node.expression.getText(file),
+            `${path} が逆方向 connection/stub を構築する`,
+          ).not.toMatch(/(?:WebSocket|DurableObject|WorkerStub|EventSource)/i);
         }
         if (!ts.isCallExpression(node)) return;
         const called = node.expression.getText(file);
@@ -434,20 +498,24 @@ describe("Operation History O5 — invocation 終了時の観測資源ゼロ", (
   it("同期 Producer 終端は Promise・待機・timer・subscription・connection・Alarm を作らない", () => {
     const file = parse(producerRoot);
     const terminal = functionDeclaration(file, "tryWriteOperationLines");
-    const forbiddenLiveResource = /^(?:Promise|AbortController|WebSocket|WebSocketPair|EventSource|Alarm|Connection|Subscription)$/i;
+    const forbiddenLiveResource =
+      /^(?:Promise|AbortController|WebSocket|WebSocketPair|EventSource|Alarm|Connection|Subscription)$/i;
 
     walk(terminal, (node) => {
-      if (node !== terminal && (
-        ts.isFunctionDeclaration(node)
-        || ts.isFunctionExpression(node)
-        || ts.isArrowFunction(node)
-        || ts.isClassDeclaration(node)
-        || ts.isClassExpression(node)
-      )) {
+      if (
+        node !== terminal &&
+        (ts.isFunctionDeclaration(node) ||
+          ts.isFunctionExpression(node) ||
+          ts.isArrowFunction(node) ||
+          ts.isClassDeclaration(node) ||
+          ts.isClassExpression(node))
+      ) {
         expect.fail(`Producer 終端が保持され得る closure/class ${node.getText(file)} を作る`);
       }
       if (ts.isIdentifier(node)) {
-        expect(node.text, `Producer 終端が live resource ${node.text} を参照する`).not.toMatch(forbiddenLiveResource);
+        expect(node.text, `Producer 終端が live resource ${node.text} を参照する`).not.toMatch(
+          forbiddenLiveResource,
+        );
       }
       if (ts.isAwaitExpression(node) || ts.isNewExpression(node)) {
         expect.fail(`Producer 終端が非同期または live resource を作る: ${node.getText(file)}`);
@@ -481,10 +549,9 @@ describe("Operation History O5 — invocation 終了時の観測資源ゼロ", (
         );
       }
       if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
-        expect(node.operator, `Producer 終端が increment/decrement で状態を変更する`).not.toBeOneOf([
-          ts.SyntaxKind.PlusPlusToken,
-          ts.SyntaxKind.MinusMinusToken,
-        ]);
+        expect(node.operator, `Producer 終端が increment/decrement で状態を変更する`).not.toBeOneOf(
+          [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken],
+        );
       }
     });
   });
@@ -493,7 +560,9 @@ describe("Operation History O5 — invocation 終了時の観測資源ゼロ", (
 /** Validates: Requirements 1.8, 1.9, 2.7, 2.8, 2.15 */
 describe("Operation History O6 — Reconcile の一方向因果", () => {
   it("Producer graph から constructor・rehydrate・Reconcile へ戻る edge がない", () => {
-    expect(graph.files.some((path) => path.startsWith("src/shell/") || path === workerPath)).toBe(false);
+    expect(graph.files.some((path) => path.startsWith("src/shell/") || path === workerPath)).toBe(
+      false,
+    );
     for (const { path, file } of graphFiles) {
       walk(file, (node) => {
         if (!ts.isIdentifier(node)) return;
@@ -511,11 +580,11 @@ describe("Operation History O6 — Reconcile の一方向因果", () => {
     let callback: ts.ArrowFunction | undefined;
     walk(constructor, (node) => {
       if (
-        ts.isCallExpression(node)
-        && ts.isPropertyAccessExpression(node.expression)
-        && node.expression.name.text === "blockConcurrencyWhile"
-        && node.arguments[0] !== undefined
-        && ts.isArrowFunction(node.arguments[0])
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "blockConcurrencyWhile" &&
+        node.arguments[0] !== undefined &&
+        ts.isArrowFunction(node.arguments[0])
       ) {
         callback = node.arguments[0];
       }
@@ -528,21 +597,33 @@ describe("Operation History O6 — Reconcile の一方向因果", () => {
     walk(callback.body, (node) => {
       if (ts.isCallExpression(node)) calls.push(node);
     });
-    const callByName = (name: string): ts.CallExpression | undefined => calls.find((call) => {
-      const expression = call.expression;
-      return ts.isIdentifier(expression)
-        ? expression.text === name
-        : ts.isPropertyAccessExpression(expression) && expression.name.text === name;
-    });
+    const callByName = (name: string): ts.CallExpression | undefined =>
+      calls.find((call) => {
+        const expression = call.expression;
+        return ts.isIdentifier(expression)
+          ? expression.text === name
+          : ts.isPropertyAccessExpression(expression) && expression.name.text === name;
+      });
     const loaded = callByName("ensureLoaded");
     const provisioned = callByName("ensureProvisioned");
     const reconciled = callByName("decide");
     const effectsRun = callByName("runEffects");
     const observed = callByName("tryWriteCommittedOperation");
-    expect([loaded, provisioned, reconciled, effectsRun, observed].every((call) => call !== undefined)).toBe(true);
-    if (loaded === undefined || provisioned === undefined || reconciled === undefined || effectsRun === undefined || observed === undefined) return;
+    expect(
+      [loaded, provisioned, reconciled, effectsRun, observed].every((call) => call !== undefined),
+    ).toBe(true);
+    if (
+      loaded === undefined ||
+      provisioned === undefined ||
+      reconciled === undefined ||
+      effectsRun === undefined ||
+      observed === undefined
+    )
+      return;
     expect([loaded.pos, provisioned.pos, reconciled.pos, effectsRun.pos, observed.pos]).toEqual(
-      [...[loaded.pos, provisioned.pos, reconciled.pos, effectsRun.pos, observed.pos]].sort((left, right) => left - right),
+      [...[loaded.pos, provisioned.pos, reconciled.pos, effectsRun.pos, observed.pos]].sort(
+        (left, right) => left - right,
+      ),
     );
     expect(ts.isAwaitExpression(effectsRun.parent)).toBe(true);
     expect(observed.arguments[0]?.getText(shell)).toBe('"Reconcile"');
@@ -553,10 +634,10 @@ describe("Operation History O6 — Reconcile の一方向因果", () => {
     const reconcileObservations: ts.CallExpression[] = [];
     walk(storeTimer, (node) => {
       if (
-        ts.isCallExpression(node)
-        && ts.isPropertyAccessExpression(node.expression)
-        && node.expression.name.text === "tryWriteCommittedOperation"
-        && node.arguments[0]?.getText(shell) === '"Reconcile"'
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "tryWriteCommittedOperation" &&
+        node.arguments[0]?.getText(shell) === '"Reconcile"'
       ) {
         reconcileObservations.push(node);
       }
@@ -567,7 +648,10 @@ describe("Operation History O6 — Reconcile の一方向因果", () => {
 
   it("観測境界は Persist 成功差分だけを渡し、Reconcile は running→boiled だけを導出する", () => {
     const shell = parse(shellPath);
-    const boundary = methodDeclaration(classDeclaration(shell, "StoreTimerDO"), "tryWriteCommittedOperation");
+    const boundary = methodDeclaration(
+      classDeclaration(shell, "StoreTimerDO"),
+      "tryWriteCommittedOperation",
+    );
     const guard = boundary.body?.statements[0];
     expect(guard !== undefined && ts.isIfStatement(guard)).toBe(true);
     if (guard !== undefined && ts.isIfStatement(guard)) {
@@ -588,7 +672,9 @@ describe("Operation History O6 — Reconcile の一方向因果", () => {
     expect(reconcileBranch).toContain('operationKind: "boiled"');
     expect(reconcileBranch).toContain("previous.engineTimer.boiledAt !== null");
     expect(reconcileBranch).toContain("engineTimer.boiledAt === null");
-    expect(reconcileBranch).not.toMatch(/constructor|ensureLoaded|ensureProvisioned|runEffects|tryWriteOperationLines/);
+    expect(reconcileBranch).not.toMatch(
+      /constructor|ensureLoaded|ensureProvisioned|runEffects|tryWriteOperationLines/,
+    );
   });
 });
 
@@ -619,7 +705,9 @@ describe("Operation History — hibernation debug harness (src/observe) との�
     for (const { path, file } of graphFiles) {
       for (const specifier of relativeImports(file)) {
         if (!specifier.startsWith(".")) {
-          expect(specifier, `${path} が harness を外部 specifier で取り込む`).not.toMatch(/observe/i);
+          expect(specifier, `${path} が harness を外部 specifier で取り込む`).not.toMatch(
+            /observe/i,
+          );
           continue;
         }
         const resolved = resolveRelativeImport(path, specifier);
@@ -635,10 +723,10 @@ describe("Operation History — hibernation debug harness (src/observe) との�
     expect(graph.files).toContain(producerRoot);
     for (const path of graph.files) {
       expect(
-        path.startsWith("src/operation-history/")
-          || path.startsWith("src/engine/")
-          || path.startsWith("src/domain/")
-          || path.startsWith("src/registry/"),
+        path.startsWith("src/operation-history/") ||
+          path.startsWith("src/engine/") ||
+          path.startsWith("src/domain/") ||
+          path.startsWith("src/registry/"),
         `${path} が Operation History 固有の純粋層外にある`,
       ).toBe(true);
     }

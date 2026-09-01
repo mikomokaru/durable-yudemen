@@ -80,7 +80,9 @@ function isImportMetaEnv(node: ts.Node): boolean {
 /** `import.meta.env.{key}` か。 */
 function isEnvFlag(node: ts.Node, key: string): boolean {
   return (
-    ts.isPropertyAccessExpression(node) && node.name.text === key && isImportMetaEnv(node.expression)
+    ts.isPropertyAccessExpression(node) &&
+    node.name.text === key &&
+    isImportMetaEnv(node.expression)
   );
 }
 
@@ -88,7 +90,11 @@ function isEnvFlag(node: ts.Node, key: string): boolean {
 function callsFunction(node: ts.Node, name: string): boolean {
   let found = false;
   walk(node, (child) => {
-    if (ts.isCallExpression(child) && ts.isIdentifier(child.expression) && child.expression.text === name) {
+    if (
+      ts.isCallExpression(child) &&
+      ts.isIdentifier(child.expression) &&
+      child.expression.text === name
+    ) {
       found = true;
     }
   });
@@ -112,7 +118,8 @@ function functionDeclaration(relative: string, name: string): ts.FunctionDeclara
  */
 function devGuardReturn(fn: ts.FunctionDeclaration): string | undefined {
   const first = fn.body?.statements[0];
-  if (first === undefined || !ts.isIfStatement(first) || first.elseStatement !== undefined) return undefined;
+  if (first === undefined || !ts.isIfStatement(first) || first.elseStatement !== undefined)
+    return undefined;
   const condition = first.expression;
   if (
     !ts.isPrefixUnaryExpression(condition) ||
@@ -162,7 +169,11 @@ function isDevGatedConjunction(expression: ts.Expression, gatedCall: string): bo
 
 /** node を包む最も内側の if 文の条件式。if の外に在れば undefined。 */
 function enclosingIfCondition(node: ts.Node): ts.Expression | undefined {
-  for (let current: ts.Node | undefined = node.parent; current !== undefined; current = current.parent) {
+  for (
+    let current: ts.Node | undefined = node.parent;
+    current !== undefined;
+    current = current.parent
+  ) {
     if (ts.isIfStatement(current)) return current.expression;
   }
   return undefined;
@@ -170,7 +181,11 @@ function enclosingIfCondition(node: ts.Node): ts.Expression | undefined {
 
 /** node の祖先に `{gate && …}` の JSX 式が在るか（トグルがゲートの下にのみ在ることの判定）。 */
 function hasJsxGateAncestor(node: ts.Node, gate: string): boolean {
-  for (let current: ts.Node | undefined = node.parent; current !== undefined; current = current.parent) {
+  for (
+    let current: ts.Node | undefined = node.parent;
+    current !== undefined;
+    current = current.parent
+  ) {
     if (!ts.isJsxExpression(current)) continue;
     const expression = current.expression;
     if (
@@ -203,18 +218,18 @@ describe("ping blackhole — 実装のゲート（connectivity.ts）", () => {
     const fn = functionDeclaration(CONNECTIVITY, "pingBlackholeDebugEnabled");
     expect(
       devGuardReturn(fn),
-      `${CONNECTIVITY} の pingBlackholeDebugEnabled の先頭文が `
-        + `\`if (!import.meta.env.DEV) return false;\` でない。DEV 判定が先頭に無ければ本番ビルドで`
-        + `フラグ評価が dead-code 除去されず、切替手段がバンドルに残る（要件14.4）`,
+      `${CONNECTIVITY} の pingBlackholeDebugEnabled の先頭文が ` +
+        `\`if (!import.meta.env.DEV) return false;\` でない。DEV 判定が先頭に無ければ本番ビルドで` +
+        `フラグ評価が dead-code 除去されず、切替手段がバンドルに残る（要件14.4）`,
     ).toBe("false");
   });
 
-  it("デバッグフラグは VITE_PING_BLACKHOLE_DEBUG === \"1\" で判定する（OBSERVE_DEBUG と同じ規律）", () => {
+  it('デバッグフラグは VITE_PING_BLACKHOLE_DEBUG === "1" で判定する（OBSERVE_DEBUG と同じ規律）', () => {
     const fn = functionDeclaration(CONNECTIVITY, "pingBlackholeDebugEnabled");
     expect(
       debugFlagCheck(fn),
-      `${CONNECTIVITY} の pingBlackholeDebugEnabled が import.meta.env のフラグを文字列比較していない。`
-        + `既定無効（未設定なら false）の規律が失われる（要件14.4）`,
+      `${CONNECTIVITY} の pingBlackholeDebugEnabled が import.meta.env のフラグを文字列比較していない。` +
+        `既定無効（未設定なら false）の規律が失われる（要件14.4）`,
     ).toEqual({ envKey: "VITE_PING_BLACKHOLE_DEBUG", expected: "1" });
   });
 
@@ -222,8 +237,8 @@ describe("ping blackhole — 実装のゲート（connectivity.ts）", () => {
     const fn = functionDeclaration(CONNECTIVITY, "withPingBlackhole");
     expect(
       devGuardReturn(fn),
-      `${CONNECTIVITY} の withPingBlackhole の先頭文が \`if (!import.meta.env.DEV) return inner;\` でない。`
-        + `本番で inner を素通しする恒等関数にならなければ、フォルトインジェクションの配線がバンドルに残る（要件14.4）`,
+      `${CONNECTIVITY} の withPingBlackhole の先頭文が \`if (!import.meta.env.DEV) return inner;\` でない。` +
+        `本番で inner を素通しする恒等関数にならなければ、フォルトインジェクションの配線がバンドルに残る（要件14.4）`,
     ).toBe("inner");
   });
 });
@@ -240,7 +255,8 @@ describe("ping blackhole — 配線のゲート（connection.ts）", () => {
         node.expression.text === "withPingBlackhole",
     );
     // 読めなかったものを「無い」と扱わない。配線が消えていれば主張の対象ごと失われているので落とす。
-    if (wirings.length === 0) throw new Error(`${CONNECTION} に withPingBlackhole の呼び出しが無い`);
+    if (wirings.length === 0)
+      throw new Error(`${CONNECTION} に withPingBlackhole の呼び出しが無い`);
 
     for (const wiring of wirings) {
       const condition = enclosingIfCondition(wiring);
@@ -251,8 +267,8 @@ describe("ping blackhole — 配線のゲート（connection.ts）", () => {
       }
       expect(
         isDevGatedConjunction(condition, "pingBlackholeDebugEnabled"),
-        `${CONNECTION} の blackhole 配線の条件が \`import.meta.env.DEV && pingBlackholeDebugEnabled()\` でない`
-          + `（現行: ${condition.getText()}）。DEV が左オペランドでなければ本番ビルドで分岐ごと除去されない（要件14.4）`,
+        `${CONNECTION} の blackhole 配線の条件が \`import.meta.env.DEV && pingBlackholeDebugEnabled()\` でない` +
+          `（現行: ${condition.getText()}）。DEV が左オペランドでなければ本番ビルドで分岐ごと除去されない（要件14.4）`,
       ).toBe(true);
     }
   });
@@ -266,8 +282,8 @@ describe("ping blackhole — UI 非露出のゲート（App.tsx）", () => {
     if (initializer === undefined) throw new Error(`${APP} の ${UI_GATE} に初期化子が無い`);
     expect(
       isDevGatedConjunction(initializer, "pingBlackholeDebugEnabled"),
-      `${APP} の ${UI_GATE} の初期化子が \`import.meta.env.DEV && pingBlackholeDebugEnabled()\` でない`
-        + `（現行: ${initializer.getText()}）。DEV が左オペランドでなければトグル配線が本番バンドルから除外されない（要件14.4）`,
+      `${APP} の ${UI_GATE} の初期化子が \`import.meta.env.DEV && pingBlackholeDebugEnabled()\` でない` +
+        `（現行: ${initializer.getText()}）。DEV が左オペランドでなければトグル配線が本番バンドルから除外されない（要件14.4）`,
     ).toBe(true);
   });
 
@@ -279,13 +295,14 @@ describe("ping blackhole — UI 非露出のゲート（App.tsx）", () => {
         (ts.isStringLiteralLike(node) || ts.isJsxText(node)) && node.text.includes(TOGGLE_LABEL),
     );
     // ラベルが見つからないことを緑にしない。文言を変えたのならこの定数も併せて更新すべきである。
-    if (labels.length === 0) throw new Error(`${APP} に ${JSON.stringify(TOGGLE_LABEL)} を含む要素が無い`);
+    if (labels.length === 0)
+      throw new Error(`${APP} に ${JSON.stringify(TOGGLE_LABEL)} を含む要素が無い`);
 
     for (const label of labels) {
       expect(
         hasJsxGateAncestor(label, UI_GATE),
-        `${APP} の ${JSON.stringify(TOGGLE_LABEL)} が \`{${UI_GATE} && …}\` の下に無い。`
-          + `フォルトインジェクションの切替手段が本番のユーザー向け UI に露出する（要件14.4）`,
+        `${APP} の ${JSON.stringify(TOGGLE_LABEL)} が \`{${UI_GATE} && …}\` の下に無い。` +
+          `フォルトインジェクションの切替手段が本番のユーザー向け UI に露出する（要件14.4）`,
       ).toBe(true);
     }
   });

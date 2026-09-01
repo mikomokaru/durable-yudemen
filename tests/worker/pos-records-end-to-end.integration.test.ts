@@ -52,9 +52,13 @@ const NOODLE = "PosRamen";
  * （`compose.ts` の合成対象に載っていなければ、投入は受理されるのに投影に現れないという無言の欠落になる）。
  */
 const storeOverride = {
-  noodlePresets: [{ noodleType: NOODLE, boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } }],
+  noodlePresets: [
+    { noodleType: NOODLE, boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
+  ],
   firmnessCodes: [{ code: 10011, firmness: "normal" }],
-  menuItems: [{ productCode: MENU_CODE, noodleType: NOODLE, sizes: [{ code: SIZE_REGULAR, slotSpan: 1 }] }],
+  menuItems: [
+    { productCode: MENU_CODE, noodleType: NOODLE, sizes: [{ code: SIZE_REGULAR, slotSpan: 1 }] },
+  ],
 };
 
 /** 上流の KDS が採る桁数。桁が揃っていれば辞書順が数値順に一致し、単調性の比較がそのまま働く。 */
@@ -165,7 +169,10 @@ async function upsertStores(
   expect(res.ok).toBe(true);
 }
 
-async function readKey<T>(stub: DurableObjectStub<StoreRegistryDO>, key: string): Promise<T | undefined> {
+async function readKey<T>(
+  stub: DurableObjectStub<StoreRegistryDO>,
+  key: string,
+): Promise<T | undefined> {
   return runInDurableObject(stub, (_instance, state) => state.storage.get<T>(key));
 }
 
@@ -185,8 +192,14 @@ async function seedHeld(
   records: readonly ArrivalRecord[],
 ): Promise<void> {
   const now = Date.now();
-  const held: readonly HeldRecord[] = records.map((record) => ({ kind: "unrouted", heldAt: now, record }));
-  await runInDurableObject(stub, (_instance, state) => state.storage.put(unroutedKey(storeCode), held));
+  const held: readonly HeldRecord[] = records.map((record) => ({
+    kind: "unrouted",
+    heldAt: now,
+    record,
+  }));
+  await runInDurableObject(stub, (_instance, state) =>
+    state.storage.put(unroutedKey(storeCode), held),
+  );
 }
 
 /** 待ち行列の確定状態（宛先 DO の永続が正本である）。 */

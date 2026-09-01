@@ -13,7 +13,8 @@ import type { PendingOrder } from "../../src/domain/order";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { settleParams } from "../settleParams";
 
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
 type RecordsReceivedEvent = Extract<Event, { readonly type: "RecordsReceived" }>;
 
@@ -39,7 +40,9 @@ type ReceivedShapeAssertions = [
   // **items は NonEmptyArray ではない。** 非空を型で要求するのは 1 つの到着だけを扱う OrderArrived の側で、
   // 受領単位では空が意味を持つ（0 件は除去または無変更）。両者が別の基数を持つことをここで固定する。
   Assert<Equal<ReceivedOrder["items"], readonly PendingOrder[]>>,
-  Assert<Equal<Extract<Event, { readonly type: "OrderArrived" }>["arrival"], NonEmptyArray<PendingOrder>>>,
+  Assert<
+    Equal<Extract<Event, { readonly type: "OrderArrived" }>["arrival"], NonEmptyArray<PendingOrder>>
+  >,
 ];
 const receivedShapeAssertions: ReceivedShapeAssertions = [true, true, true, true, true];
 

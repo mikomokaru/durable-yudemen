@@ -17,7 +17,15 @@ const MODIFIED_AT = ARRIVED_AT + 300_000;
 
 /** 3 品の注文 o-1（同卓 t-7）。品目 0 を人が茹で始めた、という場面を組む。 */
 function item(itemIndex: number, noodleType: string, arrivalTime: number): PendingOrder {
-  return { externalOrderId: "o-1", itemIndex, noodleType, firmness: "normal", tableId: "t-7", arrivalTime, slotSpan: 1 };
+  return {
+    externalOrderId: "o-1",
+    itemIndex,
+    noodleType,
+    firmness: "normal",
+    tableId: "t-7",
+    arrivalTime,
+    slotSpan: 1,
+  };
 }
 
 /** 注文品目 0 から始まった走行中の Timer。 */

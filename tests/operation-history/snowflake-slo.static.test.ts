@@ -38,17 +38,25 @@ const matched = (pattern: RegExp): readonly string[] => {
 // SQL 側が持つ判定値。
 const fifteenMinutes = Number(matched(/BETWEEN 0 AND (\d+)/)[0]);
 const targetRate = Number(matched(/>= (0\.\d+)/)[0]);
-const fiveMinutes = Number(matched(/DATEADD\(MILLISECOND, (\d+), TRANSITION\.TRANSITIONED_AT\)/)[0]);
+const fiveMinutes = Number(
+  matched(/DATEADD\(MILLISECOND, (\d+), TRANSITION\.TRANSITIONED_AT\)/)[0],
+);
 const [warningOffset, criticalOffset] = matched(
   /IFF\(KIND\.NOTIFICATION_KIND = 'warning', (\d+), (\d+)\)/,
 ).map(Number) as [number, number];
-const bandThresholds = [...statements.matchAll(/>= (\d+)\s+THEN '([a-z-]+)'/g)]
-  .map(([, elapsed, band]) => [Number(elapsed), band!] as const);
+const bandThresholds = [...statements.matchAll(/>= (\d+)\s+THEN '([a-z-]+)'/g)].map(
+  ([, elapsed, band]) => [Number(elapsed), band!] as const,
+);
 /** DISPLAY 式に現れる文字列 literal（format model を除く）。 */
 const displayLiterals = [...statements.matchAll(/'([^']*)'/g)]
   .map(([, literal]) => literal!)
-  .filter((literal) => literal.startsWith("Population: ") || literal.startsWith("; ")
-    || literal === "not applicable" || literal === "%");
+  .filter(
+    (literal) =>
+      literal.startsWith("Population: ") ||
+      literal.startsWith("; ") ||
+      literal === "not applicable" ||
+      literal === "%",
+  );
 
 const observedAt = Date.UTC(2026, 5, 1);
 const utcMonth = "2026-06";
@@ -65,11 +73,13 @@ function completed(timerId: string, eventTime = 1_700_000_000_000): OperationRec
   };
 }
 
-const pending = [{
-  record: completed("timer-oldest"),
-  firstObservedAt: observedAt,
-  firstSnowflakeAt: null,
-}] as const;
+const pending = [
+  {
+    record: completed("timer-oldest"),
+    firstObservedAt: observedAt,
+    firstSnowflakeAt: null,
+  },
+] as const;
 
 type ArrivalLagBand = "under-thirty-minutes" | "thirty-to-sixty-minutes" | "sixty-minutes-or-more";
 
@@ -137,10 +147,12 @@ describe("UTC 暦月の到達 SLO", () => {
   });
 
   it("SQL の DISPLAY 式が純粋層の表示文をそのまま組み立てる", () => {
-    const [prefix, withinPrefix, ratePrefix, notApplicable, percent, guarantee] = displayLiterals as [
-      string, string, string, string, string, string,
-    ];
-    const [notApplicableMonth] = operationArrivalSloByUtcMonth({ arrivals: [], utcMonths: [utcMonth] });
+    const [prefix, withinPrefix, ratePrefix, notApplicable, percent, guarantee] =
+      displayLiterals as [string, string, string, string, string, string];
+    const [notApplicableMonth] = operationArrivalSloByUtcMonth({
+      arrivals: [],
+      utcMonths: [utcMonth],
+    });
     const [halfMonth] = operationArrivalSloByUtcMonth({
       arrivals: [
         {
@@ -201,7 +213,10 @@ describe("未到達最古 record の帯の遷移", () => {
 
   it("SQL の遷移時刻と 5 分期限が純粋層と一致する", () => {
     const warning = transitionAt(observedAt + warningOffset, "under-thirty-minutes").notification;
-    const critical = transitionAt(observedAt + criticalOffset, "thirty-to-sixty-minutes").notification;
+    const critical = transitionAt(
+      observedAt + criticalOffset,
+      "thirty-to-sixty-minutes",
+    ).notification;
 
     expect(warning).toMatchObject({
       kind: "warning",
@@ -227,10 +242,12 @@ describe("未到達最古 record の帯の遷移", () => {
       "NEXT_BAND = 'sixty-minutes-or-more' AND NEXT.PREVIOUS_BAND <> 'sixty-minutes-or-more'",
     );
     // 同じ帯が続く間は通知しない。SQL は直前の帯だけを覚え、帯の変化で検出する。
-    expect(transitionAt(observedAt + warningOffset + 1, "thirty-to-sixty-minutes").notification)
-      .toBeNull();
-    expect(transitionAt(observedAt + criticalOffset + 1, "sixty-minutes-or-more").notification)
-      .toBeNull();
+    expect(
+      transitionAt(observedAt + warningOffset + 1, "thirty-to-sixty-minutes").notification,
+    ).toBeNull();
+    expect(
+      transitionAt(observedAt + criticalOffset + 1, "sixty-minutes-or-more").notification,
+    ).toBeNull();
     expect(statements).toContain(
       "CREATE TABLE IF NOT EXISTS OPERATION_HISTORY.ANALYSIS.OPERATION_ARRIVAL_NOTIFICATION_STATE",
     );
@@ -258,7 +275,11 @@ describe("未到達最古 record の帯の遷移", () => {
     const reachedDuplicate = snowflakeArrivalNotificationTransition({
       arrivals: [
         pending[0],
-        { record: { ...pending[0].record }, firstObservedAt: observedAt + 1, firstSnowflakeAt: observedAt + 2 },
+        {
+          record: { ...pending[0].record },
+          firstObservedAt: observedAt + 1,
+          firstSnowflakeAt: observedAt + 2,
+        },
       ],
       now: observedAt + criticalOffset,
     });

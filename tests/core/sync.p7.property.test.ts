@@ -76,7 +76,10 @@ const genMaximinCase: fc.Arbitrary<MaximinCase> = fc.integer({ min: 2, max: 4 })
     }),
 );
 
-function confirmedSetsInSingleCluster(timers: readonly Timer[], params: SyncParams): readonly ConfirmedSet[] {
+function confirmedSetsInSingleCluster(
+  timers: readonly Timer[],
+  params: SyncParams,
+): readonly ConfirmedSet[] {
   const clusters = referenceProximityClusters(timers, params.toleranceRatio);
   expect(clusters).toHaveLength(1);
   const cluster = clusters[0];
@@ -102,7 +105,8 @@ function maximumMinimumGapByEnumeration(
       for (let targetIndex = 1; targetIndex < targets.length; targetIndex++) {
         const previous = targets[targetIndex - 1];
         const current = targets[targetIndex];
-        if (previous === undefined || current === undefined) throw new Error("配置の要素が不足している");
+        if (previous === undefined || current === undefined)
+          throw new Error("配置の要素が不足している");
         minimum = Math.min(minimum, current - previous);
       }
       maximum = Math.max(maximum, minimum);
@@ -125,7 +129,10 @@ function maximumMinimumGapByEnumeration(
   return maximum;
 }
 
-function observedTarget(set: readonly Timer[], synchronizedById: ReadonlyMap<TimerId, Timer>): number {
+function observedTarget(
+  set: readonly Timer[],
+  synchronizedById: ReadonlyMap<TimerId, Timer>,
+): number {
   const targets = set.map((inputTimer) => {
     const synchronized = synchronizedById.get(inputTimer.id);
     if (synchronized === undefined) throw new Error(`同期結果に ${inputTimer.id} が存在しない`);
@@ -142,7 +149,8 @@ function minimumGap(targets: readonly number[]): number {
   for (let index = 1; index < targets.length; index++) {
     const previous = targets[index - 1];
     const current = targets[index];
-    if (previous === undefined || current === undefined) throw new Error("観測 target が不足している");
+    if (previous === undefined || current === undefined)
+      throw new Error("観測 target が不足している");
     minimum = Math.min(minimum, current - previous);
   }
   return minimum;
@@ -165,8 +173,12 @@ describe("engine/sync — maximin optimality", () => {
           expect(Number.isInteger(interval.right)).toBe(true);
         }
 
-        const synchronizedById = new Map(synchronize(timers, params).map((timer) => [timer.id, timer]));
-        const observedTargets = confirmedSets.map(({ timers: set }) => observedTarget(set, synchronizedById));
+        const synchronizedById = new Map(
+          synchronize(timers, params).map((timer) => [timer.id, timer]),
+        );
+        const observedTargets = confirmedSets.map(({ timers: set }) =>
+          observedTarget(set, synchronizedById),
+        );
 
         observedTargets.forEach((target, index) => {
           const interval = intervals[index];

@@ -57,8 +57,16 @@ describe("Tail → Queue → Consumer → R2 の一方向搬送", () => {
     const pipeline = await runTailToR2(events);
 
     expect(pipeline.queued).toEqual([
-      { canonicalLine: lines[0], firstObservedAt: expect.any(Number), producerScript: PRODUCER_SCRIPT },
-      { canonicalLine: lines[1], firstObservedAt: expect.any(Number), producerScript: PRODUCER_SCRIPT },
+      {
+        canonicalLine: lines[0],
+        firstObservedAt: expect.any(Number),
+        producerScript: PRODUCER_SCRIPT,
+      },
+      {
+        canonicalLine: lines[1],
+        firstObservedAt: expect.any(Number),
+        producerScript: PRODUCER_SCRIPT,
+      },
     ]);
     expect(pipeline.acks).toEqual(["msg-1", "msg-2"]);
     expect(pipeline.retries).toEqual([]);
@@ -97,7 +105,9 @@ describe("Tail → Queue → Consumer → R2 の一方向搬送", () => {
     const producerTrace = trace();
     const events = [tailEvent(PRODUCER_SCRIPT, [{ level: "log", message: [lines[0]] }])];
 
-    await expect(runTailToR2(events, { queueSendFails: true })).rejects.toThrow("Queue send failed");
+    await expect(runTailToR2(events, { queueSendFails: true })).rejects.toThrow(
+      "Queue send failed",
+    );
 
     // Producer の console trace は tail 側の失敗後も一行も増減しない（再出力要求が存在しない）。
     expect(trace()).toEqual(producerTrace);
@@ -113,7 +123,9 @@ describe("Tail → Queue → Consumer → R2 の一方向搬送", () => {
     ];
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    const pipeline = await runTailToR2(events, { putFailsFor: (key) => key.endsWith("-msg-1-1.json") });
+    const pipeline = await runTailToR2(events, {
+      putFailsFor: (key) => key.endsWith("-msg-1-1.json"),
+    });
 
     expect(pipeline.acks).toEqual(["msg-2"]);
     expect(pipeline.retries).toEqual(["msg-1"]);

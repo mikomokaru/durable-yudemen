@@ -46,11 +46,11 @@ type CueShape = readonly Note[];
 // （設計哲学「導出値を状態に昇格させない」）。段数は音を鳴らした副作用として進むだけで、誰も読み戻さない。
 const TOUCH_ESCALATION_SEMITONES = 1.5; // 1 段あたりの上昇幅（半音）。
 const TOUCH_ESCALATION_WINDOW_MS = 1200; // この間隔以内の連続タップを「連打」とみなす。超えると基準へ戻す。
-const TOUCH_ESCALATION_MAX_STEP = 7;    // 上限段。耳が痛くなる音域までは上げない頭打ち。
+const TOUCH_ESCALATION_MAX_STEP = 7; // 上限段。耳が痛くなる音域までは上げない頭打ち。
 const SEMITONE_RATIO = Math.pow(2, 1 / 12); // 等比 1 半音＝周波数比 2^(1/12)。
 
-let touchStep = 0;       // 現在の連打段（0＝基準）。鳴らすたびに進み、間が空くと 0 へ戻る揮発値。
-let lastTouchAt = 0;     // 直近 Touch_Cue の発火時刻（performance.now ミリ秒）。連打判定にのみ使う。
+let touchStep = 0; // 現在の連打段（0＝基準）。鳴らすたびに進み、間が空くと 0 へ戻る揮発値。
+let lastTouchAt = 0; // 直近 Touch_Cue の発火時刻（performance.now ミリ秒）。連打判定にのみ使う。
 
 /**
  * 今回の Touch_Cue のピッチ倍率を求めつつ連打段を更新する（純粋でない＝モジュール内の揮発状態を進める）。
@@ -58,9 +58,10 @@ let lastTouchAt = 0;     // 直近 Touch_Cue の発火時刻（performance.now �
  */
 function nextTouchPitchMultiplier(): number {
   const now = typeof performance !== "undefined" ? performance.now() : Date.now();
-  touchStep = now - lastTouchAt <= TOUCH_ESCALATION_WINDOW_MS
-    ? Math.min(touchStep + 1, TOUCH_ESCALATION_MAX_STEP)
-    : 0;
+  touchStep =
+    now - lastTouchAt <= TOUCH_ESCALATION_WINDOW_MS
+      ? Math.min(touchStep + 1, TOUCH_ESCALATION_MAX_STEP)
+      : 0;
   lastTouchAt = now;
   return Math.pow(SEMITONE_RATIO, TOUCH_ESCALATION_SEMITONES * touchStep);
 }
@@ -71,21 +72,42 @@ function nextTouchPitchMultiplier(): number {
 
 /** Touch_Cue — 高音の撥(はじ)きに胴鳴りを重ねた極短クリック。合成っぽさを抑え、押した触感を与える。 */
 const TOUCH_CUE: CueShape = [
-  { frequency: 2100, type: "triangle", durationMs: 22, peakGain: 0.10, attackMs: 2 },
+  { frequency: 2100, type: "triangle", durationMs: 22, peakGain: 0.1, attackMs: 2 },
   { frequency: 1320, type: "sine", durationMs: 50, peakGain: 0.13 },
 ];
 
 /** Pre_Alert_Cue — 660→988 の上昇 2 音。triangle で抜けを出し、Done に埋もれない音量に上げる（上昇形で予告）。 */
 const PRE_ALERT_CUE: CueShape = [
   { frequency: 660, type: "triangle", durationMs: 150, peakGain: 0.3 },
-  { frequency: 988, type: "triangle", durationMs: 240, peakGain: 0.34, atMs: 130, octaveLayer: true },
+  {
+    frequency: 988,
+    type: "triangle",
+    durationMs: 240,
+    peakGain: 0.34,
+    atMs: 130,
+    octaveLayer: true,
+  },
 ];
 
 /** Done_Cue — ソ・シ・ミ（784/988/1319）の上昇 3 音＋倍音のチャイム。鐘のように識別しやすく反復に強い。 */
 const DONE_CUE: CueShape = [
   { frequency: 784, type: "triangle", durationMs: 500, peakGain: 0.17, octaveLayer: true },
-  { frequency: 988, type: "triangle", durationMs: 500, peakGain: 0.17, atMs: 150, octaveLayer: true },
-  { frequency: 1319, type: "triangle", durationMs: 600, peakGain: 0.16, atMs: 300, octaveLayer: true },
+  {
+    frequency: 988,
+    type: "triangle",
+    durationMs: 500,
+    peakGain: 0.17,
+    atMs: 150,
+    octaveLayer: true,
+  },
+  {
+    frequency: 1319,
+    type: "triangle",
+    durationMs: 600,
+    peakGain: 0.16,
+    atMs: 300,
+    octaveLayer: true,
+  },
 ];
 
 /**
@@ -111,7 +133,8 @@ function scheduleOscillator(
   oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, startAt);
   // ピッチの動き: 指定時は duration かけて目標周波数へ指数グライドさせる。
-  if (glideToHz) oscillator.frequency.exponentialRampToValueAtTime(glideToHz, startAt + durationSec);
+  if (glideToHz)
+    oscillator.frequency.exponentialRampToValueAtTime(glideToHz, startAt + durationSec);
 
   // エンベロープ: 短いアタックでピークへ、その後ほぼゼロへ指数減衰させる。
   // 立ち上がり/立ち下がりを滑らかにすることでブツッというクリックノイズを避ける。
@@ -153,13 +176,26 @@ function playCue(ctx: AudioContext, cue: CueShape, pitchMultiplier = 1): void {
       const glideToHz = note.glideToHz ? note.glideToHz * pitchMultiplier : undefined;
 
       scheduleOscillator(
-        ctx, startAt, frequency, note.type, durationSec, note.peakGain, attackSec, glideToHz,
+        ctx,
+        startAt,
+        frequency,
+        note.type,
+        durationSec,
+        note.peakGain,
+        attackSec,
+        glideToHz,
       );
 
       // 倍音レイヤー: 1 オクターブ上を弱く・やや短く重ねて、芯のある艶を与える（チャイム/ベル系）。
       if (note.octaveLayer) {
         scheduleOscillator(
-          ctx, startAt, frequency * 2, "sine", durationSec * 0.8, note.peakGain * 0.28, attackSec,
+          ctx,
+          startAt,
+          frequency * 2,
+          "sine",
+          durationSec * 0.8,
+          note.peakGain * 0.28,
+          attackSec,
         );
       }
     }

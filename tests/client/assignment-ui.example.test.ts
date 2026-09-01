@@ -112,9 +112,7 @@ describe("client 担当 UI と担当不変（要件12.3 / 12.4）", () => {
     const views: readonly ClientView[] = [
       syncedView([]),
       syncedView([timerOnSlot(0, "a"), timerOnSlot(5, "b")]),
-      syncedView(
-        Array.from({ length: 18 }, (_, slot) => timerOnSlot(slot, `t-${slot}`)),
-      ),
+      syncedView(Array.from({ length: 18 }, (_, slot) => timerOnSlot(slot, `t-${slot}`))),
     ];
 
     for (const view of views) {

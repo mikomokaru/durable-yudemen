@@ -8,19 +8,25 @@ import { toSnapshot, type StoreSnapshot } from "../../src/engine/snapshot";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { recordsFromCommittedDiff, type OperationObservation } from "../../src/operation-history/derive";
+import {
+  recordsFromCommittedDiff,
+  type OperationObservation,
+} from "../../src/operation-history/derive";
 import type { OperationRecord } from "../../src/operation-history/record";
 import { tryWriteOperationLines } from "../../src/operation-history/producer";
 import { nonEmpty } from "../nonEmpty";
 
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
 type AllKeys<T> = T extends unknown ? keyof T : never;
 type VariantKeys<K extends Effect["type"]> = keyof Extract<Effect, { readonly type: K }>;
 type ObservationOnlyKeys = "storeId" | "timerId" | "operationKind" | "eventTime" | "Record_Seq";
 type SequenceKeys = "Record_Seq" | "seq" | "nextSeq";
 type ModelShapeAssertions = [
-  Assert<Equal<keyof TimerFact, "id" | "slotIds" | "noodleType" | "firmness" | "startTime" | "endTime">>,
+  Assert<
+    Equal<keyof TimerFact, "id" | "slotIds" | "noodleType" | "firmness" | "startTime" | "endTime">
+  >,
   Assert<Equal<keyof Timer, keyof TimerFact | "seq" | "boiledAt" | "adjustment" | "orderItem">>,
   // 調理順スケジューリング（online-cook-scheduling タスク 5.1）が 3 フィールドを足した。この主張の眼目は
   // 「Operation History が Timer モデルへフィールドを足さないこと」であり、他 spec による正当な拡張は追随させる。
@@ -28,7 +34,12 @@ type ModelShapeAssertions = [
   Assert<
     Equal<
       keyof TimerState,
-      "timers" | "nextSeq" | "pendingOrders" | "acceptedSlices" | "requestedDigest" | "lastSequenceByTerminal"
+      | "timers"
+      | "nextSeq"
+      | "pendingOrders"
+      | "acceptedSlices"
+      | "requestedDigest"
+      | "lastSequenceByTerminal"
     >
   >,
   // 永続スキーマ v7（online-cook-scheduling タスク 6.2）が同じ 3 フィールドを永続へ載せ、型名を
@@ -50,18 +61,37 @@ type ModelShapeAssertions = [
   // 調理順スケジューリング（online-cook-scheduling タスク 12.2）が Effect 語彙へ RequestPlan を足した。
   // 上と同じ眼目——Operation History 自身が Effect を増やさないことを主張し、他 spec の正当な拡張は追随させる。
   // RequestPlan は列の末尾にのみ現れ、Persist 先頭の不変条件を動かさない。
-  Assert<Equal<Effect["type"], "Persist" | "SetAlarm" | "ClearAlarm" | "Broadcast" | "RequestPlan">>,
+  Assert<
+    Equal<Effect["type"], "Persist" | "SetAlarm" | "ClearAlarm" | "Broadcast" | "RequestPlan">
+  >,
   Assert<Equal<VariantKeys<"Persist">, "type" | "snapshot">>,
   Assert<Equal<VariantKeys<"SetAlarm">, "type" | "at">>,
   Assert<Equal<VariantKeys<"ClearAlarm">, "type">>,
   Assert<Equal<VariantKeys<"Broadcast">, "type" | "message">>,
   Assert<Equal<VariantKeys<"RequestPlan">, "type" | "pending" | "running" | "params" | "digest">>,
   Assert<Equal<Extract<Effect, { readonly type: "Persist" }>["snapshot"], StoreSnapshot>>,
-  Assert<Equal<Extract<keyof TimerFact | keyof TimerState | keyof StoreSnapshot, ObservationOnlyKeys>, never>>,
+  Assert<
+    Equal<
+      Extract<keyof TimerFact | keyof TimerState | keyof StoreSnapshot, ObservationOnlyKeys>,
+      never
+    >
+  >,
   Assert<Equal<Extract<AllKeys<OperationRecord>, SequenceKeys>, never>>,
 ];
 const modelShapeAssertions: ModelShapeAssertions = [
-  true, true, true, true, true, true, true, true, true, true, true, true, true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
 ];
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const operationHistorySourcePaths = ["record.ts", "derive.ts", "codec.ts", "producer.ts"] as const;
@@ -105,7 +135,10 @@ describe("Operation History の Timer モデル規律", () => {
 
   it("Persist payload は既存 StoreSnapshot だけを保持する", () => {
     const state: TimerState = { ...EMPTY_STATE, timers: [fixtureTimer()], nextSeq: 42 };
-    const effect: Extract<Effect, { readonly type: "Persist" }> = { type: "Persist", snapshot: toSnapshot(state) };
+    const effect: Extract<Effect, { readonly type: "Persist" }> = {
+      type: "Persist",
+      snapshot: toSnapshot(state),
+    };
 
     expect(effect).toMatchInlineSnapshot(`
       {
@@ -143,7 +176,9 @@ describe("Operation History の Timer モデル規律", () => {
     const observation = startObservation();
     const records = recordsFromCommittedDiff(observation);
     const calls: unknown[][] = [];
-    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => { calls.push(args); });
+    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      calls.push(args);
+    });
 
     tryWriteOperationLines(true, observation);
 
@@ -160,9 +195,15 @@ describe("Operation History の Timer モデル規律", () => {
     `);
     const line = calls[0]?.[0];
     expect(typeof line).toBe("string");
-    expect(JSON.parse(line as string)).not.toEqual(expect.objectContaining({ Record_Seq: expect.anything() }));
-    expect(JSON.parse(line as string)).not.toEqual(expect.objectContaining({ seq: expect.anything() }));
-    expect(JSON.parse(line as string)).not.toEqual(expect.objectContaining({ nextSeq: expect.anything() }));
+    expect(JSON.parse(line as string)).not.toEqual(
+      expect.objectContaining({ Record_Seq: expect.anything() }),
+    );
+    expect(JSON.parse(line as string)).not.toEqual(
+      expect.objectContaining({ seq: expect.anything() }),
+    );
+    expect(JSON.parse(line as string)).not.toEqual(
+      expect.objectContaining({ nextSeq: expect.anything() }),
+    );
   });
 
   it("Operation History の record／console 経路は採番フィールドを参照しない", () => {
@@ -172,13 +213,19 @@ describe("Operation History の Timer モデル規律", () => {
   });
 
   it("Timer 事実は toWireTimer だけで射影し、実効 endTime を再計算しない", () => {
-    expect(deriveSource).toMatch(/import\s+\{\s*toWireTimer\s*\}\s+from\s+["']\.\.\/engine\/project["']/);
+    expect(deriveSource).toMatch(
+      /import\s+\{\s*toWireTimer\s*\}\s+from\s+["']\.\.\/engine\/project["']/,
+    );
     expect(deriveSource.match(/\btoWireTimer\s*\(/g)).toHaveLength(1);
-    expect(deriveSource).not.toMatch(/\.adjustment\b|\badjustedEndTime\b|\.endTime\s*[+-]|[+-]\s*[^;\n]*\.endTime/);
+    expect(deriveSource).not.toMatch(
+      /\.adjustment\b|\badjustedEndTime\b|\.endTime\s*[+-]|[+-]\s*[^;\n]*\.endTime/,
+    );
   });
 
   it("engine Timer から直接読む観測差分値を boiledAt に限定する", () => {
-    const fields = [...deriveSource.matchAll(/(?:\bengineTimer|\bprevious\.engineTimer)\.([A-Za-z_$][\w$]*)/g)];
+    const fields = [
+      ...deriveSource.matchAll(/(?:\bengineTimer|\bprevious\.engineTimer)\.([A-Za-z_$][\w$]*)/g),
+    ];
     expect(new Set(fields.map((match) => match[1]))).toEqual(new Set(["boiledAt"]));
   });
 });

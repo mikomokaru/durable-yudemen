@@ -10,7 +10,11 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { buildCodeIndex, detectDuplicateStoreCodes, storeForCode } from "../../src/registry/code-index";
+import {
+  buildCodeIndex,
+  detectDuplicateStoreCodes,
+  storeForCode,
+} from "../../src/registry/code-index";
 import type { Store, StoreId } from "../../src/registry/ideal";
 
 // ── 生成の母集団 ──
@@ -74,7 +78,11 @@ const genUniqueCodeStores: fc.Arbitrary<readonly Store[]> = fc
   .map((specs) =>
     specs.map((spec, index) =>
       buildStore(
-        { storeCode: spec.hasCode ? `code-${index}` : undefined, active: spec.active, createdAt: spec.createdAt },
+        {
+          storeCode: spec.hasCode ? `code-${index}` : undefined,
+          active: spec.active,
+          createdAt: spec.createdAt,
+        },
         index,
       ),
     ),
@@ -85,11 +93,12 @@ const genUniqueCodeStores: fc.Arbitrary<readonly Store[]> = fc
  * 正本（永続キー `store:*` の列挙）は走査順を保証しないため、索引が入力順に依れば
  * 「索引を捨てて再導出しても結果が変わらない」が破れる。
  */
-const genStoresAndShuffled: fc.Arbitrary<readonly [readonly Store[], readonly Store[]]> = genStores.chain((stores) =>
-  fc
-    .shuffledSubarray([...stores], { minLength: stores.length, maxLength: stores.length })
-    .map((shuffled) => [stores, shuffled] as const),
-);
+const genStoresAndShuffled: fc.Arbitrary<readonly [readonly Store[], readonly Store[]]> =
+  genStores.chain((stores) =>
+    fc
+      .shuffledSubarray([...stores], { minLength: stores.length, maxLength: stores.length })
+      .map((shuffled) => [stores, shuffled] as const),
+  );
 
 describe("registry/code-index — buildCodeIndex / storeForCode", () => {
   // Feature: pos-order-ingress, Property 5: Code_Index は正本から再構築できる
@@ -102,7 +111,9 @@ describe("registry/code-index — buildCodeIndex / storeForCode", () => {
         // 索引のキー集合は「Store_Code を持つ店舗のコード集合」にちょうど等しい
         // （非活性で絞らない・要件2.7／コード無しは載せない・要件3.8）。
         const claimedCodes = new Set(
-          stores.map((store) => store.storeCode).filter((code): code is string => code !== undefined),
+          stores
+            .map((store) => store.storeCode)
+            .filter((code): code is string => code !== undefined),
         );
         expect(new Set(index.keys())).toEqual(claimedCodes);
 

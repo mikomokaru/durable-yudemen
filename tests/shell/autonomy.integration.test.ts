@@ -23,7 +23,13 @@
 // これが「rehydrate 時にレジストリ RPC を呼ばない」（要件6.1）の観測可能な帰結である。
 
 import { afterEach, describe, expect, it } from "vitest";
-import { env, evictDurableObject, listDurableObjectIds, reset, runInDurableObject } from "cloudflare:test";
+import {
+  env,
+  evictDurableObject,
+  listDurableObjectIds,
+  reset,
+  runInDurableObject,
+} from "cloudflare:test";
 import type { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
 import type { ServerMessage } from "../../src/domain/messages";
@@ -54,7 +60,10 @@ const autonomyConfig: StoreConfig = {
   arms: 3,
   toleranceRatio: 15,
   noodlePresets: [
-    { noodleType: AUTONOMY_NOODLE, boilSeconds: { extraHard: 80, hard: 90, normal: 100, soft: 120 } },
+    {
+      noodleType: AUTONOMY_NOODLE,
+      boilSeconds: { extraHard: 80, hard: 90, normal: 100, soft: 120 },
+    },
   ] as NonEmptyArray<NoodlePreset>,
   ...configResidualDefaults(4),
 };
@@ -135,7 +144,9 @@ describe("店舗 DO の自立稼働（レジストリ不達でも投影で継続
     const stub = storeStub(storeId);
 
     // (1) 「最後に受領した投影」を push でプロビジョニングする（レジストリを介さず applyProjection を直接呼ぶ）。
-    await runInDurableObject(stub, (instance: StoreTimerDO) => instance.applyProjection(lastProjection));
+    await runInDurableObject(stub, (instance: StoreTimerDO) =>
+      instance.applyProjection(lastProjection),
+    );
 
     // (2) WS 接続。config は永続投影由来の識別可能な値（unitCount=4・固有 noodleType）であること。
     const ws = await openWs(stub, storeId);
@@ -173,7 +184,9 @@ describe("店舗 DO の自立稼働（レジストリ不達でも投影で継続
     const stub = storeStub(storeId);
 
     // 「最後に受領した投影」を push し、タイマーを 1 件走らせて永続させる（config も activeTimers も自身の storage へ）。
-    await runInDurableObject(stub, (instance: StoreTimerDO) => instance.applyProjection(lastProjection));
+    await runInDurableObject(stub, (instance: StoreTimerDO) =>
+      instance.applyProjection(lastProjection),
+    );
 
     const before = await openWs(stub, storeId);
     await before.next(); // config
@@ -181,7 +194,8 @@ describe("店舗 DO の自立稼働（レジストリ不達でも投影で継続
     before.send({ type: "start", slotIds: ["2"], noodleType: AUTONOMY_NOODLE, boilSeconds: 300 });
     const startedSnapshot = await before.next();
     expect(startedSnapshot.type).toBe("snapshot");
-    if (startedSnapshot.type !== "snapshot") throw new Error("start 後の snapshot を受信しなかった");
+    if (startedSnapshot.type !== "snapshot")
+      throw new Error("start 後の snapshot を受信しなかった");
     expect(startedSnapshot.timers).toHaveLength(1);
     before.close();
 
@@ -200,7 +214,8 @@ describe("店舗 DO の自立稼働（レジストリ不達でも投影で継続
 
     const rehydratedSnapshot = await after.next();
     expect(rehydratedSnapshot.type).toBe("snapshot");
-    if (rehydratedSnapshot.type !== "snapshot") throw new Error("rehydrate 後に snapshot を受信しなかった");
+    if (rehydratedSnapshot.type !== "snapshot")
+      throw new Error("rehydrate 後に snapshot を受信しなかった");
     // 走行中タイマーが永続から復元されている（boilSeconds=300 ゆえ reconcile で発火せず残る）。
     expect(rehydratedSnapshot.timers).toHaveLength(1);
     expect(rehydratedSnapshot.timers[0]?.noodleType).toBe(AUTONOMY_NOODLE);

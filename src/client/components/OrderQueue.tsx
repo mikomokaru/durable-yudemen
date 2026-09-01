@@ -44,7 +44,7 @@ export function OrderQueue({ entries, noodleColor, onStart }: OrderQueueProps) {
       aria-label="Waiting orders"
       className="flex flex-none flex-col gap-[clamp(0.25rem,0.8vh,0.5rem)]"
     >
-      <p className="m-0 text-xs font-bold uppercase tracking-wide text-muted">
+      <p className="m-0 text-xs font-bold tracking-wide text-muted uppercase">
         Waiting orders ({entries.length})
       </p>
       <ul className="m-0 flex list-none gap-[clamp(0.375rem,0.9vw,0.625rem)] overflow-x-auto p-0">
@@ -102,7 +102,9 @@ function OrderQueueRow({
         >
           <PlayIcon className="h-4 w-auto" />
           <span className="flex flex-col leading-tight">
-            <span className="text-[0.625rem] font-bold uppercase tracking-wide text-muted">Suggested</span>
+            <span className="text-[0.625rem] font-bold tracking-wide text-muted uppercase">
+              Suggested
+            </span>
             <span className="text-xs font-bold tabular-nums">
               {`Slot ${suggestion.slotIds.join(", ")} · ${wallClock(suggestion.startAt)}`}
             </span>

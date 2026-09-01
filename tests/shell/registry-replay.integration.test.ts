@@ -85,7 +85,11 @@ function arrivalRecord(sequenceNumber: string, arrivalTimestampMs: number): Arri
 }
 
 /** 保持の 1 件（保持を始めた時刻を添える）。 */
-function heldRecord(sequenceNumber: string, arrivalTimestampMs: number, heldAt: number): HeldRecord {
+function heldRecord(
+  sequenceNumber: string,
+  arrivalTimestampMs: number,
+  heldAt: number,
+): HeldRecord {
   return { kind: "unrouted", heldAt, record: arrivalRecord(sequenceNumber, arrivalTimestampMs) };
 }
 
@@ -105,7 +109,9 @@ async function heldSequences(
   storeCode: string,
 ): Promise<readonly string[]> {
   const held = await readHeld(stub, storeCode);
-  return (held ?? []).map((entry) => (entry.kind === "unrouted" ? entry.record.sequenceNumber : "?"));
+  return (held ?? []).map((entry) =>
+    entry.kind === "unrouted" ? entry.record.sequenceNumber : "?",
+  );
 }
 
 async function seedHeld(
@@ -113,7 +119,9 @@ async function seedHeld(
   storeCode: string,
   held: readonly HeldRecord[],
 ): Promise<void> {
-  await runInDurableObject(stub, (_instance, state) => state.storage.put(unroutedKey(storeCode), held));
+  await runInDurableObject(stub, (_instance, state) =>
+    state.storage.put(unroutedKey(storeCode), held),
+  );
 }
 
 /** 宛先 DO の判定材料。**再生が通常の受け口（receiveRecords）を通ったことの証左である**（AC 11.10）。 */
@@ -132,7 +140,9 @@ async function lastSequenceOf(storeId: string, terminalId: string): Promise<stri
  * 観測できなくする）。フラグが失われても欠落しないことが design の主張であり、ここはその主張の検証である。
  */
 interface ReplayInternals {
-  drainUnrouted(storeCode: string): Promise<{ readonly kind: string; readonly windowExpired: number }>;
+  drainUnrouted(
+    storeCode: string,
+  ): Promise<{ readonly kind: string; readonly windowExpired: number }>;
   pushToStore(storeId: string, records: readonly ArrivalRecord[]): Promise<ReceiveOutcome>;
 }
 
@@ -266,13 +276,17 @@ describe("Property 19: 再生は送り終えた範囲だけを取り除く（Req
       expect(await state.storage.get(unroutedKey("6005"))).toBeUndefined();
 
       // 空になった保留へ 4 が届く（まだ誰も送っていない）。
-      await state.storage.put(unroutedKey("6005"), [heldRecord(seq(4), Date.now() - 1_000, Date.now())]);
+      await state.storage.put(unroutedKey("6005"), [
+        heldRecord(seq(4), Date.now() - 1_000, Date.now()),
+      ]);
 
       // 1 本目が復帰する。件数（2 件）で削れば 4 が消える。identity（送り終えた seq=2 以下）で削れば残る。
       gates[0]?.();
       await waitUntil(() => pushed.length === 3, "1 本目の復帰後の押し込み");
       expect(pushed[2]).toEqual([seq(4)]);
-      const survived = (await state.storage.get(unroutedKey("6005"))) as readonly HeldRecord[] | undefined;
+      const survived = (await state.storage.get(unroutedKey("6005"))) as
+        | readonly HeldRecord[]
+        | undefined;
 
       gates[2]?.();
       await first;
@@ -280,9 +294,9 @@ describe("Property 19: 再生は送り終えた範囲だけを取り除く（Req
     });
 
     // 未送信の 4 は 1 本目の書き戻しを生き延びた（消えていたら欠落である）。
-    expect(remaining?.map((entry) => (entry.kind === "unrouted" ? entry.record.sequenceNumber : "?"))).toEqual([
-      seq(4),
-    ]);
+    expect(
+      remaining?.map((entry) => (entry.kind === "unrouted" ? entry.record.sequenceNumber : "?")),
+    ).toEqual([seq(4)]);
     // 最後は空になる（再生は保留が空になるまで繰り返す）。
     expect(await readHeld(stub, "6005")).toBeUndefined();
   });
@@ -291,7 +305,10 @@ describe("Property 19: 再生は送り終えた範囲だけを取り除く（Req
     const stub = registryStub();
     await registerStore(stub, "replay-nodrop", "6006");
     const now = Date.now();
-    await seedHeld(stub, "6006", [heldRecord(seq(1), now - 2_000, now), heldRecord(seq(2), now - 1_000, now)]);
+    await seedHeld(stub, "6006", [
+      heldRecord(seq(1), now - 2_000, now),
+      heldRecord(seq(2), now - 1_000, now),
+    ]);
 
     await runInDurableObject(stub, async (instance) => {
       internals(instance).pushToStore = () => Promise.resolve({ kind: "persist-failed" });
@@ -370,7 +387,12 @@ describe("隔離は再生されない（Requirements 8.8, 8.11）", () => {
   function violation(sequenceNumber: string): unknown {
     return {
       path: "/lio/order",
-      payload: { store_id: "Q", terminal_id: "1", bill_no: sequenceNumber, datetime: "2026-08-17T20:52:19" },
+      payload: {
+        store_id: "Q",
+        terminal_id: "1",
+        bill_no: sequenceNumber,
+        datetime: "2026-08-17T20:52:19",
+      },
       arrival_timestamp_ms: "0",
       sequence_number: sequenceNumber,
     };
@@ -398,7 +420,9 @@ describe("隔離は再生されない（Requirements 8.8, 8.11）", () => {
     await stub.quarantineContractViolations("6010", [violation(seq(10))]);
     // 保留が空でも残作業に載る経路はある（再生の持ち越しの後に保留だけが失効した場合）。その回の Alarm が
     // 隔離を拾えば、待ち行列に窓外の注文が入る。
-    await runInDurableObject(stub, (_instance, state) => state.storage.put(REPLAY_RESIDUAL_KEY, ["6010"]));
+    await runInDurableObject(stub, (_instance, state) =>
+      state.storage.put(REPLAY_RESIDUAL_KEY, ["6010"]),
+    );
 
     await runInDurableObject(stub, (instance) => instance.alarm());
 

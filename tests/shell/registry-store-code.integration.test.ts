@@ -1,6 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { env, runInDurableObject, reset } from "cloudflare:test";
-import { REGISTRY_NAME, REVISION_KEY, type StoreRegistryDO } from "../../src/shell/store-registry-do";
+import {
+  REGISTRY_NAME,
+  REVISION_KEY,
+  type StoreRegistryDO,
+} from "../../src/shell/store-registry-do";
 
 // registry-store-code.integration.test.ts — Store_Code の一意性と不変性の統合テスト（Workers pool）。
 //
@@ -54,7 +58,9 @@ async function getStore(
   stub: DurableObjectStub<StoreRegistryDO>,
   storeId: string,
 ): Promise<{ status: number; body: Record<string, unknown> | null }> {
-  const res = await stub.fetch(new Request(`https://registry/admin/stores/${storeId}`, { method: "GET" }));
+  const res = await stub.fetch(
+    new Request(`https://registry/admin/stores/${storeId}`, { method: "GET" }),
+  );
   const body = res.status === 200 ? ((await res.json()) as Record<string, unknown>) : null;
   return { status: res.status, body };
 }
@@ -70,15 +76,22 @@ describe("Store_Code の一意性と不変性（Requirements 3.1〜3.5, 3.7, 3.8
 
   it("他店舗が使用中の Store_Code を指定した登録は 400（store-code-in-use）でイデア不変", async () => {
     const stub = registryStub();
-    await stub.fetch(postStore({ storeId: "code-owner", chainId: "yamaokaya", name: "先着店", storeCode: "1263" }));
+    await stub.fetch(
+      postStore({ storeId: "code-owner", chainId: "yamaokaya", name: "先着店", storeCode: "1263" }),
+    );
     const revisionBefore = await readRevision(stub);
 
     const res = await stub.fetch(
-      postStore({ storeId: "code-latecomer", chainId: "yamaokaya", name: "後着店", storeCode: "1263" }),
+      postStore({
+        storeId: "code-latecomer",
+        chainId: "yamaokaya",
+        name: "後着店",
+        storeCode: "1263",
+      }),
     );
 
     expect(res.status).toBe(400);
-    expect((await res.json() as Record<string, unknown>).error).toBe("store-code-in-use");
+    expect(((await res.json()) as Record<string, unknown>).error).toBe("store-code-in-use");
     // 拒否時はイデアを一切変更しない（commitIdeal より前に判定する）。
     expect((await getStore(stub, "code-latecomer")).status).toBe(404);
     expect(await readRevision(stub)).toBe(revisionBefore);
@@ -88,14 +101,16 @@ describe("Store_Code の一意性と不変性（Requirements 3.1〜3.5, 3.7, 3.8
 
   it("他店舗が使用中の Store_Code への更新は 400（store-code-in-use）でイデア不変", async () => {
     const stub = registryStub();
-    await stub.fetch(postStore({ storeId: "code-held", chainId: "yamaokaya", name: "保有店", storeCode: "1102" }));
+    await stub.fetch(
+      postStore({ storeId: "code-held", chainId: "yamaokaya", name: "保有店", storeCode: "1102" }),
+    );
     await stub.fetch(postStore({ storeId: "code-empty", chainId: "yamaokaya", name: "未連携店" }));
     const revisionBefore = await readRevision(stub);
 
     const res = await stub.fetch(putStore("code-empty", { storeCode: "1102" }));
 
     expect(res.status).toBe(400);
-    expect((await res.json() as Record<string, unknown>).error).toBe("store-code-in-use");
+    expect(((await res.json()) as Record<string, unknown>).error).toBe("store-code-in-use");
     expect((await getStore(stub, "code-empty")).body?.storeCode).toBeUndefined();
     expect(await readRevision(stub)).toBe(revisionBefore);
     expect(await stub.resolveStoreCode("1102")).toBe("code-held");
@@ -103,14 +118,21 @@ describe("Store_Code の一意性と不変性（Requirements 3.1〜3.5, 3.7, 3.8
 
   it("既存と異なる Store_Code への変更要求は 400（store-code-immutable）で、変更前の値が残る（黙殺しない）", async () => {
     const stub = registryStub();
-    await stub.fetch(postStore({ storeId: "code-fixed", chainId: "yamaokaya", name: "対応済み店", storeCode: "1263" }));
+    await stub.fetch(
+      postStore({
+        storeId: "code-fixed",
+        chainId: "yamaokaya",
+        name: "対応済み店",
+        storeCode: "1263",
+      }),
+    );
     const revisionBefore = await readRevision(stub);
 
     const res = await stub.fetch(putStore("code-fixed", { storeCode: "9999" }));
 
     // 黙って無視して 200 を返さない（呼び出し元の意図を偽らない）。
     expect(res.status).toBe(400);
-    expect((await res.json() as Record<string, unknown>).error).toBe("store-code-immutable");
+    expect(((await res.json()) as Record<string, unknown>).error).toBe("store-code-immutable");
     // かつ変更前の値が残る（拒否とイデア不変の両方を確かめる）。
     expect((await getStore(stub, "code-fixed")).body?.storeCode).toBe("1263");
     expect(await readRevision(stub)).toBe(revisionBefore);
@@ -119,7 +141,14 @@ describe("Store_Code の一意性と不変性（Requirements 3.1〜3.5, 3.7, 3.8
 
   it("一括 upsert でも異なる Store_Code への変更要求は 400 で、変更前の値が残る", async () => {
     const stub = registryStub();
-    await stub.fetch(postStore({ storeId: "code-bulk-fixed", chainId: "yamaokaya", name: "一括対象店", storeCode: "2001" }));
+    await stub.fetch(
+      postStore({
+        storeId: "code-bulk-fixed",
+        chainId: "yamaokaya",
+        name: "一括対象店",
+        storeCode: "2001",
+      }),
+    );
     const revisionBefore = await readRevision(stub);
 
     const res = await stub.fetch(putStores([{ storeId: "code-bulk-fixed", storeCode: "2002" }]));
@@ -136,7 +165,9 @@ describe("Store_Code の一意性と不変性（Requirements 3.1〜3.5, 3.7, 3.8
 
   it("既存が未設定の店舗への Store_Code 付与は受理され、StoreId は変わらない", async () => {
     const stub = registryStub();
-    await stub.fetch(postStore({ storeId: "code-later", chainId: "yamaokaya", name: "後から連携する店" }));
+    await stub.fetch(
+      postStore({ storeId: "code-later", chainId: "yamaokaya", name: "後から連携する店" }),
+    );
 
     const res = await stub.fetch(putStore("code-later", { storeCode: "1263" }));
 
@@ -150,9 +181,13 @@ describe("Store_Code の一意性と不変性（Requirements 3.1〜3.5, 3.7, 3.8
 
   it("同値の Store_Code の再指定は受理される（同一ボディの再送・冪等）", async () => {
     const stub = registryStub();
-    await stub.fetch(postStore({ storeId: "code-same", chainId: "yamaokaya", name: "再送店", storeCode: "1102" }));
+    await stub.fetch(
+      postStore({ storeId: "code-same", chainId: "yamaokaya", name: "再送店", storeCode: "1102" }),
+    );
 
-    const single = await stub.fetch(putStore("code-same", { name: "再送店（改称）", storeCode: "1102" }));
+    const single = await stub.fetch(
+      putStore("code-same", { name: "再送店（改称）", storeCode: "1102" }),
+    );
     const bulk = await stub.fetch(putStores([{ storeId: "code-same", storeCode: "1102" }]));
 
     expect(single.ok).toBe(true);
@@ -187,15 +222,27 @@ describe("Store_Code の一意性と不変性（Requirements 3.1〜3.5, 3.7, 3.8
 
   it("非活性（閉店）店舗の Store_Code も一意性の対象——別店舗が再利用できない", async () => {
     const stub = registryStub();
-    await stub.fetch(postStore({ storeId: "code-closed", chainId: "yamaokaya", name: "閉店店", storeCode: "4001" }));
+    await stub.fetch(
+      postStore({
+        storeId: "code-closed",
+        chainId: "yamaokaya",
+        name: "閉店店",
+        storeCode: "4001",
+      }),
+    );
     await stub.fetch(putStore("code-closed", { active: false }));
 
     const res = await stub.fetch(
-      postStore({ storeId: "code-reuse", chainId: "yamaokaya", name: "再利用しようとする店", storeCode: "4001" }),
+      postStore({
+        storeId: "code-reuse",
+        chainId: "yamaokaya",
+        name: "再利用しようとする店",
+        storeCode: "4001",
+      }),
     );
 
     expect(res.status).toBe(400);
-    expect((await res.json() as Record<string, unknown>).error).toBe("store-code-in-use");
+    expect(((await res.json()) as Record<string, unknown>).error).toBe("store-code-in-use");
     expect((await getStore(stub, "code-reuse")).status).toBe(404);
     // 閉店前に届いた保留分の宛先が後から変わらない（逆引きは閉店店舗を指し続ける）。
     expect(await stub.resolveStoreCode("4001")).toBe("code-closed");

@@ -131,7 +131,10 @@ class InitError extends Error {
  * 検証と組み立てをこの一関数に閉じ、`parseClientMessage`（ワイヤ形の検証）と Start イベントの組み立てが
  * 同じ条件を二度書かないようにする。
  */
-function toOrderItem(raw: { readonly externalOrderId?: unknown; readonly itemIndex?: unknown }): Ordered["orderItem"] {
+function toOrderItem(raw: {
+  readonly externalOrderId?: unknown;
+  readonly itemIndex?: unknown;
+}): Ordered["orderItem"] {
   const { externalOrderId, itemIndex } = raw;
   if (typeof externalOrderId !== "string" || externalOrderId.length === 0) return null;
   if (typeof itemIndex !== "number" || !Number.isInteger(itemIndex) || itemIndex < 0) return null;
@@ -611,7 +614,9 @@ export class StoreTimerDO extends DurableObject<Env> {
     // 事実そのものであり、blockConcurrencyWhile（rehydrate）より前に採番済みの instanceId を確定の
     // 起点として記録しなければ、cold start / wake の境界を後続の継ぎ目と突き合わせられないため。
     // at は採番時刻（instanceBornAt）を用い、instanceId と同一時点を指させる。
-    this.emitSeam(buildSeamEntry({ seam: "construct", at: this.instanceBornAt, instanceId: this.instanceId }));
+    this.emitSeam(
+      buildSeamEntry({ seam: "construct", at: this.instanceBornAt, instanceId: this.instanceId }),
+    );
     void ctx.blockConcurrencyWhile(async () => {
       await this.ensureLoaded();
       await this.ensureProvisioned();
@@ -847,7 +852,10 @@ export class StoreTimerDO extends DurableObject<Env> {
     // 完結し、レジストリへ照会しない（自立性・要件6.2）。identity 欠如または Roster に不在なら 403 で拒否する。
     // OFF（暫定期）のときはこのゲートを通さず、プロビジョニング済み（＋活性）のみを条件とする（合鍵 URL・要件6.4）。
     // 判定は WebSocketPair 生成・acceptWebSocket より前に置き、拒否時は収容へ一切進ませない。
-    if (this.accessRequired && !this.isRostered(provision.projection.roster, request.headers.get(IDENTITY_HEADER))) {
+    if (
+      this.accessRequired &&
+      !this.isRostered(provision.projection.roster, request.headers.get(IDENTITY_HEADER))
+    ) {
       return new Response("Forbidden", { status: 403 });
     }
 
@@ -861,7 +869,9 @@ export class StoreTimerDO extends DurableObject<Env> {
     // auto-response（要件1.1 / 12.3）: 所定の ping 要求に所定の pong を登録する。ランタイムが直接
     // 応答するため webSocketMessage ハンドラを起動せず、hibernate からの wake を伴わない。心拍は
     // 接続を生かすだけで Working_Copy も Effect 実行順序も一切変えない（client と同一の確定値を共有）。
-    this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING_REQUEST, PONG_RESPONSE));
+    this.ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair(PING_REQUEST, PONG_RESPONSE),
+    );
 
     // 店舗設定の一方向配信（サーバ権威・クライアント不変）。snapshot より先に送り、クライアントが
     // ユニット総数（担当範囲のクランプ元）を先に確定できるようにする。クライアントは変更できない。
@@ -872,7 +882,11 @@ export class StoreTimerDO extends DurableObject<Env> {
     // ——broadcast 経路（settle）と同一の関数を通ることが、再取得完了時点で他端末と同一の内容を持つことの根拠
     // である。shell は状態と時計を渡すだけで、確定計画・推奨の導出を持たない。
     // serverTime は送信時点のサーバ現在時刻（残り秒は送らず endTime から各クライアントが導出する）。
-    server.send(JSON.stringify(toWireSnapshot(this.workingCopy, this.settleParams(), Date.now() as EpochMillis)));
+    server.send(
+      JSON.stringify(
+        toWireSnapshot(this.workingCopy, this.settleParams(), Date.now() as EpochMillis),
+      ),
+    );
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -985,7 +999,11 @@ export class StoreTimerDO extends DurableObject<Env> {
     // now は当該遷移の時計（settle の再同期と snapshot の serverTime が用いる）。各品目の arrivalTime は
     // 上流の観測時刻ゆえ別の値であり、役割が別だから両方を運ぶ。
     const now = Date.now() as EpochMillis;
-    const outcome = decide(this.workingCopy, { type: "RecordsReceived", received, now }, this.settleParams());
+    const outcome = decide(
+      this.workingCopy,
+      { type: "RecordsReceived", received, now },
+      this.settleParams(),
+    );
     if (!outcome.ok) {
       // 受領の遷移は拒否経路を持たない（engine/receive.ts）。型の網羅のためだけの分岐であり、到達したら
       // engine 側の不変が破れた合図である。受理を主張せず「何も確定していない」として返す——呼び出し元は
@@ -1020,7 +1038,11 @@ export class StoreTimerDO extends DurableObject<Env> {
     const validated = toCookSchedule(plan);
     if (validated === null) return;
     const now = Date.now() as EpochMillis;
-    const outcome = decide(this.workingCopy, { type: "PlanArrived", plan: validated, now }, this.settleParams());
+    const outcome = decide(
+      this.workingCopy,
+      { type: "PlanArrived", plan: validated, now },
+      this.settleParams(),
+    );
     // 受領の遷移は拒否経路を持たない（engine/plan.ts）。型の網羅のためだけの分岐である。
     if (!outcome.ok) return;
     // 採用があれば Persist 先頭の Effect 列が実行され、broadcast は put 成功の上に立つ（SSOT 規律）。
@@ -1123,7 +1145,12 @@ export class StoreTimerDO extends DurableObject<Env> {
     ws.send(JSON.stringify(error));
   }
 
-  override async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+  override async webSocketClose(
+    ws: WebSocket,
+    code: number,
+    reason: string,
+    wasClean: boolean,
+  ): Promise<void> {
     // 接続管理は ctx.getWebSockets() を正とし、自前の接続リストという隠れ状態を持たない（要件9.4）。
     // よって切断時に除去すべき独自状態は存在しない。web_socket_auto_reply_to_close は
     // compatibility_date(2026-06-26) で既定化済みのため ws.close() も不要。ハンドラ本体は空でよい。
@@ -1211,7 +1238,9 @@ export class StoreTimerDO extends DurableObject<Env> {
    * 打ち切られて要求が届かないことがある。ゆえに受理応答（202）までを await する——計算完了は待たない
    * （AC 5.2 / 12.2）。この一点のために署名が Promise を返す。
    */
-  private async applySideEffect(effect: Exclude<Effect, { readonly type: "Persist" }>): Promise<void> {
+  private async applySideEffect(
+    effect: Exclude<Effect, { readonly type: "Persist" }>,
+  ): Promise<void> {
     switch (effect.type) {
       case "SetAlarm":
         void this.ctx.storage.setAlarm(effect.at);
@@ -1269,7 +1298,9 @@ export class StoreTimerDO extends DurableObject<Env> {
    * storeId は shell が付ける（engine は storeId を知らない・構造の主権）。名前を持たない DO——`idFromName`
    * 以外で引かれた stub——は復路の宛先を持てないため、要求そのものを出さない。
    */
-  private async requestPlan(effect: Extract<Effect, { readonly type: "RequestPlan" }>): Promise<void> {
+  private async requestPlan(
+    effect: Extract<Effect, { readonly type: "RequestPlan" }>,
+  ): Promise<void> {
     const storeId = this.ctx.id.name;
     if (storeId === undefined || storeId.length === 0) return;
     // 麺プリセットは在メモリの確定値（投影 config）から載せる。Effect が宣言して運ぶのは採点パラメータの

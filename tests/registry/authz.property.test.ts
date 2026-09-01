@@ -41,7 +41,10 @@ function normalizedRosterSet(roster: Roster): ReadonlySet<string> {
 const genIdentityBase: fc.Arbitrary<Identity> = fc.oneof(
   // email 風（大小文字混在を含みうる）
   fc
-    .tuple(fc.stringMatching(/^[A-Za-z0-9.]{1,12}$/), fc.constantFrom("example.com", "Shop.JP", "本部.jp"))
+    .tuple(
+      fc.stringMatching(/^[A-Za-z0-9.]{1,12}$/),
+      fc.constantFrom("example.com", "Shop.JP", "本部.jp"),
+    )
     .map(([local, domain]) => `${local}@${domain}`),
   // 非 ASCII（日本語名など・Identity は不透明な文字列）
   fc.constantFrom("田中", "サトウ", "山田 太郎", "本部SV"),
@@ -57,23 +60,27 @@ const genIdentityBase: fc.Arbitrary<Identity> = fc.oneof(
  * ゆえに normalize(perturb(x)) === normalize(x) が常に成り立つ（正規化が吸収する表現差だけを注入する）。
  */
 function perturb(value: string, lead: string, trail: string, upshifts: readonly boolean[]): string {
-  const recased = Array.from(value, (ch, i) => (upshifts[i] ? ch.toUpperCase() : ch.toLowerCase())).join("");
+  const recased = Array.from(value, (ch, i) =>
+    upshifts[i] ? ch.toUpperCase() : ch.toLowerCase(),
+  ).join("");
   return `${lead}${recased}${trail}`;
 }
 
 const genWhitespace: fc.Arbitrary<string> = fc.constantFrom("", " ", "  ", "\t", "\n", " \t ");
 
 /** 素の identity と、その大小文字/前後空白の異表記の組（normalize で同値になる）。 */
-const genIdentityWithVariant: fc.Arbitrary<{ readonly base: Identity; readonly variant: Identity }> =
-  genIdentityBase.chain((base) =>
-    fc
-      .record({
-        lead: genWhitespace,
-        trail: genWhitespace,
-        upshifts: fc.array(fc.boolean(), { minLength: base.length, maxLength: base.length }),
-      })
-      .map(({ lead, trail, upshifts }) => ({ base, variant: perturb(base, lead, trail, upshifts) })),
-  );
+const genIdentityWithVariant: fc.Arbitrary<{
+  readonly base: Identity;
+  readonly variant: Identity;
+}> = genIdentityBase.chain((base) =>
+  fc
+    .record({
+      lead: genWhitespace,
+      trail: genWhitespace,
+      upshifts: fc.array(fc.boolean(), { minLength: base.length, maxLength: base.length }),
+    })
+    .map(({ lead, trail, upshifts }) => ({ base, variant: perturb(base, lead, trail, upshifts) })),
+);
 
 /** Roster（identity の配列）。空・重複・異表記の重複を含みうる母集団にする。 */
 const genRoster: fc.Arbitrary<Roster> = fc.array(genIdentityBase, { maxLength: 8 });
@@ -97,7 +104,10 @@ const genRosterAndIdentity: fc.Arbitrary<{ readonly roster: Roster; readonly ide
             .record({
               lead: genWhitespace,
               trail: genWhitespace,
-              upshifts: fc.array(fc.boolean(), { minLength: entry.length, maxLength: entry.length }),
+              upshifts: fc.array(fc.boolean(), {
+                minLength: entry.length,
+                maxLength: entry.length,
+              }),
             })
             .map(({ lead, trail, upshifts }) => perturb(entry, lead, trail, upshifts)),
         ),

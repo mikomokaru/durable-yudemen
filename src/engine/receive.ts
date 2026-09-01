@@ -43,14 +43,19 @@ type RecordsReceivedEvent = Extract<Event, { type: "RecordsReceived" }>;
  *
  * `mayRequestPlan` は真——受領は計画の入力が変わる契機そのものである（`arriveOrder` と同じ扱い）。
  */
-export function arriveRecords(state: TimerState, args: RecordsReceivedEvent, params: SettleParams): Outcome {
+export function arriveRecords(
+  state: TimerState,
+  args: RecordsReceivedEvent,
+  params: SettleParams,
+): Outcome {
   // 判定材料の写しは 1 つだけ作り、その中で畳む。ループの中で写し直せば受領件数だけオブジェクトが生まれる。
   // 局所の可変で純粋性は損なわれない——この写しはここから外へ出るまで誰も触れない。
   const lastSequenceByTerminal: Record<string, string> = { ...state.lastSequenceByTerminal };
   let pendingOrders = state.pendingOrders;
 
   for (const received of args.received) {
-    if (!isNewerSequence(received.sequenceNumber, lastSequenceByTerminal[received.terminalId])) continue;
+    if (!isNewerSequence(received.sequenceNumber, lastSequenceByTerminal[received.terminalId]))
+      continue;
     lastSequenceByTerminal[received.terminalId] = received.sequenceNumber;
     // 生きた Timer の集合を渡すのは `arriveOrder` と同じ理由——開始済み品目が後着の置換で待ち行列へ
     // 復活すれば二重調理になる（意味論の正本は pending.ts の upsertOrder）。

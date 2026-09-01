@@ -70,7 +70,10 @@ async function driveUpgrade(params: {
 }
 
 // 不正とみなされる Upgrade の代表例。いずれも `get("Upgrade") !== "websocket"` を満たす。
-const INVALID_UPGRADES: readonly { readonly label: string; readonly upgrade: UpgradeHeader | null }[] = [
+const INVALID_UPGRADES: readonly {
+  readonly label: string;
+  readonly upgrade: UpgradeHeader | null;
+}[] = [
   // ヘッダ欠如（画面 URL の代わりに /ws を直に叩いた素の GET）。`get` は null を返す。
   { label: "Upgrade ヘッダなし", upgrade: null },
   // 別プロトコルへの昇格要求。WebSocket ではないため店舗 DO の関心事に当たらない。
@@ -78,9 +81,15 @@ const INVALID_UPGRADES: readonly { readonly label: string; readonly upgrade: Upg
   // 値が空。ヘッダは在るが昇格先を名指していない。
   { label: "Upgrade: 空値", upgrade: { name: "Upgrade", value: "" } },
   // 値の大小文字違い。実装は厳密一致ゆえ不正である（RFC 上のトークン非依存性には寄りかからない）。
-  { label: "Upgrade: WebSocket（値の大小文字違い）", upgrade: { name: "Upgrade", value: "WebSocket" } },
+  {
+    label: "Upgrade: WebSocket（値の大小文字違い）",
+    upgrade: { name: "Upgrade", value: "WebSocket" },
+  },
   // 複数プロトコルを並べた値。"websocket" を含むが厳密一致しないため不正である（部分一致で通さない）。
-  { label: "Upgrade: websocket, h2c（複合値）", upgrade: { name: "Upgrade", value: "websocket, h2c" } },
+  {
+    label: "Upgrade: websocket, h2c（複合値）",
+    upgrade: { name: "Upgrade", value: "websocket, h2c" },
+  },
 ];
 
 describe("worker fetch — 不正な Upgrade は 426 で拒否し店舗 DO へ引き渡さない（Requirements 9.6）", () => {

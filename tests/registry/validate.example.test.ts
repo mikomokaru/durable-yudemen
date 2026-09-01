@@ -69,7 +69,9 @@ const NUMERIC_RANGES = [
 
 describe("validateProvisioningInput — 正常入力の受理", () => {
   it("空の Store_Override を受理する（全フィールド optional・欠落は拒否しない）", () => {
-    expect(validateProvisioningInput({ target: "storeOverride", raw: {} })).toEqual({ accepted: true });
+    expect(validateProvisioningInput({ target: "storeOverride", raw: {} })).toEqual({
+      accepted: true,
+    });
   });
 
   it("全フィールドを値域内で持つ Store_Override を受理する", () => {
@@ -83,7 +85,9 @@ describe("validateProvisioningInput — 正常入力の受理", () => {
   });
 
   it("空の PolicyFields を受理する", () => {
-    expect(validateProvisioningInput({ target: "policyFields", raw: {} })).toEqual({ accepted: true });
+    expect(validateProvisioningInput({ target: "policyFields", raw: {} })).toEqual({
+      accepted: true,
+    });
   });
 
   it("mode/value を備えた PolicyFields（数値・配列とも）を受理する", () => {
@@ -204,12 +208,16 @@ describe("validateProvisioningInput — 値域外の拒否（各数値フィー�
   for (const { field, min, max } of NUMERIC_RANGES) {
     it(`${field}: 境界内（${min}・${max}）は受理、境界外（${min - 1}・${max + 1}）は out-of-range で拒否（storeOverride）`, () => {
       // just-in-range（両端）は受理。
-      expect(validateProvisioningInput({ target: "storeOverride", raw: { [field]: min } })).toEqual({
-        accepted: true,
-      });
-      expect(validateProvisioningInput({ target: "storeOverride", raw: { [field]: max } })).toEqual({
-        accepted: true,
-      });
+      expect(validateProvisioningInput({ target: "storeOverride", raw: { [field]: min } })).toEqual(
+        {
+          accepted: true,
+        },
+      );
+      expect(validateProvisioningInput({ target: "storeOverride", raw: { [field]: max } })).toEqual(
+        {
+          accepted: true,
+        },
+      );
       // just-out-of-range（両端の 1 つ外）は拒否。
       expectRejection(
         validateProvisioningInput({ target: "storeOverride", raw: { [field]: min - 1 } }),
@@ -273,7 +281,10 @@ describe("validateProvisioningInput — 値域外の拒否（各数値フィー�
 describe("validateProvisioningInput — 必須欠落の拒否", () => {
   it("ModedValue の mode 欠落を missing-required で拒否する", () => {
     expectRejection(
-      validateProvisioningInput({ target: "policyFields", raw: { unitCount: { value: UNIT_COUNT_MIN } } }),
+      validateProvisioningInput({
+        target: "policyFields",
+        raw: { unitCount: { value: UNIT_COUNT_MIN } },
+      }),
       "unitCount.mode",
       "missing-required",
     );
@@ -349,7 +360,9 @@ describe("validateProvisioningInput — firmnessCodes", () => {
   });
 
   it("空配列を受理する（既定が空であり「まだ投入していない」は正直な状態）", () => {
-    expect(validateProvisioningInput({ target: "storeOverride", raw: { firmnessCodes: [] } })).toEqual({
+    expect(
+      validateProvisioningInput({ target: "storeOverride", raw: { firmnessCodes: [] } }),
+    ).toEqual({
       accepted: true,
     });
   });
@@ -397,7 +410,10 @@ describe("validateProvisioningInput — firmnessCodes", () => {
 
   it("firmness 欠落を missing-required で拒否する", () => {
     expectRejection(
-      validateProvisioningInput({ target: "storeOverride", raw: { firmnessCodes: [{ code: 10011 }] } }),
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { firmnessCodes: [{ code: 10011 }] },
+      }),
       "firmnessCodes[0].firmness",
       "missing-required",
     );
@@ -481,7 +497,9 @@ describe("validateProvisioningInput — menuItems", () => {
   it(`slotSpan: 境界内（${SLOT_SPAN_MIN}・${SLOT_SPAN_MAX}）は受理、境界外は out-of-range で拒否する（クランプしない）`, () => {
     for (const slotSpan of [SLOT_SPAN_MIN, SLOT_SPAN_MAX]) {
       const raw = { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan }] }] };
-      expect(validateProvisioningInput({ target: "storeOverride", raw })).toEqual({ accepted: true });
+      expect(validateProvisioningInput({ target: "storeOverride", raw })).toEqual({
+        accepted: true,
+      });
     }
     for (const slotSpan of [SLOT_SPAN_MIN - 1, SLOT_SPAN_MAX + 1]) {
       const raw = { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan }] }] };
@@ -508,7 +526,9 @@ describe("validateProvisioningInput — menuItems", () => {
     expectRejection(
       validateProvisioningInput({
         target: "storeOverride",
-        raw: { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan: 1, label: "大盛" }] }] },
+        raw: {
+          menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan: 1, label: "大盛" }] }],
+        },
       }),
       "menuItems[0].sizes[0].label",
       "unknown-field",
@@ -542,7 +562,11 @@ describe("validateProvisioningInput — 拒否理由の全件集約（短絡し�
       raw: {
         firmnessCodes: [{ code: 0, firmness: "veryHard" }],
         menuItems: [
-          { productCode: 11421, noodleType: "", sizes: [{ code: 19401, slotSpan: SLOT_SPAN_MAX + 1 }] },
+          {
+            productCode: 11421,
+            noodleType: "",
+            sizes: [{ code: 19401, slotSpan: SLOT_SPAN_MAX + 1 }],
+          },
         ],
       },
     });

@@ -43,7 +43,10 @@ import { jsoncToJson } from "./support/jsonc";
 
 /** `--` 行コメントを除いた SQL 本文。コメント中の名前を参照や宣言と読まないため。 */
 const activeSql = (sql: string): string =>
-  sql.split("\n").filter((line) => !line.trimStart().startsWith("--")).join("\n");
+  sql
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n");
 
 /** 適用の実行順（README「ファイル」表と Rollout order）。添字がそのまま順序である。 */
 const layers = [
@@ -63,8 +66,18 @@ const sloLayer = layers.find(({ layer }) => layer.startsWith("06"))!.sql;
 const qualifiedName = /\bOPERATION_HISTORY(?:\.[A-Z0-9_]+)*\b/g;
 
 const declarationKinds = [
-  "DATABASE", "SCHEMA", "FILE FORMAT", "STAGE", "TABLE", "VIEW",
-  "PIPE", "FUNCTION", "TASK", "ALERT", "PROCEDURE", "TAG",
+  "DATABASE",
+  "SCHEMA",
+  "FILE FORMAT",
+  "STAGE",
+  "TABLE",
+  "VIEW",
+  "PIPE",
+  "FUNCTION",
+  "TASK",
+  "ALERT",
+  "PROCEDURE",
+  "TAG",
 ] as const;
 type DeclarationKind = (typeof declarationKinds)[number];
 
@@ -100,19 +113,25 @@ describe("R2 の保存先 — 書く側・消す側・読む側が同じ場所�
       ([, name, url]) => ({ layer, name: name!, url: url! }),
     ),
   );
-  const consumerBucket = (JSON.parse(jsoncToJson(consumerConfig)) as {
-    readonly r2_buckets: readonly { readonly bucket_name: string }[];
-  }).r2_buckets[0]!.bucket_name;
-  const lifecyclePrefix = (JSON.parse(lifecycleJson) as {
-    readonly rules: readonly { readonly conditions: { readonly prefix?: string } }[];
-  }).rules[0]!.conditions.prefix!;
+  const consumerBucket = (
+    JSON.parse(jsoncToJson(consumerConfig)) as {
+      readonly r2_buckets: readonly { readonly bucket_name: string }[];
+    }
+  ).r2_buckets[0]!.bucket_name;
+  const lifecyclePrefix = (
+    JSON.parse(lifecycleJson) as {
+      readonly rules: readonly { readonly conditions: { readonly prefix?: string } }[];
+    }
+  ).rules[0]!.conditions.prefix!;
 
   it("R2 の位置を宣言する stage は一つだけである", () => {
     // 二つ目の stage は、lifecycle が覆わない場所や Consumer が書かない場所を静かに増やす。
     expect(stages.map(({ layer, name }) => `${layer}: ${name}`)).toHaveLength(1);
     // s3compat の URL も一箇所だけである（別 bucket を指す URL が他層に無い）。
     expect(
-      layers.flatMap(({ sql }) => [...sql.matchAll(/s3compat:\/\/([^/'\s]+)/g)].map(([, bucket]) => bucket)),
+      layers.flatMap(({ sql }) =>
+        [...sql.matchAll(/s3compat:\/\/([^/'\s]+)/g)].map(([, bucket]) => bucket),
+      ),
     ).toEqual([consumerBucket]);
   });
 
@@ -169,7 +188,9 @@ describe("Snowflake 宣言の参照整合", () => {
 
     expect(declarations.get(called!)?.kind).toBe("PROCEDURE");
     // procedure が読み書きする先はすべて実在の table・view である（帯の記憶と通知先を含む）。
-    const touched = [...new Set([...procedureBody.matchAll(qualifiedName)].map((match) => match[0]))];
+    const touched = [
+      ...new Set([...procedureBody.matchAll(qualifiedName)].map((match) => match[0])),
+    ];
     expect(touched.length).toBeGreaterThan(0);
     for (const name of touched) {
       expect(["TABLE", "VIEW"], `${name} は procedure が触れる対象ではない`).toContain(

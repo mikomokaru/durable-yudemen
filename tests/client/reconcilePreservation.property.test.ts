@@ -45,7 +45,10 @@ const ANCHOR = 1_000_000;
 const END_TIME_POOL = [ANCHOR - 2_000, ANCHOR - 1, ANCHOR, ANCHOR + 1, ANCHOR + 2_000] as const;
 
 /** クロックオフセット。0 と非 0 の双方（Reconcile が offset を凍結しても補正は残る）。 */
-const genOffset: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: -200_000, max: 200_000 }));
+const genOffset: fc.Arbitrary<number> = fc.oneof(
+  fc.constant(0),
+  fc.integer({ min: -200_000, max: 200_000 }),
+);
 /** 受信時刻（残滓記録時刻 at として運ばれる）。 */
 const genReceivedAt: fc.Arbitrary<number> = fc.integer({ min: 0, max: ANCHOR });
 
@@ -55,21 +58,29 @@ const genReceivedAt: fc.Arbitrary<number> = fc.integer({ min: 0, max: ANCHOR });
  * 指定 id プール・slot プールから TimerFact 集合を生成する。id は一意で、各 Timer のスロットは
  * 1〜2 個（多スロット Timer を踏む）。集合内の重なりは許す（起源をまたぐ争いだけを排すれば前提は満たされる）。
  */
-function genFacts(idPool: readonly string[], slotPool: readonly string[]): fc.Arbitrary<readonly TimerFact[]> {
+function genFacts(
+  idPool: readonly string[],
+  slotPool: readonly string[],
+): fc.Arbitrary<readonly TimerFact[]> {
   const genFact: fc.Arbitrary<Omit<TimerFact, "id">> = fc.record({
     slotIds: fc
-      .uniqueArray(fc.constantFrom(...slotPool), { minLength: 1, maxLength: Math.min(2, slotPool.length) })
+      .uniqueArray(fc.constantFrom(...slotPool), {
+        minLength: 1,
+        maxLength: Math.min(2, slotPool.length),
+      })
       .map(nonEmpty),
     noodleType: fc.constantFrom(...NOODLE_POOL),
     firmness: fc.constantFrom(...FIRMNESS_POOL),
     startTime: fc.integer({ min: ANCHOR - 10_000, max: ANCHOR }),
     endTime: fc.constantFrom(...END_TIME_POOL),
   });
-  return fc.uniqueArray(fc.constantFrom(...idPool), { maxLength: idPool.length }).chain((ids) =>
-    fc
-      .array(genFact, { minLength: ids.length, maxLength: ids.length })
-      .map((facts): readonly TimerFact[] => facts.map((fact, i) => ({ ...fact, id: ids[i]! }))),
-  );
+  return fc
+    .uniqueArray(fc.constantFrom(...idPool), { maxLength: idPool.length })
+    .chain((ids) =>
+      fc
+        .array(genFact, { minLength: ids.length, maxLength: ids.length })
+        .map((facts): readonly TimerFact[] => facts.map((fact, i) => ({ ...fact, id: ids[i]! }))),
+    );
 }
 
 // ── 場面（ビュー / snapshot / 受信時刻の組） ────────────────────────────────────────────────────────
@@ -115,23 +126,21 @@ function genScene(
           fc.constant<readonly string[]>(idPool),
           fc.uniqueArray(fc.constantFrom(...idPool), { maxLength: idPool.length }),
         )
-        .map(
-          (processed): UncontestedScene => ({
-            // EMPTY_VIEW を基点にするのは、公開型がフィールドを増やしたとき既定値で追随させるため
-            // （Property 8 が意味を与える次元＝timers / offset / processedIds だけを上書きする）。
-            view: {
-              ...EMPTY_VIEW,
-              timers: [
-                ...drawn.prevServer.map((t): ClientTimer => ({ ...t, origin: "server" })),
-                ...drawn.provisional.map((t): ClientTimer => ({ ...t, origin: "local" })),
-              ],
-              offset: drawn.offset,
-              processedIds: new Set(processed),
-            },
-            snapshot: drawn.snapshot,
-            receivedAt: drawn.receivedAt,
-          }),
-        );
+        .map((processed): UncontestedScene => ({
+          // EMPTY_VIEW を基点にするのは、公開型がフィールドを増やしたとき既定値で追随させるため
+          // （Property 8 が意味を与える次元＝timers / offset / processedIds だけを上書きする）。
+          view: {
+            ...EMPTY_VIEW,
+            timers: [
+              ...drawn.prevServer.map((t): ClientTimer => ({ ...t, origin: "server" })),
+              ...drawn.provisional.map((t): ClientTimer => ({ ...t, origin: "local" })),
+            ],
+            offset: drawn.offset,
+            processedIds: new Set(processed),
+          },
+          snapshot: drawn.snapshot,
+          receivedAt: drawn.receivedAt,
+        }));
     });
 }
 

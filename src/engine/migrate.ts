@@ -112,7 +112,11 @@ export function migrate(raw: unknown): MigrationOutcome {
 function reviveLastSequenceByTerminal(value: unknown): Readonly<Record<string, string>> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
   const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.some(([terminalId, seq]) => terminalId.length === 0 || typeof seq !== "string" || seq.length === 0)) {
+  if (
+    entries.some(
+      ([terminalId, seq]) => terminalId.length === 0 || typeof seq !== "string" || seq.length === 0,
+    )
+  ) {
     return {};
   }
   return Object.fromEntries(entries as readonly [string, string][]);
@@ -150,7 +154,11 @@ function revivePendingOrder(value: unknown): PendingOrder | null {
   if (typeof o.noodleType !== "string" || o.noodleType.length === 0) return null;
   if (!isFirmness(o.firmness)) return null;
   // tableId は「無い」ことに意味がある（単独グループ）。欠如／null は null、空文字と非文字列は壊れたデータ。
-  if (o.tableId !== undefined && o.tableId !== null && (typeof o.tableId !== "string" || o.tableId.length === 0)) {
+  if (
+    o.tableId !== undefined &&
+    o.tableId !== null &&
+    (typeof o.tableId !== "string" || o.tableId.length === 0)
+  ) {
     return null;
   }
   if (typeof o.arrivalTime !== "number" || !Number.isFinite(o.arrivalTime)) return null;
@@ -320,7 +328,9 @@ function reviveTimer(value: unknown): Timer | null {
  * 壊れた紐づけで店舗全体を起動不能にする代償の方が大きい（adjustment を移行失敗にする判断とは、
  * 失われる事実の重さが違う——あちらは実効 endTime、すなわち計時そのものを歪める）。
  */
-function reviveOrderItem(value: unknown): { readonly externalOrderId: string; readonly itemIndex: number } | null {
+function reviveOrderItem(
+  value: unknown,
+): { readonly externalOrderId: string; readonly itemIndex: number } | null {
   if (typeof value !== "object" || value === null) return null;
   const item = value as Record<string, unknown>;
   if (typeof item.externalOrderId !== "string" || item.externalOrderId.length === 0) return null;

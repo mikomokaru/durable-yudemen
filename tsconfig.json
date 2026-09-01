@@ -20,5 +20,12 @@
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src", "tests", "tools", "vite.config.ts", "vitest.config.ts", "worker-configuration.d.ts"]
+  "include": [
+    "src",
+    "tests",
+    "tools",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "worker-configuration.d.ts"
+  ]
 }

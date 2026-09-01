@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 import { decideView, EMPTY_VIEW } from "../../src/client/connection";
 import type { ClientMessage, ServerMessage } from "../../src/domain/messages";
 
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
 type AllKeys<T> = T extends unknown ? keyof T : never;
 type ConfigMessage = Extract<ServerMessage, { readonly type: "config" }>;

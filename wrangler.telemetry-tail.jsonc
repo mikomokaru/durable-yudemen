@@ -14,7 +14,7 @@
   // root と同一の日付に揃える（tooling.md の確定値）。Worker 間で挙動の既定が食い違わないようにする。
   "compatibility_date": "2026-06-26",
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   // ネットワークへ露出させない。この Worker への正当な到達経路は Producer の tail attachment だけであり、
   // fetch handler も route も持たない。逆に Producer を起動できる経路（route、Service binding、
@@ -28,8 +28,8 @@
     "producers": [
       {
         "binding": "OPERATION_RECORDS",
-        "queue": "operation-records"
-      }
-    ]
-  }
+        "queue": "operation-records",
+      },
+    ],
+  },
 }

@@ -71,7 +71,11 @@ function storeListReply(storeIds: readonly string[]): ProbeReply {
 
 /** 403（Access セッション無効）→ signInRequired。端は 200 以外に本文の読み取りを掛けない。 */
 function forbiddenReply(): ProbeReply {
-  return { type: "default", status: 403, json: () => Promise.reject(new SyntaxError("no json body")) };
+  return {
+    type: "default",
+    status: 403,
+    json: () => Promise.reject(new SyntaxError("no json body")),
+  };
 }
 
 /**
@@ -164,7 +168,10 @@ describe("client/connection — Reconcile の契機づけと boot 再水和の�
     // boot の初回 up は down→up 遷移ではない（直前の Connectivity は未確立）。ゆえに続く snapshot は通常の
     // hydration 経路を通り、serverTime から offset を再確立する。
     setConnectivity("up");
-    receiveMessage(snapshotOf([serverTimer("S", START_NOW + 180_000)], START_NOW + 5_000), START_NOW);
+    receiveMessage(
+      snapshotOf([serverTimer("S", START_NOW + 180_000)], START_NOW + 5_000),
+      START_NOW,
+    );
     expect(connection.getView().offset).toBe(5_000);
     expect(connection.getView().sync).toBe("synced");
 
@@ -175,13 +182,19 @@ describe("client/connection — Reconcile の契機づけと boot 再水和の�
     // 同じ形の snapshot を**別の serverTime** で受ける。Reconcile イベントは serverTime を運ばないため offset は
     // 凍結し（degraded 中に確立した最新値の維持・要件5.2）、通常 snapshot 経路なら 9_000 へ書き換わる。盤面は
     // 両経路で同一規律ゆえ、ここが二つの経路を外から分ける唯一の観測点である。
-    receiveMessage(snapshotOf([serverTimer("N", START_NOW + 240_000)], START_NOW + 9_000), START_NOW);
+    receiveMessage(
+      snapshotOf([serverTimer("N", START_NOW + 240_000)], START_NOW + 9_000),
+      START_NOW,
+    );
     expect(connection.getView().offset).toBe(5_000);
     // 契機だけ立てて中身を捨てていないこと（Reconcile が snapshot の timers を確かに畳んだ）。
     expect(connection.getView().timers.map((timer) => timer.id)).toEqual(["N"]);
 
     // 契機は 1 通で消費されて下りる。以降の snapshot は通常経路へ戻り、offset が再確立される。
-    receiveMessage(snapshotOf([serverTimer("N", START_NOW + 240_000)], START_NOW + 12_000), START_NOW);
+    receiveMessage(
+      snapshotOf([serverTimer("N", START_NOW + 240_000)], START_NOW + 12_000),
+      START_NOW,
+    );
     expect(connection.getView().offset).toBe(12_000);
 
     connection.close();

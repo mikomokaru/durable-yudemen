@@ -45,23 +45,27 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 
 function sameTimerFacts(left: OperationRecord, right: OperationRecord): boolean {
   if (
-    left.operationKind !== right.operationKind
-    || !sameStrings(left.slotIds, right.slotIds)
-    || left.noodleType !== right.noodleType
-    || left.firmness !== right.firmness
+    left.operationKind !== right.operationKind ||
+    !sameStrings(left.slotIds, right.slotIds) ||
+    left.noodleType !== right.noodleType ||
+    left.firmness !== right.firmness
   ) {
     return false;
   }
 
   switch (left.operationKind) {
     case "boil-started":
-      return right.operationKind === "boil-started"
-        && left.startTime === right.startTime
-        && left.endTime === right.endTime;
+      return (
+        right.operationKind === "boil-started" &&
+        left.startTime === right.startTime &&
+        left.endTime === right.endTime
+      );
     case "boiled":
-      return right.operationKind === "boiled"
-        && left.endTime === right.endTime
-        && left.boiledAt === right.boiledAt;
+      return (
+        right.operationKind === "boiled" &&
+        left.endTime === right.endTime &&
+        left.boiledAt === right.boiledAt
+      );
     case "adjusted":
       return right.operationKind === "adjusted" && left.endTime === right.endTime;
     case "completed":
@@ -72,9 +76,7 @@ function sameTimerFacts(left: OperationRecord, right: OperationRecord): boolean 
 }
 
 /** 一次4属性で候補を作り、record 本体の Timer 事実だけで整合を判定する。 */
-export function correlationCandidatesFromOperationEvidence(
-  evidence: readonly OperationEvidence[],
-) {
+export function correlationCandidatesFromOperationEvidence(evidence: readonly OperationEvidence[]) {
   const candidates = new Map<string, CandidateAccumulator>();
 
   for (const item of evidence) {
@@ -156,7 +158,7 @@ export function operationArrivalQualityFromEvidence(
 
     for (const arrival of candidateArrivals) {
       const convergence = convergences.find(({ analysisRecord }) =>
-        sameTimerFacts(analysisRecord, arrival.record)
+        sameTimerFacts(analysisRecord, arrival.record),
       );
       if (convergence === undefined) {
         convergences.push({ analysisRecord: arrival.record, rawArrivals: [arrival] });
@@ -178,8 +180,8 @@ export function operationArrivalQualityFromEvidence(
 
       if (result.duplicateCount > 0) duplicate.push(result.rawArrivals);
       if (
-        result.analysisRecord.operationKind !== "boil-started"
-        && !starts.has(timerKey(result.analysisRecord))
+        result.analysisRecord.operationKind !== "boil-started" &&
+        !starts.has(timerKey(result.analysisRecord))
       ) {
         orphan.push(result.rawArrivals);
       }
@@ -190,8 +192,8 @@ export function operationArrivalQualityFromEvidence(
     rawArrivals: evidence,
     convergedRecords: convergedRecords as readonly (typeof convergedRecords)[number][],
     quality: {
-      missing: expectedRecords.filter((record) =>
-        !observedPrimaryKeys.has(primaryKey(primaryCandidate(record)))
+      missing: expectedRecords.filter(
+        (record) => !observedPrimaryKeys.has(primaryKey(primaryCandidate(record))),
       ),
       orphan: orphan as readonly (readonly OperationEvidence[])[],
       conflict: conflict as readonly (readonly OperationEvidence[])[],

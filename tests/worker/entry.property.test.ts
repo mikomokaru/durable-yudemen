@@ -13,7 +13,9 @@ import { resolveEntryDestination } from "../../src/worker-entry";
 // ── ジェネレータ群 ──
 
 /** 許容文字集合 [a-z0-9-] の 1 文字（slug.property.test.ts / store-path.property.test.ts と同じ許容形）。 */
-const genAllowedChar: fc.Arbitrary<string> = fc.constantFrom(..."abcdefghijklmnopqrstuvwxyz0123456789-".split(""));
+const genAllowedChar: fc.Arbitrary<string> = fc.constantFrom(
+  ..."abcdefghijklmnopqrstuvwxyz0123456789-".split(""),
+);
 
 /**
  * storeId（登録順の要素）。採番スラッグの実像に寄せて `[a-z0-9-]`・長さ 1〜64 の文字列を生成する
@@ -24,7 +26,10 @@ const genStoreId: fc.Arbitrary<string> = fc
   .map((chars) => chars.join(""));
 
 /** 登録順の店舗リスト（0 店舗・1 店舗・複数店舗を偏りなく踏む）。重複 storeId も許容する（先頭選択に影響しないため）。 */
-const genStores: fc.Arbitrary<readonly string[]> = fc.array(genStoreId, { minLength: 0, maxLength: 12 });
+const genStores: fc.Arbitrary<readonly string[]> = fc.array(genStoreId, {
+  minLength: 0,
+  maxLength: 12,
+});
 
 describe("worker-entry — Property 18: Entry の行き先解決", () => {
   // Feature: per-store-provisioning, Property 18: Entry の行き先解決

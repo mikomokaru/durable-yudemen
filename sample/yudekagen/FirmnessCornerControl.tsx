@@ -16,8 +16,8 @@ export interface FirmnessCornerControlProps {
 }
 
 // レイアウト定数（プロトタイプと同値）
-const W = 90;     // 選択肢ボタン幅
-const H = 78;     // 選択肢ボタン高さ
+const W = 90; // 選択肢ボタン幅
+const H = 78; // 選択肢ボタン高さ
 const GAP = 10;
 const LEFT0 = 14; // 先頭ボタンの左位置（角ボタンに重なる）
 const BOTTOM = 16;
@@ -137,9 +137,7 @@ export function FirmnessCornerControl({
             fontWeight: 800,
             lineHeight: 1,
             cursor: "pointer",
-            boxShadow: active
-              ? "0 8px 22px rgba(232,192,122,.45)"
-              : "0 8px 20px rgba(0,0,0,.45)",
+            boxShadow: active ? "0 8px 22px rgba(232,192,122,.45)" : "0 8px 20px rgba(0,0,0,.45)",
             // 閉じている間は角ボタン位置(x=LEFT0)に畳んでおく → 開くと各自の位置へ右スライド
             transform: open ? "translateX(0) scale(1)" : `translateX(${LEFT0 - x}px) scale(.92)`,
             opacity: open ? 1 : 0,
@@ -155,7 +153,7 @@ export function FirmnessCornerControl({
               style={style}
               onClick={() => {
                 onChange(level.id); // 親で endsAt を引き直す（残り時間が即再計算）
-                setOpenAnd(false);  // 選択＝確定して閉じる
+                setOpenAnd(false); // 選択＝確定して閉じる
               }}
             >
               {level.id}

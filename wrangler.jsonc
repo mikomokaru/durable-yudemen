@@ -3,7 +3,7 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-06-26",
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   // 観測ハーネスの debug flag。"1" で計装ログ出力が有効・既定は無効（"0"）。
   // Operation History は独立した OPERATION_HISTORY_ENABLED で切り替え、debug 計装と共有しない。
@@ -29,19 +29,19 @@
     "OPERATION_HISTORY_ENABLED": "0",
     "ACCESS_REQUIRED": "0",
     "TEAM_DOMAIN": "https://<team>.cloudflareaccess.com",
-    "POLICY_AUD": "<access-app-aud>"
+    "POLICY_AUD": "<access-app-aud>",
   },
   "durable_objects": {
     "bindings": [
       {
         "name": "STORE_TIMER_DO",
-        "class_name": "StoreTimerDO"
+        "class_name": "StoreTimerDO",
       },
       {
         "name": "STORE_REGISTRY_DO",
-        "class_name": "StoreRegistryDO"
-      }
-    ]
+        "class_name": "StoreRegistryDO",
+      },
+    ],
   },
   // Solver_Worker への Service binding（online-cook-scheduling 要件12.1）。往路（RequestPlan の送出）はこの
   // binding ただ一つを通り、shell は受理応答（202）のみを await する（AC 5.2 / 12.2）。復路は Solver_Worker が
@@ -53,19 +53,19 @@
   "services": [
     {
       "binding": "SOLVER",
-      "service": "yude-men-solver"
-    }
+      "service": "yude-men-solver",
+    },
   ],
   // SQLite ストレージバックエンド（非同期 KV API のみ使用。SQL API は使わない）
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["StoreTimerDO"]
+      "new_sqlite_classes": ["StoreTimerDO"],
     },
     {
       "tag": "v2",
-      "new_sqlite_classes": ["StoreRegistryDO"]
-    }
+      "new_sqlite_classes": ["StoreRegistryDO"],
+    },
   ],
   // Operation History の Tail attachment。root は Producer 設定の SSOT であり、ここに置くのは
   // Tail Worker を指す tail_consumers attachment だけである（要件4.1 / 4.9）。
@@ -117,6 +117,6 @@
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/", "/s/*", "/entry/*", "/admin/*", "/pos/*"]
-  }
+    "run_worker_first": ["/", "/s/*", "/entry/*", "/admin/*", "/pos/*"],
+  },
 }

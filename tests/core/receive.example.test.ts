@@ -52,15 +52,20 @@ function event(...order: readonly ReceivedOrder[]): Event {
 }
 
 /** 待ち行列に品目を据え、判定材料は当該端末について seq を進めた状態。 */
-function stateWith(pendingOrders: readonly PendingOrder[], lastSequenceNumber?: string): TimerState {
+function stateWith(
+  pendingOrders: readonly PendingOrder[],
+  lastSequenceNumber?: string,
+): TimerState {
   return {
     ...EMPTY_STATE,
     pendingOrders,
-    lastSequenceByTerminal: lastSequenceNumber === undefined ? {} : { [TERMINAL]: lastSequenceNumber },
+    lastSequenceByTerminal:
+      lastSequenceNumber === undefined ? {} : { [TERMINAL]: lastSequenceNumber },
   };
 }
 
-const persists = (effects: readonly Effect[]): readonly Effect[] => effects.filter((e) => e.type === "Persist");
+const persists = (effects: readonly Effect[]): readonly Effect[] =>
+  effects.filter((e) => e.type === "Persist");
 
 describe("engine/receive — 受領を 1 つの遷移へ畳む", () => {
   it("後着で品目が減る（3 品目が 1 品目へ置換される・AC 6.7）", () => {
@@ -123,7 +128,10 @@ describe("engine/receive — 受領を 1 つの遷移へ畳む", () => {
 
     const outcome = decide(before, event(received(SEQ_1, [item(0)], ORDER_ID, "9")), PARAMS);
 
-    expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({ [TERMINAL]: SEQ_3, "9": SEQ_1 });
+    expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({
+      [TERMINAL]: SEQ_3,
+      "9": SEQ_1,
+    });
     expect(outcome.ok && outcome.state.pendingOrders).toHaveLength(1);
   });
 });

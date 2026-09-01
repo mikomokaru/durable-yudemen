@@ -35,7 +35,9 @@ export function referenceProximityClusters(
         if (visited.has(candidate)) continue;
         const candidateWindow = windows[candidate];
         if (candidateWindow === undefined) continue;
-        const overlaps = currentWindow.left <= candidateWindow.right && candidateWindow.left <= currentWindow.right;
+        const overlaps =
+          currentWindow.left <= candidateWindow.right &&
+          candidateWindow.left <= currentWindow.right;
         if (!overlaps) continue;
         visited.add(candidate);
         pending.push(candidate);

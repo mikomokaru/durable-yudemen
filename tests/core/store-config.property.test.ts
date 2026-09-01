@@ -58,9 +58,24 @@ interface ScalarDomain {
 
 /** 数値スカラーのパラメータ表（重み 3・許容幅 3）。妥当域と既定は domain の定数を正本とする。 */
 const SCALAR_PARAMS = {
-  orderSyncWeight: { validate: toOrderSyncWeight, min: WEIGHT_MIN, max: WEIGHT_MAX, fallback: DEFAULT_ORDER_SYNC_WEIGHT },
-  tableSyncWeight: { validate: toTableSyncWeight, min: WEIGHT_MIN, max: WEIGHT_MAX, fallback: DEFAULT_TABLE_SYNC_WEIGHT },
-  affinityWeight: { validate: toAffinityWeight, min: WEIGHT_MIN, max: WEIGHT_MAX, fallback: DEFAULT_AFFINITY_WEIGHT },
+  orderSyncWeight: {
+    validate: toOrderSyncWeight,
+    min: WEIGHT_MIN,
+    max: WEIGHT_MAX,
+    fallback: DEFAULT_ORDER_SYNC_WEIGHT,
+  },
+  tableSyncWeight: {
+    validate: toTableSyncWeight,
+    min: WEIGHT_MIN,
+    max: WEIGHT_MAX,
+    fallback: DEFAULT_TABLE_SYNC_WEIGHT,
+  },
+  affinityWeight: {
+    validate: toAffinityWeight,
+    min: WEIGHT_MIN,
+    max: WEIGHT_MAX,
+    fallback: DEFAULT_AFFINITY_WEIGHT,
+  },
   orderSyncToleranceSeconds: {
     validate: toOrderSyncToleranceSeconds,
     min: SYNC_TOLERANCE_SECONDS_MIN,
@@ -147,8 +162,14 @@ function genValidRaw(unitCount: number): fc.Arbitrary<RawConfig> {
     orderSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     tableSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     affinityWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
-    orderSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
-    tableSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
+    orderSyncToleranceSeconds: fc.integer({
+      min: SYNC_TOLERANCE_SECONDS_MIN,
+      max: SYNC_TOLERANCE_SECONDS_MAX,
+    }),
+    tableSyncToleranceSeconds: fc.integer({
+      min: SYNC_TOLERANCE_SECONDS_MIN,
+      max: SYNC_TOLERANCE_SECONDS_MAX,
+    }),
     affinityToleranceDistance: fc.integer({
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
       max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
@@ -181,17 +202,29 @@ const genUnusable: fc.Arbitrary<unknown> = fc.oneof(
 /** 不正な座標（負値・非整数・そもそも点でない値）。要素ごとの畳み込みを検査する母集団。 */
 const genInvalidPoint: fc.Arbitrary<unknown> = fc.oneof(
   genUnusable,
-  fc.record({ x: fc.integer({ min: -50, max: GRID_COORDINATE_MIN - 1 }), y: fc.integer({ min: 0, max: 10 }) }),
-  fc.record({ x: fc.integer({ min: 0, max: 10 }), y: fc.integer({ min: -50, max: GRID_COORDINATE_MIN - 1 }) }),
-  fc.record({ x: fc.double({ min: 0.1, max: 0.9, noNaN: true }), y: fc.integer({ min: 0, max: 10 }) }),
+  fc.record({
+    x: fc.integer({ min: -50, max: GRID_COORDINATE_MIN - 1 }),
+    y: fc.integer({ min: 0, max: 10 }),
+  }),
+  fc.record({
+    x: fc.integer({ min: 0, max: 10 }),
+    y: fc.integer({ min: -50, max: GRID_COORDINATE_MIN - 1 }),
+  }),
+  fc.record({
+    x: fc.double({ min: 0.1, max: 0.9, noNaN: true }),
+    y: fc.integer({ min: 0, max: 10 }),
+  }),
   fc.record({ x: fc.integer({ min: 0, max: 10 }) }), // y 欠落
 );
 
 /** 妥当な座標と不正な座標が混ざった配列（長さも足りない/多い側へ振る）。 */
-const genMixedPoints: fc.Arbitrary<readonly unknown[]> = fc.array(fc.oneof(genGridPoint, genInvalidPoint), {
-  minLength: 0,
-  maxLength: SLOTS_PER_UNIT + UNIT_COUNT_MAX + 2,
-});
+const genMixedPoints: fc.Arbitrary<readonly unknown[]> = fc.array(
+  fc.oneof(genGridPoint, genInvalidPoint),
+  {
+    minLength: 0,
+    maxLength: SLOTS_PER_UNIT + UNIT_COUNT_MAX + 2,
+  },
+);
 
 /** あるパラメータへ差し込む不正値と、それが「まるごと既定へ畳まれる」ことを期待できるかの札。 */
 interface Intrusion {
@@ -219,7 +252,9 @@ function genIntrusion(key: ParamKey): fc.Arbitrary<Intrusion> {
       ? fc.integer({ min: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX, max: Number.MAX_SAFE_INTEGER })
       : fc.integer({ min: max + 1, max: max + 5000 });
   // 「範囲外」とは呼べない——上限が無い 1 個では大きな値は範囲内である。境界の外側へ振る値、と読む。
-  const beyondBounds = fc.oneof(belowMin, beyondMax).map((value) => ({ value, foldsToDefault: false }));
+  const beyondBounds = fc
+    .oneof(belowMin, beyondMax)
+    .map((value) => ({ value, foldsToDefault: false }));
   return fc.oneof(unusable, beyondBounds);
 }
 

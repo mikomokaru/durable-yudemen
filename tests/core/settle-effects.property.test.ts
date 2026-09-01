@@ -166,7 +166,9 @@ describe("engine/settle — Effect列順序とno-op抑止", () => {
         };
         const boiled: TimerState = {
           ...prev,
-          timers: prev.timers.map((timer) => (timer.id === target.id ? { ...timer, boiledAt: now } : timer)),
+          timers: prev.timers.map((timer) =>
+            timer.id === target.id ? { ...timer, boiledAt: now } : timer,
+          ),
         };
 
         expectChangedSettlement(prev, started, params, now);
@@ -185,7 +187,9 @@ describe("engine/settle — Effect列順序とno-op抑止", () => {
           timerFromSeed({ offset: gap, duration }, 1),
         ];
         const prev = confirmedState(timers, params);
-        expect(prev.timers.some((timer) => timer.boiledAt === null && timer.adjustment !== 0)).toBe(true);
+        expect(prev.timers.some((timer) => timer.boiledAt === null && timer.adjustment !== 0)).toBe(
+          true,
+        );
 
         const movedEquivalent = cloneConfirmedState(prev);
         expect(movedEquivalent).not.toBe(prev);

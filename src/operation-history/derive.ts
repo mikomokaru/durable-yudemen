@@ -34,7 +34,11 @@ function projectTimer(engineTimer: Timer): ProjectedTimer {
   return { engineTimer, fact: toWireTimer(engineTimer) };
 }
 
-function commonRecord(storeId: string, eventTime: PositiveEpochMillis, fact: TimerFact): CommonRecord {
+function commonRecord(
+  storeId: string,
+  eventTime: PositiveEpochMillis,
+  fact: TimerFact,
+): CommonRecord {
   return {
     storeId,
     timerId: fact.id,
@@ -46,7 +50,9 @@ function commonRecord(storeId: string, eventTime: PositiveEpochMillis, fact: Tim
 }
 
 /** Persist 成功済みの before／after 差分を、一差分一件の Operation Record へ写す純粋導出。 */
-export function recordsFromCommittedDiff(observation: OperationObservation): readonly OperationRecord[] {
+export function recordsFromCommittedDiff(
+  observation: OperationObservation,
+): readonly OperationRecord[] {
   const { storeId, eventKind, before, after } = observation;
   const eventTime = positiveEpochMillis(observation.eventTime);
   const beforeTimers = before.timers.map(projectTimer);

@@ -248,7 +248,10 @@ function parseServerMessage(raw: string): ServerMessage | null {
 // 不活性なまま証跡として残る。
 
 /** 接続未確立の診断記録（要件3.7）。どのステップ操作で観測したかを payload に残す。 */
-function buildConnectionNotEstablishedEntry(at: number, op: ScenarioStep["op"]): UnsequencedOperationEntry {
+function buildConnectionNotEstablishedEntry(
+  at: number,
+  op: ScenarioStep["op"],
+): UnsequencedOperationEntry {
   return {
     at,
     atIso: new Date(at).toISOString(),
@@ -259,7 +262,11 @@ function buildConnectionNotEstablishedEntry(at: number, op: ScenarioStep["op"]):
 }
 
 /** await-done タイムアウトの診断記録（要件3.6）。対象 timerId と上限待機時間を残す。 */
-function buildAwaitTimeoutEntry(at: number, timerId: string, timeoutMs: number): UnsequencedOperationEntry {
+function buildAwaitTimeoutEntry(
+  at: number,
+  timerId: string,
+  timeoutMs: number,
+): UnsequencedOperationEntry {
   return {
     at,
     atIso: new Date(at).toISOString(),
@@ -270,7 +277,11 @@ function buildAwaitTimeoutEntry(at: number, timerId: string, timeoutMs: number):
 }
 
 /** 送信失敗の診断記録（要件1.6）。失敗理由と対象メッセージ種別を残す。 */
-function buildSendFailureEntry(at: number, reason: string, messageType: ClientMessage["type"]): UnsequencedOperationEntry {
+function buildSendFailureEntry(
+  at: number,
+  reason: string,
+  messageType: ClientMessage["type"],
+): UnsequencedOperationEntry {
   return {
     at,
     atIso: new Date(at).toISOString(),

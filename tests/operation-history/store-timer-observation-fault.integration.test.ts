@@ -13,7 +13,9 @@ import { StoreTimerDO } from "../../src/shell/store-timer-do";
 import { nonEmpty } from "../nonEmpty";
 import { configResidualDefaults } from "../storeConfigDefaults";
 
-declare module "cloudflare:test" { interface ProvidedEnv extends Env {} }
+declare module "cloudflare:test" {
+  interface ProvidedEnv extends Env {}
+}
 
 type ObservationMode = "off" | "success" | "record-throw" | "printer-throw" | "console-throw";
 type RunResult = { readonly persisted: boolean };
@@ -133,8 +135,20 @@ function initialTimer(
 const initialSnapshot = toSnapshot({
   ...EMPTY_STATE,
   timers: [
-    initialTimer("reconcile-due", "initial-due", RECONCILE_TIME - 60_000, RECONCILE_TIME - 1_000, 0),
-    initialTimer("alarm-due", "initial-running", RECONCILE_TIME - 10_000, RECONCILE_TIME + 200_000, 1),
+    initialTimer(
+      "reconcile-due",
+      "initial-due",
+      RECONCILE_TIME - 60_000,
+      RECONCILE_TIME - 1_000,
+      0,
+    ),
+    initialTimer(
+      "alarm-due",
+      "initial-running",
+      RECONCILE_TIME - 10_000,
+      RECONCILE_TIME + 200_000,
+      1,
+    ),
   ],
   nextSeq: 2,
 });
@@ -144,7 +158,9 @@ function stub(): DurableObjectStub<StoreTimerDO> {
 }
 
 function setHistoryBinding(enabled: boolean): void {
-  (env as unknown as { OPERATION_HISTORY_ENABLED: string }).OPERATION_HISTORY_ENABLED = enabled ? "1" : "0";
+  (env as unknown as { OPERATION_HISTORY_ENABLED: string }).OPERATION_HISTORY_ENABLED = enabled
+    ? "1"
+    : "0";
 }
 
 async function openWs(object: DurableObjectStub<StoreTimerDO>): Promise<WsHarness> {
@@ -165,11 +181,12 @@ async function openWs(object: DurableObjectStub<StoreTimerDO>): Promise<WsHarnes
   ws.accept();
 
   return {
-    next: () => new Promise<ServerMessage>((resolve) => {
-      const buffered = queue.shift();
-      if (buffered === undefined) waiters.push(resolve);
-      else resolve(buffered);
-    }),
+    next: () =>
+      new Promise<ServerMessage>((resolve) => {
+        const buffered = queue.shift();
+        if (buffered === undefined) waiters.push(resolve);
+        else resolve(buffered);
+      }),
     close: () => ws.close(),
   };
 }
@@ -199,38 +216,42 @@ function installTraceHooks(controls: Map<string, ObservationTrace>): void {
   // O7: construct・wake・rehydrate・storage read を runtime で数える。観測 ON/OFF で 0 差分でなければならない。
   // ensureLoaded は各 instance が最初に触れる経路（constructor の blockConcurrencyWhile と各入口の前段）ゆえ、
   // ここで instanceId の初出を construct、実ロードを rehydrate、SNAPSHOT_KEY 読みを storage read として数える。
-  vi.spyOn(prototype, "ensureLoaded").mockImplementation(async function(this: RuntimeStoreTimer): Promise<void> {
-    const control = controls.get(this.ctx.id.name ?? "");
-    if (control !== undefined) {
-      if (!control.seenInstances.has(this.instanceId)) {
-        control.seenInstances.add(this.instanceId);
-        control.runtime.construct += 1;
+  vi.spyOn(prototype, "ensureLoaded").mockImplementation(
+    async function (this: RuntimeStoreTimer): Promise<void> {
+      const control = controls.get(this.ctx.id.name ?? "");
+      if (control !== undefined) {
+        if (!control.seenInstances.has(this.instanceId)) {
+          control.seenInstances.add(this.instanceId);
+          control.runtime.construct += 1;
+        }
+        if (!this.loaded) {
+          control.runtime.rehydrate += 1;
+          control.runtime.storageReads += 1;
+        }
       }
-      if (!this.loaded) {
-        control.runtime.rehydrate += 1;
-        control.runtime.storageReads += 1;
-      }
-    }
-    return originalEnsureLoaded.call(this);
-  });
+      return originalEnsureLoaded.call(this);
+    },
+  );
 
   // ensureProvisioned は投影を PROJECTION_KEY から一度だけ読む。観測はこの読み出しを増やさない。
-  vi.spyOn(prototype, "ensureProvisioned").mockImplementation(async function(this: RuntimeStoreTimer): Promise<unknown> {
-    const control = controls.get(this.ctx.id.name ?? "");
-    if (control !== undefined && !this.provisionChecked) {
-      control.runtime.storageReads += 1;
-    }
-    return originalEnsureProvisioned.call(this);
-  });
+  vi.spyOn(prototype, "ensureProvisioned").mockImplementation(
+    async function (this: RuntimeStoreTimer): Promise<unknown> {
+      const control = controls.get(this.ctx.id.name ?? "");
+      if (control !== undefined && !this.provisionChecked) {
+        control.runtime.storageReads += 1;
+      }
+      return originalEnsureProvisioned.call(this);
+    },
+  );
 
   vi.spyOn(console, "log").mockImplementation((value?: unknown) => {
     if (activeControl === undefined) return;
     const line = String(value);
     activeControl.consoleAttempts.push(line);
     if (
-      activeControl.mode === "console-throw"
-      && activeControl.activeEvent === "AlarmFired"
-      && activeControl.consoleFaultAttempts === 0
+      activeControl.mode === "console-throw" &&
+      activeControl.activeEvent === "AlarmFired" &&
+      activeControl.consoleFaultAttempts === 0
     ) {
       activeControl.consoleFaultAttempts += 1;
       throw new Error("injected console failure");
@@ -238,7 +259,7 @@ function installTraceHooks(controls: Map<string, ObservationTrace>): void {
     activeControl.consoleLines.push(line);
   });
 
-  vi.spyOn(prototype, "runEffects").mockImplementation(async function(
+  vi.spyOn(prototype, "runEffects").mockImplementation(async function (
     this: RuntimeStoreTimer,
     effects: readonly Effect[],
   ): Promise<RunResult> {
@@ -260,7 +281,12 @@ function installTraceHooks(controls: Map<string, ObservationTrace>): void {
         await originalPut.call(storage, key, value);
         control.timer.actions.push({ type: "Persist", phase: "success", key });
       } catch (error) {
-        control.timer.actions.push({ type: "Persist", phase: "failure", key, error: exceptionOf(error) });
+        control.timer.actions.push({
+          type: "Persist",
+          phase: "failure",
+          key,
+          error: exceptionOf(error),
+        });
         throw error;
       }
     };
@@ -292,7 +318,7 @@ function installTraceHooks(controls: Map<string, ObservationTrace>): void {
     }
   });
 
-  vi.spyOn(prototype, "tryWriteCommittedOperation").mockImplementation(function(
+  vi.spyOn(prototype, "tryWriteCommittedOperation").mockImplementation(function (
     this: RuntimeStoreTimer,
     eventKind: OperationObservation["eventKind"],
     eventTime: EpochMillis,
@@ -328,9 +354,11 @@ function installTraceHooks(controls: Map<string, ObservationTrace>): void {
               throw new Error("injected printer failure");
             },
           };
-          const timers = committed.timers.map((timer, index) => index === firstBoiled
-            ? { ...timer, slotIds: [throwingSlot] as unknown as NonEmptyArray<SlotId> }
-            : timer);
+          const timers = committed.timers.map((timer, index) =>
+            index === firstBoiled
+              ? { ...timer, slotIds: [throwingSlot] as unknown as NonEmptyArray<SlotId> }
+              : timer,
+          );
           this.workingCopy = { ...committed, timers };
           try {
             originalWrite.call(this, eventKind, eventTime, before, effects, result);
@@ -428,7 +456,12 @@ async function runScenario(
   const second = await openWs(object);
   control.timer.messages.push({
     label: "hydrate",
-    values: copy([await first.next(), await first.next(), await second.next(), await second.next()]),
+    values: copy([
+      await first.next(),
+      await first.next(),
+      await second.next(),
+      await second.next(),
+    ]),
   });
 
   const started = await invokeMessage(
@@ -492,14 +525,19 @@ async function runScenario(
   vi.mocked(Date.now).mockReturnValue(EXCEPTION_TIME);
   control.timer.existingException = await runInDurableObject(object, async (instance) => {
     const throwingSocket = {
-      send: () => { throw new TypeError("existing response send failed"); },
+      send: () => {
+        throw new TypeError("existing response send failed");
+      },
     } as unknown as WebSocket;
     try {
-      await instance.webSocketMessage(throwingSocket, JSON.stringify({
-        type: "adjust",
-        timerId: "missing-timer",
-        firmness: "hard",
-      }));
+      await instance.webSocketMessage(
+        throwingSocket,
+        JSON.stringify({
+          type: "adjust",
+          timerId: "missing-timer",
+          firmness: "hard",
+        }),
+      );
       throw new Error("既存例外が発生しなかった");
     } catch (error) {
       return exceptionOf(error);
@@ -587,7 +625,9 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
 
     expect(printerThrow.printerFaultAttempts).toBe(1);
     expect(printerThrow.consoleAttempts).toHaveLength(success.consoleAttempts.length - 1);
-    expect(operationKinds(printerThrow.consoleLines).filter((kind) => kind === "boiled")).toHaveLength(2);
+    expect(
+      operationKinds(printerThrow.consoleLines).filter((kind) => kind === "boiled"),
+    ).toHaveLength(2);
 
     expect(consoleThrow.consoleFaultAttempts).toBe(1);
     expect(consoleThrow.consoleAttempts).toHaveLength(success.consoleAttempts.length);
@@ -607,9 +647,13 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
       ["Persist", "ClearAlarm", "Broadcast"],
       ["Persist", "ClearAlarm", "Broadcast"],
     ]);
-    expect(off.timer.actions.filter((action) =>
-      (action as { type?: string; phase?: string }).type === "Persist"
-      && (action as { phase?: string }).phase === "success")).toHaveLength(7);
+    expect(
+      off.timer.actions.filter(
+        (action) =>
+          (action as { type?: string; phase?: string }).type === "Persist" &&
+          (action as { phase?: string }).phase === "success",
+      ),
+    ).toHaveLength(7);
     // 主張は「Working_Copy が最終 snapshot と一致する」ただ一つ。調理順スケジューリングの 3 フィールドも
     // 永続（v7）に載るため、期待値は snapshot 側から引く（待ち行列は空、指紋は未要求のまま null になる）。
     expect(off.timer.finalWorkingCopy).toEqual({
@@ -628,7 +672,6 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
   });
 });
 
-
 describe("StoreTimerDO Operation History 既存例外", () => {
   const fixedUuid = "00000000-0000-4000-8000-000000000001";
 
@@ -640,23 +683,30 @@ describe("StoreTimerDO Operation History 既存例外", () => {
   }> {
     await reset();
     setHistoryBinding(enabled);
-    const object = env.STORE_TIMER_DO.getByName(`history-persist-failure-${enabled}`) as DurableObjectStub<StoreTimerDO>;
+    const object = env.STORE_TIMER_DO.getByName(
+      `history-persist-failure-${enabled}`,
+    ) as DurableObjectStub<StoreTimerDO>;
     const uuid = vi.spyOn(crypto, "randomUUID").mockReturnValue(fixedUuid);
     try {
       return await runInDurableObject(object, async (instance, state) => {
-        (instance as unknown as { env: { OPERATION_HISTORY_ENABLED: string } }).env.OPERATION_HISTORY_ENABLED = enabled ? "1" : "0";
+        (
+          instance as unknown as { env: { OPERATION_HISTORY_ENABLED: string } }
+        ).env.OPERATION_HISTORY_ENABLED = enabled ? "1" : "0";
         const runtime = instance as unknown as RuntimeStoreTimer;
         const before = copy(runtime.workingCopy);
         const storage = state.storage as unknown as MutableStorage;
         const originalPut = storage.put;
         storage.put = () => Promise.reject(new Error("injected persist failure"));
         try {
-          const value = await instance.webSocketMessage(new WebSocketPair()[0], JSON.stringify({
-            type: "start",
-            slotIds: ["persist-failure"],
-            noodleType: "Thin",
-            boilSeconds: 60,
-          }));
+          const value = await instance.webSocketMessage(
+            new WebSocketPair()[0],
+            JSON.stringify({
+              type: "start",
+              slotIds: ["persist-failure"],
+              noodleType: "Thin",
+              boilSeconds: 60,
+            }),
+          );
           expect(value).toBeUndefined();
           return {
             returned: "undefined" as const,
@@ -675,10 +725,15 @@ describe("StoreTimerDO Operation History 既存例外", () => {
 
   type SideEffectFault = "SetAlarm" | "ClearAlarm" | "Broadcast.stringify" | "Broadcast.send";
 
-  async function runSideEffectFault(enabled: boolean, fault: SideEffectFault): Promise<ExistingException> {
+  async function runSideEffectFault(
+    enabled: boolean,
+    fault: SideEffectFault,
+  ): Promise<ExistingException> {
     await reset();
     setHistoryBinding(enabled);
-    const object = env.STORE_TIMER_DO.getByName(`history-existing-${fault}-${enabled}`) as DurableObjectStub<StoreTimerDO>;
+    const object = env.STORE_TIMER_DO.getByName(
+      `history-existing-${fault}-${enabled}`,
+    ) as DurableObjectStub<StoreTimerDO>;
     const uuid = vi.spyOn(crypto, "randomUUID").mockReturnValue(fixedUuid);
     try {
       return await runInDurableObject(object, async (instance, state) => {
@@ -709,20 +764,29 @@ describe("StoreTimerDO Operation History 既存例外", () => {
         runtime.env.OPERATION_HISTORY_ENABLED = enabled ? "1" : "0";
 
         if (fault === "SetAlarm") {
-          storage.setAlarm = () => { throw sentinel; };
+          storage.setAlarm = () => {
+            throw sentinel;
+          };
         } else if (fault === "ClearAlarm") {
-          storage.deleteAlarm = () => { throw sentinel; };
+          storage.deleteAlarm = () => {
+            throw sentinel;
+          };
         } else if (fault === "Broadcast.stringify") {
           JSON.stringify = ((value: unknown, ...args: unknown[]) => {
             if (
-              typeof value === "object"
-              && value !== null
-              && (value as { type?: unknown }).type === "snapshot"
-            ) throw sentinel;
+              typeof value === "object" &&
+              value !== null &&
+              (value as { type?: unknown }).type === "snapshot"
+            )
+              throw sentinel;
             return (originalStringify as (...parameters: unknown[]) => string)(value, ...args);
           }) as typeof JSON.stringify;
         } else {
-          const throwingSocket = { send: () => { throw sentinel; } } as unknown as WebSocket;
+          const throwingSocket = {
+            send: () => {
+              throw sentinel;
+            },
+          } as unknown as WebSocket;
           sockets = vi.spyOn(runtime.ctx, "getWebSockets").mockReturnValue([throwingSocket]);
         }
 
@@ -744,7 +808,10 @@ describe("StoreTimerDO Operation History 既存例外", () => {
     }
   }
 
-  async function runAlarmPersistFailure(enabled: boolean, retryCount: number): Promise<{
+  async function runAlarmPersistFailure(
+    enabled: boolean,
+    retryCount: number,
+  ): Promise<{
     readonly exception: ExistingException | undefined;
     readonly alarmBefore: number | null;
     readonly alarmAfter: number | null;

@@ -55,7 +55,10 @@ export interface NoodleSpec {
  *
  * 対応表が空でも構造は成立する（茹で対象が 0 件になるだけ・`[Q8]` の未提示が実装を止めない根拠）。
  */
-export function toNoodleSpec(orderItem: Record<string, unknown>, lookup: NoodleLookup): NoodleSpec | null {
+export function toNoodleSpec(
+  orderItem: Record<string, unknown>,
+  lookup: NoodleLookup,
+): NoodleSpec | null {
   const menuItem = findMenuItem(orderItem.plu_no, lookup.menuItems);
   if (menuItem === null) return null;
 
@@ -107,7 +110,10 @@ function toChildCodes(rawChildItems: unknown): ReadonlySet<number> {
  * 想定外に麺量が 2 つ指定された注文で結果が並び順に依ってしまう。対応表側から走れば、同じ集合には常に
  * 同じ麺量が対応する（決定的）。
  */
-function findNoodleSize(childCodes: ReadonlySet<number>, sizes: readonly NoodleSize[]): NoodleSize | null {
+function findNoodleSize(
+  childCodes: ReadonlySet<number>,
+  sizes: readonly NoodleSize[],
+): NoodleSize | null {
   for (const size of sizes) {
     if (childCodes.has(size.code)) return size;
   }
@@ -115,7 +121,10 @@ function findNoodleSize(childCodes: ReadonlySet<number>, sizes: readonly NoodleS
 }
 
 /** 硬さ対応表を表の順に走査し、指定されている最初のものを返す（findNoodleSize と同型・同じ理由）。 */
-function findFirmness(childCodes: ReadonlySet<number>, firmnessCodes: readonly FirmnessCode[]): Firmness | null {
+function findFirmness(
+  childCodes: ReadonlySet<number>,
+  firmnessCodes: readonly FirmnessCode[],
+): Firmness | null {
   for (const firmnessCode of firmnessCodes) {
     if (childCodes.has(firmnessCode.code)) return firmnessCode.firmness;
   }

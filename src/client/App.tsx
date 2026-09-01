@@ -68,7 +68,9 @@ function Entry() {
     // 直行中。replace が効くまでの一瞬だけ出す。
     return (
       <div className="flex h-[100dvh] items-center justify-center p-6">
-        <p role="status" className="text-muted">Opening your store…</p>
+        <p role="status" className="text-muted">
+          Opening your store…
+        </p>
       </div>
     );
   }
@@ -79,8 +81,8 @@ function Entry() {
       <Logo />
       <h1 className="m-0 text-xl font-bold text-ink">No store selected</h1>
       <p className="max-w-md text-muted">
-        Open the private store link you were given to start the timer. This device will
-        remember your store and open it automatically next time.
+        Open the private store link you were given to start the timer. This device will remember
+        your store and open it automatically next time.
       </p>
     </div>
   );
@@ -106,7 +108,10 @@ function StoreTimer({ storeId }: { storeId: string }) {
   // 受信・接続状態変化でのみ更新される事実を参照するだけ。接続確立前は EMPTY_VIEW、確立で subscribe 参照が
   // 変わり購読し直す。
   const view = useSyncExternalStore(
-    useCallback((onChange: () => void) => (connection ? connection.subscribe(onChange) : () => {}), [connection]),
+    useCallback(
+      (onChange: () => void) => (connection ? connection.subscribe(onChange) : () => {}),
+      [connection],
+    ),
     useCallback(() => (connection ? connection.getView() : EMPTY_VIEW), [connection]),
   );
   // 画面点灯維持（useWakeLock）の隣に同列でマウントする端の作用。担当ユニット units を音の対象に渡し、
@@ -176,8 +181,10 @@ function StoreTimer({ storeId }: { storeId: string }) {
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
-        popRef.current && !popRef.current.contains(target) &&
-        settingsBtnRef.current && !settingsBtnRef.current.contains(target)
+        popRef.current &&
+        !popRef.current.contains(target) &&
+        settingsBtnRef.current &&
+        !settingsBtnRef.current.contains(target)
       ) {
         setSettingsOpen(false);
       }
@@ -206,14 +213,18 @@ function StoreTimer({ storeId }: { storeId: string }) {
         className={cn(
           "relative z-30 flex flex-none items-center gap-4 border-b border-line",
           "h-[calc(clamp(3.25rem,7.5vh,4.125rem)+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)]",
-          "px-[clamp(0.75rem,2.4vw,1.625rem)] bg-[color-mix(in_oklab,var(--color-panel)_92%,black)]",
+          "bg-[color-mix(in_oklab,var(--color-panel)_92%,black)] px-[clamp(0.75rem,2.4vw,1.625rem)]",
         )}
       >
         <h1 className="m-0 text-[clamp(1rem,2.4vw,1.375rem)] leading-none">
           <Logo />
         </h1>
         {/* 稼働中の店舗を一目で示す（暫定: storeId スラッグ。後日サーバ配信の店名へ差し替える）。 */}
-        <span className="font-mono text-xs text-muted" aria-label={`Store ${storeId}`} title={storeId}>
+        <span
+          className="font-mono text-xs text-muted"
+          aria-label={`Store ${storeId}`}
+          title={storeId}
+        >
           {storeId}
         </span>
         <div className="flex-1" />
@@ -224,7 +235,7 @@ function StoreTimer({ storeId }: { storeId: string }) {
           aria-haspopup="dialog"
           aria-expanded={settingsOpen}
           onClick={() => setSettingsOpen((open) => !open)}
-          className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[0.6875rem] border border-line bg-panel2 px-4 text-sm font-bold text-ink hover:border-muted before:text-[1.0625rem] before:content-['⚙']"
+          className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[0.6875rem] border border-line bg-panel2 px-4 text-sm font-bold text-ink before:text-[1.0625rem] before:content-['⚙'] hover:border-muted"
         >
           Settings
         </button>
@@ -233,14 +244,16 @@ function StoreTimer({ storeId }: { storeId: string }) {
             ref={popRef}
             role="dialog"
             aria-label="Settings"
-            className="absolute right-[clamp(0.75rem,2.4vw,1.625rem)] top-[calc(100%+0.5rem)] z-40 w-[min(22.5rem,calc(100vw-1.5rem))] rounded-[0.875rem] border border-line bg-panel p-[0.875rem] shadow-[0_1.125rem_3.125rem_rgba(0,0,0,.55)]"
+            className="absolute top-[calc(100%+0.5rem)] right-[clamp(0.75rem,2.4vw,1.625rem)] z-40 w-[min(22.5rem,calc(100vw-1.5rem))] rounded-[0.875rem] border border-line bg-panel p-[0.875rem] shadow-[0_1.125rem_3.125rem_rgba(0,0,0,.55)]"
           >
             <UnitSelector units={units} totalUnits={totalUnits} count={count} onChange={setUnits} />
             {/* 複数店舗担当者の店舗切替（2 店以上のときだけ出す）。表示は name、選択で当該店舗パスへ全遷移する
                 （storeId はスラッグゆえ表示に使わない・要件7.4）。現在の店舗は選択済みとして非活性にする。 */}
             {storeChoices.length > 1 && (
               <div className="mt-2 flex flex-col gap-1">
-                <p className="m-0 text-xs font-bold uppercase tracking-wide text-muted">Switch store</p>
+                <p className="m-0 text-xs font-bold tracking-wide text-muted uppercase">
+                  Switch store
+                </p>
                 {storeChoices.map((choice) => {
                   const current = choice.storeId === storeId;
                   return (
@@ -293,7 +306,9 @@ function StoreTimer({ storeId }: { storeId: string }) {
         {connection ? (
           <SlotBoard connection={connection} units={units} playTouchCue={playTouchCue} />
         ) : (
-          <p role="status" className="text-muted">Connecting…</p>
+          <p role="status" className="text-muted">
+            Connecting…
+          </p>
         )}
       </main>
 

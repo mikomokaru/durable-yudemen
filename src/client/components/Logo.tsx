@@ -33,7 +33,7 @@ export function Logo({ className }: { className?: string }) {
       role="img"
       aria-label="BoilIt"
       className={cn(
-        "inline-flex select-none items-center font-extrabold uppercase leading-none tracking-[.04em] text-ink",
+        "inline-flex items-center leading-none font-extrabold tracking-[.04em] text-ink uppercase select-none",
         className,
       )}
     >

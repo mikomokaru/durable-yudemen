@@ -92,7 +92,9 @@ describe("toPendingOrders — 不正な到着は全体を拒否する", () => {
   });
 
   it("未知の品目種別を拒否する", () => {
-    expect(toPendingOrders([{ ...validItem, noodleType: "Udon" }], presets, arrivalTime)).toBeNull();
+    expect(
+      toPendingOrders([{ ...validItem, noodleType: "Udon" }], presets, arrivalTime),
+    ).toBeNull();
     expect(toPendingOrders([{ ...validItem, noodleType: "" }], presets, arrivalTime)).toBeNull();
   });
 
@@ -119,7 +121,10 @@ describe("toPendingOrders — 不正な到着は全体を拒否する", () => {
     ];
 
     for (const item of violations) {
-      expect(toPendingOrders([item], presets, arrivalTime), `${JSON.stringify(item)} が通った`).toBeNull();
+      expect(
+        toPendingOrders([item], presets, arrivalTime),
+        `${JSON.stringify(item)} が通った`,
+      ).toBeNull();
     }
   });
 

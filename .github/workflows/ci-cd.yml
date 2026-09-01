@@ -45,6 +45,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # 整形崩れは型検査より前に分かった方が速い。oxfmt は .oxfmtrc.json だけを設定の出所とするため、
+      # ここでの追加オプションは無い（ローカルの pnpm fmt と同一の判定になる）。
+      - name: Format check
+        run: pnpm fmt:check
+
       - name: Typecheck
         run: pnpm typecheck
 

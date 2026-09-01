@@ -31,7 +31,10 @@ const genTimerSpec: fc.Arbitrary<TimerSpec> = fc.record({
   startTime: fc.integer({ min: 0, max: 2000 }),
   endTime: fc.integer({ min: 0, max: 2000 }),
   slotIds: fc.array(
-    fc.oneof(fc.integer({ min: 0, max: 17 }).map(String), fc.string({ minLength: 1, maxLength: 6 })),
+    fc.oneof(
+      fc.integer({ min: 0, max: 17 }).map(String),
+      fc.string({ minLength: 1, maxLength: 6 }),
+    ),
     { minLength: 1, maxLength: 3 },
   ),
   noodleType: fc.constantFrom("thin", "thick", "curly", "ramen", "soba", "udon"),
@@ -93,9 +96,11 @@ export function nowArbFor(state: TimerState): fc.Arbitrary<EpochMillis> {
 }
 
 /** 状態と、その状態に対して境界を踏む now の組。 */
-export const genStateAndNow: fc.Arbitrary<{ state: TimerState; now: EpochMillis }> = genState.chain((state) =>
-  nowArbFor(state).map((now) => ({ state, now })),
+export const genStateAndNow: fc.Arbitrary<{ state: TimerState; now: EpochMillis }> = genState.chain(
+  (state) => nowArbFor(state).map((now) => ({ state, now })),
 );
 
 /** 0 以上のエポックミリ秒（イベントの now として与える）。 */
-export const genNow: fc.Arbitrary<EpochMillis> = fc.integer({ min: 0, max: 5_000_000 }).map((n) => n as EpochMillis);
+export const genNow: fc.Arbitrary<EpochMillis> = fc
+  .integer({ min: 0, max: 5_000_000 })
+  .map((n) => n as EpochMillis);

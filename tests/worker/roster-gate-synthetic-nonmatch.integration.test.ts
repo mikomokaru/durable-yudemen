@@ -38,7 +38,12 @@ import type { StoreSnapshot } from "../../src/engine/snapshot";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
 import { configResidualDefaults } from "../storeConfigDefaults";
-import { establishAccessSigning, freshTeamDomain, POLICY_AUD, type AccessSigning } from "./support/accessJwt";
+import {
+  establishAccessSigning,
+  freshTeamDomain,
+  POLICY_AUD,
+  type AccessSigning,
+} from "./support/accessJwt";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO を型付きで引く）。
 declare module "cloudflare:test" {
@@ -178,7 +183,11 @@ describe("worker → 店舗 DO：非合成 email の有効 JWT は Roster ゲー
       await provisionStore(storeId, [...SYNTHETIC_ROSTER]);
       access.stubCertsFetch();
       // JWT 自体は正規鍵・正 issuer・正 audience で「検証に成功」する（Worker 端の 403 ではない）。
-      const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: identity });
+      const token = await access.mintToken({
+        issuer: teamDomain,
+        audience: POLICY_AUD,
+        email: identity,
+      });
 
       const response = await connect(storeId, token);
 
@@ -198,7 +207,11 @@ describe("worker → 店舗 DO：非合成 email の有効 JWT は Roster ゲー
     const rosteredIdentity = SYNTHETIC_ROSTER[0];
     await provisionStore(storeId, [...SYNTHETIC_ROSTER]);
     access.stubCertsFetch();
-    const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: rosteredIdentity });
+    const token = await access.mintToken({
+      issuer: teamDomain,
+      audience: POLICY_AUD,
+      email: rosteredIdentity,
+    });
 
     const response = await connect(storeId, token);
 

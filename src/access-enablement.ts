@@ -61,7 +61,8 @@ export function enablementReadiness(teamDomain: string, policyAud: string): Enab
   const invalid: InvalidVariable[] = [];
 
   const teamDomainReason = teamDomainDefect(teamDomain);
-  if (teamDomainReason !== null) invalid.push({ variable: "TEAM_DOMAIN", reason: teamDomainReason });
+  if (teamDomainReason !== null)
+    invalid.push({ variable: "TEAM_DOMAIN", reason: teamDomainReason });
 
   const policyAudReason = policyAudDefect(policyAud);
   if (policyAudReason !== null) invalid.push({ variable: "POLICY_AUD", reason: policyAudReason });
@@ -85,7 +86,11 @@ function policyAudDefect(policyAud: string): "empty" | "placeholder" | null {
 
 /** TEAM_DOMAIN の形式適合（スキーム・末尾ドメインの固定辺を剥がし、残るサブドメインが妥当な DNS ラベルか）。 */
 function isTeamDomainWellFormed(teamDomain: string): boolean {
-  if (!teamDomain.startsWith(TEAM_DOMAIN_SCHEME) || !teamDomain.endsWith(TEAM_DOMAIN_SUFFIX)) return false;
-  const subdomain = teamDomain.slice(TEAM_DOMAIN_SCHEME.length, teamDomain.length - TEAM_DOMAIN_SUFFIX.length);
+  if (!teamDomain.startsWith(TEAM_DOMAIN_SCHEME) || !teamDomain.endsWith(TEAM_DOMAIN_SUFFIX))
+    return false;
+  const subdomain = teamDomain.slice(
+    TEAM_DOMAIN_SCHEME.length,
+    teamDomain.length - TEAM_DOMAIN_SUFFIX.length,
+  );
   return DNS_LABEL.test(subdomain);
 }

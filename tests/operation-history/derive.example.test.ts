@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 // 読まず `?raw` を落として実ファイルへ解決するので、実在する .ts を指すときだけ default 無しと誤判定する。
 // oxlint-disable-next-line import/default
 import deriveSource from "../../src/operation-history/derive.ts?raw";
-import { recordsFromCommittedDiff, type OperationObservation } from "../../src/operation-history/derive";
+import {
+  recordsFromCommittedDiff,
+  type OperationObservation,
+} from "../../src/operation-history/derive";
 import { createTimer } from "../../src/engine/timer";
 import type { Timer } from "../../src/engine/timer";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
@@ -48,7 +51,13 @@ function observation(
   before: readonly Timer[],
   after: readonly Timer[],
 ): OperationObservation {
-  return { storeId: "store-1", eventTime: EVENT_TIME, eventKind, before: state(before), after: state(after) };
+  return {
+    storeId: "store-1",
+    eventTime: EVENT_TIME,
+    eventKind,
+    before: state(before),
+    after: state(after),
+  };
 }
 
 describe("recordsFromCommittedDiff", () => {
@@ -107,7 +116,9 @@ describe("recordsFromCommittedDiff", () => {
       ),
     );
 
-    expect(records.map((record) => [record.timerId, record.operationKind, record.eventTime])).toEqual([
+    expect(
+      records.map((record) => [record.timerId, record.operationKind, record.eventTime]),
+    ).toEqual([
       ["firmness", "adjusted", EVENT_TIME],
       ["end-time", "adjusted", EVENT_TIME],
       ["resynchronized", "adjusted", EVENT_TIME],
@@ -137,10 +148,16 @@ describe("recordsFromCommittedDiff", () => {
       });
 
       const records = recordsFromCommittedDiff(
-        observation(eventKind, [beforeFirst, beforeSecond, alreadyBoiled], [afterSecond, alreadyBoiled, afterFirst]),
+        observation(
+          eventKind,
+          [beforeFirst, beforeSecond, alreadyBoiled],
+          [afterSecond, alreadyBoiled, afterFirst],
+        ),
       );
 
-      expect(records.map((record) => [record.timerId, record.operationKind, record.eventTime])).toEqual([
+      expect(
+        records.map((record) => [record.timerId, record.operationKind, record.eventTime]),
+      ).toEqual([
         ["second", "boiled", EVENT_TIME],
         ["first", "boiled", EVENT_TIME],
       ]);
@@ -158,19 +175,25 @@ describe("recordsFromCommittedDiff", () => {
     const resynchronized = timer("running", { adjustment: -5_000 });
     const addedBoiled = timer("added", { boiledAt: EVENT_TIME, seq: 1 });
 
-    expect(recordsFromCommittedDiff(observation("Reconcile", [running], [resynchronized, addedBoiled]))).toEqual([]);
+    expect(
+      recordsFromCommittedDiff(observation("Reconcile", [running], [resynchronized, addedBoiled])),
+    ).toEqual([]);
   });
 
   it.each(["Start", "Adjust", "Complete", "Cancel", "AlarmFired", "Reconcile"] as const)(
     "%s の拒否・no-opを表す確定差分なし入力は 0 件を返す",
     (eventKind) => {
       const unchanged = timer("unchanged");
-      expect(recordsFromCommittedDiff(observation(eventKind, [unchanged], [unchanged]))).toEqual([]);
+      expect(recordsFromCommittedDiff(observation(eventKind, [unchanged], [unchanged]))).toEqual(
+        [],
+      );
     },
   );
 
   it("純粋導出から Reconcile、Persist、または platform 作用を起動する依存経路を持たない", () => {
-    const imports = [...deriveSource.matchAll(/^import(?: type)? .* from "([^"]+)";$/gm)].map((match) => match[1]);
+    const imports = [...deriveSource.matchAll(/^import(?: type)? .* from "([^"]+)";$/gm)].map(
+      (match) => match[1],
+    );
 
     expect(imports).toEqual([
       "../engine/project",

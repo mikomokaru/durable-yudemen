@@ -38,7 +38,9 @@ describe("engine/settle — Effect 列の不変条件", () => {
         expect(outcome.effects[0]!.type).toBe("Persist");
 
         // Persist は列にちょうど 1 つ（確定の起点が 2 つある列を作らない）。
-        expect(outcome.effects.filter((effect: Effect) => effect.type === "Persist").length).toBe(1);
+        expect(outcome.effects.filter((effect: Effect) => effect.type === "Persist").length).toBe(
+          1,
+        );
 
         // RequestPlan は末尾にのみ。要求が出た場面だけに歯が立ち、出ない場面は素通りする（冒頭の注記）。
         const last = outcome.effects.length - 1;

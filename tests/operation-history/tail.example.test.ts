@@ -14,10 +14,13 @@ const line = printCanonicalOperationLine({
 });
 // root wrangler.jsonc の "name" と一致する、現存するただ一つの Producer script。
 const PRODUCER_SCRIPT = "yude-men-timer";
-const event = (scriptName: string | null, logs: readonly {
-  readonly level: string;
-  readonly message: readonly unknown[];
-}[]) => ({ scriptName, logs });
+const event = (
+  scriptName: string | null,
+  logs: readonly {
+    readonly level: string;
+    readonly message: readonly unknown[];
+  }[],
+) => ({ scriptName, logs });
 
 // Requirements 4.3, 4.4, 4.13, 4.14
 describe("operationLinesFromTailEvents", () => {
@@ -70,11 +73,14 @@ describe("operationLinesFromTailEvents", () => {
   });
 
   it("src/observe debug JSONをQueueへ送らずcodec失敗として観測側に残す", () => {
-    const debugLine = '{"seq":1,"at":1,"atIso":"x","direction":"send","messageType":"snapshot","payload":{}}';
+    const debugLine =
+      '{"seq":1,"at":1,"atIso":"x","direction":"send","messageType":"snapshot","payload":{}}';
 
-    expect(operationLinesFromTailEvents([
-      event(PRODUCER_SCRIPT, [{ level: "log", message: [debugLine] }]),
-    ])).toEqual({
+    expect(
+      operationLinesFromTailEvents([
+        event(PRODUCER_SCRIPT, [{ level: "log", message: [debugLine] }]),
+      ]),
+    ).toEqual({
       candidates: [],
       failures: [{ lineNumber: 1, failure: "missing-required-attribute" }],
     });

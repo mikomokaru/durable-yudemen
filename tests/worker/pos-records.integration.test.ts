@@ -51,7 +51,10 @@ interface Harness {
   readonly forwarded: Request[];
 }
 
-const SETTLED: ReceiveOutcome = { kind: "settled", counts: { doDedupeSkipped: 0, unknownNoodleType: 0 } };
+const SETTLED: ReceiveOutcome = {
+  kind: "settled",
+  counts: { doDedupeSkipped: 0, unknownNoodleType: 0 },
+};
 
 const HELD: HoldOutcome = { kind: "held", counts: { heldExpired: 0, heldOverflow: 0 } };
 
@@ -118,7 +121,11 @@ function harness(params?: {
 /** postRecords — POS_Ingress へのリクエストを組む。token に null を渡せば Authorization を付けない。 */
 function postRecords(
   body: unknown,
-  options?: { readonly token?: string | null; readonly method?: string; readonly identity?: string },
+  options?: {
+    readonly token?: string | null;
+    readonly method?: string;
+    readonly identity?: string;
+  },
 ): Request {
   const headers = new Headers({ "content-type": "application/json" });
   const token = options?.token === undefined ? TOKEN : options.token;
@@ -132,7 +139,12 @@ function postRecords(
   return new Request("https://ingress.invalid/pos/records", {
     method,
     headers,
-    body: method === "GET" || method === "HEAD" ? null : typeof body === "string" ? body : JSON.stringify(body),
+    body:
+      method === "GET" || method === "HEAD"
+        ? null
+        : typeof body === "string"
+          ? body
+          : JSON.stringify(body),
   });
 }
 
@@ -185,7 +197,10 @@ describe("POST /pos/records — メソッドと認可（Requirements 1.2〜1.6�
   it("トークン不一致は 401", async () => {
     const h = harness({ index: { A: "store-a" } });
     const response = await worker.fetch(
-      postRecords({ records: [orderRecord({ storeCode: "A", seq: "1" })] }, { token: "wrong-token" }),
+      postRecords(
+        { records: [orderRecord({ storeCode: "A", seq: "1" })] },
+        { token: "wrong-token" },
+      ),
       h.testEnv,
     );
 
@@ -229,7 +244,9 @@ describe("POST /pos/records — ボディの形と件数上限（Requirements 1.
 
   it("1001 件は 5xx で、何も委譲しない（上流の bisect に分割させる・AC 1.13）", async () => {
     const h = harness({ index: { A: "store-a" } });
-    const records = Array.from({ length: 1001 }, (_unused, i) => orderRecord({ storeCode: "A", seq: `${i}` }));
+    const records = Array.from({ length: 1001 }, (_unused, i) =>
+      orderRecord({ storeCode: "A", seq: `${i}` }),
+    );
     const response = await worker.fetch(postRecords({ records }), h.testEnv);
 
     expect(response.status).toBeGreaterThanOrEqual(500);
@@ -340,7 +357,12 @@ describe("POST /pos/records — 失敗分類（Requirements 5.8, 9.2, 9.5）", (
           // Status_Path（意図的な破棄）
           orderRecord({ storeCode: "A", seq: "5", path: "/lio/status" }),
           // 値域窓の外（上流の契約違反）
-          { path: "/lio/order", payload: { store_id: "A" }, arrival_timestamp_ms: 0, sequence_number: "6" },
+          {
+            path: "/lio/order",
+            payload: { store_id: "A" },
+            arrival_timestamp_ms: 0,
+            sequence_number: "6",
+          },
           // 正常
           orderRecord({ storeCode: "A", seq: "7" }),
         ],
@@ -376,7 +398,12 @@ describe("POST /pos/records — 失敗分類（Requirements 5.8, 9.2, 9.5）", (
       postRecords({
         records: [
           // `arrival_timestamp_ms` が型違反（上流の契約違反）で、かつ store_id が読めない。
-          { path: "/lio/order", payload: { store_id: {} }, arrival_timestamp_ms: "0", sequence_number: "1" },
+          {
+            path: "/lio/order",
+            payload: { store_id: {} },
+            arrival_timestamp_ms: "0",
+            sequence_number: "1",
+          },
         ],
       }),
       h.testEnv,
@@ -425,7 +452,10 @@ describe("POST /pos/records — 失敗分類（Requirements 5.8, 9.2, 9.5）", (
     });
     const response = await worker.fetch(
       postRecords({
-        records: [orderRecord({ storeCode: "A", seq: "1" }), orderRecord({ storeCode: "B", seq: "2" })],
+        records: [
+          orderRecord({ storeCode: "A", seq: "1" }),
+          orderRecord({ storeCode: "B", seq: "2" }),
+        ],
       }),
       h.testEnv,
     );
@@ -442,7 +472,10 @@ describe("POST /pos/records — 失敗分類（Requirements 5.8, 9.2, 9.5）", (
     });
     const response = await worker.fetch(
       postRecords({
-        records: [orderRecord({ storeCode: "A", seq: "1" }), orderRecord({ storeCode: "B", seq: "2" })],
+        records: [
+          orderRecord({ storeCode: "A", seq: "1" }),
+          orderRecord({ storeCode: "B", seq: "2" }),
+        ],
       }),
       h.testEnv,
     );
@@ -456,7 +489,10 @@ describe("POST /pos/records — 内部 identity ヘッダ（Requirements 1.9）"
   it("クライアント由来の X-Yudemen-Identity は宛先 DO へ運ばれない（RPC 委譲ゆえ運搬経路が無い）", async () => {
     const h = harness({ index: { A: "store-a" } });
     const response = await worker.fetch(
-      postRecords({ records: [orderRecord({ storeCode: "A", seq: "1" })] }, { identity: "attacker@evil.example" }),
+      postRecords(
+        { records: [orderRecord({ storeCode: "A", seq: "1" })] },
+        { identity: "attacker@evil.example" },
+      ),
       h.testEnv,
     );
 
@@ -492,7 +528,10 @@ const MEMO_INDEX: Readonly<Record<string, string>> = { A: "store-a", B: "store-b
 /** 委譲の要約（宛先ごとに渡った `sequence_number` の並び）。並列 fan-out ゆえ宛先で並べ替える。 */
 function deliverySummary(h: Harness): readonly (readonly [string, readonly string[]])[] {
   return h.deliveries
-    .map((delivery) => [delivery.storeId, delivery.records.map((record) => record.sequenceNumber)] as const)
+    .map(
+      (delivery) =>
+        [delivery.storeId, delivery.records.map((record) => record.sequenceNumber)] as const,
+    )
     .toSorted(([left], [right]) => left.localeCompare(right));
 }
 

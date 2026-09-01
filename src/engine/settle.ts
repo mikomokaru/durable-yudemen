@@ -107,7 +107,10 @@ export function settle(
   return {
     ok: true,
     state: requested,
-    effects: [...assembleEffects(requested, params, now), requestPlan(requested, params, digest, targets)],
+    effects: [
+      ...assembleEffects(requested, params, now),
+      requestPlan(requested, params, digest, targets),
+    ],
   };
 }
 
@@ -276,7 +279,11 @@ function isSamePlacement(left: Placement, right: Placement | undefined): boolean
  * 確定後の状態そのものであり、shell が `committedSchedule` → `recommend` を自前で呼ぶ経路を持たないことが
  * 「導出は engine の内側だけ」を構造で保証する。
  */
-export function toWireSnapshot(state: TimerState, params: SettleParams, now: EpochMillis): ServerMessage {
+export function toWireSnapshot(
+  state: TimerState,
+  params: SettleParams,
+  now: EpochMillis,
+): ServerMessage {
   // 生きた Timer は running / boiled とも釜の解放表に効く（boiled は実効 endTime の時点で解放済み扱い）。
   const committed = committedSchedule(
     state.acceptedSlices,
@@ -304,7 +311,11 @@ export function toWireSnapshot(state: TimerState, params: SettleParams, now: Epo
  * 確定変化ごとに送るのは snapshot ただ一つ（唯一の権威表現・SSOT）——意味論 Broadcast と Reply は撤去した。
  * Persist を先頭に置くのは SSOT 規律の表明であり、shell は put 成功の上にのみ Alarm / Broadcast を立てる。
  */
-function assembleEffects(nextState: TimerState, params: SettleParams, now: EpochMillis): readonly Effect[] {
+function assembleEffects(
+  nextState: TimerState,
+  params: SettleParams,
+  now: EpochMillis,
+): readonly Effect[] {
   return [
     { type: "Persist", snapshot: toSnapshot(nextState) },
     nextAlarmEffect(nextState.timers),

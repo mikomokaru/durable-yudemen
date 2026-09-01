@@ -83,7 +83,8 @@ export function readRecordStructure(raw: unknown): RecordStructure {
   if (typeof raw !== "object" || raw === null) return { ok: false, missing: "path" };
   const candidate = raw as Record<string, unknown>;
 
-  if (typeof candidate.path !== "string" || candidate.path.length === 0) return { ok: false, missing: "path" };
+  if (typeof candidate.path !== "string" || candidate.path.length === 0)
+    return { ok: false, missing: "path" };
 
   const payload = candidate.payload;
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
@@ -92,7 +93,11 @@ export function readRecordStructure(raw: unknown): RecordStructure {
 
   // NaN / Infinity は比較をすり抜けるため整数性を先に要求する。
   const arrivalTimestampMs = candidate.arrival_timestamp_ms;
-  if (typeof arrivalTimestampMs !== "number" || !Number.isInteger(arrivalTimestampMs) || arrivalTimestampMs < 0) {
+  if (
+    typeof arrivalTimestampMs !== "number" ||
+    !Number.isInteger(arrivalTimestampMs) ||
+    arrivalTimestampMs < 0
+  ) {
     return { ok: false, missing: "arrival-timestamp" };
   }
 

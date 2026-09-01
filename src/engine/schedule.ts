@@ -133,13 +133,15 @@ function toPlacement(value: unknown): Placement | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   // 品目を指す組の妥当性は domain/order.ts の PendingOrder と同じ（非空 id と 0 以上の整数連番）。
-  if (typeof candidate.externalOrderId !== "string" || candidate.externalOrderId.length === 0) return null;
+  if (typeof candidate.externalOrderId !== "string" || candidate.externalOrderId.length === 0)
+    return null;
   if (!isInteger(candidate.itemIndex) || candidate.itemIndex < 0) return null;
   if (!isInteger(candidate.startAt) || !isInteger(candidate.serveAt)) return null;
   if (!Array.isArray(candidate.slotIds)) return null;
   // slotId は非空文字列。番号への写像（slotOf）は非数値を NaN へ落とし、表のどの index にも一致しない
   // ——存在しない釜を指す計画は admit のハード制約で落ちるため、ここで番号の範囲は見ない。
-  if (!candidate.slotIds.every((slotId) => typeof slotId === "string" && slotId.length > 0)) return null;
+  if (!candidate.slotIds.every((slotId) => typeof slotId === "string" && slotId.length > 0))
+    return null;
   const slotIds: readonly string[] = candidate.slotIds;
   // 非空は型の要求そのもの（Placement.slotIds は NonEmptyArray）。確立の関門は isNonEmpty ただ一つ。
   if (!isNonEmpty(slotIds)) return null;
@@ -180,7 +182,11 @@ export type SlotRelease = readonly EpochMillis[];
  * 「過去に開始しない」という事実の置き場所が 1 箇所に定まる。解放表を受け取る baselineSchedule は now を
  * 引数に取らない（受け取る必要がない）ため、now を知るこの関数だけがその下限を立てられる。
  */
-export function initialRelease(running: readonly Timer[], now: EpochMillis, slotCount: number): SlotRelease {
+export function initialRelease(
+  running: readonly Timer[],
+  now: EpochMillis,
+  slotCount: number,
+): SlotRelease {
   // slot 側から引く（Timer 側から書き込まない）。表の外を指す slot——設定の unitCount より大きい番号や
   // 非数値の slotId——はどの index にも一致しないため、範囲検査を書かずに構造で落ちる。
   return Array.from({ length: Math.max(0, slotCount) }, (_unused, slot) => {
@@ -203,7 +209,10 @@ export function initialRelease(running: readonly Timer[], now: EpochMillis, slot
  * 入力の表は破壊せず新しい表を返す（純粋変換であることを呼び出し側が確かめずに済む）。
  * 解放時刻は後退させない（最大を採る）。表は「この先いつ空くか」の単調に進む記録である。
  */
-export function advanceRelease(release: SlotRelease, placements: readonly Placement[]): SlotRelease {
+export function advanceRelease(
+  release: SlotRelease,
+  placements: readonly Placement[],
+): SlotRelease {
   return release.map((current, slot) => {
     let free = current;
     for (const placement of placements) {
@@ -349,13 +358,16 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
  * 同一性を要するためである。組の突き合わせを二箇所に書けば、品目を指す規則が二つになる。
  */
 export function refersTo(placement: Placement, order: PendingOrder): boolean {
-  return placement.externalOrderId === order.externalOrderId && placement.itemIndex === order.itemIndex;
+  return (
+    placement.externalOrderId === order.externalOrderId && placement.itemIndex === order.itemIndex
+  );
 }
 
 /** 正準順序の比較。arrivalTime → externalOrderId → itemIndex。 */
 function byCanonicalOrder(order: PendingOrder, other: PendingOrder): number {
   if (order.arrivalTime !== other.arrivalTime) return order.arrivalTime - other.arrivalTime;
-  if (order.externalOrderId !== other.externalOrderId) return order.externalOrderId < other.externalOrderId ? -1 : 1;
+  if (order.externalOrderId !== other.externalOrderId)
+    return order.externalOrderId < other.externalOrderId ? -1 : 1;
   return order.itemIndex - other.itemIndex;
 }
 
@@ -379,7 +391,8 @@ function tableGroups(targets: readonly PendingOrder[]): readonly TableGroup[] {
     .map(([tableKey, items]) => ({ tableKey, items }))
     .sort(
       (group, other) =>
-        group.items[0]!.arrivalTime - other.items[0]!.arrivalTime || (group.tableKey < other.tableKey ? -1 : 1),
+        group.items[0]!.arrivalTime - other.items[0]!.arrivalTime ||
+        (group.tableKey < other.tableKey ? -1 : 1),
     );
 }
 
@@ -422,7 +435,11 @@ function placeGroup(
   const placements: Placement[] = [];
   let free = release;
   for (let batch = 0; batch < batches; batch++) {
-    const placed = placeBatch(boilings.slice(batch * capacity, (batch + 1) * capacity), free, params);
+    const placed = placeBatch(
+      boilings.slice(batch * capacity, (batch + 1) * capacity),
+      free,
+      params,
+    );
     placements.push(...placed);
     free = advanceRelease(free, placed);
   }
@@ -452,28 +469,43 @@ function toBoiling(order: PendingOrder, presets: readonly NoodlePreset[]): Boili
  * 揃えられない差（batch を跨いだ分割・グループ間）はソフト制約違反として目的関数に計上されるだけで、
  * feasibility の否定事由にはしない（AC 3.5）。
  */
-function placeBatch(batch: readonly Boiling[], release: SlotRelease, params: ScheduleParams): readonly Placement[] {
+function placeBatch(
+  batch: readonly Boiling[],
+  release: SlotRelease,
+  params: ScheduleParams,
+): readonly Placement[] {
   const slots = chooseSlots(batch.length, release, params);
   // 茹で時間の長い品目を最も早く空く釜へ。錨（max(解放 + 茹で)）を最小にする対応づけである
   // ——長い茹でを遅い釜に置けば、その一本のために batch 全員が待つ。
-  const byRelease = [...slots].sort((slot, other) => release[slot]! - release[other]! || slot - other);
+  const byRelease = [...slots].sort(
+    (slot, other) => release[slot]! - release[other]! || slot - other,
+  );
   const byBoil = batch
     .map((_unused, index) => index)
     .sort((index, other) => batch[other]!.boilMillis - batch[index]!.boilMillis || index - other);
-  const slotOfItem = new Map(byBoil.map((index, rank): [number, number] => [index, byRelease[rank]!]));
+  const slotOfItem = new Map(
+    byBoil.map((index, rank): [number, number] => [index, byRelease[rank]!]),
+  );
   // 各品目を最も早く始められたときの提供時刻。錨も許容幅からの下限もここから出る。
-  const earliest = batch.map((boiling, index) => release[slotOfItem.get(index)!]! + boiling.boilMillis);
+  const earliest = batch.map(
+    (boiling, index) => release[slotOfItem.get(index)!]! + boiling.boilMillis,
+  );
 
   const tableFloor = Math.max(...earliest) - params.tableSyncToleranceSeconds * 1000;
   const orderFloors = new Map<string, number>();
   batch.forEach((boiling, index) => {
     const floor = earliest[index]! - params.orderSyncToleranceSeconds * 1000;
     const current = orderFloors.get(boiling.order.externalOrderId);
-    if (current === undefined || floor > current) orderFloors.set(boiling.order.externalOrderId, floor);
+    if (current === undefined || floor > current)
+      orderFloors.set(boiling.order.externalOrderId, floor);
   });
 
   return batch.map((boiling, index) => {
-    const serveAt = Math.max(earliest[index]!, tableFloor, orderFloors.get(boiling.order.externalOrderId)!);
+    const serveAt = Math.max(
+      earliest[index]!,
+      tableFloor,
+      orderFloors.get(boiling.order.externalOrderId)!,
+    );
     // slotId はスロット番号の文字列表現（domain の slotOf = Number(slotId) の逆・要件12.5）。
     const slotIds: NonEmptyArray<SlotId> = [String(slotOfItem.get(index)!) as SlotId];
     return {
@@ -499,12 +531,18 @@ function placeBatch(batch: readonly Boiling[], release: SlotRelease, params: Sch
  *
  * count ≤ release.length を前提とする（呼び出し側が釜の数で分割している）。
  */
-function chooseSlots(count: number, release: SlotRelease, params: ScheduleParams): readonly number[] {
+function chooseSlots(
+  count: number,
+  release: SlotRelease,
+  params: ScheduleParams,
+): readonly number[] {
   const byRelease = release
     .map((_unused, slot) => slot)
     .sort((slot, other) => release[slot]! - release[other]! || slot - other);
   const earliestAllFree = release[byRelease[count - 1]!]!;
-  const candidates = byRelease.filter((slot) => release[slot]! <= earliestAllFree).sort((slot, other) => slot - other);
+  const candidates = byRelease
+    .filter((slot) => release[slot]! <= earliestAllFree)
+    .sort((slot, other) => slot - other);
 
   let best = candidates.slice(0, count);
   if (candidates.length === count) return best;
@@ -514,7 +552,8 @@ function chooseSlots(count: number, release: SlotRelease, params: ScheduleParams
     const near = [...candidates]
       .sort(
         (slot, other) =>
-          distanceBetween(anchor, slot, params) - distanceBetween(anchor, other, params) || slot - other,
+          distanceBetween(anchor, slot, params) - distanceBetween(anchor, other, params) ||
+          slot - other,
       )
       .slice(0, count)
       .sort((slot, other) => slot - other);

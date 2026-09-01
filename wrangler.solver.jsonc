@@ -7,7 +7,7 @@
   // root と同一の日付に揃える（tooling.md の確定値）。二つの Worker で挙動の既定が食い違わないようにする。
   "compatibility_date": "2026-06-26",
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   // limits.cpu_ms は**書かない**（既定のまま据え置く・AC 12.4）。実効の壁は invocation 終了後の
   // ctx.waitUntil に掛かる 30 秒の上限であり、cpu_ms を上げてもこの壁は伸びない。打ち切りは自前の
@@ -27,8 +27,8 @@
       {
         "name": "STORE_TIMER_DO",
         "class_name": "StoreTimerDO",
-        "script_name": "yude-men-timer"
-      }
-    ]
-  }
+        "script_name": "yude-men-timer",
+      },
+    ],
+  },
 }

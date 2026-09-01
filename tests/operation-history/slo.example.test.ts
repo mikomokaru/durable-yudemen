@@ -9,7 +9,8 @@ import {
 } from "../../src/operation-history/slo";
 import type { OperationRecord } from "../../src/operation-history/record";
 
-const timestamp = (value: number): OperationRecord["eventTime"] => value as OperationRecord["eventTime"];
+const timestamp = (value: number): OperationRecord["eventTime"] =>
+  value as OperationRecord["eventTime"];
 
 function completed(timerId: string, eventTime = 1_700_000_000_000): OperationRecord {
   return {
@@ -56,11 +57,37 @@ describe("operationArrivalSloByUtcMonth", () => {
       utcMonths: ["2026-01", "2026-02"],
     });
 
-    expect(result.map(({ utcMonth, populationCount, arrivedWithinFifteenMinutesCount, arrivalRate, assessment }) => ({
-      utcMonth, populationCount, arrivedWithinFifteenMinutesCount, arrivalRate, assessment,
-    }))).toEqual([
-      { utcMonth: "2026-01", populationCount: 1, arrivedWithinFifteenMinutesCount: 1, arrivalRate: 1, assessment: "met" },
-      { utcMonth: "2026-02", populationCount: 2, arrivedWithinFifteenMinutesCount: 1, arrivalRate: 0.5, assessment: "missed" },
+    expect(
+      result.map(
+        ({
+          utcMonth,
+          populationCount,
+          arrivedWithinFifteenMinutesCount,
+          arrivalRate,
+          assessment,
+        }) => ({
+          utcMonth,
+          populationCount,
+          arrivedWithinFifteenMinutesCount,
+          arrivalRate,
+          assessment,
+        }),
+      ),
+    ).toEqual([
+      {
+        utcMonth: "2026-01",
+        populationCount: 1,
+        arrivedWithinFifteenMinutesCount: 1,
+        arrivalRate: 1,
+        assessment: "met",
+      },
+      {
+        utcMonth: "2026-02",
+        populationCount: 2,
+        arrivedWithinFifteenMinutesCount: 1,
+        arrivalRate: 0.5,
+        assessment: "missed",
+      },
     ]);
   });
 
@@ -180,7 +207,11 @@ describe("snowflakeArrivalNotificationTransition", () => {
     const reachedDuplicate = snowflakeArrivalNotificationTransition({
       arrivals: [
         { record: oldestRecord, firstObservedAt: observedAt, firstSnowflakeAt: null },
-        { record: { ...oldestRecord }, firstObservedAt: observedAt + 1, firstSnowflakeAt: observedAt + 1_000 },
+        {
+          record: { ...oldestRecord },
+          firstObservedAt: observedAt + 1,
+          firstSnowflakeAt: observedAt + 1_000,
+        },
       ],
       now: observedAt + 60 * 60_000,
     });

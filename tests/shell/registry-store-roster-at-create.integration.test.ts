@@ -1,6 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { env, runInDurableObject, reset } from "cloudflare:test";
-import { REGISTRY_NAME, REVISION_KEY, type StoreRegistryDO } from "../../src/shell/store-registry-do";
+import {
+  REGISTRY_NAME,
+  REVISION_KEY,
+  type StoreRegistryDO,
+} from "../../src/shell/store-registry-do";
 
 // registry-store-roster-at-create.integration.test.ts — 作成時に storeRoster を同梱できることの統合テスト（Workers pool）。
 //
@@ -36,7 +40,9 @@ async function getStore(
   stub: DurableObjectStub<StoreRegistryDO>,
   storeId: string,
 ): Promise<{ status: number; body: Record<string, unknown> | null }> {
-  const res = await stub.fetch(new Request(`https://registry/admin/stores/${storeId}`, { method: "GET" }));
+  const res = await stub.fetch(
+    new Request(`https://registry/admin/stores/${storeId}`, { method: "GET" }),
+  );
   const body = res.status === 200 ? ((await res.json()) as Record<string, unknown>) : null;
   return { status: res.status, body };
 }

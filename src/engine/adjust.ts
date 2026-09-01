@@ -41,11 +41,18 @@ export function adjustTimer(
   if (target === undefined) {
     return {
       ok: false,
-      rejection: { code: "TimerNotFound", message: `指定された timerId の Timer は存在しない: ${timerId}` },
+      rejection: {
+        code: "TimerNotFound",
+        message: `指定された timerId の Timer は存在しない: ${timerId}`,
+      },
     };
   }
   // shell が StoreConfig から解決した秒。防御的に範囲を再検証する（設定が壊れていても不正 endTime を作らない）。
-  if (!Number.isFinite(boilSeconds) || boilSeconds < BOIL_SECONDS_MIN || boilSeconds > BOIL_SECONDS_MAX) {
+  if (
+    !Number.isFinite(boilSeconds) ||
+    boilSeconds < BOIL_SECONDS_MIN ||
+    boilSeconds > BOIL_SECONDS_MAX
+  ) {
     return {
       ok: false,
       rejection: {

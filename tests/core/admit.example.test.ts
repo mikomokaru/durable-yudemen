@@ -55,7 +55,15 @@ const BLOCKED: readonly Timer[] = [1, 2, 3, 4, 5].map((slot) =>
 
 /** 待ち行列の 1 品目（1 注文 1 品目・卓は注文ごとに別）。 */
 function order(externalOrderId: string, noodleType: string, tableId: string): PendingOrder {
-  return { externalOrderId, itemIndex: 0, noodleType, firmness: "normal", tableId, arrivalTime: NOW, slotSpan: 1 };
+  return {
+    externalOrderId,
+    itemIndex: 0,
+    noodleType,
+    firmness: "normal",
+    tableId,
+    arrivalTime: NOW,
+    slotSpan: 1,
+  };
 }
 
 /** 長い麺の A（卓 t-a）と短い麺の B（卓 t-b）。到着は同時ゆえ自前解は卓 id 順に A → B と置く。 */
@@ -69,7 +77,10 @@ const PENDING: readonly PendingOrder[] = [LONG, SHORT];
  * 外部が主張した部分和は判定に用いられない（engine 自身の採点が唯一の権威）。嘘を載せておけば、
  * 誤って主張を信じる実装に変えたときこのファイルが落ちる。
  */
-function slice(tableKey: string, items: readonly { order: PendingOrder; startAt: number; serveAt: number }[]) {
+function slice(
+  tableKey: string,
+  items: readonly { order: PendingOrder; startAt: number; serveAt: number }[],
+) {
   return {
     tableKey,
     placements: items.map((item) => ({
@@ -139,7 +150,9 @@ describe("admit — 段 2（合成後の総和による全体判定）", () => {
   it("部分和は改善するが合成後の総和が悪化する計画は全棄却される", () => {
     // B を 500 秒も遊ばせてから茹でる計画。B 自身の待ちは 660 秒 → 560 秒へ改善するが、その 560 秒まで
     // 釜が塞がるため A が +560 秒まで始められず、総和は 1260 → 1720 へ悪化する。
-    const arrived = plan(slice("t-b", [{ order: SHORT, startAt: NOW + 500 * SECOND, serveAt: NOW + 560 * SECOND }]));
+    const arrived = plan(
+      slice("t-b", [{ order: SHORT, startAt: NOW + 500 * SECOND, serveAt: NOW + 560 * SECOND }]),
+    );
 
     // 段 1 は通る（部分和 560 < 660）。それでも段 2 が全棄却する。
     expect(gate(arrived)).toEqual([]);
@@ -159,7 +172,9 @@ describe("admit — 段 2（合成後の総和による全体判定）", () => {
 
   it("遊ばせずに同じ順序へ入れ替える計画は採用される（棄却が順序の変更そのものに掛かっていない）", () => {
     // 同じ「B を先に」だが遊びが無い。合成後は 720 < 1260 ゆえ採用される。
-    const arrived = plan(slice("t-b", [{ order: SHORT, startAt: NOW, serveAt: NOW + 60 * SECOND }]));
+    const arrived = plan(
+      slice("t-b", [{ order: SHORT, startAt: NOW, serveAt: NOW + 60 * SECOND }]),
+    );
 
     expect(gate(arrived)).toEqual([{ ...arrived.slices[0]!, score: 60 }]);
   });
@@ -168,7 +183,9 @@ describe("admit — 段 2（合成後の総和による全体判定）", () => {
 describe("admit — 外部の申告を検証する", () => {
   it("主張された score は判定に用いない（engine の採点が悪化と見れば棄却する）", () => {
     // score は 0 と主張しているが、engine の採点では 760 秒待ち＝現行の 660 より悪い。
-    const arrived = plan(slice("t-b", [{ order: SHORT, startAt: NOW + 700 * SECOND, serveAt: NOW + 760 * SECOND }]));
+    const arrived = plan(
+      slice("t-b", [{ order: SHORT, startAt: NOW + 700 * SECOND, serveAt: NOW + 760 * SECOND }]),
+    );
 
     expect(gate(arrived)).toEqual([]);
   });

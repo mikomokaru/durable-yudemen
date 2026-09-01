@@ -62,7 +62,11 @@ export type RecordOutcome =
    * （型は正しいが値が窓外・AC 8.15）も同じ形で運び、落とし所を 1 つに保つ——両者は原因が同じ
    * （上流が保証すべき値の異常）で扱いも同じゆえ、種別を分けない。
    */
-  | { readonly kind: "contract-violation"; readonly raw: unknown; readonly sequenceNumber?: string };
+  | {
+      readonly kind: "contract-violation";
+      readonly raw: unknown;
+      readonly sequenceNumber?: string;
+    };
 
 /** 既知 `path` が導く分類。未知は集合の外にあることの帰結ゆえ、ここには現れない。 */
 export type KnownPathKind = Extract<RecordOutcome["kind"], "order" | "status">;
@@ -77,7 +81,10 @@ export type KnownPathKind = Extract<RecordOutcome["kind"], "order" | "status">;
  * `Map` で持つのは任意の文字列を引数に取れる形にするためである（`Record` のリテラルキーでは
  * 引くたびに型の言い換えが要る）。`CodeIndex = ReadonlyMap<string, StoreId>` と同型。
  */
-export const KNOWN_RECORD_PATHS: ReadonlyMap<string, KnownPathKind> = new Map<string, KnownPathKind>([
+export const KNOWN_RECORD_PATHS: ReadonlyMap<string, KnownPathKind> = new Map<
+  string,
+  KnownPathKind
+>([
   ["/lio/order", "order"],
   ["/lio/status", "status"],
 ]);
@@ -154,7 +161,9 @@ function readSequenceNumber(raw: unknown): string | null {
 // seq が取れない Record が実在するため、`exactOptionalPropertyTypes` の下ではフィールドを省く形が要る
 // （`sequenceNumber: undefined` は「値が無い」ではなく「undefined という値がある」ことになる）。
 function poisonOutcome(reason: PoisonReason, sequenceNumber: string | null): RecordOutcome {
-  return sequenceNumber === null ? { kind: "poison", reason } : { kind: "poison", reason, sequenceNumber };
+  return sequenceNumber === null
+    ? { kind: "poison", reason }
+    : { kind: "poison", reason, sequenceNumber };
 }
 
 function contractViolationOutcome(raw: unknown, sequenceNumber: string | null): RecordOutcome {

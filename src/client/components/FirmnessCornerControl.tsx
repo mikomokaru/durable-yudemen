@@ -47,7 +47,13 @@ const CORNER_H = "clamp(3.75rem,22cqw,6rem)";
 const CORNER_FONT = "clamp(1rem,6cqw,1.625rem)";
 
 /** 「ふつう」が既定。これ以外を選ぶと角ボタンを強調して「デフォルトでない」を示す。 */
-export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, disabled = false }: FirmnessCornerControlProps) {
+export function FirmnessCornerControl({
+  value,
+  onChange,
+  onOpenChange,
+  accent,
+  disabled = false,
+}: FirmnessCornerControlProps) {
   const [open, setOpen] = useState(false);
 
   const setOpenAnd = (next: boolean) => {
@@ -111,13 +117,26 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
       />
 
       {/* 角ボタン（現在の硬さを表示） */}
-      <button type="button" aria-haspopup="true" aria-expanded={open} aria-disabled={disabled} disabled={disabled} onClick={() => setOpenAnd(!open)} style={cornerStyle}>
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-disabled={disabled}
+        disabled={disabled}
+        onClick={() => setOpenAnd(!open)}
+        style={cornerStyle}
+      >
         {FIRMNESS_LABEL[value]}
       </button>
 
       {/* iPad（広カード）: 右へスライド展開する硬さ選択（硬い→柔らかい）。閉じている間は角ボタン位置に畳む。
           狭カード（iPhone）ではこの行を隠し、下の 2×2 グリッドに委ねる。 */}
-      <div role="radiogroup" aria-label="Firmness" className="@max-[240px]:hidden" style={{ position: "absolute", left: 0, bottom: 0, zIndex: 5 }}>
+      <div
+        role="radiogroup"
+        aria-label="Firmness"
+        className="@max-[240px]:hidden"
+        style={{ position: "absolute", left: 0, bottom: 0, zIndex: 5 }}
+      >
         {FIRMNESS_ORDER.map((id, i) => {
           const x = LEFT0 + i * (W + GAP);
           const active = id === value;
@@ -143,7 +162,8 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
             transform: open ? "translateX(0) scale(1)" : `translateX(${LEFT0 - x}cqw) scale(.92)`,
             opacity: open ? 1 : 0,
             pointerEvents: open ? "auto" : "none",
-            transition: "transform .3s cubic-bezier(.2,.85,.3,1.1), opacity .18s, background .15s, border-color .15s",
+            transition:
+              "transform .3s cubic-bezier(.2,.85,.3,1.1), opacity .18s, background .15s, border-color .15s",
             transitionDelay: open ? `${i * 45}ms` : "0ms",
           };
           return (
@@ -172,7 +192,7 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
         aria-label="Firmness"
         className={cn(
           // 上端はバッジ（SlotCard・z-7）の下から始めて被らない。左右下は 0.5rem。バッジ選択中も上部にバッジが見える。
-          "absolute left-[0.5rem] right-[0.5rem] bottom-[0.5rem] top-[3.5rem] z-[5] hidden grid-cols-2 grid-rows-2 gap-[0.5rem] @max-[240px]:grid",
+          "absolute top-[3.5rem] right-[0.5rem] bottom-[0.5rem] left-[0.5rem] z-[5] hidden grid-cols-2 grid-rows-2 gap-[0.5rem] @max-[240px]:grid",
           "transition-[opacity,transform] duration-150",
           open ? "opacity-100" : "pointer-events-none scale-95 opacity-0",
         )}
@@ -186,7 +206,7 @@ export function FirmnessCornerControl({ value, onChange, onOpenChange, accent, d
               role="radio"
               aria-checked={active}
               className={cn(
-                "grid place-items-center whitespace-nowrap rounded-[0.875rem] text-[1.0625rem] font-extrabold leading-none",
+                "grid place-items-center rounded-[0.875rem] text-[1.0625rem] leading-none font-extrabold whitespace-nowrap",
                 active ? "border-0" : "border border-line",
               )}
               style={{

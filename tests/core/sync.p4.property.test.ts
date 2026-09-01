@@ -97,17 +97,21 @@ describe("engine/sync — Sync_Set partition", () => {
   it("arms=1 では同着 Timer を seq 昇順の singleton に分ける", () => {
     const timers = sameEndTimeTimers([3, 1, 2]);
 
-    expect(formSyncSets(timers, { arms: 1, toleranceRatio: 10 }).map((set) => set.map((timer) => timer.seq))).toEqual([
-      [1],
-      [2],
-      [3],
-    ]);
+    expect(
+      formSyncSets(timers, { arms: 1, toleranceRatio: 10 }).map((set) =>
+        set.map((timer) => timer.seq),
+      ),
+    ).toEqual([[1], [2], [3]]);
   });
 
   it("クラスタサイズが arms の整数倍なら満杯のセットだけを作る", () => {
     const timers = sameEndTimeTimers([4, 1, 3, 2]);
 
-    expect(formSyncSets(timers, { arms: 2, toleranceRatio: 10 }).map((set) => set.map((timer) => timer.seq))).toEqual([
+    expect(
+      formSyncSets(timers, { arms: 2, toleranceRatio: 10 }).map((set) =>
+        set.map((timer) => timer.seq),
+      ),
+    ).toEqual([
       [1, 2],
       [3, 4],
     ]);
@@ -116,10 +120,10 @@ describe("engine/sync — Sync_Set partition", () => {
   it("クラスタサイズが arms の整数倍でなければ残余を最後のセットへ置く", () => {
     const timers = sameEndTimeTimers([5, 1, 4, 2, 3]);
 
-    expect(formSyncSets(timers, { arms: 2, toleranceRatio: 10 }).map((set) => set.map((timer) => timer.seq))).toEqual([
-      [1, 2],
-      [3, 4],
-      [5],
-    ]);
+    expect(
+      formSyncSets(timers, { arms: 2, toleranceRatio: 10 }).map((set) =>
+        set.map((timer) => timer.seq),
+      ),
+    ).toEqual([[1, 2], [3, 4], [5]]);
   });
 });

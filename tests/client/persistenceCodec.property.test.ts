@@ -40,51 +40,55 @@ describe("client/persistence serializeView / parsePersistedView — offline-degr
 
     fc.assert(
       // 空ビューを常数として混ぜるのは、timers 空・processedIds 空でも情報が落ちないことを確実に踏むため。
-      fc.property(fc.oneof(fc.constant(EMPTY_VIEW), genClientView), genInvalidPersistedBlob, (view, invalid) => {
-        const blob = serializeView(view);
-        const restored = parsePersistedView(blob);
+      fc.property(
+        fc.oneof(fc.constant(EMPTY_VIEW), genClientView),
+        genInvalidPersistedBlob,
+        (view, invalid) => {
+          const blob = serializeView(view);
+          const restored = parsePersistedView(blob);
 
-        // 単一の JSON 文字列であり version = 1 を持つ。キーは永続対象の 4 つだけ——connectivity / sync /
-        // error / unreachableReason は書かれない（一過性・導出を永続に昇格させない）。
-        const raw: unknown = JSON.parse(blob);
-        expect(typeof raw === "object" && raw !== null).toBe(true);
-        const record = raw as Record<string, unknown>;
-        expect(record.version).toBe(1);
-        expect(Object.keys(record).sort()).toEqual([...PERSISTED_KEYS]);
+          // 単一の JSON 文字列であり version = 1 を持つ。キーは永続対象の 4 つだけ——connectivity / sync /
+          // error / unreachableReason は書かれない（一過性・導出を永続に昇格させない）。
+          const raw: unknown = JSON.parse(blob);
+          expect(typeof raw === "object" && raw !== null).toBe(true);
+          const record = raw as Record<string, unknown>;
+          expect(record.version).toBe(1);
+          expect(Object.keys(record).sort()).toEqual([...PERSISTED_KEYS]);
 
-        // 往復で保存される事実（timers は各フィールドと起源タグを含めて同一・server / local 双方）。
-        expect(restored.timers).toEqual(view.timers);
-        expect(restored.offset).toBe(view.offset);
-        expect([...restored.processedIds].sort()).toEqual([...view.processedIds].sort());
+          // 往復で保存される事実（timers は各フィールドと起源タグを含めて同一・server / local 双方）。
+          expect(restored.timers).toEqual(view.timers);
+          expect(restored.offset).toBe(view.offset);
+          expect([...restored.processedIds].sort()).toEqual([...view.processedIds].sort());
 
-        // 一過性フィールドは復元されず EMPTY_VIEW の既定値（down / connecting / null / offline）へ戻る。
-        expect(restored.connectivity).toBe(EMPTY_VIEW.connectivity);
-        expect(restored.sync).toBe(EMPTY_VIEW.sync);
-        expect(restored.error).toBe(EMPTY_VIEW.error);
-        expect(restored.unreachableReason).toBe(EMPTY_VIEW.unreachableReason);
+          // 一過性フィールドは復元されず EMPTY_VIEW の既定値（down / connecting / null / offline）へ戻る。
+          expect(restored.connectivity).toBe(EMPTY_VIEW.connectivity);
+          expect(restored.sync).toBe(EMPTY_VIEW.sync);
+          expect(restored.error).toBe(EMPTY_VIEW.error);
+          expect(restored.unreachableReason).toBe(EMPTY_VIEW.unreachableReason);
 
-        // 不正 / 不在は EMPTY_VIEW へ畳む。再水和は connectivity "down" 起点・unreachableReason "offline" 起点。
-        for (const blobUnderTest of [invalid, null]) {
-          const fallback = parsePersistedView(blobUnderTest);
-          expect(fallback).toEqual(EMPTY_VIEW);
-          expect(fallback.connectivity).toBe("down");
-          expect(fallback.unreachableReason).toBe("offline");
-        }
+          // 不正 / 不在は EMPTY_VIEW へ畳む。再水和は connectivity "down" 起点・unreachableReason "offline" 起点。
+          for (const blobUnderTest of [invalid, null]) {
+            const fallback = parsePersistedView(blobUnderTest);
+            expect(fallback).toEqual(EMPTY_VIEW);
+            expect(fallback.connectivity).toBe("down");
+            expect(fallback.unreachableReason).toBe("offline");
+          }
 
-        // 空虚な緑を避けるための実測——「常に EMPTY_VIEW を返す parsePersistedView」でも不正側の主張は
-        // 緑になる。上の往復の主張が実際に非空の値を復元し、かつ一過性が既定と異なる盤面を踏んでいるか。
-        if (view.timers.length > 0) sawNonEmptyTimers = true;
-        if (view.processedIds.size > 0) sawNonEmptyProcessed = true;
-        if (view.timers.length === 0 && view.processedIds.size === 0) sawEmptyView = true;
-        if (
-          view.connectivity !== EMPTY_VIEW.connectivity ||
-          view.sync !== EMPTY_VIEW.sync ||
-          view.error !== EMPTY_VIEW.error ||
-          view.unreachableReason !== EMPTY_VIEW.unreachableReason
-        ) {
-          sawTransientDifference = true;
-        }
-      }),
+          // 空虚な緑を避けるための実測——「常に EMPTY_VIEW を返す parsePersistedView」でも不正側の主張は
+          // 緑になる。上の往復の主張が実際に非空の値を復元し、かつ一過性が既定と異なる盤面を踏んでいるか。
+          if (view.timers.length > 0) sawNonEmptyTimers = true;
+          if (view.processedIds.size > 0) sawNonEmptyProcessed = true;
+          if (view.timers.length === 0 && view.processedIds.size === 0) sawEmptyView = true;
+          if (
+            view.connectivity !== EMPTY_VIEW.connectivity ||
+            view.sync !== EMPTY_VIEW.sync ||
+            view.error !== EMPTY_VIEW.error ||
+            view.unreachableReason !== EMPTY_VIEW.unreachableReason
+          ) {
+            sawTransientDifference = true;
+          }
+        },
+      ),
       { numRuns: NUM_RUNS },
     );
 

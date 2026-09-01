@@ -154,9 +154,9 @@ describe("入口拒否: 不正投入は HTTP 400・イデア不変（Requirement
 
       expect(response.status).toBe(400);
       // 拒否は storeId 採番より前ゆえ、いかなる store: キーも書かれない（no store written）。
-      const storeKeys = await runInDurableObject(stub, async (_instance, state) =>
-        [...(await state.storage.list({ prefix: "store:" })).keys()],
-      );
+      const storeKeys = await runInDurableObject(stub, async (_instance, state) => [
+        ...(await state.storage.list({ prefix: "store:" })).keys(),
+      ]);
       expect(storeKeys).toEqual([]);
       expect(await readRevision(stub)).toBe(revisionBefore);
     });
@@ -173,9 +173,9 @@ describe("入口拒否: 不正投入は HTTP 400・イデア不変（Requirement
       );
 
       expect(response.status).toBe(400);
-      const storeKeys = await runInDurableObject(stub, async (_instance, state) =>
-        [...(await state.storage.list({ prefix: "store:" })).keys()],
-      );
+      const storeKeys = await runInDurableObject(stub, async (_instance, state) => [
+        ...(await state.storage.list({ prefix: "store:" })).keys(),
+      ]);
       expect(storeKeys).toEqual([]);
       expect(await readRevision(stub)).toBeUndefined();
     });
@@ -193,9 +193,9 @@ describe("入口拒否: 不正投入は HTTP 400・イデア不変（Requirement
       );
 
       expect(response.status).toBe(400);
-      const storeKeys = await runInDurableObject(stub, async (_instance, state) =>
-        [...(await state.storage.list({ prefix: "store:" })).keys()],
-      );
+      const storeKeys = await runInDurableObject(stub, async (_instance, state) => [
+        ...(await state.storage.list({ prefix: "store:" })).keys(),
+      ]);
       expect(storeKeys).toEqual([]);
       expect(await readRevision(stub)).toBeUndefined();
     });

@@ -90,7 +90,9 @@ describe("engine/digest — digestInput", () => {
     );
     const overflow = order("o-999", 0, NOW);
 
-    expect(digestInput([...targets, overflow], RUNNING, PARAMS)).toBe(digestInput(targets, RUNNING, PARAMS));
+    expect(digestInput([...targets, overflow], RUNNING, PARAMS)).toBe(
+      digestInput(targets, RUNNING, PARAMS),
+    );
   });
 
   it("計画を動かす事実には反応する（待ち行列の内容・実効 endTime・パラメータ）", () => {
@@ -98,8 +100,12 @@ describe("engine/digest — digestInput", () => {
 
     // 待ち行列の内容（起点・卓・茹で加減・件数）。
     expect(digestInput([...PENDING.slice(0, 2)], RUNNING, PARAMS)).not.toBe(baseline);
-    expect(digestInput([order("o-1", 0, NOW), ...PENDING.slice(1)], RUNNING, PARAMS)).not.toBe(baseline);
-    expect(digestInput([{ ...PENDING[0]!, tableId: null }, ...PENDING.slice(1)], RUNNING, PARAMS)).not.toBe(baseline);
+    expect(digestInput([order("o-1", 0, NOW), ...PENDING.slice(1)], RUNNING, PARAMS)).not.toBe(
+      baseline,
+    );
+    expect(
+      digestInput([{ ...PENDING[0]!, tableId: null }, ...PENDING.slice(1)], RUNNING, PARAMS),
+    ).not.toBe(baseline);
 
     // 実効 endTime（Boil_Sync の調整後の値が釜の解放時刻という所与の事実）。
     const adjusted: readonly Timer[] = [{ ...RUNNING[0]!, adjustment: 5_000 }, RUNNING[1]!];
@@ -111,13 +117,15 @@ describe("engine/digest — digestInput", () => {
 
     // 採点パラメータとレイアウト。
     expect(digestInput(PENDING, RUNNING, { ...PARAMS, affinityWeight: 2 })).not.toBe(baseline);
-    expect(digestInput(PENDING, RUNNING, { ...PARAMS, unitOrigins: defaultUnitOrigins(3) })).not.toBe(baseline);
+    expect(
+      digestInput(PENDING, RUNNING, { ...PARAMS, unitOrigins: defaultUnitOrigins(3) }),
+    ).not.toBe(baseline);
 
     // 麺プリセット。茹で時間は startAt と serveAt を結ぶ唯一の値ゆえ、差し替えれば同じ待ち行列から別の
     // 計画が出る（PENDING は Thin・normal で揃えてある）。
-    expect(digestInput(PENDING, RUNNING, { ...PARAMS, noodlePresets: withBoilSeconds("Thin", 61) })).not.toBe(
-      baseline,
-    );
+    expect(
+      digestInput(PENDING, RUNNING, { ...PARAMS, noodlePresets: withBoilSeconds("Thin", 61) }),
+    ).not.toBe(baseline);
     // 計画対象の麺種がプリセットから消える差し替えも計画を変える（その品目は配置されなくなる）。
     expect(
       digestInput(PENDING, RUNNING, {
@@ -126,8 +134,14 @@ describe("engine/digest — digestInput", () => {
       }),
     ).not.toBe(baseline);
     // 同一麺種が二度現れる設定では、どちらが先かが計画を変える（引き当ては先頭一致）。
-    const shadowing: readonly NoodlePreset[] = [...withBoilSeconds("Thin", 61), DEFAULT_NOODLE_PRESETS[0]!];
-    const shadowed: readonly NoodlePreset[] = [DEFAULT_NOODLE_PRESETS[0]!, ...withBoilSeconds("Thin", 61)];
+    const shadowing: readonly NoodlePreset[] = [
+      ...withBoilSeconds("Thin", 61),
+      DEFAULT_NOODLE_PRESETS[0]!,
+    ];
+    const shadowed: readonly NoodlePreset[] = [
+      DEFAULT_NOODLE_PRESETS[0]!,
+      ...withBoilSeconds("Thin", 61),
+    ];
     expect(digestInput(PENDING, RUNNING, { ...PARAMS, noodlePresets: shadowing })).not.toBe(
       digestInput(PENDING, RUNNING, { ...PARAMS, noodlePresets: shadowed }),
     );
@@ -138,16 +152,23 @@ describe("engine/digest — digestInput", () => {
 
     // 待ち行列が引かない麺種の茹で時間（PENDING は Thin だけを引く）。畳めば設定差し替えのたびに
     // 改善しえない要求が出る。
-    expect(digestInput(PENDING, RUNNING, { ...PARAMS, noodlePresets: withBoilSeconds("Medium", 91) })).toBe(baseline);
+    expect(
+      digestInput(PENDING, RUNNING, { ...PARAMS, noodlePresets: withBoilSeconds("Medium", 91) }),
+    ).toBe(baseline);
 
     // プリセットの列挙順は事実ではない（別の麺種どうしの並び替え）。
-    expect(digestInput(PENDING, RUNNING, { ...PARAMS, noodlePresets: [...DEFAULT_NOODLE_PRESETS].reverse() })).toBe(
-      baseline,
-    );
+    expect(
+      digestInput(PENDING, RUNNING, {
+        ...PARAMS,
+        noodlePresets: [...DEFAULT_NOODLE_PRESETS].reverse(),
+      }),
+    ).toBe(baseline);
 
     // arms / toleranceRatio が計画へ届く経路は running の実効 endTime ただ一つで、それは既に畳んである。
     // 二重に畳めば「解放表が動かないパラメータ変更」で要求が出る。
-    expect(digestInput(PENDING, RUNNING, { ...PARAMS, arms: 4, toleranceRatio: 25 })).toBe(baseline);
+    expect(digestInput(PENDING, RUNNING, { ...PARAMS, arms: 4, toleranceRatio: 25 })).toBe(
+      baseline,
+    );
   });
 
   it("整数（32bit 非負）で閉じる — 改善判定と同じ規律で丸め誤差を持ち込まない", () => {

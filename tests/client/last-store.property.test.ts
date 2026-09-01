@@ -75,9 +75,7 @@ const genInvalidStoreId: fc.Arbitrary<string> = fc.oneof(
   fc.constant("店舗"), // 多バイト
   fc.constant("a".repeat(65)), // 64 文字超過
   // 少なくとも一つの許容外文字を確実に含む一般ケース。
-  fc
-    .string({ minLength: 1, maxLength: 80 })
-    .filter((s) => !/^[a-z0-9-]{1,64}$/.test(s)),
+  fc.string({ minLength: 1, maxLength: 80 }).filter((s) => !/^[a-z0-9-]{1,64}$/.test(s)),
 );
 
 const NUM_RUNS = 200;

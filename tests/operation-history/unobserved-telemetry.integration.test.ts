@@ -42,8 +42,14 @@ const STORE_ID = "store-1";
 const BOILED_AT = START_TIME + BOIL_DURATION;
 const COMPLETED_AT = BOILED_AT + 10_000;
 
-const a = { running: producerTimer("a", null, 0), boiled: producerTimer("a", BOILED_AT, 0) } as const;
-const b = { running: producerTimer("b", null, 1), boiled: producerTimer("b", BOILED_AT, 1) } as const;
+const a = {
+  running: producerTimer("a", null, 0),
+  boiled: producerTimer("a", BOILED_AT, 0),
+} as const;
+const b = {
+  running: producerTimer("b", null, 1),
+  boiled: producerTimer("b", BOILED_AT, 1),
+} as const;
 
 /** timer a の lifecycle。boil-started → boiled → completed の三行を出す。 */
 const timerALifecycle: readonly OperationObservation[] = [
@@ -98,17 +104,19 @@ const thresholds = {
 /** 観測できた boil-started から、存在を復元できる lifecycle 記録（boiled）を導く。 */
 function recoverableLifecycleRecords(record: OperationRecord): readonly OperationRecord[] {
   if (record.operationKind !== "boil-started") return [];
-  return [{
-    storeId: record.storeId,
-    timerId: record.timerId,
-    operationKind: "boiled",
-    eventTime: record.endTime,
-    slotIds: record.slotIds,
-    noodleType: record.noodleType,
-    firmness: record.firmness,
-    endTime: record.endTime,
-    boiledAt: record.endTime,
-  }];
+  return [
+    {
+      storeId: record.storeId,
+      timerId: record.timerId,
+      operationKind: "boiled",
+      eventTime: record.endTime,
+      slotIds: record.slotIds,
+      noodleType: record.noodleType,
+      firmness: record.firmness,
+      endTime: record.endTime,
+      boiledAt: record.endTime,
+    },
+  ];
 }
 
 /**
@@ -128,7 +136,10 @@ async function observedOnlyRun(
 
   const observedLines = observed(producedLines);
   const pipeline = await runTailToR2([
-    tailEvent(PRODUCER_SCRIPT, observedLines.map((line) => ({ level: "log", message: [line] }))),
+    tailEvent(
+      PRODUCER_SCRIPT,
+      observedLines.map((line) => ({ level: "log", message: [line] })),
+    ),
   ]);
 
   const arrivedLines = [...pipeline.stored.values()].map((writes) => writes[0]!.split("|")[0]!);
@@ -182,7 +193,9 @@ describe("観測できた分だけの搬送と、完全未観測率の測定不�
     expect(run.producedLines).toHaveLength(5);
     expect(run.arrivedLines).toEqual(run.observedLines);
     // 未観測の三行（a の boiled、b の boil-started と boiled）は R2 に一件も現れない。
-    const unobserved = run.producedLines.filter((produced) => !run.observedLines.includes(produced));
+    const unobserved = run.producedLines.filter(
+      (produced) => !run.observedLines.includes(produced),
+    );
     expect(unobserved).toHaveLength(3);
     for (const line of unobserved) expect(run.arrivedLines).not.toContain(line);
     // Producer の console trace は搬送後も増えない（再出力要求も backfill も存在しない）。
@@ -201,19 +214,22 @@ describe("観測できた分だけの搬送と、完全未観測率の測定不�
     });
     expect(run.assessment.trustedAnalysis).toEqual({
       status: "excluded",
-      exclusions: [{
-        qualityRate: "lifecycleMissingRate",
-        rate: { status: "calculated", numerator: 1, denominator: 1, value: 1 },
-        threshold: 0.2,
-        reason: "threshold-exceeded",
-      }],
+      exclusions: [
+        {
+          qualityRate: "lifecycleMissingRate",
+          rate: { status: "calculated", numerator: 1, denominator: 1, value: 1 },
+          threshold: 0.2,
+          reason: "threshold-exceeded",
+        },
+      ],
     });
     // console log 自体の完全未観測率は、Producer telemetry 総数を観測できないため測れない。
     expect(run.assessment.consoleLogCompleteMissingRate).toEqual({
       status: "unmeasurable",
       reason: "producer-telemetry-total-unobservable",
       distinctFrom: "lifecycleMissingRate",
-      display: "Unmeasurable: Producer telemetry total is not observable; distinct from lifecycle missing rate",
+      display:
+        "Unmeasurable: Producer telemetry total is not observable; distinct from lifecycle missing rate",
     });
     expect(run.assessment.analysisDisclosure).toEqual({
       storeId: STORE_ID,
@@ -227,7 +243,10 @@ describe("観測できた分だけの搬送と、完全未観測率の測定不�
   it("一行も観測されなかった timer は、出力されていてもいなくても運用結果を変えない", async () => {
     // timer b は Producer が二行出したが Tail が一行も見なかった。その二行の存在は観測側から復元
     // できないため、どの品質率にも現れない。これが「完全未観測率は測定不能」の運用上の意味である。
-    const withTimerB = await observedOnlyRun([...timerALifecycle, ...timerBLifecycle], observeTimerAEnds);
+    const withTimerB = await observedOnlyRun(
+      [...timerALifecycle, ...timerBLifecycle],
+      observeTimerAEnds,
+    );
     const withoutTimerB = await observedOnlyRun(timerALifecycle, observeTimerAEnds);
 
     expect(withTimerB.producedLines).toHaveLength(5);

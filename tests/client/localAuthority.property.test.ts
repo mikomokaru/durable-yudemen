@@ -122,7 +122,9 @@ function freeSlots(view: ClientView, slotIds: readonly string[], residual: Resid
   for (const slotId of slotIds) lastResults.set(slotId, residual);
   return {
     ...view,
-    timers: view.timers.filter((timer) => !timer.slotIds.some((slotId) => slotIds.includes(slotId))),
+    timers: view.timers.filter(
+      (timer) => !timer.slotIds.some((slotId) => slotIds.includes(slotId)),
+    ),
     lastResults,
   };
 }
@@ -141,17 +143,15 @@ const genFreeSlotStartCase: fc.Arbitrary<FreeSlotStartCase> = fc
     const view = freeSlots(draft.base, draft.slots, draft.residual);
     // correctedNow は元ビューの endTime 群に対する境界（±1・全過去・全未来）を踏む。空きスロット化で
     // 落ちた Timer の endTime も候補に残るが、それも正当な補正後現在時刻である。
-    return genCorrectedNow(draft.base).map(
-      (correctedNow): FreeSlotStartCase => ({
-        view,
-        slotIds: nonEmpty(draft.slots),
-        noodleType: draft.noodleType,
-        newTimerId: draft.newTimerId,
-        correctedNow,
-        inRangeSeconds: draft.inRangeSeconds,
-        outOfRangeSeconds: draft.outOfRangeSeconds,
-      }),
-    );
+    return genCorrectedNow(draft.base).map((correctedNow): FreeSlotStartCase => ({
+      view,
+      slotIds: nonEmpty(draft.slots),
+      noodleType: draft.noodleType,
+      newTimerId: draft.newTimerId,
+      correctedNow,
+      inRangeSeconds: draft.inRangeSeconds,
+      outOfRangeSeconds: draft.outOfRangeSeconds,
+    }));
   });
 
 /** 同じ盤面・同じ要求スロットに対し、茹で秒だけを差し替えた LocalStart を組む。 */
@@ -186,13 +186,11 @@ const genCancelCase: fc.Arbitrary<CancelCase> = fc
     target: genClientTimer.map((timer) => ({ ...timer, id: CANCEL_TARGET_ID })),
     now: genAt,
   })
-  .map(
-    ({ base, target, now }): CancelCase => ({
-      view: { ...base, timers: [...base.timers, target] },
-      target,
-      now,
-    }),
-  );
+  .map(({ base, target, now }): CancelCase => ({
+    view: { ...base, timers: [...base.timers, target] },
+    target,
+    now,
+  }));
 
 // ── Property 5 の残余 — 発火対象の全域特徴づけと混在列の畳み込み ──────────────────────────────────
 
@@ -212,21 +210,23 @@ interface DueCase {
 const genDueCase: fc.Arbitrary<DueCase> = fc
   .record({
     base: genClientView,
-    target: genClientTimer.map((timer) => ({ ...timer, id: DUE_TARGET_ID, origin: "server" as const })),
+    target: genClientTimer.map((timer) => ({
+      ...timer,
+      id: DUE_TARGET_ID,
+      origin: "server" as const,
+    })),
     doneRepeats: fc.integer({ min: 1, max: 4 }),
     receivedAt: genAt,
   })
   .chain((draft) => {
     const view: ClientView = { ...draft.base, timers: [...draft.base.timers, draft.target] };
-    return genCorrectedNow(view).map(
-      (correctedNow): DueCase => ({
-        view,
-        correctedNow,
-        target: draft.target,
-        doneRepeats: draft.doneRepeats,
-        receivedAt: draft.receivedAt,
-      }),
-    );
+    return genCorrectedNow(view).map((correctedNow): DueCase => ({
+      view,
+      correctedNow,
+      target: draft.target,
+      doneRepeats: draft.doneRepeats,
+      receivedAt: draft.receivedAt,
+    }));
   });
 
 /**
@@ -262,7 +262,9 @@ describe("client/connection 一時的なローカル権限（offline-degradation
       fc.property(genFreeSlotStartCase, (start) => {
         const { view, slotIds } = start;
         // 生成器の前提 — 要求スロットは空きで、そこに既存残滓が載っている。
-        expect(view.timers.some((timer) => timer.slotIds.some((slotId) => slotIds.includes(slotId)))).toBe(false);
+        expect(
+          view.timers.some((timer) => timer.slotIds.some((slotId) => slotIds.includes(slotId))),
+        ).toBe(false);
         for (const slotId of slotIds) expect(view.lastResults.has(slotId)).toBe(true);
 
         // 範囲外 — 参照同一で返る（端の update が永続化も再描画も起こさない性質そのもの）。
@@ -313,7 +315,9 @@ describe("client/connection 一時的なローカル権限（offline-degradation
         observedOrigins.add(target.origin);
 
         // 非存在 id — 参照同一（残滓の Map も作り直さない）。
-        expect(decideView(view, { kind: "LocalCancel", timerId: CANCEL_ABSENT_ID, now })).toBe(view);
+        expect(decideView(view, { kind: "LocalCancel", timerId: CANCEL_ABSENT_ID, now })).toBe(
+          view,
+        );
 
         const result = decideView(view, { kind: "LocalCancel", timerId: target.id, now });
 
@@ -327,7 +331,10 @@ describe("client/connection 一時的なローカル権限（offline-degradation
         // 残滓 — 除去直前の麺種を各駆動スロットへ、除去時刻 now を起点として記録する。既存残滓は別プール
         // （last-*）かつ at が負域ゆえ、上書きされたのか元のまま残ったのかを値で見分けられる。
         for (const slotId of target.slotIds) {
-          expect(result.lastResults.get(slotId)).toEqual({ noodleType: target.noodleType, at: now });
+          expect(result.lastResults.get(slotId)).toEqual({
+            noodleType: target.noodleType,
+            at: now,
+          });
         }
         // 対象スロット以外の残滓は元のまま。キー集合は「元 ∪ 対象の駆動スロット」に一致する。
         for (const [slotId, residual] of view.lastResults) {
@@ -409,7 +416,9 @@ describe("client/connection 一時的なローカル権限（offline-degradation
           receivedAt,
         });
         expect(reconciled.timers.some((timer) => timer.id === target.id)).toBe(false);
-        expect(dueLocalTimers(reconciled, target.endTime).some((timer) => timer.id === target.id)).toBe(false);
+        expect(
+          dueLocalTimers(reconciled, target.endTime).some((timer) => timer.id === target.id),
+        ).toBe(false);
       }),
       { numRuns: NUM_RUNS },
     );

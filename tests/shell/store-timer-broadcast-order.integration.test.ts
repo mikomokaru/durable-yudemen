@@ -93,7 +93,10 @@ interface WsProbe {
   /** 到着順の全メッセージ（config を含む）。broadcast の不在を件数で見るために生の列を持つ。 */
   readonly messages: readonly ServerMessage[];
   /** 条件を満たす snapshot を待つ（既受信にも遡って一致する）。 */
-  waitForSnapshot(predicate: (message: SnapshotMessage) => boolean, timeoutMs?: number): Promise<SnapshotMessage>;
+  waitForSnapshot(
+    predicate: (message: SnapshotMessage) => boolean,
+    timeoutMs?: number,
+  ): Promise<SnapshotMessage>;
   send(message: unknown): void;
   close(): void;
 }
@@ -122,7 +125,9 @@ async function provision(storeId: string): Promise<DurableObjectStub<StoreTimerD
 
 /** WS を張り、client 端を accept して受信を収集する（他の shell 統合テストと同形）。 */
 async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> {
-  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", { headers: { Upgrade: "websocket" } });
+  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", {
+    headers: { Upgrade: "websocket" },
+  });
   const ws = upgrade.webSocket;
   if (ws === null) throw new Error(`WS 接続が確立されなかった（status=${upgrade.status}）`);
 
@@ -153,7 +158,10 @@ async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> 
       );
       if (already !== undefined) return Promise.resolve(already);
       return new Promise<SnapshotMessage>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("snapshot の待機がタイムアウトした")), timeoutMs);
+        const timeout = setTimeout(
+          () => reject(new Error("snapshot の待機がタイムアウトした")),
+          timeoutMs,
+        );
         waiters.push({
           predicate,
           resolve: (message) => {
@@ -184,7 +192,9 @@ async function readSnapshot(stub: DurableObjectStub<StoreTimerDO>): Promise<Stor
 
 /** 永続 snapshot の実効 endTime（Adjusted_Boil_Time）。ワイヤはこの値だけを載せる。 */
 function effectiveEndTimes(snapshot: StoreSnapshot): Readonly<Record<string, number>> {
-  return Object.fromEntries(snapshot.timers.map((timer) => [timer.id, timer.endTime + timer.adjustment]));
+  return Object.fromEntries(
+    snapshot.timers.map((timer) => [timer.id, timer.endTime + timer.adjustment]),
+  );
 }
 
 /** ワイヤ snapshot の endTime（既に実効値へ畳まれている）。 */
@@ -229,9 +239,19 @@ describe("22.2 の残余 — cancel の複数端末 fanout（Requirements 1.3, 6
 
       // 場面を組む 2 本。近接ゆえ Boil_Sync が 0 でない Adjustment を割り当て、キャンセル後に残る 1 本の
       // 実効 endTime は「素の endTime」ではなくなる——ワイヤと SSOT の照合が空虚にならない場面である。
-      first.send({ type: "start", slotIds: [FIRST_SLOT], noodleType: NOODLE, boilSeconds: FIRST_BOIL_SECONDS });
+      first.send({
+        type: "start",
+        slotIds: [FIRST_SLOT],
+        noodleType: NOODLE,
+        boilSeconds: FIRST_BOIL_SECONDS,
+      });
       await waitForAll(clients, (message) => message.timers.length === 1);
-      second.send({ type: "start", slotIds: [SECOND_SLOT], noodleType: NOODLE, boilSeconds: SECOND_BOIL_SECONDS });
+      second.send({
+        type: "start",
+        slotIds: [SECOND_SLOT],
+        noodleType: NOODLE,
+        boilSeconds: SECOND_BOIL_SECONDS,
+      });
       const started = await first.waitForSnapshot((message) => message.timers.length === 2);
       await waitForAll(clients, (message) => message.timers.length === 2);
 
@@ -266,7 +286,9 @@ describe("22.2 の残余 — cancel の複数端末 fanout（Requirements 1.3, 6
       // キャンセルで残った 1 本は単独クラスタへ戻り Adjustment が 0 へ解ける。実効 endTime が素の
       // endTime へ一致することは、上の照合が「調整の畳み込みを経た値」を見ている証左である。
       expect(ssot.timers.map(({ adjustment }) => adjustment)).toEqual([0]);
-      expect(projectedEndTimes(firstView)).toEqual({ [remaining]: BASE_TIME + SECOND_BOIL_SECONDS * 1000 });
+      expect(projectedEndTimes(firstView)).toEqual({
+        [remaining]: BASE_TIME + SECOND_BOIL_SECONDS * 1000,
+      });
     } finally {
       for (const client of clients) client.close();
     }
@@ -304,7 +326,9 @@ describe("22.6 — broadcast は put 確定の後にのみ出る（Requirements 
     // （boil-sync-persist-failure / cook-scheduling）と同一の継ぎ目である。SUT（`runEffects` 本体）は
     // 本物のまま走り、変えるのは storage の応答時刻だけである。
     const restorePut = await runInDurableObject(stub, (_instance, state) => {
-      const originalPut = state.storage.put.bind(state.storage) as (...args: unknown[]) => Promise<void>;
+      const originalPut = state.storage.put.bind(state.storage) as (
+        ...args: unknown[]
+      ) => Promise<void>;
       (state.storage as { put: unknown }).put = async (...args: unknown[]) => {
         putKeys.push(typeof args[0] === "string" ? args[0] : "(non-string key)");
         await gate.promise;
@@ -318,7 +342,12 @@ describe("22.6 — broadcast は put 確定の後にのみ出る（Requirements 
     const messagesBeforeStart = client.messages.length;
     // 状態変化を起こす。WS 経路ゆえ webSocketMessage → decide → runEffects と本番どおり進み、
     // Persist で門に掛かって止まる。await しない（止まるのが期待される振る舞いである）。
-    client.send({ type: "start", slotIds: [FIRST_SLOT], noodleType: NOODLE, boilSeconds: FIRST_BOIL_SECONDS });
+    client.send({
+      type: "start",
+      slotIds: [FIRST_SLOT],
+      noodleType: NOODLE,
+      boilSeconds: FIRST_BOIL_SECONDS,
+    });
     await idle(300);
 
     // 空虚さの排除。put へ**到達している**ことを確かめる——到達前に止まっているなら、下の「送信 0 件」は
@@ -335,7 +364,9 @@ describe("22.6 — broadcast は put 確定の後にのみ出る（Requirements 
     // 届いた内容が put されたその状態と一致する（確定の起点は put 成功のみ）。
     const ssot = await readSnapshot(stub);
     expect(projectedEndTimes(confirmed)).toEqual(effectiveEndTimes(ssot));
-    expect(ssot.timers.map(({ endTime }) => endTime)).toEqual([BASE_TIME + FIRST_BOIL_SECONDS * 1000]);
+    expect(ssot.timers.map(({ endTime }) => endTime)).toEqual([
+      BASE_TIME + FIRST_BOIL_SECONDS * 1000,
+    ]);
     // 1 回の状態変化に put は 1 回だけ（遅延させただけで再試行を呼んでいない）。
     expect(putKeys).toEqual([SNAPSHOT_KEY]);
 
@@ -362,7 +393,8 @@ function holdsSocket(value: unknown): boolean {
   if (isSocketLike(value)) return true;
   if (Array.isArray(value)) return value.some(isSocketLike);
   if (value instanceof Set) return [...value].some(isSocketLike);
-  if (value instanceof Map) return [...value.keys()].some(isSocketLike) || [...value.values()].some(isSocketLike);
+  if (value instanceof Map)
+    return [...value.keys()].some(isSocketLike) || [...value.values()].some(isSocketLike);
   return false;
 }
 
@@ -389,7 +421,10 @@ function socketBearingFields(instance: object): readonly string[] {
  * `Date.now` を固定しているため締切を時刻差で組めない。試行回数で上限を切る（close の完了は
  * ランタイム側の handshake ゆえ、送出直後には反映されていないことがある）。
  */
-async function waitForSocketCount(stub: DurableObjectStub<StoreTimerDO>, expected: number): Promise<number> {
+async function waitForSocketCount(
+  stub: DurableObjectStub<StoreTimerDO>,
+  expected: number,
+): Promise<number> {
   let count = -1;
   for (let attempt = 0; attempt < 50; attempt += 1) {
     // oxlint-disable-next-line no-await-in-loop
@@ -449,7 +484,12 @@ describe("13.3 の構造半分 — close で除去すべき隠れ状態を持た
       expect(inspected.detectsCollection).toBe(true);
 
       // 後続の状態変化。WS メッセージ経路がそのまま処理される（要件9.3）。
-      staying.send({ type: "start", slotIds: [FIRST_SLOT], noodleType: NOODLE, boilSeconds: FIRST_BOIL_SECONDS });
+      staying.send({
+        type: "start",
+        slotIds: [FIRST_SLOT],
+        noodleType: NOODLE,
+        boilSeconds: FIRST_BOIL_SECONDS,
+      });
       const arrived = (message: SnapshotMessage): boolean => message.timers.length === 1;
       const [stayingView, otherView] = await Promise.all([
         staying.waitForSnapshot(arrived),

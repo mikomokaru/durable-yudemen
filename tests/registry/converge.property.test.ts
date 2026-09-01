@@ -10,7 +10,14 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { affectedStores, nextResidual, recomposeProjection } from "../../src/registry/converge";
 import type { IdealChange, RosterTarget } from "../../src/registry/converge";
-import type { Chain, Policy, PolicyFields, Store, StoreId, StoreOverride } from "../../src/registry/ideal";
+import type {
+  Chain,
+  Policy,
+  PolicyFields,
+  Store,
+  StoreId,
+  StoreOverride,
+} from "../../src/registry/ideal";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset } from "../../src/domain/store";
 
@@ -103,7 +110,9 @@ function expectedAffected(change: IdealChange, stores: readonly Store[]): Set<St
       return new Set(stores.filter((s) => s.chainId === change.chainId).map((s) => s.storeId));
     case "policy":
       // Policy 変更 → その Policy を割り当てている全店
-      return new Set(stores.filter((s) => s.policyIds.includes(change.policyId)).map((s) => s.storeId));
+      return new Set(
+        stores.filter((s) => s.policyIds.includes(change.policyId)).map((s) => s.storeId),
+      );
     case "store":
       // 店舗変更 → 当該店のみ（依存するのはその店の設定・名簿）
       return new Set(stores.filter((s) => s.storeId === change.storeId).map((s) => s.storeId));
@@ -186,10 +195,22 @@ const genOverride: fc.Arbitrary<StoreOverride> = fc.record(
 /** Policy のフィールド主張（各フィールドは任意）。mode/値を振る（Phase 1 の合成では畳まれないが妥当なイデアとして生成する）。 */
 const genPolicyFields: fc.Arbitrary<PolicyFields> = fc.record(
   {
-    unitCount: fc.record({ mode: fc.constantFrom("enforced", "default") as fc.Arbitrary<"enforced" | "default">, value: fc.integer({ min: 1, max: 4 }) }),
-    arms: fc.record({ mode: fc.constantFrom("enforced", "default") as fc.Arbitrary<"enforced" | "default">, value: fc.integer({ min: 1, max: 10 }) }),
-    toleranceRatio: fc.record({ mode: fc.constantFrom("enforced", "default") as fc.Arbitrary<"enforced" | "default">, value: fc.integer({ min: 1, max: 50 }) }),
-    noodlePresets: fc.record({ mode: fc.constantFrom("enforced", "default") as fc.Arbitrary<"enforced" | "default">, value: genNoodlePresets }),
+    unitCount: fc.record({
+      mode: fc.constantFrom("enforced", "default") as fc.Arbitrary<"enforced" | "default">,
+      value: fc.integer({ min: 1, max: 4 }),
+    }),
+    arms: fc.record({
+      mode: fc.constantFrom("enforced", "default") as fc.Arbitrary<"enforced" | "default">,
+      value: fc.integer({ min: 1, max: 10 }),
+    }),
+    toleranceRatio: fc.record({
+      mode: fc.constantFrom("enforced", "default") as fc.Arbitrary<"enforced" | "default">,
+      value: fc.integer({ min: 1, max: 50 }),
+    }),
+    noodlePresets: fc.record({
+      mode: fc.constantFrom("enforced", "default") as fc.Arbitrary<"enforced" | "default">,
+      value: genNoodlePresets,
+    }),
   },
   { requiredKeys: [] },
 );
@@ -342,9 +363,7 @@ describe("registry/converge — nextResidual", () => {
         if (op.ok) {
           // 成功：当該 storeId は必ず除去される。他の要素は保持される。
           expect(next).not.toContain(op.storeId);
-          expect(new Set(next)).toEqual(
-            new Set(residual.filter((id) => id !== op.storeId)),
-          );
+          expect(new Set(next)).toEqual(new Set(residual.filter((id) => id !== op.storeId)));
         } else {
           // 失敗：当該 storeId は必ず保持される（未収載なら追加され、既収載なら維持される）。
           expect(next).toContain(op.storeId);

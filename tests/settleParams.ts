@@ -15,6 +15,9 @@ import { schedulingDefaults } from "./storeConfigDefaults";
  * unitCount はレイアウト（unitOrigins の要素数＝釜の数）を決める。既定は DEFAULT_UNIT_COUNT で、
  * 釜の数を主張に含めるテストだけが明示的に渡す。
  */
-export function settleParams(sync: SyncParams, unitCount: number = DEFAULT_UNIT_COUNT): SettleParams {
+export function settleParams(
+  sync: SyncParams,
+  unitCount: number = DEFAULT_UNIT_COUNT,
+): SettleParams {
   return { ...sync, ...schedulingDefaults(unitCount), noodlePresets: DEFAULT_NOODLE_PRESETS };
 }

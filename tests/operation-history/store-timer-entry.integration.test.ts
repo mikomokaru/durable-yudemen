@@ -8,7 +8,9 @@ import type { TimerState } from "../../src/engine/state";
 import type { EpochMillis } from "../../src/engine/types";
 import type { StoreTimerDO } from "../../src/shell/store-timer-do";
 
-declare module "cloudflare:test" { interface ProvidedEnv extends Env {} }
+declare module "cloudflare:test" {
+  interface ProvidedEnv extends Env {}
+}
 
 const EVENT_TIME = 1_700_000_000_000;
 const SNAPSHOT_KEY = "activeTimers";
@@ -33,12 +35,15 @@ async function startTimer(
   boilSeconds: number,
 ): Promise<void> {
   const ws = new WebSocketPair()[0];
-  await instance.webSocketMessage(ws, JSON.stringify({
-    type: "start",
-    slotIds: [slotId],
-    noodleType: "Thin",
-    boilSeconds,
-  }));
+  await instance.webSocketMessage(
+    ws,
+    JSON.stringify({
+      type: "start",
+      slotIds: [slotId],
+      noodleType: "Thin",
+      boilSeconds,
+    }),
+  );
 }
 
 afterEach(async () => {
@@ -58,8 +63,12 @@ describe("StoreTimerDO Operation History 入口", () => {
       clock.mockReturnValue(EVENT_TIME + 2_000);
       await instance.alarm();
     });
-    const records = log.mock.calls.map(([line]) => JSON.parse(line as string) as Record<string, unknown>);
-    expect(records.map(({ storeId: id, operationKind, eventTime }) => [id, operationKind, eventTime])).toEqual([
+    const records = log.mock.calls.map(
+      ([line]) => JSON.parse(line as string) as Record<string, unknown>,
+    );
+    expect(
+      records.map(({ storeId: id, operationKind, eventTime }) => [id, operationKind, eventTime]),
+    ).toEqual([
       [storeId, "boil-started", EVENT_TIME],
       [storeId, "boiled", EVENT_TIME + 2_000],
     ]);
@@ -98,8 +107,12 @@ describe("StoreTimerDO Operation History 入口", () => {
       await startTimer(instance, "2", 60);
     });
 
-    const records = log.mock.calls.map(([line]) => JSON.parse(line as string) as Record<string, unknown>);
-    expect(records.map(({ storeId: id, operationKind, eventTime }) => [id, operationKind, eventTime])).toEqual([
+    const records = log.mock.calls.map(
+      ([line]) => JSON.parse(line as string) as Record<string, unknown>,
+    );
+    expect(
+      records.map(({ storeId: id, operationKind, eventTime }) => [id, operationKind, eventTime]),
+    ).toEqual([
       [storeId, "boiled", EVENT_TIME + 2_000],
       [storeId, "boil-started", EVENT_TIME + 3_000],
     ]);
@@ -137,7 +150,8 @@ describe("StoreTimerDO Operation History 入口", () => {
     clock.mockReturnValue(EVENT_TIME + 20_000);
     await evictDurableObject(resyncObject, { webSockets: "close" });
     const reconciled = await runInDurableObject(resyncObject, (_instance, state) =>
-      state.storage.get<StoreSnapshot>(SNAPSHOT_KEY));
+      state.storage.get<StoreSnapshot>(SNAPSHOT_KEY),
+    );
 
     expect(reconciled?.timers.some((timer) => timer.adjustment !== 0)).toBe(true);
     expect(log).not.toHaveBeenCalled();
@@ -183,12 +197,12 @@ describe("StoreTimerDO Operation History 入口", () => {
     });
 
     const persisted = await runInDurableObject(object, (_instance, state) =>
-      state.storage.get<StoreSnapshot>(SNAPSHOT_KEY));
+      state.storage.get<StoreSnapshot>(SNAPSHOT_KEY),
+    );
     expect(persisted?.timers[0]?.boiledAt).toBeNull();
     expect(log).not.toHaveBeenCalled();
   });
 });
-
 
 describe("StoreTimerDO Operation History 複数 Reconcile", () => {
   it("複数 running → boiled を一差分一行で出力し、後続 message と Event Time を分ける", async () => {
@@ -215,11 +229,14 @@ describe("StoreTimerDO Operation History 複数 Reconcile", () => {
       await startTimer(instance, "3", 60);
     });
 
-    const records = log.mock.calls.map(([line]) => JSON.parse(line as string) as {
-      readonly timerId: string;
-      readonly operationKind: string;
-      readonly eventTime: number;
-    });
+    const records = log.mock.calls.map(
+      ([line]) =>
+        JSON.parse(line as string) as {
+          readonly timerId: string;
+          readonly operationKind: string;
+          readonly eventTime: number;
+        },
+    );
     const reconciled = records.filter(({ operationKind }) => operationKind === "boiled");
     expect(reconciled).toHaveLength(2);
     expect(reconciled.map(({ timerId }) => timerId)).toEqual(expectedTimerIds);

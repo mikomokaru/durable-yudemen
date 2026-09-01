@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { OperationRecord } from "../../src/operation-history/record";
 
-const timestamp = (value: number): OperationRecord["eventTime"] => value as OperationRecord["eventTime"];
+const timestamp = (value: number): OperationRecord["eventTime"] =>
+  value as OperationRecord["eventTime"];
 
 const common = {
   storeId: "store-1",
@@ -69,16 +70,52 @@ const rejectedByType = (): void => {
     // @ts-expect-error 採番属性は既知契約に含めない。
     seq: 1,
   };
-  void [completedWithEndTime, boiledWithoutBoiledAt, emptySlots, unverifiedTimestamp, withPerson, withSequence];
+  void [
+    completedWithEndTime,
+    boiledWithoutBoiledAt,
+    emptySlots,
+    unverifiedTimestamp,
+    withPerson,
+    withSequence,
+  ];
 };
 void rejectedByType;
 
 describe("OperationRecord", () => {
   it("kind ごとの既知属性だけを持つ", () => {
     expect(records.map((record) => Object.keys(record))).toEqual([
-      ["storeId", "timerId", "eventTime", "slotIds", "noodleType", "firmness", "operationKind", "startTime", "endTime"],
-      ["storeId", "timerId", "eventTime", "slotIds", "noodleType", "firmness", "operationKind", "endTime", "boiledAt"],
-      ["storeId", "timerId", "eventTime", "slotIds", "noodleType", "firmness", "operationKind", "endTime"],
+      [
+        "storeId",
+        "timerId",
+        "eventTime",
+        "slotIds",
+        "noodleType",
+        "firmness",
+        "operationKind",
+        "startTime",
+        "endTime",
+      ],
+      [
+        "storeId",
+        "timerId",
+        "eventTime",
+        "slotIds",
+        "noodleType",
+        "firmness",
+        "operationKind",
+        "endTime",
+        "boiledAt",
+      ],
+      [
+        "storeId",
+        "timerId",
+        "eventTime",
+        "slotIds",
+        "noodleType",
+        "firmness",
+        "operationKind",
+        "endTime",
+      ],
       ["storeId", "timerId", "eventTime", "slotIds", "noodleType", "firmness", "operationKind"],
       ["storeId", "timerId", "eventTime", "slotIds", "noodleType", "firmness", "operationKind"],
     ]);

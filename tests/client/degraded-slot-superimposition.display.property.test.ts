@@ -36,7 +36,11 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { reconcileServerConfirmed, type ClientTimer, type ClientView } from "../../src/client/connection";
+import {
+  reconcileServerConfirmed,
+  type ClientTimer,
+  type ClientView,
+} from "../../src/client/connection";
 import { assignedSlotDisplays } from "../../src/client/components/slotDisplay";
 import { correctedNow, remainingMs } from "../../src/client/clock";
 import { slotsOfUnits } from "../../src/client/assignment";
@@ -64,13 +68,25 @@ const SLOT_POOL_SIZE = 5;
 // ── スカラ生成器 ───────────────────────────────────────────────────────────────────────────────
 
 /** 担当ユニット集合。unit u は slot 6u..6u+5 を覆う（`slotsOfUnits` が正本）。単一/複数・非 0 起点を踏む。 */
-const genUnits: fc.Arbitrary<readonly number[]> = fc.constantFrom<readonly number[]>([0], [1], [0, 1], [1, 2]);
+const genUnits: fc.Arbitrary<readonly number[]> = fc.constantFrom<readonly number[]>(
+  [0],
+  [1],
+  [0, 1],
+  [1, 2],
+);
 /** 残滓記録時刻・表示時刻に用いる生のローカル時計の読み。 */
 const genAt: fc.Arbitrary<number> = fc.integer({ min: 0, max: 10_000_000 });
 /** クロックオフセット。負・0・正をまたぐ（補正後時刻と生の読みの取り違えを検査に露出させる）。 */
-const genOffset: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: -200_000, max: 200_000 }));
+const genOffset: fc.Arbitrary<number> = fc.oneof(
+  fc.constant(0),
+  fc.integer({ min: -200_000, max: 200_000 }),
+);
 /** 同期フェーズ。在席 0 件のときの表示が idle（synced）と unreceived（未同期）へ分かれる元。 */
-const genSync: fc.Arbitrary<ClientView["sync"]> = fc.constantFrom("connecting", "synced", "syncFailed");
+const genSync: fc.Arbitrary<ClientView["sync"]> = fc.constantFrom(
+  "connecting",
+  "synced",
+  "syncFailed",
+);
 const genFirmness: fc.Arbitrary<Firmness> = fc.constantFrom(...FIRMNESS_POOL);
 
 /**
@@ -116,12 +132,18 @@ function genTimerFacts(
     return fc
       .record({
         // 各 Timer のスロット数（1〜2）。互いに素な区間として共有スロット列から切り出す。
-        counts: fc.array(fc.integer({ min: 1, max: 2 }), { minLength: ids.length, maxLength: ids.length }),
+        counts: fc.array(fc.integer({ min: 1, max: 2 }), {
+          minLength: ids.length,
+          maxLength: ids.length,
+        }),
         slots: fc.uniqueArray(fc.constantFrom(...slotPool), {
           minLength: Math.min(ids.length, slotPool.length),
           maxLength: slotPool.length,
         }),
-        noodles: fc.array(fc.constantFrom(...NOODLE_POOL), { minLength: ids.length, maxLength: ids.length }),
+        noodles: fc.array(fc.constantFrom(...NOODLE_POOL), {
+          minLength: ids.length,
+          maxLength: ids.length,
+        }),
         firmnesses: fc.array(genFirmness, { minLength: ids.length, maxLength: ids.length }),
         endDeltas: fc.array(genEndDelta, { minLength: ids.length, maxLength: ids.length }),
       })
@@ -230,7 +252,8 @@ function contestedSlots(
 ): ReadonlySet<number> {
   // running / boiled は endTime からの導出。判定は clock.ts の remainingMs を通し、素の比較を書き下さない
   // （補正は呼び出し元で済んでいるゆえ残りの offset は 0。境界 endTime === correctedNow は boiled 側）。
-  const isRunning = (timer: TimerFact): boolean => remainingMs(timer.endTime, 0, correctedNowMs) > 0;
+  const isRunning = (timer: TimerFact): boolean =>
+    remainingMs(timer.endTime, 0, correctedNowMs) > 0;
   const serverRunning = new Set<number>();
   const localRunning = new Set<number>();
   for (const timer of serverTimers) {

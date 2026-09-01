@@ -16,7 +16,7 @@ const genRateCounts = fc.oneof(
     fc.integer({ min: 0, max: denominator }).map((numerator) => ({
       numerator,
       denominator,
-    }))
+    })),
   ),
 );
 const genThresholds = fc.record({

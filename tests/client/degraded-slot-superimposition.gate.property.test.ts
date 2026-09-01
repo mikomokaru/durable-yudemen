@@ -79,7 +79,10 @@ const UNRELATED_ID_POOL = ["u-x", "u-y"] as const;
 /** endTime / 補正後現在時刻。小さめ範囲に取り、running / boiled の双方を在席させる。 */
 const genTime: fc.Arbitrary<number> = fc.integer({ min: -5_000, max: 5_000 });
 /** クロックオフセット。負・0・正をまたぐ（ゲートは offset に依らない）。 */
-const genOffset: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: -200_000, max: 200_000 }));
+const genOffset: fc.Arbitrary<number> = fc.oneof(
+  fc.constant(0),
+  fc.integer({ min: -200_000, max: 200_000 }),
+);
 /** 残滓の記録時刻。 */
 const genAt: fc.Arbitrary<number> = fc.integer({ min: 0, max: 10_000_000 });
 
@@ -116,7 +119,10 @@ const genOccupantSpec: fc.Arbitrary<OccupantSpec> = fc.record({
  * （`reconcile.property.test.ts` の `genTimerFacts` と同じ規律）。スロットを使い切ったら以降は作らない。
  * id は起源の接頭辞と通し番号で一意にする。
  */
-function occupantsFrom(specs: readonly OccupantSpec[], slots: readonly string[]): readonly ClientTimer[] {
+function occupantsFrom(
+  specs: readonly OccupantSpec[],
+  slots: readonly string[],
+): readonly ClientTimer[] {
   const timers: ClientTimer[] = [];
   let idx = 0;
   for (const spec of specs) {
@@ -144,7 +150,10 @@ function occupantsFrom(specs: readonly OccupantSpec[], slots: readonly string[])
  * 残滓を強制するのは Property 2 の「解除される」主張の前提である——載っていなければ、消えたのか
  * 元から無かったのかを区別できない。
  */
-function genViewWith(timers: readonly ClientTimer[], seedSlots: readonly string[]): fc.Arbitrary<ClientView> {
+function genViewWith(
+  timers: readonly ClientTimer[],
+  seedSlots: readonly string[],
+): fc.Arbitrary<ClientView> {
   const ids = timers.map((timer) => timer.id);
   return fc
     .record({
@@ -158,28 +167,26 @@ function genViewWith(timers: readonly ClientTimer[], seedSlots: readonly string[
       sync: fc.constantFrom<ClientView["sync"]>("connecting", "synced", "syncFailed"),
       unitCount: fc.integer({ min: 1, max: 4 }),
     })
-    .map(
-      (record): ClientView => ({
-        timers,
-        // 待ち行列と推奨は LocalStart の畳み込みが読まない。要らない次元へ生成の分散を広げない。
-        pendingOrders: [],
-        recommendations: [],
-        offset: record.offset,
-        processedIds: new Set<string>([...record.processed, ...record.unrelated]),
-        lastResults: new Map(
-          [...new Set([...seedSlots, ...record.residualSlots])].map((slotId) => [
-            slotId,
-            { noodleType: record.residualNoodle, at: record.residualAt },
-          ]),
-        ),
-        connectivity: record.connectivity,
-        unreachableReason: "offline",
-        sync: record.sync,
-        error: null,
-        unitCount: record.unitCount,
-        noodlePresets: DEFAULT_NOODLE_PRESETS,
-      }),
-    );
+    .map((record): ClientView => ({
+      timers,
+      // 待ち行列と推奨は LocalStart の畳み込みが読まない。要らない次元へ生成の分散を広げない。
+      pendingOrders: [],
+      recommendations: [],
+      offset: record.offset,
+      processedIds: new Set<string>([...record.processed, ...record.unrelated]),
+      lastResults: new Map(
+        [...new Set([...seedSlots, ...record.residualSlots])].map((slotId) => [
+          slotId,
+          { noodleType: record.residualNoodle, at: record.residualAt },
+        ]),
+      ),
+      connectivity: record.connectivity,
+      unreachableReason: "offline",
+      sync: record.sync,
+      error: null,
+      unitCount: record.unitCount,
+      noodlePresets: DEFAULT_NOODLE_PRESETS,
+    }));
 }
 
 // ── 二面の生成器 ───────────────────────────────────────────────────────────────────────────────
@@ -193,7 +200,9 @@ function genViewWith(timers: readonly ClientTimer[], seedSlots: readonly string[
  */
 const genOccupiedRequest: fc.Arbitrary<GateCase> = genSlotOrder
   .chain((slots) =>
-    fc.array(genOccupantSpec, { minLength: 1, maxLength: 3 }).map((specs) => occupantsFrom(specs, slots)),
+    fc
+      .array(genOccupantSpec, { minLength: 1, maxLength: 3 })
+      .map((specs) => occupantsFrom(specs, slots)),
   )
   .chain((timers) => {
     const occupied = [...new Set(timers.flatMap((timer) => timer.slotIds))];
@@ -207,19 +216,17 @@ const genOccupiedRequest: fc.Arbitrary<GateCase> = genSlotOrder
         correctedNow: genTime,
         newTimerId: fc.constantFrom(...NEW_ID_POOL),
       })
-      .map(
-        (record): GateCase => ({
-          view: record.view,
-          event: {
-            kind: "LocalStart",
-            slotIds: nonEmpty([...new Set([record.anchor, ...record.extra])]),
-            noodleType: record.noodleType,
-            boilSeconds: record.boilSeconds,
-            newTimerId: record.newTimerId,
-            correctedNow: record.correctedNow,
-          },
-        }),
-      );
+      .map((record): GateCase => ({
+        view: record.view,
+        event: {
+          kind: "LocalStart",
+          slotIds: nonEmpty([...new Set([record.anchor, ...record.extra])]),
+          noodleType: record.noodleType,
+          boilSeconds: record.boilSeconds,
+          newTimerId: record.newTimerId,
+          correctedNow: record.correctedNow,
+        },
+      }));
   });
 
 /**
@@ -246,19 +253,17 @@ const genFreeRequest: fc.Arbitrary<GateCase> = genSlotOrder.chain((slots) =>
           correctedNow: genTime,
           newTimerId: fc.constantFrom(...NEW_ID_POOL),
         })
-        .map(
-          (record): GateCase => ({
-            view: record.view,
-            event: {
-              kind: "LocalStart",
-              slotIds: nonEmpty(requestSlots),
-              noodleType: record.noodleType,
-              boilSeconds: record.boilSeconds,
-              newTimerId: record.newTimerId,
-              correctedNow: record.correctedNow,
-            },
-          }),
-        );
+        .map((record): GateCase => ({
+          view: record.view,
+          event: {
+            kind: "LocalStart",
+            slotIds: nonEmpty(requestSlots),
+            noodleType: record.noodleType,
+            boilSeconds: record.boilSeconds,
+            newTimerId: record.newTimerId,
+            correctedNow: record.correctedNow,
+          },
+        }));
     }),
 );
 

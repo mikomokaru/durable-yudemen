@@ -157,7 +157,9 @@ describe("静的検査 — core / StoreTimerDO の不変点（タスク22.1）",
     // 端（StoreTimerDO）だけが Cloudflare 固有依存を抱える（構造の主権）。
     for (const file of CORE_FILES) {
       const code = readCode(file);
-      expect(code, `${file} が cloudflare:workers に依存している`).not.toMatch(/cloudflare:workers/);
+      expect(code, `${file} が cloudflare:workers に依存している`).not.toMatch(
+        /cloudflare:workers/,
+      );
     }
   });
 
@@ -171,13 +173,17 @@ describe("静的検査 — core / StoreTimerDO の不変点（タスク22.1）",
 
   it("StoreTimerDO は ctx.acceptWebSocket で WS を収容する（要件9.2）", () => {
     const code = readCode(SHELL_FILE);
-    expect(code, `${SHELL_FILE} で acceptWebSocket を使っていない`).toMatch(/\bacceptWebSocket\s*\(/);
+    expect(code, `${SHELL_FILE} で acceptWebSocket を使っていない`).toMatch(
+      /\bacceptWebSocket\s*\(/,
+    );
   });
 
   it("StoreTimerDO は server.accept() を使わない（Hibernation 非互換の受理を禁止・要件9.2）", () => {
     const code = readCode(SHELL_FILE);
     // acceptWebSocket は許容、素の .accept( だけを禁止する（acceptWebSocket を巻き込まない否定先読み）。
-    expect(code, `${SHELL_FILE} で server.accept() を使っている`).not.toMatch(/(?<!Web[Ss]ocket)\.accept\s*\(/);
+    expect(code, `${SHELL_FILE} で server.accept() を使っている`).not.toMatch(
+      /(?<!Web[Ss]ocket)\.accept\s*\(/,
+    );
   });
 
   it("core / StoreTimerDO は ctx.storage.sql を使わない（KV API のみ・要件8.2 / 9.5）", () => {

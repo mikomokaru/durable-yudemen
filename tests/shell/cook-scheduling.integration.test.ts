@@ -122,7 +122,12 @@ async function provision(
  * 麺種を引数で受けるのは 20.6 のためである（茹で時間の長短の差がなければ、順序を変えても総和が動かず
  * 「改善する計画」が存在しない）。既定は前 4 経路が用いる単一プリセットのまま据える。
  */
-function item(externalOrderId: string, itemIndex: number, tableId: string | null, noodleType: string = NOODLE) {
+function item(
+  externalOrderId: string,
+  itemIndex: number,
+  tableId: string | null,
+  noodleType: string = NOODLE,
+) {
   return { externalOrderId, itemIndex, noodleType, firmness: "normal", tableId };
 }
 
@@ -155,14 +160,19 @@ interface WsProbe {
   /** 到着順の全メッセージ（config を含む）。broadcast の不在を件数で見るために生の列を持つ。 */
   readonly messages: readonly ServerMessage[];
   /** 条件を満たす snapshot を待つ（既受信にも遡って一致する）。 */
-  waitForSnapshot(predicate: (message: SnapshotMessage) => boolean, timeoutMs?: number): Promise<SnapshotMessage>;
+  waitForSnapshot(
+    predicate: (message: SnapshotMessage) => boolean,
+    timeoutMs?: number,
+  ): Promise<SnapshotMessage>;
   send(message: unknown): void;
   close(): void;
 }
 
 /** WS を張り、client 端を accept して受信を収集する（apply-projection.integration.test.ts と同形）。 */
 async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> {
-  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", { headers: { Upgrade: "websocket" } });
+  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", {
+    headers: { Upgrade: "websocket" },
+  });
   const ws = upgrade.webSocket;
   if (ws === null) throw new Error(`WS 接続が確立されなかった（status=${upgrade.status}）`);
 
@@ -193,7 +203,10 @@ async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> 
       );
       if (already !== undefined) return Promise.resolve(already);
       return new Promise<SnapshotMessage>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("snapshot の待機がタイムアウトした")), timeoutMs);
+        const timer = setTimeout(
+          () => reject(new Error("snapshot の待機がタイムアウトした")),
+          timeoutMs,
+        );
         waiters.push({
           predicate,
           resolve: (message) => {
@@ -251,12 +264,18 @@ function acceptedSliceFor(order: PendingOrder, slotId: string, boilMillis: numbe
 }
 
 /** 永続スナップショットを読む（採用済み PlanSlice と指紋はワイヤに出ないため永続層で観測する）。 */
-async function readSnapshot(stub: DurableObjectStub<StoreTimerDO>): Promise<StoreSnapshot | undefined> {
-  return runInDurableObject(stub, (_instance, state) => state.storage.get<StoreSnapshot>(SNAPSHOT_KEY));
+async function readSnapshot(
+  stub: DurableObjectStub<StoreTimerDO>,
+): Promise<StoreSnapshot | undefined> {
+  return runInDurableObject(stub, (_instance, state) =>
+    state.storage.get<StoreSnapshot>(SNAPSHOT_KEY),
+  );
 }
 
 /** 到着を 1 件確定させ、その確定状態へ採用済み PlanSlice を 1 片据える。 */
-async function confirmedWithAcceptedSlice(stub: DurableObjectStub<StoreTimerDO>): Promise<StoreSnapshot> {
+async function confirmedWithAcceptedSlice(
+  stub: DurableObjectStub<StoreTimerDO>,
+): Promise<StoreSnapshot> {
   return runInDurableObject(stub, async (_instance, state) => {
     const persisted = await state.storage.get<StoreSnapshot>(SNAPSHOT_KEY);
     if (persisted === undefined) throw new Error("到着が永続されていない");
@@ -477,7 +496,11 @@ const AUTHORIZED_BEARER = `Bearer ${TEST_ORDER_INGRESS_TOKEN}`;
  * DO へ直接届けるハーネス（`arrive`）では「認可されない要求が DO へ到達しない」ことを言えない。
  * vars は wrangler types が既定値の literal 型で生成するため、実行時値の差し替えは unknown 経由で写す。
  */
-async function callOrderIngress(storeId: string, authorization: string | null, body: unknown): Promise<Response> {
+async function callOrderIngress(
+  storeId: string,
+  authorization: string | null,
+  body: unknown,
+): Promise<Response> {
   const headers = new Headers({ "Content-Type": "application/json" });
   if (authorization !== null) headers.set("Authorization", authorization);
   const request = new Request(`https://pos.invalid/s/${storeId}/orders`, {
@@ -694,7 +717,12 @@ describe("20.4 Order_Ingress の認可・拒否・確定順序（Requirements 1.
     const client = await connect(stub);
     // Timer 集合の不変を言うために 1 本走らせ、待ち行列の不変を言うために 1 件受理しておく
     // ——空集合が空のままであることは「変えない」の証拠として弱い。
-    client.send({ type: "start", slotIds: ["0"], noodleType: NOODLE, boilSeconds: LONG_BOIL_SECONDS });
+    client.send({
+      type: "start",
+      slotIds: ["0"],
+      noodleType: NOODLE,
+      boilSeconds: LONG_BOIL_SECONDS,
+    });
     await client.waitForSnapshot((message) => message.timers.length === 1);
     expect(await arrive(stub, [item("order-a", 0, "t-1")])).toBe(200);
     await client.waitForSnapshot((message) => message.pendingOrders.length === 1);
@@ -740,7 +768,10 @@ describe("20.4 Order_Ingress の認可・拒否・確定順序（Requirements 1.
       (state.storage as { put: unknown }).put = () => Promise.reject(new Error("put failed"));
       try {
         const response = await instance.fetch(arrivalRequest([item("order-b", 0, "t-2")]));
-        return { status: response.status, body: (await response.json()) as { readonly accepted: boolean } };
+        return {
+          status: response.status,
+          body: (await response.json()) as { readonly accepted: boolean },
+        };
       } finally {
         (state.storage as { put: unknown }).put = originalPut;
       }
@@ -776,7 +807,9 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
         return Response.json(improvingPlan(Date.now() + PLAN_START_LEAD_MS), { status: 202 });
       },
       async (instance) => {
-        const response = await instance.fetch(arrivalRequest([item(ORDER_THIRD, 0, TABLE_THIRD, PLAN_LONG_NOODLE)]));
+        const response = await instance.fetch(
+          arrivalRequest([item(ORDER_THIRD, 0, TABLE_THIRD, PLAN_LONG_NOODLE)]),
+        );
         const observed = response.status;
         await response.text();
         return observed;
@@ -814,10 +847,17 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
     const stub = await provision(freshStoreId("cook-solver-down"));
     const client = await connect(stub);
     // 走行中 Timer を 1 本置き、計時の事実（実効 endTime と Alarm）を確定させる。
-    client.send({ type: "start", slotIds: ["0"], noodleType: NOODLE, boilSeconds: LONG_BOIL_SECONDS });
+    client.send({
+      type: "start",
+      slotIds: ["0"],
+      noodleType: NOODLE,
+      boilSeconds: LONG_BOIL_SECONDS,
+    });
     const started = await client.waitForSnapshot((message) => message.timers.length === 1);
     const endTime = started.timers[0]?.endTime;
-    const alarmBefore = await runInDurableObject(stub, (_instance, state) => state.storage.getAlarm());
+    const alarmBefore = await runInDurableObject(stub, (_instance, state) =>
+      state.storage.getAlarm(),
+    );
 
     const status = await withSolver(
       stub,
@@ -837,7 +877,9 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
     expect(itemKeys(broadcast.recommendations)).toEqual([["order-a", 0]]);
     // 計時は乱れない。実効 endTime も次の発火予定も、外部の失敗を跨いで同じ値である。
     expect(broadcast.timers[0]?.endTime).toBe(endTime);
-    expect(await runInDurableObject(stub, (_instance, state) => state.storage.getAlarm())).toBe(alarmBefore);
+    expect(await runInDurableObject(stub, (_instance, state) => state.storage.getAlarm())).toBe(
+      alarmBefore,
+    );
 
     client.close();
   });
@@ -880,8 +922,12 @@ describe("20.6 採用経路の end-to-end（Requirements 2.4, 6.5, 7.1, 7.5）",
     expect(hydrated.pendingOrders).toEqual(adopted.pendingOrders);
 
     // 続く状態変化での再評価（AC 7.5）。陳腐化しない一片は維持され、尾部だけが新着を織り込んで走り直す。
-    expect(await arrive(stage.stub, [item(ORDER_THIRD, 0, TABLE_THIRD, PLAN_LONG_NOODLE)])).toBe(200);
-    const reevaluated = await reconnected.waitForSnapshot((message) => message.pendingOrders.length === 3);
+    expect(await arrive(stage.stub, [item(ORDER_THIRD, 0, TABLE_THIRD, PLAN_LONG_NOODLE)])).toBe(
+      200,
+    );
+    const reevaluated = await reconnected.waitForSnapshot(
+      (message) => message.pendingOrders.length === 3,
+    );
     expect(itemKeys(reevaluated.recommendations)).toEqual([
       [ORDER_SHORT, 0],
       [ORDER_LONG, 0],

@@ -40,7 +40,12 @@ import type { ScheduleParams } from "../../src/engine/objective";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
-import { DEFAULT_NOODLE_PRESETS, SLOTS_PER_UNIT, UNIT_COUNT_MAX, UNIT_COUNT_MIN } from "../../src/domain/store";
+import {
+  DEFAULT_NOODLE_PRESETS,
+  SLOTS_PER_UNIT,
+  UNIT_COUNT_MAX,
+  UNIT_COUNT_MIN,
+} from "../../src/domain/store";
 import {
   KNOWN_NOODLE_TYPES,
   NOW,
@@ -99,27 +104,42 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
       elapsed: fc.constantFrom(0, 0, 0, 0, 0, 1, 30_000),
     });
   })
-  .map(({ slotCount, params, plannedParams, running: runningSpecs, orders, stalePick, mutation, newcomer, elapsed }) => {
-    const running = runningSpecs.map(timerOn);
-    const planned = toPending(orders);
-    const accepted = baselineSchedule(
-      planned,
-      initialRelease(running, NOW, slotCount),
-      DEFAULT_NOODLE_PRESETS,
-      plannedParams,
-    ).slices;
-
-    const staleAt = stalePick % (accepted.length + 1);
-    return {
-      accepted,
-      pending: staleAt < accepted.length ? stale(planned, accepted[staleAt]!, mutation, newcomer) : planned,
-      running,
-      now: (NOW + elapsed) as EpochMillis,
+  .map(
+    ({
       slotCount,
       params,
-      staleAt,
-    };
-  });
+      plannedParams,
+      running: runningSpecs,
+      orders,
+      stalePick,
+      mutation,
+      newcomer,
+      elapsed,
+    }) => {
+      const running = runningSpecs.map(timerOn);
+      const planned = toPending(orders);
+      const accepted = baselineSchedule(
+        planned,
+        initialRelease(running, NOW, slotCount),
+        DEFAULT_NOODLE_PRESETS,
+        plannedParams,
+      ).slices;
+
+      const staleAt = stalePick % (accepted.length + 1);
+      return {
+        accepted,
+        pending:
+          staleAt < accepted.length
+            ? stale(planned, accepted[staleAt]!, mutation, newcomer)
+            : planned,
+        running,
+        now: (NOW + elapsed) as EpochMillis,
+        slotCount,
+        params,
+        staleAt,
+      };
+    },
+  );
 
 /**
  * 狙った一片を陳腐化させる（他の一片には触れない）。
@@ -138,7 +158,8 @@ function stale(
   if (mutation === "consume" || tableId === null) {
     const victim = slice.placements[0]!;
     return pending.filter(
-      (order) => order.externalOrderId !== victim.externalOrderId || order.itemIndex !== victim.itemIndex,
+      (order) =>
+        order.externalOrderId !== victim.externalOrderId || order.itemIndex !== victim.itemIndex,
     );
   }
   return [
@@ -239,7 +260,8 @@ describe("engine/commit — committedSchedule", () => {
           (order) =>
             !placed.some(
               (placement) =>
-                placement.externalOrderId === order.externalOrderId && placement.itemIndex === order.itemIndex,
+                placement.externalOrderId === order.externalOrderId &&
+                placement.itemIndex === order.itemIndex,
             ),
         );
         const tail = baselineSchedule(

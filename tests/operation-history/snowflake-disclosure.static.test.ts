@@ -48,7 +48,9 @@ const camelToUpperSnake = (name: string): string =>
 function literalFields(symbol: string): readonly (readonly [string, string])[] {
   const body = qualitySource.match(new RegExp(`${symbol}: \\{([\\s\\S]*?)\\n    \\},`))![1]!;
   // コロンと値の間は \s* で受ける。長い文字列値は整形で次行へ送られるが、属性と値の対応は変わらない。
-  return [...body.matchAll(/(\w+):\s*"([^"]*)"/g)].map(([, name, value]) => [name!, value!] as const);
+  return [...body.matchAll(/(\w+):\s*"([^"]*)"/g)].map(
+    ([, name, value]) => [name!, value!] as const,
+  );
 }
 
 const disclosureFields = literalFields("analysisDisclosure");

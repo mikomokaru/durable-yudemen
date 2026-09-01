@@ -9,7 +9,8 @@ import {
 } from "../../src/operation-history/correlation";
 import type { OperationRecord } from "../../src/operation-history/record";
 
-const timestamp = (value: number): OperationRecord["eventTime"] => value as OperationRecord["eventTime"];
+const timestamp = (value: number): OperationRecord["eventTime"] =>
+  value as OperationRecord["eventTime"];
 const common = {
   storeId: "store-1",
   timerId: "timer-1",
@@ -49,7 +50,9 @@ describe("correlationCandidatesFromOperationEvidence", () => {
       { record: laterCompleted },
     ]);
 
-    expect(candidates.map(({ primary, records }) => ({ primary, arrivals: records.length }))).toEqual([
+    expect(
+      candidates.map(({ primary, records }) => ({ primary, arrivals: records.length })),
+    ).toEqual([
       {
         primary: {
           storeId: "store-1",
@@ -85,7 +88,11 @@ describe("correlationCandidatesFromOperationEvidence", () => {
     ["noodleType", completed, { ...completed, noodleType: "Thick" }],
     ["firmness", completed, { ...completed, firmness: "hard" }],
     ["startTime", boilStarted, { ...boilStarted, startTime: timestamp(boilStarted.startTime + 1) }],
-    ["boil-started endTime", boilStarted, { ...boilStarted, endTime: timestamp(boilStarted.endTime + 1) }],
+    [
+      "boil-started endTime",
+      boilStarted,
+      { ...boilStarted, endTime: timestamp(boilStarted.endTime + 1) },
+    ],
     ["boiled endTime", boiled, { ...boiled, endTime: timestamp(boiled.endTime + 1) }],
     ["boiledAt", boiled, { ...boiled, boiledAt: timestamp(boiled.boiledAt + 1) }],
     ["adjusted endTime", adjusted, { ...adjusted, endTime: timestamp(adjusted.endTime + 1) }],
@@ -136,7 +143,11 @@ describe("correlationCandidatesFromOperationEvidence", () => {
 
     const conflicting = correlationCandidatesFromOperationEvidence([
       { record: completed, canonicalHash: "hash-1", traceMetadata: firstTrace },
-      { record: { ...completed, firmness: "hard" }, canonicalHash: "hash-2", traceMetadata: secondTrace },
+      {
+        record: { ...completed, firmness: "hard" },
+        canonicalHash: "hash-2",
+        traceMetadata: secondTrace,
+      },
     ]);
 
     expect(conflicting).toHaveLength(1);
@@ -165,19 +176,22 @@ describe("correlationCandidatesFromOperationEvidence", () => {
     ]);
 
     expect(candidates).toHaveLength(2);
-    expect(candidates.map(({ primary }) => primary.operationKind)).toEqual(["completed", "cancelled"]);
+    expect(candidates.map(({ primary }) => primary.operationKind)).toEqual([
+      "completed",
+      "cancelled",
+    ]);
   });
 
   it("Operation Record 以外のモデルや platform capability に依存しない純粋 module である", () => {
-    const imports = [...correlationSource.matchAll(/^import(?: type)? .* from "([^"]+)";$/gm)]
-      .map((match) => match[1]);
+    const imports = [...correlationSource.matchAll(/^import(?: type)? .* from "([^"]+)";$/gm)].map(
+      (match) => match[1],
+    );
 
     expect(imports).toEqual(["./record"]);
     expect(correlationSource).not.toMatch(/\b(?:console|storage|ctx|env|Date)\s*\./);
     expect(correlationSource).not.toMatch(/\b(?:fetch|setAlarm|put|waitUntil)\s*\(/);
   });
 });
-
 
 describe("operationArrivalQualityFromEvidence", () => {
   it("同一 record の raw arrival 全件を保持して分析用一件と n-1 件へ収束する", () => {
@@ -248,27 +262,22 @@ describe("operationArrivalQualityFromEvidence", () => {
     const conflictingArrival = {
       record: { ...completed, firmness: "hard" } as OperationRecord,
     };
-    const arrivals = [
-      { record: completed },
-      duplicateArrival,
-      conflictingArrival,
-    ] as const;
+    const arrivals = [{ record: completed }, duplicateArrival, conflictingArrival] as const;
 
     const result = operationArrivalQualityFromEvidence(arrivals, [completed]);
 
-    expect(result.convergedRecords.map(({ arrivalCount, duplicateCount }) => ({
-      arrivalCount,
-      duplicateCount,
-    }))).toEqual([
+    expect(
+      result.convergedRecords.map(({ arrivalCount, duplicateCount }) => ({
+        arrivalCount,
+        duplicateCount,
+      })),
+    ).toEqual([
       { arrivalCount: 2, duplicateCount: 1 },
       { arrivalCount: 1, duplicateCount: 0 },
     ]);
     expect(result.quality.conflict).toEqual([arrivals]);
     expect(result.quality.duplicate).toEqual([[arrivals[0], duplicateArrival]]);
-    expect(result.quality.orphan).toEqual([
-      [arrivals[0], duplicateArrival],
-      [conflictingArrival],
-    ]);
+    expect(result.quality.orphan).toEqual([[arrivals[0], duplicateArrival], [conflictingArrival]]);
   });
 
   it("欠落と孤児を別状態で保持し、判定の前後で根拠 arrival を変更しない", () => {

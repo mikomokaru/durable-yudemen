@@ -17,7 +17,11 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { reconcileServerConfirmed, type ClientTimer, type ClientView } from "../../src/client/connection";
+import {
+  reconcileServerConfirmed,
+  type ClientTimer,
+  type ClientView,
+} from "../../src/client/connection";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import type { TimerFact } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
@@ -52,7 +56,10 @@ const genCorrectedNowMs: fc.Arbitrary<number> = fc.constantFrom(
   ANCHOR + 3_000,
 );
 /** クロックオフセット。0 と非 0 の双方を踏む（補正が効いていることを同時に検べる）。 */
-const genOffset: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: -200_000, max: 200_000 }));
+const genOffset: fc.Arbitrary<number> = fc.oneof(
+  fc.constant(0),
+  fc.integer({ min: -200_000, max: 200_000 }),
+);
 
 // ── Timer 集合生成器 ──────────────────────────────────────────────────────────────────────────────
 
@@ -60,10 +67,15 @@ const genOffset: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ mi
  * 指定 id プール・slot プールから TimerFact 集合を生成する。id は一意、各 Timer のスロットは 1〜2 個
  * （多スロット Timer を踏む）。**集合内の重なりは許す**——複数主張者を作るために必要である。
  */
-function genFacts(idPool: readonly string[], slotPool: readonly string[]): fc.Arbitrary<readonly TimerFact[]> {
+function genFacts(
+  idPool: readonly string[],
+  slotPool: readonly string[],
+): fc.Arbitrary<readonly TimerFact[]> {
   const genFact: fc.Arbitrary<TimerFact> = fc.record({
     id: fc.constant(""), // id は下で一意プールから差し込む
-    slotIds: fc.uniqueArray(fc.constantFrom(...slotPool), { minLength: 1, maxLength: 2 }).map(nonEmpty),
+    slotIds: fc
+      .uniqueArray(fc.constantFrom(...slotPool), { minLength: 1, maxLength: 2 })
+      .map(nonEmpty),
     noodleType: fc.constantFrom(...NOODLE_POOL),
     firmness: fc.constantFrom(...FIRMNESS_POOL),
     startTime: fc.integer({ min: ANCHOR - 10_000, max: ANCHOR }),
@@ -79,7 +91,9 @@ function genFacts(idPool: readonly string[], slotPool: readonly string[]): fc.Ar
 }
 
 /** 既存の直前結果（残滓）。占有 / 非占有どちらのスロットにも載りうる。 */
-const genLastResults: fc.Arbitrary<ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>> = fc
+const genLastResults: fc.Arbitrary<
+  ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>
+> = fc
   .array(
     fc.record({
       slot: fc.constantFrom(...SLOT_POOL),
@@ -107,7 +121,10 @@ interface Scene {
  * 場面を生成する。server 側と local 側で別々の slot プールを与えられる——同一プールを渡せば争いが起き、
  * 互いに素なプールを渡せば争いが起きない（Property 6 の前提をこの引数で表明する）。
  */
-function genScene(serverSlotPool: readonly string[], localSlotPool: readonly string[]): fc.Arbitrary<Scene> {
+function genScene(
+  serverSlotPool: readonly string[],
+  localSlotPool: readonly string[],
+): fc.Arbitrary<Scene> {
   return fc
     .record({
       prevServer: genFacts(SERVER_ID_POOL, serverSlotPool),
@@ -202,7 +219,10 @@ function claimsBySlot(timers: readonly ClientTimer[]): ReadonlyMap<string, SlotC
  * 解決前の集合 ＝ 全置換した server-confirmed ＋ 保持 provisional（design.md の (a)）。
  * 順序も含めて写す——Property 3 / 6 は結果の順序まで主張するため、比較の基準が要る。
  */
-function beforeResolution(view: ClientView, serverTimers: readonly TimerFact[]): readonly ClientTimer[] {
+function beforeResolution(
+  view: ClientView,
+  serverTimers: readonly TimerFact[],
+): readonly ClientTimer[] {
   return [
     ...serverTimers.map((t) => ({ ...t, origin: "server" as const })),
     ...view.timers.filter((t) => t.origin === "local"),
@@ -309,7 +329,10 @@ describe("client/connection reconcileServerConfirmed — degraded-slot-superimpo
         for (const [slotId, claim] of beforeClaims) {
           rowsSeen.add(rowOf(claim, correctedNowMs));
           const occupants = [...claim.server, ...claim.local];
-          if (claim.server.length + claim.local.length > 1 && (claim.server.length > 1 || claim.local.length > 1)) {
+          if (
+            claim.server.length + claim.local.length > 1 &&
+            (claim.server.length > 1 || claim.local.length > 1)
+          ) {
             sawMultipleClaimants = true;
             if (claim.local.length === 0) sawServerOnlyOverlap = true;
           }
@@ -335,7 +358,8 @@ describe("client/connection reconcileServerConfirmed — degraded-slot-superimpo
         // (4) 限界 4 — server 起源同士の争いは規則の外にある。反対起源と 1 スロットも共有しない server 起源
         //     Timer は決して落ちない（server 側が server 側を落とすことはない）。
         const localSlots = new Set<string>();
-        for (const timer of before) if (timer.origin === "local") for (const slotId of timer.slotIds) localSlots.add(slotId);
+        for (const timer of before)
+          if (timer.origin === "local") for (const slotId of timer.slotIds) localSlots.add(slotId);
         const survivingIds = new Set(idsOf(result.timers));
         for (const timer of before) {
           if (timer.origin !== "server") continue;
@@ -380,7 +404,8 @@ describe("client/connection reconcileServerConfirmed — degraded-slot-superimpo
 
         // 占有スロット集合 ＝ 新 serverTimers のスロット ∪ 保持 provisional のスロット（(c) と同一定義）。
         const occupied = new Set<string>(serverSlots);
-        for (const timer of view.timers) if (timer.origin === "local") for (const slotId of timer.slotIds) occupied.add(slotId);
+        for (const timer of view.timers)
+          if (timer.origin === "local") for (const slotId of timer.slotIds) occupied.add(slotId);
         const newIds = new Set(serverTimers.map((t) => t.id));
 
         // (2) lastResults — 既存の残滓の規律がそのまま立つ。占有スロットに残滓は無く、消えた直前 server の
@@ -408,7 +433,9 @@ describe("client/connection reconcileServerConfirmed — degraded-slot-superimpo
         //     争いが無いので解決前と解決後の集合は一致し、この結果は解決なしの計算と等しい。
         const retainedIds = new Set(newIds);
         for (const timer of view.timers) if (timer.origin === "local") retainedIds.add(timer.id);
-        expect([...result.processedIds].sort()).toEqual([...view.processedIds].filter((id) => retainedIds.has(id)).sort());
+        expect([...result.processedIds].sort()).toEqual(
+          [...view.processedIds].filter((id) => retainedIds.has(id)).sort(),
+        );
       }),
       { numRuns: NUM_RUNS },
     );

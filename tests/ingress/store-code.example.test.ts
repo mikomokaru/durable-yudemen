@@ -17,7 +17,8 @@ function record(storeId: unknown, sequenceNumber: string): ArrivalRecord {
   };
 }
 
-const seqs = (records: readonly ArrivalRecord[]): readonly string[] => records.map((r) => r.sequenceNumber);
+const seqs = (records: readonly ArrivalRecord[]): readonly string[] =>
+  records.map((r) => r.sequenceNumber);
 
 describe("ingress/store-code — groupByStoreCode", () => {
   it("複数店舗が混在するバッチを店舗ごとの組へ畳む（AC 5.1）", () => {

@@ -17,7 +17,12 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { ArrivalRecord } from "../../src/ingress/batch";
 import { ARRIVAL_WINDOW_MS } from "../../src/ingress/arrival-window";
-import { KNOWN_RECORD_PATHS, toRecordOutcome, type PoisonReason, type RecordOutcome } from "../../src/ingress/outcome";
+import {
+  KNOWN_RECORD_PATHS,
+  toRecordOutcome,
+  type PoisonReason,
+  type RecordOutcome,
+} from "../../src/ingress/outcome";
 import { toUniqueKey } from "../../src/ingress/unique-key";
 
 /** 4 つの構造を通った Record（分類の `order` が運ぶ形）。 */
@@ -29,7 +34,9 @@ const genArrivalRecord: fc.Arbitrary<ArrivalRecord> = fc.record({
 });
 
 /** seq を取り出せない Record が実在するため optional。exactOptionalPropertyTypes ゆえ省略で表す。 */
-const genMaybeSequenceNumber = fc.option(fc.string({ minLength: 1, maxLength: 56 }), { nil: undefined });
+const genMaybeSequenceNumber = fc.option(fc.string({ minLength: 1, maxLength: 56 }), {
+  nil: undefined,
+});
 
 const genPoisonReason: fc.Arbitrary<PoisonReason> = fc.constantFrom(
   "path-missing",
@@ -39,7 +46,11 @@ const genPoisonReason: fc.Arbitrary<PoisonReason> = fc.constantFrom(
 );
 
 const genOutcome: fc.Arbitrary<RecordOutcome> = fc.oneof(
-  fc.record({ kind: fc.constant("order" as const), record: genArrivalRecord, uniqueKey: fc.string() }),
+  fc.record({
+    kind: fc.constant("order" as const),
+    record: genArrivalRecord,
+    uniqueKey: fc.string(),
+  }),
   genMaybeSequenceNumber.map((seq) => attachSequenceNumber({ kind: "status" as const }, seq)),
   genMaybeSequenceNumber.map((seq) => attachSequenceNumber({ kind: "unknown-path" as const }, seq)),
   fc
@@ -136,7 +147,8 @@ const NOW = 1_755_460_339_000;
 /** Unique_Key を成す 4 要素。分類の最後の段（`order` か `unique-key-incomplete` か）を分ける。 */
 const UNIQUE_KEY_FIELDS = ["store_id", "terminal_id", "bill_no", "datetime"] as const;
 
-const isExtraKey = (key: string): boolean => !(UNIQUE_KEY_FIELDS as readonly string[]).includes(key);
+const isExtraKey = (key: string): boolean =>
+  !(UNIQUE_KEY_FIELDS as readonly string[]).includes(key);
 
 /** 分類の期待値を添えた生値。**構成から期待値が定まる形で作る**（実装を呼び直して導かない）。 */
 interface OutcomeScene {
@@ -214,7 +226,9 @@ const genOutOfWindow = fc.oneof(
 const genSequenceNumber = fc.string({ minLength: 1, maxLength: 56 });
 
 const genKnownPath = fc.constantFrom("/lio/order", "/lio/status");
-const genUnknownPath = fc.string({ minLength: 1, maxLength: 20 }).filter((path) => !KNOWN_RECORD_PATHS.has(path));
+const genUnknownPath = fc
+  .string({ minLength: 1, maxLength: 20 })
+  .filter((path) => !KNOWN_RECORD_PATHS.has(path));
 const genAnyPath = fc.oneof(genKnownPath, genUnknownPath);
 
 /** 4 構造を満たす生値（ワイヤのキー名は上流の snake_case）。 */
@@ -224,13 +238,21 @@ function wellFormed(
   arrivalTimestampMs: number,
   sequenceNumber: string,
 ): Record<string, unknown> {
-  return { path, payload, arrival_timestamp_ms: arrivalTimestampMs, sequence_number: sequenceNumber };
+  return {
+    path,
+    payload,
+    arrival_timestamp_ms: arrivalTimestampMs,
+    sequence_number: sequenceNumber,
+  };
 }
 
 /** Order_Path・窓内・4 要素揃い → `order`。 */
 const genOrderScene: fc.Arbitrary<OutcomeScene> = fc
   .tuple(genCompletePayload, genInWindow, genSequenceNumber)
-  .map(([payload, arrival, seq]) => ({ raw: wellFormed("/lio/order", payload, arrival, seq), kind: "order" as const }));
+  .map(([payload, arrival, seq]) => ({
+    raw: wellFormed("/lio/order", payload, arrival, seq),
+    kind: "order" as const,
+  }));
 
 /** Order_Path・窓内・4 要素のいずれかが読めない → `unique-key-incomplete` の毒。 */
 const genUniqueKeyIncompleteScene: fc.Arbitrary<OutcomeScene> = fc
@@ -247,11 +269,19 @@ const genUniqueKeyIncompleteScene: fc.Arbitrary<OutcomeScene> = fc
  */
 const genStatusScene: fc.Arbitrary<OutcomeScene> = fc
   .tuple(fc.oneof(genCompletePayload, genExtraFields), genInWindow, genSequenceNumber)
-  .map(([payload, arrival, seq]) => ({ raw: wellFormed("/lio/status", payload, arrival, seq), kind: "status" as const }));
+  .map(([payload, arrival, seq]) => ({
+    raw: wellFormed("/lio/status", payload, arrival, seq),
+    kind: "status" as const,
+  }));
 
 /** 既知 2 値の外の `path`・窓内 → `unknown-path`（Unique_Key の可否に依らない）。 */
 const genUnknownPathScene: fc.Arbitrary<OutcomeScene> = fc
-  .tuple(genUnknownPath, fc.oneof(genCompletePayload, genExtraFields), genInWindow, genSequenceNumber)
+  .tuple(
+    genUnknownPath,
+    fc.oneof(genCompletePayload, genExtraFields),
+    genInWindow,
+    genSequenceNumber,
+  )
   .map(([path, payload, arrival, seq]) => ({
     raw: wellFormed(path, payload, arrival, seq),
     kind: "unknown-path" as const,
@@ -275,11 +305,29 @@ const genBrokenStructureScene: fc.Arbitrary<OutcomeScene> = fc
     const base = wellFormed(path, payload, arrival, seq);
     return fc.oneof(
       fc
-        .constantFrom<Breaker>(omit("path"), replace("path", ""), replace("path", 1), replace("path", null))
-        .map((breaker) => ({ raw: breaker(base), kind: "poison" as const, reason: "path-missing" as const })),
+        .constantFrom<Breaker>(
+          omit("path"),
+          replace("path", ""),
+          replace("path", 1),
+          replace("path", null),
+        )
+        .map((breaker) => ({
+          raw: breaker(base),
+          kind: "poison" as const,
+          reason: "path-missing" as const,
+        })),
       fc
-        .constantFrom<Breaker>(omit("payload"), replace("payload", []), replace("payload", null), replace("payload", "x"))
-        .map((breaker) => ({ raw: breaker(base), kind: "poison" as const, reason: "payload-missing" as const })),
+        .constantFrom<Breaker>(
+          omit("payload"),
+          replace("payload", []),
+          replace("payload", null),
+          replace("payload", "x"),
+        )
+        .map((breaker) => ({
+          raw: breaker(base),
+          kind: "poison" as const,
+          reason: "payload-missing" as const,
+        })),
       // 上流の契約違反（Upstream_Contract は型を保証する）。毒にすれば上流のバグでデータが静かに消える。
       fc
         .constantFrom<Breaker>(
@@ -297,7 +345,11 @@ const genBrokenStructureScene: fc.Arbitrary<OutcomeScene> = fc
           replace("sequence_number", 1),
           replace("sequence_number", null),
         )
-        .map((breaker) => ({ raw: breaker(base), kind: "poison" as const, reason: "sequence-number-missing" as const })),
+        .map((breaker) => ({
+          raw: breaker(base),
+          kind: "poison" as const,
+          reason: "sequence-number-missing" as const,
+        })),
     );
   });
 
@@ -417,15 +469,22 @@ describe("ingress/outcome — 素通しは payload に閉じる", () => {
   // **Validates: Requirements 14.2, 14.3, 14.4, 14.6**
   it("Property 2: payload へ未知フィールド・型違い・想定外の値を混ぜても分類が変わらない", () => {
     fc.assert(
-      fc.property(genScene, fc.string({ maxLength: 8 }).filter(isExtraKey), fc.anything(), ({ raw }, key, value) => {
-        const mixed = mixIntoPayload(raw, key, value);
-        if (mixed === null) return;
-        const before = toRecordOutcome(raw, NOW);
-        const after = toRecordOutcome(mixed, NOW);
-        expect(after.kind).toBe(before.kind);
-        if (before.kind === "poison" && after.kind === "poison") expect(after.reason).toBe(before.reason);
-        if (before.kind === "order" && after.kind === "order") expect(after.uniqueKey).toBe(before.uniqueKey);
-      }),
+      fc.property(
+        genScene,
+        fc.string({ maxLength: 8 }).filter(isExtraKey),
+        fc.anything(),
+        ({ raw }, key, value) => {
+          const mixed = mixIntoPayload(raw, key, value);
+          if (mixed === null) return;
+          const before = toRecordOutcome(raw, NOW);
+          const after = toRecordOutcome(mixed, NOW);
+          expect(after.kind).toBe(before.kind);
+          if (before.kind === "poison" && after.kind === "poison")
+            expect(after.reason).toBe(before.reason);
+          if (before.kind === "order" && after.kind === "order")
+            expect(after.uniqueKey).toBe(before.uniqueKey);
+        },
+      ),
       { numRuns: 1000 },
     );
   });

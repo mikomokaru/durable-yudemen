@@ -105,6 +105,10 @@ function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null
   const now = Date.now() as EpochMillis;
   // 置ける場所の全体＝ユニット数 × ユニットあたりの slot 数。ユニット原点の数が unitCount を表す
   // （domain/store.ts の合成座標の規約）。
-  const release = initialRelease(request.running, now, request.params.unitOrigins.length * SLOTS_PER_UNIT);
+  const release = initialRelease(
+    request.running,
+    now,
+    request.params.unitOrigins.length * SLOTS_PER_UNIT,
+  );
   return baselineSchedule(request.pending, release, request.noodlePresets, request.params);
 }

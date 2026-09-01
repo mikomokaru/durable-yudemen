@@ -46,7 +46,10 @@ import {
 
 /** `--` 行コメントを除いた SQL 本文。コメント中の数で判定しないため。 */
 const activeSql = (sql: string): string =>
-  sql.split("\n").filter((line) => !line.trimStart().startsWith("--")).join("\n");
+  sql
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n");
 
 const sloStatements = activeSql(sloSql);
 const retentionStatements = activeSql(retentionSql);
@@ -58,7 +61,10 @@ const number = (pattern: RegExp, text: string): number => {
 
 // 06 が持つ判定値。
 const fifteenMinutes = number(/BETWEEN 0 AND (\d+)/, sloStatements);
-const fiveMinutes = number(/DATEADD\(MILLISECOND, (\d+), TRANSITION\.TRANSITIONED_AT\)/, sloStatements);
+const fiveMinutes = number(
+  /DATEADD\(MILLISECOND, (\d+), TRANSITION\.TRANSITIONED_AT\)/,
+  sloStatements,
+);
 const [warningOffset, criticalOffset] = (() => {
   const found = /IFF\(KIND\.NOTIFICATION_KIND = 'warning', (\d+), (\d+)\)/.exec(sloStatements);
   expect(found).not.toBeNull();
@@ -67,7 +73,10 @@ const [warningOffset, criticalOffset] = (() => {
 // 07 が持つ判定値。R2 の 90 日と Snowflake の 25 暦月は起点も実行主体も違うが、削除完了までの 24 時間は
 // 要件 6.7 / 6.8 が同じ値を要求する（retention-procedure.md も両方をこの窓で確認する）。
 const retentionMonths = number(/DATEADD\(MONTH, (\d+), DATE_TRUNC\('MONTH'/, retentionStatements);
-const deleteWithinHours = number(/DATEADD\(HOUR, (\d+), RETENTION_EXPIRES_AT\)/, retentionStatements);
+const deleteWithinHours = number(
+  /DATEADD\(HOUR, (\d+), RETENTION_EXPIRES_AT\)/,
+  retentionStatements,
+);
 // R2 lifecycle が持つ判定値。
 const lifecycle = JSON.parse(lifecycleJson) as {
   readonly rules: readonly {
@@ -88,7 +97,10 @@ const EMPTY_MONTH = "2023-10";
 const TEN_MINUTES = 10 * 60_000;
 
 const started = producerTimer("started", null, 0);
-const boiling = { running: producerTimer("boiling", null, 1), boiled: producerTimer("boiling", BOILED_AT, 1) };
+const boiling = {
+  running: producerTimer("boiling", null, 1),
+  boiled: producerTimer("boiling", BOILED_AT, 1),
+};
 const pendingTimer = producerTimer("pending", BOILED_AT, 2);
 
 const observations: readonly OperationObservation[] = [
@@ -144,7 +156,10 @@ async function staged(): Promise<Staged> {
     // 二件目（boiled）だけが二度観測された。
     tailEvent(
       PRODUCER_SCRIPT,
-      [lines[0]!, lines[1]!, lines[1]!, lines[2]!].map((line) => ({ level: "log", message: [line] })),
+      [lines[0]!, lines[1]!, lines[1]!, lines[2]!].map((line) => ({
+        level: "log",
+        message: [line],
+      })),
     ),
   ]);
   const objectKeys = [...pipeline.stored.keys()];
@@ -179,7 +194,9 @@ function expiredSnowflakeArrivals(
     const known = firstArrival.get(arrival.canonicalLine);
     firstArrival.set(
       arrival.canonicalLine,
-      known === undefined ? arrival.snowflakeArrivedAt : Math.min(known, arrival.snowflakeArrivedAt),
+      known === undefined
+        ? arrival.snowflakeArrivedAt
+        : Math.min(known, arrival.snowflakeArrivedAt),
     );
   }
 
@@ -216,7 +233,10 @@ describe("UTC 暦月の到達 SLO", () => {
     const duplicated = fixture.arrivals.filter((arrival) => arrival.canonicalLine === boiledLine);
 
     // 二到達の初回観測時刻は同じ（同じ Tail 観測）、取込時刻は別である。
-    expect(duplicated.map((arrival) => arrival.firstObservedAt)).toEqual([OBSERVED_AT, OBSERVED_AT]);
+    expect(duplicated.map((arrival) => arrival.firstObservedAt)).toEqual([
+      OBSERVED_AT,
+      OBSERVED_AT,
+    ]);
     expect(duplicated.map((arrival) => arrival.snowflakeArrivedAt)).toEqual([
       OBSERVED_AT + fifteenMinutes + 1,
       OBSERVED_AT + TEN_MINUTES,
@@ -275,15 +295,17 @@ describe("UTC 暦月の到達 SLO", () => {
 
 // Requirements 6.5, 6.6
 describe("未到達最古 record の 30／60 分通知", () => {
-  const transition = (now: number, previousBand?: Parameters<
-    typeof snowflakeArrivalNotificationTransition
-  >[0]["previousBand"]) =>
+  const transition = (
+    now: number,
+    previousBand?: Parameters<typeof snowflakeArrivalNotificationTransition>[0]["previousBand"],
+  ) =>
     atClock(now, (clock) =>
       snowflakeArrivalNotificationTransition(
         previousBand === undefined
           ? { arrivals: observedArrivals(fixture.arrivals), now: clock }
           : { arrivals: observedArrivals(fixture.arrivals), now: clock, previousBand },
-      ));
+      ),
+    );
 
   it("30 分帯への遷移で警告を一回、相関属性と 5 分期限つきで出す", () => {
     const before = transition(OBSERVED_AT + warningOffset - 1);
@@ -304,7 +326,10 @@ describe("未到達最古 record の 30／60 分通知", () => {
       withinFiveMinuteWindow: true,
     });
     // 未到達なのは取込しなかった一件だけである（重複のいずれかが取込済みの record は未到達でない）。
-    expect(warning.oldestPending).toMatchObject({ timerId: "pending", firstObservedAt: OBSERVED_AT });
+    expect(warning.oldestPending).toMatchObject({
+      timerId: "pending",
+      firstObservedAt: OBSERVED_AT,
+    });
   });
 
   it("同じ帯が続く間は通知せず、60 分帯への遷移で重大通知を一回出す", () => {
@@ -338,13 +363,15 @@ describe("R2 の 90 日保持", () => {
 
   it("保存成功から 90 日に達するまで削除は 0 件で、達した時点で全 object が対象になる", () => {
     const deletionStartsAt = OBSERVED_AT + objectMaxAge;
-    const expired = (now: number) => atClock(now, (clock) => expiredObjects(fixture.arrivals, clock));
+    const expired = (now: number) =>
+      atClock(now, (clock) => expiredObjects(fixture.arrivals, clock));
 
     expect(expired(deletionStartsAt - 1)).toEqual([]);
     expect(expired(deletionStartsAt)).toHaveLength(4);
     // 未取込の object も R2 側の期限では同じに扱われる（取込の有無は R2 の述語に入らない）。
-    expect(expired(deletionStartsAt).filter((arrival) => arrival.snowflakeArrivedAt === null))
-      .toHaveLength(1);
+    expect(
+      expired(deletionStartsAt).filter((arrival) => arrival.snowflakeArrivedAt === null),
+    ).toHaveLength(1);
     // 削除完了の期限は開始から 24 時間であり、その窓の間ずっと対象のままである（毎時の再試行が届く）。
     expect(deleteWithinHours * 3_600_000).toBe(24 * 3_600_000);
     expect(expired(deletionStartsAt + deleteWithinHours * 3_600_000)).toHaveLength(4);
@@ -365,8 +392,9 @@ describe("Snowflake の 25 UTC 暦月保持", () => {
     // 期限の 1ms 前は一件も削除対象にならず、品質判定の根拠 raw（重複の二到達）も残っている。
     expect(retained).toHaveLength(4);
     expect(quality.rawArrivals).toHaveLength(4);
-    expect(quality.convergedRecords.reduce((total, { duplicateCount }) => total + duplicateCount, 0))
-      .toBe(1);
+    expect(
+      quality.convergedRecords.reduce((total, { duplicateCount }) => total + duplicateCount, 0),
+    ).toBe(1);
   });
 
   it("期限に達した record は全到達行が対象になり、未取込 record は対象にならない", () => {
@@ -377,7 +405,9 @@ describe("Snowflake の 25 UTC 暦月保持", () => {
 
     // 取込済みの三行（うち二行は同じ record の重複到達）が一度に対象になる。
     expect(expired(expiresAt)).toHaveLength(3);
-    expect(expired(expiresAt).filter((arrival) => arrival.canonicalLine === boiledLine)).toHaveLength(2);
+    expect(
+      expired(expiresAt).filter((arrival) => arrival.canonicalLine === boiledLine),
+    ).toHaveLength(2);
     // 未取込の一件は Snowflake に行が無いため、Snowflake 側の期限では選ばれない。
     expect(expired(expiresAt).every((arrival) => arrival.snowflakeArrivedAt !== null)).toBe(true);
     // 削除完了までの 24 時間、対象のままである（毎時の task が窓の中で再試行できる）。

@@ -254,7 +254,9 @@ describe("(a) src/engine・src/domain の Timer 契約が不変（要件9.1 / 9.
 
   it("StoreConfig 型と検証関数（to*）が存置される（再利用・要件9.2）", () => {
     const code = readBareCode(STORE_FILE);
-    expect(code, `${STORE_FILE} に StoreConfig の宣言が無い`).toMatch(/\binterface\s+StoreConfig\b/);
+    expect(code, `${STORE_FILE} に StoreConfig の宣言が無い`).toMatch(
+      /\binterface\s+StoreConfig\b/,
+    );
     for (const validator of ["toUnitCount", "toArms", "toToleranceRatio", "toNoodlePresets"]) {
       expect(code, `${STORE_FILE} で検証関数 ${validator} が存置されていない`).toMatch(
         new RegExp(`\\bexport\\s+function\\s+${validator}\\b`),
@@ -321,9 +323,10 @@ describe("(c) StoreProjection・StoreTimerDO の永続・ワイヤに chain / po
 
   it("StoreTimerDO の実コードに chain / policy / priority が現れない", () => {
     const code = readBareCode(STORE_TIMER_DO_FILE);
-    expect(code, `${STORE_TIMER_DO_FILE} に階層概念（chain/policy/priority）が漏れている`).not.toMatch(
-      /\b(?:chain|policy|priority)\b/i,
-    );
+    expect(
+      code,
+      `${STORE_TIMER_DO_FILE} に階層概念（chain/policy/priority）が漏れている`,
+    ).not.toMatch(/\b(?:chain|policy|priority)\b/i);
   });
 });
 
@@ -334,9 +337,10 @@ describe("(d) DEFAULT_STORE_ID・STORE_* シードがコードに不在（要件
     for (const file of ALL_SRC_FILES) {
       const code = readBareCode(file);
       for (const token of FORBIDDEN_SEED_TOKENS) {
-        expect(code, `${file} に撤去済みシードトークン ${token} が実コードとして現れる`).not.toContain(
-          token,
-        );
+        expect(
+          code,
+          `${file} に撤去済みシードトークン ${token} が実コードとして現れる`,
+        ).not.toContain(token);
       }
     }
   });
@@ -363,7 +367,9 @@ describe("(f) src/registry/ が cloudflare:workers・storage を import しな�
   it("src/registry/ の全ファイルが cloudflare:workers を import しない", () => {
     for (const file of REGISTRY_FILES) {
       const code = readBareCode(file);
-      expect(code, `${file} が cloudflare:workers に依存している`).not.toMatch(/cloudflare:workers/);
+      expect(code, `${file} が cloudflare:workers に依存している`).not.toMatch(
+        /cloudflare:workers/,
+      );
     }
   });
 
