@@ -39,7 +39,9 @@ whereami IdP 側の設計確定により、本 spec の前提を次のとおり�
 
 - **PWA / Service_Worker への言及が本 spec の要件群に 1 つも無い。** Access がセッション不在の要求へ返す 302 は、インストール済み PWA では Service_Worker のナビゲーション解決（キャッシュ済み App_Shell へのフォールバック）に飲まれてブラウザへ渡らず、ログイン画面が出る機会が構造的に消える。認証境界と Service_Worker の相互作用は本 spec で扱われていない（当該 spec の要件 5 が client 側からこれを塞ぐ）。
 - **保護対象経路への追加候補 `/entry/signin/{storeId}`。** 当該 spec は認証を経て店舗画面へ導く通し口 `/entry/signin/{storeId}` を Worker に足した。実測で `timer-dev` の Access_Application は**ホスト全体**を保護しているため、新パスは自動的に保護下に入り、現時点で Access 側の構成変更は不要である。将来、保護をホスト全体からパス指定へ移す場合は、`docs/access-enablement/access-application-config-checklist.md` §1-2（認証対象に含める経路）へ当該パスを加える必要がある。
-- **`/pos/records` の bypass が同チェックリスト §1-3 に未記載である。** §1-3 が列挙する除外経路は `/admin/*` と既存の静的アセット経路（例: `/favicon.svg`）の 2 つだけである（確認済み）。`POST /pos/records`（`src/worker.ts` の `POS_RECORDS_PATH`・pos-order-ingress 由来）は `ORDER_INGRESS_TOKEN` の別系統認可を持つ機械向け経路であり、`/admin/*` と同じ理由で bypass 対象になる見込みだが、チェックリストにも要件 2.3 / 2.4 にも現れていない。ホスト全体保護のもとでは上流の取り込みがログイン誘導を受けうる。
+- **`/pos/records` の bypass。** `POST /pos/records`（`src/worker.ts` の `POS_RECORDS_PATH`・pos-order-ingress 由来）は `ORDER_INGRESS_TOKEN` の別系統認可を持つ機械向け経路であり、`/admin/*` と同じ理由で bypass 対象である。ホスト全体保護のもとでは上流の取り込みがログイン誘導（302）を受け、ブラウザセッションを持たない POS では取り込みがそのまま止まる。
+  - **運用ドキュメントと実構成には反映済み（2026-09-01）。** `docs/access-enablement/access-application-config-checklist.md` §1-3 の除外経路へ `/pos/records` を追加し、§1-1・§2-1・§2-3 と `production-cutover-preconditions.md` 前提条件 (d) も併せて更新した。実際の Access 構成も `/pos/records`・`/admin/*`・`/favicon.svg` を 1 つの bypass 用アプリへまとめ、全員 Bypass を割り当てて当該 3 経路の 302 が消えたことを実測で確認した（`/`・`/entry/stores`・`/s/{storeId}/` の保護は維持）。
+  - **要件本文は書き換えていない。** Requirement 2.1 が列挙する認証対象外経路は `/admin/*`・ヘルスチェックのままであり、`/pos/records` は Requirement 2.3 / 2.4 にも現れていない。要件へ織り込むかは本 spec の持ち物である。
 
 ### スコープ外（重複・越境の回避）
 
