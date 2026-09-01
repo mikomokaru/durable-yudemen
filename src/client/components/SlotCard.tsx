@@ -324,6 +324,12 @@ export function SlotCard({ display, onStart, onCancel, onComplete, lastResultNoo
   return (
     <article
       aria-label={`Slot ${slot}`}
+      // 起源（Provisional_Timer か server-confirmed か）は事実である。事実を描画の側で落とす理由がないので
+      // DOM に残す。だが画面には出さない——確定させる操作が UI に無く（サーバへの書き戻しはスコープ外）、
+      // クロスデバイスの二重起動も受容済みゆえ、この区別は厨房スタッフの行動を一切変えない。行動を変えない
+      // 差異を見た目に出せば、現場の注意を無為に奪う。ゆえに running の見た目は server-confirmed と同一に保つ。
+      // 値は "true" / "false" を書く：属性の有無で表すと「確定済み」と「そもそも走行中でない」が区別できない。
+      data-unconfirmed={display.kind === "running" ? String(display.unconfirmed) : undefined}
       // --glow に麺色を注入し、boiled のグロー点滅（animate-boiled）を麺のキャラクター色で明滅させる。
       // 枠線（borderColor）は緊急度を示す：warn（残り1分以内）/ danger（ゆであがり）。
       style={{ backgroundColor: stateBg, borderColor: stateBorder, "--glow": tint } as CSSProperties}
