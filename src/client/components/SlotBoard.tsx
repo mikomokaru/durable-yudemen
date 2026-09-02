@@ -13,10 +13,11 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { TimerConnection } from "../connection";
+import { isNonEmpty } from "../../domain/timer";
 import { assignedSlotDisplays } from "./slotDisplay";
 import { orderQueueEntries } from "./queueDisplay";
 import { SlotCard } from "./SlotCard";
-import { OrderQueue } from "./OrderQueue";
+import { OrderRail } from "./OrderRail";
 import { RadialMenu } from "./RadialMenu";
 import { noodleColors } from "./noodleColor";
 
@@ -68,6 +69,9 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   // 待ち行列も同じ規律で毎描画導出する（到着順の並び・待ち時間・担当範囲内の提案）。
   // 件数は絞らない——計画対象の上限を超える分も並び、提案が付かないだけである。
   const queue = orderQueueEntries(view, units, now);
+  // レールを描くかは 1 箇所でだけ判定する。非空なら型が NonEmptyArray<QueueEntry> へ絞られ、
+  // そのまま OrderRail の props を満たす（0 件のレールは構築不能）。
+  const waiting = isNonEmpty(queue) ? queue : null;
   // ラジアルメニューの開閉。ボード内で一つだけ持ち、RadialMenu も一つだけ描画する。
   const [picker, setPicker] = useState<PickerAnchor | null>(null);
   // 麺色の resolver。メニュー順に重複なく色を割り当てる（config 受信時のみ再構築・毎ティックでは作り直さない）。
@@ -92,76 +96,83 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
           {view.error.message}
         </p>
       )}
-      {/* 待ち行列と提案の帯。未着手オーダーが無い店（POS 連携前）では何も描かれず、盤面は従来のままになる。 */}
-      <OrderQueue
-        entries={queue}
-        noodleColor={colorOf}
-        onStart={(order, suggestion) => {
-          // 提案から開始する経路。注文品目を添えてサーバに待ち行列から除く手がかりを渡す（AC 8.3 / 8.4）。
-          // 提案と異なる開始（スロットのラジアル）は従来どおり注文品目を持たずに通る。
-          connection.start(suggestion.slotIds, order.noodleType, suggestion.boilSeconds, {
-            externalOrderId: order.externalOrderId,
-            itemIndex: order.itemIndex,
-          });
-          playTouchCue();
-        }}
-      />
-      {/* ユニットごとに 2col×3row のブロックを作り、ユニットを横並び（縦画面=1ユニットは単独ブロック、
-          横画面=2ユニットは左右に並ぶ）。外枠 grid-flow-col + auto-cols-fr が各ユニットを等幅の列にする。 */}
-      <div className="grid min-h-0 flex-1 auto-cols-fr grid-flow-col gap-[clamp(0.75rem,1.8vw,1.375rem)]">
-        {[...units]
-          .sort((a, b) => a - b)
-          .map((unit) => (
-            <div
-              key={unit}
-              className="grid min-h-0 auto-rows-fr grid-cols-2 gap-[clamp(0.5rem,1.2vw,0.875rem)]"
-            >
-              {displays
-                .filter((display) => Math.floor(display.slot / 6) === unit)
-                .map((display) => {
-                  // 直前結果は idle スロットにのみ、記録から LAST_RESULT_TTL_MS の間だけ提示する（要件13.5）。
-                  const recorded =
-                    display.kind === "idle"
-                      ? view.lastResults.get(String(display.slot))
-                      : undefined;
-                  const lastResultNoodle =
-                    recorded && now - recorded.at < LAST_RESULT_TTL_MS
-                      ? recorded.noodleType
-                      : undefined;
-                  return (
-                    <SlotCard
-                      key={display.slot}
-                      display={display}
-                      onStart={(slot, center) => {
-                        // Start ボタン押下（ラジアルを開く操作）にも Touch_Cue を相乗りさせる。開く動作は変えない
-                        // （best-effort・no-op しうる・要件1.1/1.4/1.5）。麺選択確定時にも別途鳴る（タップごとの反応）。
-                        setPicker({ slot, ...center });
-                        playTouchCue();
-                      }}
-                      onCancel={(timerId) => {
-                        // 指定操作（Cancel）に Touch_Cue を相乗りさせる。再生は副作用として加えるだけで、
-                        // 本来のキャンセル動作は変えない（best-effort・no-op しうる・要件1.4/1.5）。
-                        connection.cancel(timerId);
-                        playTouchCue();
-                      }}
-                      onComplete={(_slot, timer) => {
-                        // 指定操作（Complete＝消し込み）に Touch_Cue を相乗りさせる。
-                        connection.complete(timer.id);
-                        playTouchCue();
-                      }}
-                      lastResultNoodle={lastResultNoodle}
-                      noodleColor={colorOf}
-                      onAdjust={(timerId, firmness) => {
-                        // 茹で加減変更（指定操作）にも Touch_Cue を相乗りさせる。サーバへの adjust 本体は変えない
-                        // （best-effort・no-op しうる・要件1.4/1.5）。
-                        connection.adjust(timerId, firmness);
-                        playTouchCue();
-                      }}
-                    />
-                  );
-                })}
-            </div>
-          ))}
+      {/* 下段: 左に待ちオーダーのレール、右に釜グリッド。既定の align-items: stretch で上下端が揃う。
+          gap は置かない——区切りはレール側の pr と border-r が作り、釜カードの幅を 1px も削らない。 */}
+      <div className="flex min-h-0 flex-1">
+        {/* 待ち行列と提案のレール。未着手オーダーが無い店（POS 連携前）では描かれず、盤面は従来のままになる。 */}
+        {waiting !== null && (
+          <OrderRail
+            entries={waiting}
+            noodleColor={colorOf}
+            onStart={(order, suggestion) => {
+              // 提案から開始する経路。注文品目を添えてサーバに待ち行列から除く手がかりを渡す（AC 8.3 / 8.4）。
+              // 提案と異なる開始（スロットのラジアル）は従来どおり注文品目を持たずに通る。
+              connection.start(suggestion.slotIds, order.noodleType, suggestion.boilSeconds, {
+                externalOrderId: order.externalOrderId,
+                itemIndex: order.itemIndex,
+              });
+              playTouchCue();
+            }}
+          />
+        )}
+        {/* ユニットごとに 2col×3row のブロックを作り、ユニットを横並び（縦画面=1ユニットは単独ブロック、
+            横画面=2ユニットは左右に並ぶ）。外枠 grid-flow-col + auto-cols-fr が各ユニットを等幅の列にする。
+            左 padding を持たない。Board_Area の幅の変化はこの flex-1 が吸収する（JS で寸法を測らない）。 */}
+        <div className="grid min-h-0 min-w-0 flex-1 auto-cols-fr grid-flow-col gap-[clamp(0.75rem,1.8vw,1.375rem)]">
+          {[...units]
+            .sort((a, b) => a - b)
+            .map((unit) => (
+              <div
+                key={unit}
+                className="grid min-h-0 auto-rows-fr grid-cols-2 gap-[clamp(0.5rem,1.2vw,0.875rem)]"
+              >
+                {displays
+                  .filter((display) => Math.floor(display.slot / 6) === unit)
+                  .map((display) => {
+                    // 直前結果は idle スロットにのみ、記録から LAST_RESULT_TTL_MS の間だけ提示する（要件13.5）。
+                    const recorded =
+                      display.kind === "idle"
+                        ? view.lastResults.get(String(display.slot))
+                        : undefined;
+                    const lastResultNoodle =
+                      recorded && now - recorded.at < LAST_RESULT_TTL_MS
+                        ? recorded.noodleType
+                        : undefined;
+                    return (
+                      <SlotCard
+                        key={display.slot}
+                        display={display}
+                        onStart={(slot, center) => {
+                          // Start ボタン押下（ラジアルを開く操作）にも Touch_Cue を相乗りさせる。開く動作は変えない
+                          // （best-effort・no-op しうる・要件1.1/1.4/1.5）。麺選択確定時にも別途鳴る（タップごとの反応）。
+                          setPicker({ slot, ...center });
+                          playTouchCue();
+                        }}
+                        onCancel={(timerId) => {
+                          // 指定操作（Cancel）に Touch_Cue を相乗りさせる。再生は副作用として加えるだけで、
+                          // 本来のキャンセル動作は変えない（best-effort・no-op しうる・要件1.4/1.5）。
+                          connection.cancel(timerId);
+                          playTouchCue();
+                        }}
+                        onComplete={(_slot, timer) => {
+                          // 指定操作（Complete＝消し込み）に Touch_Cue を相乗りさせる。
+                          connection.complete(timer.id);
+                          playTouchCue();
+                        }}
+                        lastResultNoodle={lastResultNoodle}
+                        noodleColor={colorOf}
+                        onAdjust={(timerId, firmness) => {
+                          // 茹で加減変更（指定操作）にも Touch_Cue を相乗りさせる。サーバへの adjust 本体は変えない
+                          // （best-effort・no-op しうる・要件1.4/1.5）。
+                          connection.adjust(timerId, firmness);
+                          playTouchCue();
+                        }}
+                      />
+                    );
+                  })}
+              </div>
+            ))}
+        </div>
       </div>
       <RadialMenu
         anchor={picker ? { x: picker.x, y: picker.y } : null}
