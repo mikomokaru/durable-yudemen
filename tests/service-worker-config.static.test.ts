@@ -60,7 +60,10 @@ function vitePwaOptions(): ts.ObjectLiteralExpression {
 function property(object: ts.ObjectLiteralExpression, name: string): ts.Expression | undefined {
   for (const member of object.properties) {
     if (!ts.isPropertyAssignment(member)) continue;
-    const key = ts.isIdentifier(member.name) || ts.isStringLiteralLike(member.name) ? member.name.text : undefined;
+    const key =
+      ts.isIdentifier(member.name) || ts.isStringLiteralLike(member.name)
+        ? member.name.text
+        : undefined;
     if (key === name) return member.initializer;
   }
   return undefined;
@@ -100,7 +103,8 @@ function toPattern(node: ts.Expression): ConfiguredPattern | undefined {
 }
 
 function patternsOf(array: ts.Expression, label: string): readonly ConfiguredPattern[] {
-  if (!ts.isArrayLiteralExpression(array)) throw new Error(`${PWA_CONFIG} の ${label} が配列リテラルでない`);
+  if (!ts.isArrayLiteralExpression(array))
+    throw new Error(`${PWA_CONFIG} の ${label} が配列リテラルでない`);
   return array.elements.map((element) => {
     const pattern = toPattern(element);
     if (pattern === undefined) {
@@ -112,7 +116,8 @@ function patternsOf(array: ts.Expression, label: string): readonly ConfiguredPat
 
 function navigateFallbackDenylist(): readonly ConfiguredPattern[] {
   const denylist = property(workboxOptions(), "navigateFallbackDenylist");
-  if (denylist === undefined) throw new Error(`${PWA_CONFIG} の workbox に navigateFallbackDenylist が無い`);
+  if (denylist === undefined)
+    throw new Error(`${PWA_CONFIG} の workbox に navigateFallbackDenylist が無い`);
   return patternsOf(denylist, "navigateFallbackDenylist");
 }
 
@@ -125,13 +130,17 @@ function runtimeCachingUrlPatterns(): readonly ConfiguredPattern[] {
   }
   return runtimeCaching.elements.map((rule) => {
     if (!ts.isObjectLiteralExpression(rule)) {
-      throw new Error(`${PWA_CONFIG} の runtimeCaching に静的に読めない規則がある: ${rule.getText()}`);
+      throw new Error(
+        `${PWA_CONFIG} の runtimeCaching に静的に読めない規則がある: ${rule.getText()}`,
+      );
     }
     const urlPattern = property(rule, "urlPattern");
     const pattern = urlPattern === undefined ? undefined : toPattern(urlPattern);
     if (pattern === undefined) {
       // 関数 urlPattern は静的に判定できない。読めないまま通せば `/entry/` を捉える規則を見落とす。
-      throw new Error(`${PWA_CONFIG} の runtimeCaching に静的に読めない urlPattern がある: ${rule.getText()}`);
+      throw new Error(
+        `${PWA_CONFIG} の runtimeCaching に静的に読めない urlPattern がある: ${rule.getText()}`,
+      );
     }
     return pattern;
   });
@@ -149,7 +158,12 @@ const EXCLUDED_NAVIGATIONS = [
 ] as const;
 
 /** 除外されてはならないナビゲーション経路。App_Shell のキャッシュ優先が縮退運用の土台である（要件 6.1）。 */
-const APP_SHELL_NAVIGATIONS = ["/", "/index.html", "/s/yamaokaya-1263/", "/s/yamaokaya-1263/settings"] as const;
+const APP_SHELL_NAVIGATIONS = [
+  "/",
+  "/index.html",
+  "/s/yamaokaya-1263/",
+  "/s/yamaokaya-1263/settings",
+] as const;
 
 /** Validates: 要件 5.1, 5.2, 5.3 */
 describe("Service_Worker のフォールバック除外 — 意図のある経路のみ", () => {
@@ -158,8 +172,8 @@ describe("Service_Worker のフォールバック除外 — 意図のある経�
     for (const pathname of EXCLUDED_NAVIGATIONS) {
       expect(
         denylist.some((pattern) => pattern.matches(pathname)),
-        `${pathname} が navigateFallbackDenylist に捉えられない。ナビゲーションが App_Shell に飲まれ、`
-          + `Access の 302 がブラウザへ渡らない（要件 5.1・5.2）。現行の項: ${denylist.map((p) => p.source).join(", ")}`,
+        `${pathname} が navigateFallbackDenylist に捉えられない。ナビゲーションが App_Shell に飲まれ、` +
+          `Access の 302 がブラウザへ渡らない（要件 5.1・5.2）。現行の項: ${denylist.map((p) => p.source).join(", ")}`,
       ).toBe(true);
     }
   });
@@ -167,7 +181,9 @@ describe("Service_Worker のフォールバック除外 — 意図のある経�
   it("App_Shell のナビゲーションは除外しない", () => {
     const denylist = navigateFallbackDenylist();
     for (const pathname of APP_SHELL_NAVIGATIONS) {
-      const matched = denylist.filter((pattern) => pattern.matches(pathname)).map((pattern) => pattern.source);
+      const matched = denylist
+        .filter((pattern) => pattern.matches(pathname))
+        .map((pattern) => pattern.source);
       expect(
         matched,
         `${pathname} が除外されている。オフライン起動（要件 6.1・決定 A のキャッシュ優先）が壊れる`,
@@ -181,7 +197,10 @@ describe("Service_Worker のフォールバック除外 — 意図のある経�
     // 正規表現を実在パス `/s/{storeId}/ws` へ直すのではなく**項ごと削る**（AC 5.3）。直せば「除外が必要
     // である」という誤解を温存する。ゆえに主張は「実在パスに一致すること」ではなく「項が無いこと」。
     for (const pattern of denylist) {
-      expect(pattern.source, `${pattern.source} は WebSocket の項。項ごと削る（要件 5.3）`).not.toMatch(/ws/i);
+      expect(
+        pattern.source,
+        `${pattern.source} は WebSocket の項。項ごと削る（要件 5.3）`,
+      ).not.toMatch(/ws/i);
     }
     for (const pathname of ["/ws", "/s/yamaokaya-1263/ws"]) {
       expect(
@@ -199,8 +218,8 @@ describe("Service_Worker の runtimeCaching — 分類 fetch を素通りさせ�
     for (const pathname of ["/entry/stores", "/entry/signin/yamaokaya-1263"]) {
       expect(
         rules.filter((pattern) => pattern.matches(pathname)).map((pattern) => pattern.source),
-        `${pathname} に runtimeCaching 規則が一致する。Workbox の戦略が Opaque_Redirect（status === 0）を`
-          + `失敗と見なし、キャッシュ済みの古い 200 を返せば分類が noAccess / offline へ誤る（要件 5.4）`,
+        `${pathname} に runtimeCaching 規則が一致する。Workbox の戦略が Opaque_Redirect（status === 0）を` +
+          `失敗と見なし、キャッシュ済みの古い 200 を返せば分類が noAccess / offline へ誤る（要件 5.4）`,
       ).toEqual([]);
     }
   });
@@ -242,13 +261,16 @@ function manifestOptions(): ts.ObjectLiteralExpression {
  */
 function precacheGlobs(): readonly string[] {
   const globPatterns = property(workboxOptions(), "globPatterns");
-  if (globPatterns === undefined) throw new Error(`${PWA_CONFIG} の workbox に globPatterns が無い`);
+  if (globPatterns === undefined)
+    throw new Error(`${PWA_CONFIG} の workbox に globPatterns が無い`);
   if (!ts.isArrayLiteralExpression(globPatterns)) {
     throw new Error(`${PWA_CONFIG} の globPatterns が配列リテラルでない`);
   }
   return globPatterns.elements.map((element) => {
     if (!ts.isStringLiteralLike(element)) {
-      throw new Error(`${PWA_CONFIG} の globPatterns に静的に読めない項がある: ${element.getText()}`);
+      throw new Error(
+        `${PWA_CONFIG} の globPatterns に静的に読めない項がある: ${element.getText()}`,
+      );
     }
     return element.text;
   });
@@ -296,10 +318,12 @@ function overscrollRules(relativePath: string): readonly StyleRule[] {
   const declaration = /overscroll-behavior(?:-[xy])?\s*:\s*([^;}]+)/g;
   for (let found = declaration.exec(source); found !== null; found = declaration.exec(source)) {
     const declared = found[1];
-    if (declared === undefined) throw new Error(`${relativePath} の overscroll-behavior に値が無い`);
+    if (declared === undefined)
+      throw new Error(`${relativePath} の overscroll-behavior に値が無い`);
     const before = source.slice(0, found.index);
     const blockStart = before.lastIndexOf("{");
-    if (blockStart < 0) throw new Error(`${relativePath} の overscroll-behavior がブロックの外に在る`);
+    if (blockStart < 0)
+      throw new Error(`${relativePath} の overscroll-behavior がブロックの外に在る`);
     const headStart = Math.max(
       before.lastIndexOf("{", blockStart - 1),
       before.lastIndexOf("}", blockStart - 1),
@@ -355,7 +379,8 @@ function suppressionTracesIn(relativePath: string): readonly string[] {
       traces.push(JSON.stringify(node.text));
       return;
     }
-    if (ts.isIdentifier(node) && RELOAD_SUPPRESSION_ATTRIBUTES.has(node.text)) traces.push(node.text);
+    if (ts.isIdentifier(node) && RELOAD_SUPPRESSION_ATTRIBUTES.has(node.text))
+      traces.push(node.text);
   });
   return traces;
 }
@@ -371,8 +396,8 @@ describe("PWA manifest — standalone 表示（要件10.3）", () => {
     }
     expect(
       display.text,
-      "manifest.display が standalone でない。ブラウザクロム（リロードボタン）が現れ、"
-        + "厨房スタッフが走行中ポットを不意に捨てられる（要件10.3）",
+      "manifest.display が standalone でない。ブラウザクロム（リロードボタン）が現れ、" +
+        "厨房スタッフが走行中ポットを不意に捨てられる（要件10.3）",
     ).toBe("standalone");
   });
 });
@@ -385,8 +410,8 @@ describe("Workbox precache — App_Shell がオフライン起動できる（要
     for (const required of ["html", "js", "css"]) {
       expect(
         extensions.has(required),
-        `precache 対象に .${required} が無い。App_Shell が揃わずオフライン起動が成立しない`
-          + `（要件10.1）。現行の globPatterns: ${globs.map((glob) => JSON.stringify(glob)).join(", ")}`,
+        `precache 対象に .${required} が無い。App_Shell が揃わずオフライン起動が成立しない` +
+          `（要件10.1）。現行の globPatterns: ${globs.map((glob) => JSON.stringify(glob)).join(", ")}`,
       ).toBe(true);
     }
   });
@@ -394,16 +419,21 @@ describe("Workbox precache — App_Shell がオフライン起動できる（要
   it("`navigateFallback` が precache 済みの App_Shell を指す", () => {
     // precache だけではオフライン起動は成立しない。ナビゲーション要求が殻へ落ちる先が要る（要件10.1・10.2）。
     const navigateFallback = property(workboxOptions(), "navigateFallback");
-    if (navigateFallback === undefined) throw new Error(`${PWA_CONFIG} の workbox に navigateFallback が無い`);
+    if (navigateFallback === undefined)
+      throw new Error(`${PWA_CONFIG} の workbox に navigateFallback が無い`);
     if (!ts.isStringLiteralLike(navigateFallback)) {
-      throw new Error(`${PWA_CONFIG} の navigateFallback が静的に読めない: ${navigateFallback.getText()}`);
+      throw new Error(
+        `${PWA_CONFIG} の navigateFallback が静的に読めない: ${navigateFallback.getText()}`,
+      );
     }
     expect(
       navigateFallback.text,
       "navigateFallback が HTML を指していない。オフラインのナビゲーションが殻に落ちない（要件10.1）",
     ).toMatch(/\.html$/);
     const extensions = precacheExtensions(precacheGlobs());
-    expect(extensions.has("html"), "navigateFallback の指す HTML が precache 対象に入らない").toBe(true);
+    expect(extensions.has("html"), "navigateFallback の指す HTML が precache 対象に入らない").toBe(
+      true,
+    );
   });
 });
 
@@ -417,7 +447,9 @@ describe("リロード抑止 — standalone + overscroll に限る（要件10.4 
     ).not.toEqual([]);
     // セレクタまで見る。文書ルートに当たっていなければ、宣言が在ってもスクロールチェーンの端を押さえない。
     const rootRules = rules.filter(
-      (rule) => /(^|[\s,])html([\s,]|$)/.test(rule.selector) && /(^|[\s,])body([\s,]|$)/.test(rule.selector),
+      (rule) =>
+        /(^|[\s,])html([\s,]|$)/.test(rule.selector) &&
+        /(^|[\s,])body([\s,]|$)/.test(rule.selector),
     );
     expect(
       rootRules.map((rule) => rule.selector),
@@ -443,8 +475,8 @@ describe("リロード抑止 — standalone + overscroll に限る（要件10.4 
       const traces = suppressionTracesIn(file);
       expect(
         traces,
-        `${file} に追加のリロード抑止層がある: ${traces.join(", ")}。決定 A（要件10.5）は抑止を`
-          + `standalone + overscroll に限る`,
+        `${file} に追加のリロード抑止層がある: ${traces.join(", ")}。決定 A（要件10.5）は抑止を` +
+          `standalone + overscroll に限る`,
       ).toEqual([]);
     }
   });

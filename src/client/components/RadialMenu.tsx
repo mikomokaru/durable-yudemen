@@ -35,7 +35,15 @@ interface RadialMenuProps {
  * タッチした地点を中心に麺種を円弧状に展開するラジアルメニュー。
  * 項目数(3〜6)に応じて弧の広がりが変わり、画面端では内側に開く。
  */
-export function RadialMenu({ anchor, presets, colorOf, label, radius = 132, onSelect, onClose }: RadialMenuProps) {
+export function RadialMenu({
+  anchor,
+  presets,
+  colorOf,
+  label,
+  radius = 132,
+  onSelect,
+  onClose,
+}: RadialMenuProps) {
   const [shown, setShown] = useState(false);
 
   // マウント後に開く（中心 → 放射のアニメ）。
@@ -85,7 +93,12 @@ export function RadialMenu({ anchor, presets, colorOf, label, radius = 132, onSe
   if (!anchor || !layout) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Select noodle">
+    <div
+      className="fixed inset-0 z-[60]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Select noodle"
+    >
       {/* 背景 */}
       <div
         onClick={onClose}
@@ -100,8 +113,8 @@ export function RadialMenu({ anchor, presets, colorOf, label, radius = 132, onSe
         <div
           style={{ left: layout.cx, top: layout.cy - radius - 30 }}
           className={cn(
-            "absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[0.75rem] font-bold",
-            "uppercase tracking-[.06em] text-muted transition-opacity duration-200 delay-[50ms]",
+            "absolute -translate-x-1/2 -translate-y-1/2 text-[0.75rem] font-bold whitespace-nowrap",
+            "tracking-[.06em] text-muted uppercase transition-opacity delay-[50ms] duration-200",
             shown ? "opacity-100" : "opacity-0",
           )}
         >
@@ -116,8 +129,8 @@ export function RadialMenu({ anchor, presets, colorOf, label, radius = 132, onSe
         aria-label="Cancel"
         style={{ left: layout.cx, top: layout.cy }}
         className={cn(
-          "absolute -ml-[1.8125rem] -mt-[1.8125rem] grid h-[3.625rem] w-[3.625rem] place-items-center rounded-full",
-          "border border-line bg-panel text-2xl font-bold text-muted cursor-pointer",
+          "absolute -mt-[1.8125rem] -ml-[1.8125rem] grid h-[3.625rem] w-[3.625rem] place-items-center rounded-full",
+          "cursor-pointer border border-line bg-panel text-2xl font-bold text-muted",
           "shadow-[0_0.375rem_1.25rem_rgba(0,0,0,.45)] transition duration-200 ease-[cubic-bezier(.2,.9,.3,1.3)]",
           shown ? "scale-100 opacity-100" : "scale-[.4] opacity-0",
         )}
@@ -139,16 +152,18 @@ export function RadialMenu({ anchor, presets, colorOf, label, radius = 132, onSe
             transform: shown ? `translate(${x}px, ${y}px) scale(1)` : "translate(0, 0) scale(0.3)",
           }}
           className={cn(
-            "absolute left-0 top-0 -ml-[2.875rem] -mt-[2.875rem] flex h-[5.75rem] w-[5.75rem] flex-col items-center justify-center gap-0.5",
-            "rounded-full border border-line text-[#15120c] cursor-pointer",
+            "absolute top-0 left-0 -mt-[2.875rem] -ml-[2.875rem] flex h-[5.75rem] w-[5.75rem] flex-col items-center justify-center gap-0.5",
+            "cursor-pointer rounded-full border border-line text-[#15120c]",
             "shadow-[0_0.5rem_1.375rem_rgba(0,0,0,.4)] hover:border-ink active:brightness-105",
             "transition-[transform,opacity,border-color] duration-[260ms] ease-[cubic-bezier(.2,.9,.3,1.25)]",
             shown ? "opacity-100" : "opacity-0",
           )}
         >
           {/* 花びらの背景が麺のキャラクター色、文字は統一の暗色（前景は統一・背景で識別）。 */}
-          <span className="text-[1rem] font-extrabold leading-none">{preset.noodleType}</span>
-          <span className="font-mono text-[0.8125rem] font-medium opacity-70">{preset.boilSeconds.normal}s</span>
+          <span className="text-[1rem] leading-none font-extrabold">{preset.noodleType}</span>
+          <span className="font-mono text-[0.8125rem] font-medium opacity-70">
+            {preset.boilSeconds.normal}s
+          </span>
         </button>
       ))}
     </div>,

@@ -36,11 +36,16 @@ const genFirmnessCodes: fc.Arbitrary<readonly FirmnessCode[]> = fc.uniqueArray(
 
 const genNoodleSizes: fc.Arbitrary<NonEmptyArray<NoodleSize>> = fc
   .uniqueArray(
-    fc.record({ code: genSizeCodeValue, slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }) }),
+    fc.record({
+      code: genSizeCodeValue,
+      slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }),
+    }),
     { selector: (size) => size.code, minLength: 1, maxLength: 3 },
   )
   // sizes は型で非空（麺量を持たない品目は茹でないため MenuItem は必ず 1 つ以上のサイズを持つ）。
-  .map((sizes) => (isNonEmpty(sizes) ? sizes : ([{ code: 19_401, slotSpan: 1 }] as NonEmptyArray<NoodleSize>)));
+  .map((sizes) =>
+    isNonEmpty(sizes) ? sizes : ([{ code: 19_401, slotSpan: 1 }] as NonEmptyArray<NoodleSize>),
+  );
 
 const genMenuItems: fc.Arbitrary<readonly MenuItem[]> = fc.uniqueArray(
   fc.record({
@@ -145,16 +150,26 @@ function hasNoodleSizeCode(orderItem: Record<string, unknown>, lookup: NoodleLoo
 }
 
 /** 当該品目に指定されている麺量の slotSpan を列挙する（0 件なら茹でない）。 */
-function designatedSlotSpans(orderItem: Record<string, unknown>, lookup: NoodleLookup): readonly number[] {
+function designatedSlotSpans(
+  orderItem: Record<string, unknown>,
+  lookup: NoodleLookup,
+): readonly number[] {
   const menuItem = lookup.menuItems.find((item) => item.productCode === orderItem.plu_no);
   if (menuItem === undefined) return [];
   const childCodes = childProductCodes(orderItem);
-  return menuItem.sizes.filter((size) => childCodes.includes(size.code)).map((size) => size.slotSpan);
+  return menuItem.sizes
+    .filter((size) => childCodes.includes(size.code))
+    .map((size) => size.slotSpan);
 }
 
 /** 当該品目が茹で対象であるときの麺種（親メニューがただ 1 つ定める）。 */
-function designatedNoodleTypes(orderItem: Record<string, unknown>, lookup: NoodleLookup): readonly string[] {
-  return lookup.menuItems.filter((item) => item.productCode === orderItem.plu_no).map((item) => item.noodleType);
+function designatedNoodleTypes(
+  orderItem: Record<string, unknown>,
+  lookup: NoodleLookup,
+): readonly string[] {
+  return lookup.menuItems
+    .filter((item) => item.productCode === orderItem.plu_no)
+    .map((item) => item.noodleType);
 }
 
 /** `child_items` の各要素が運ぶ商品コードを列挙する（位置は捨てる）。 */

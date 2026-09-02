@@ -301,7 +301,10 @@ export function rememberLastStore(storeId: string): void {
   try {
     localStorage.setItem(LAST_STORE_KEY, storeId);
   } catch (cause) {
-    console.error("[yudemen] last-store memory write failed; will retry on next store mount", cause);
+    console.error(
+      "[yudemen] last-store memory write failed; will retry on next store mount",
+      cause,
+    );
   }
 }
 

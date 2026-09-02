@@ -85,7 +85,8 @@ const VENDOR_PAYLOAD_KEYS = [
 ] as const;
 
 /** スキーマ検証ライブラリ。1 つでも入れば「検証しない」という規律が名目だけになる（AC 14.6）。 */
-const SCHEMA_VALIDATION_MODULES = /^(?:zod|valibot|ajv|yup|joi|superstruct|io-ts|@sinclair\/typebox)(?:\/|$)/;
+const SCHEMA_VALIDATION_MODULES =
+  /^(?:zod|valibot|ajv|yup|joi|superstruct|io-ts|@sinclair\/typebox)(?:\/|$)/;
 
 // ── ファイル探索・パース ────────────────────────────────────────────────────
 
@@ -120,7 +121,8 @@ function walk(node: ts.Node, visit: (child: ts.Node) => void): void {
 /** 宣言の名（識別子・文字列キー・数値キー）。計算プロパティ名は名として読めないため undefined。 */
 function declaredName(name: ts.Node | undefined): string | undefined {
   if (name === undefined) return undefined;
-  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) return name.text;
+  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name))
+    return name.text;
   return undefined;
 }
 
@@ -136,10 +138,10 @@ function annotatedDeclarations(
   const declarations: { readonly name: string; readonly type: string }[] = [];
   walk(file, (node) => {
     if (
-      !ts.isPropertySignature(node)
-      && !ts.isPropertyDeclaration(node)
-      && !ts.isParameter(node)
-      && !ts.isVariableDeclaration(node)
+      !ts.isPropertySignature(node) &&
+      !ts.isPropertyDeclaration(node) &&
+      !ts.isParameter(node) &&
+      !ts.isVariableDeclaration(node)
     ) {
       return;
     }
@@ -170,7 +172,8 @@ function moduleSpecifiers(file: ts.SourceFile): readonly string[] {
       : ts.isExportDeclaration(statement)
         ? statement.moduleSpecifier
         : undefined;
-    if (specifier !== undefined && ts.isStringLiteralLike(specifier)) specifiers.push(specifier.text);
+    if (specifier !== undefined && ts.isStringLiteralLike(specifier))
+      specifiers.push(specifier.text);
   }
   return specifiers;
 }
@@ -225,9 +228,10 @@ describe("(b) ベンダー由来のキーが型メンバとして宣言されな
     for (const path of ALL_SRC_FILES) {
       const members = new Set(declaredMemberNames(parse(path)));
       for (const key of VENDOR_PAYLOAD_KEYS) {
-        expect(members.has(key), `${path} が POS ペイロードのキー ${key} を型として宣言している`).toBe(
-          false,
-        );
+        expect(
+          members.has(key),
+          `${path} が POS ペイロードのキー ${key} を型として宣言している`,
+        ).toBe(false);
       }
     }
   });

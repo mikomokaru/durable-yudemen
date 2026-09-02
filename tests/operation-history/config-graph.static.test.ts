@@ -54,7 +54,9 @@ type WranglerConfig = {
   readonly r2_buckets?: readonly { readonly binding: string; readonly bucket_name: string }[];
   readonly kv_namespaces?: readonly unknown[];
   readonly d1_databases?: readonly unknown[];
-  readonly durable_objects?: { readonly bindings?: readonly { readonly name: string; readonly class_name: string }[] };
+  readonly durable_objects?: {
+    readonly bindings?: readonly { readonly name: string; readonly class_name: string }[];
+  };
   readonly services?: readonly { readonly binding: string; readonly service: string }[];
   readonly env?: Readonly<Record<string, { readonly name?: string }>>;
 };
@@ -91,10 +93,7 @@ function printEdge(edge: CapabilityEdge): string {
   return `${edge.from} -[${edge.kind}:${edge.via}]-> ${edge.to}`;
 }
 
-function capabilityEdges(
-  configPath: string,
-  parsed: WranglerConfig,
-): readonly CapabilityEdge[] {
+function capabilityEdges(configPath: string, parsed: WranglerConfig): readonly CapabilityEdge[] {
   const worker = parsed.name ?? configPath;
   const edges: CapabilityEdge[] = [];
   for (const service of declaredTailConsumerServices(configPath)) {
@@ -104,7 +103,12 @@ function capabilityEdges(
     edges.push({ from: worker, to: producer.queue, kind: "queue-producer", via: producer.binding });
   }
   for (const consumer of parsed.queues?.consumers ?? []) {
-    edges.push({ from: consumer.queue, to: worker, kind: "queue-consumer", via: "queues.consumers" });
+    edges.push({
+      from: consumer.queue,
+      to: worker,
+      kind: "queue-consumer",
+      via: "queues.consumers",
+    });
     if (consumer.dead_letter_queue !== undefined) {
       edges.push({
         from: worker,
@@ -144,7 +148,10 @@ const producerNodes = new Set(
   [
     producerConfig.name,
     ...Object.values(producerConfig.env ?? {}).map((environment) => environment.name),
-    ...(producerConfig.durable_objects?.bindings ?? []).flatMap((binding) => [binding.name, binding.class_name]),
+    ...(producerConfig.durable_objects?.bindings ?? []).flatMap((binding) => [
+      binding.name,
+      binding.class_name,
+    ]),
   ].filter((name): name is string => name !== undefined),
 );
 
@@ -162,11 +169,16 @@ const downstreamKinds = new Set(["queue-producer", "queue-consumer", "dead-lette
 
 function isOperationHistoryEdge(edge: CapabilityEdge): boolean {
   if (edge.kind === "tail-attachment" || downstreamKinds.has(edge.kind)) return true;
-  return downstreamNames.some((name) => edge.from === name || edge.to === name || edge.via === name);
+  return downstreamNames.some(
+    (name) => edge.from === name || edge.to === name || edge.via === name,
+  );
 }
 
 /** Producer 観測 module の推移 import graph（相対 import だけを辿る）。 */
-function producerImportGraph(): { readonly files: readonly string[]; readonly externals: readonly string[] } {
+function producerImportGraph(): {
+  readonly files: readonly string[];
+  readonly externals: readonly string[];
+} {
   const pending = [producerRoot];
   const files = new Set<string>();
   const externals = new Set<string>();
@@ -176,20 +188,28 @@ function producerImportGraph(): { readonly files: readonly string[]; readonly ex
     files.add(current);
     const file = ts.createSourceFile(current, source(current), ts.ScriptTarget.Latest, true);
     for (const statement of file.statements) {
-      const specifier = (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement))
-        && statement.moduleSpecifier !== undefined
-        && ts.isStringLiteralLike(statement.moduleSpecifier)
-        ? statement.moduleSpecifier.text
-        : undefined;
+      const specifier =
+        (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+        statement.moduleSpecifier !== undefined &&
+        ts.isStringLiteralLike(statement.moduleSpecifier)
+          ? statement.moduleSpecifier.text
+          : undefined;
       if (specifier === undefined) continue;
       if (!specifier.startsWith(".")) {
         externals.add(specifier);
         continue;
       }
       const base = resolve(repoRoot, dirname(current), specifier);
-      const resolved = [base, `${base}.ts`, `${base}.tsx`, resolve(base, "index.ts")].find(existsSync);
+      const resolved = [base, `${base}.ts`, `${base}.tsx`, resolve(base, "index.ts")].find(
+        existsSync,
+      );
       if (resolved === undefined) throw new Error(`${current}: ${specifier} を解決できない`);
-      pending.push(resolved.slice(repoRoot.length + 1).split("\\").join("/"));
+      pending.push(
+        resolved
+          .slice(repoRoot.length + 1)
+          .split("\\")
+          .join("/"),
+      );
     }
   }
   return { files: [...files].sort(), externals: [...externals].sort() };
@@ -197,15 +217,20 @@ function producerImportGraph(): { readonly files: readonly string[]; readonly ex
 
 /** `src/operation-history/tail.ts` の PRODUCER_SCRIPTS に列挙された script 名。 */
 function producerScriptsFromTailFilter(): readonly string[] {
-  const file = ts.createSourceFile(tailFilterPath, source(tailFilterPath), ts.ScriptTarget.Latest, true);
+  const file = ts.createSourceFile(
+    tailFilterPath,
+    source(tailFilterPath),
+    ts.ScriptTarget.Latest,
+    true,
+  );
   const names: string[] = [];
   let found = false;
   const visit = (node: ts.Node): void => {
     if (
-      ts.isVariableDeclaration(node)
-      && ts.isIdentifier(node.name)
-      && node.name.text === "PRODUCER_SCRIPTS"
-      && node.initializer !== undefined
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "PRODUCER_SCRIPTS" &&
+      node.initializer !== undefined
     ) {
       found = true;
       const collect = (child: ts.Node): void => {
@@ -223,7 +248,12 @@ function producerScriptsFromTailFilter(): readonly string[] {
 
 /** module が宣言する Env interface の binding 名。設定の binding と突き合わせる。 */
 function envBindingNames(relativePath: string, interfaceName: string): readonly string[] {
-  const file = ts.createSourceFile(relativePath, source(relativePath), ts.ScriptTarget.Latest, true);
+  const file = ts.createSourceFile(
+    relativePath,
+    source(relativePath),
+    ts.ScriptTarget.Latest,
+    true,
+  );
   const declaration = file.statements.find(
     (statement): statement is ts.InterfaceDeclaration =>
       ts.isInterfaceDeclaration(statement) && statement.name.text === interfaceName,
@@ -265,11 +295,16 @@ describe("Operation History 設定 graph — 能力境界", () => {
   });
 
   it("Data Platform から Producer へ向かう edge が 0 件である", () => {
-    const reverse = [...tailEdges, ...consumerEdges].filter((edge) => producerNodes.has(edge.to) || producerNodes.has(edge.from));
+    const reverse = [...tailEdges, ...consumerEdges].filter(
+      (edge) => producerNodes.has(edge.to) || producerNodes.has(edge.from),
+    );
     expect(reverse.map(printEdge)).toEqual([]);
     // Tail／Consumer の正当な到達経路は tail attachment と Queue delivery だけ。網羅的に、
     // ネットワークからの入口（route / workers.dev / preview URL）を持たないことを確かめる。
-    for (const [path, parsed] of [[tailConfigPath, tailConfig], [consumerConfigPath, consumerConfig]] as const) {
+    for (const [path, parsed] of [
+      [tailConfigPath, tailConfig],
+      [consumerConfigPath, consumerConfig],
+    ] as const) {
       expect(parsed.workers_dev, `${path} が workers.dev を開く`).toBe(false);
       expect(parsed.preview_urls, `${path} が preview URL を開く`).toBe(false);
       expect(parsed.routes, `${path} が route を持つ`).toBeUndefined();
@@ -288,13 +323,16 @@ describe("Operation History 設定 graph — 名前の写し違い", () => {
     // 書かれている。片方だけ直すと本番の tail が全て filter で落ちるため、機械的に突き合わせる。
     const scripts = producerScriptsFromTailFilter();
     expect(producerConfig.name).toBeDefined();
-    expect(scripts, `PRODUCER_SCRIPTS が root の name（${producerConfig.name}）を含まない`).toContain(
-      producerConfig.name,
-    );
+    expect(
+      scripts,
+      `PRODUCER_SCRIPTS が root の name（${producerConfig.name}）を含まない`,
+    ).toContain(producerConfig.name);
     // 逆向きも閉じる。実在しない script 名を挙げると、それが実名だと誤認されたまま残る。
     const deployedProducerNames = new Set(
-      [producerConfig.name, ...Object.values(producerConfig.env ?? {}).map((environment) => environment.name)]
-        .filter((name): name is string => name !== undefined),
+      [
+        producerConfig.name,
+        ...Object.values(producerConfig.env ?? {}).map((environment) => environment.name),
+      ].filter((name): name is string => name !== undefined),
     );
     expect(scripts.filter((script) => !deployedProducerNames.has(script))).toEqual([]);
   });
@@ -311,15 +349,20 @@ describe("Operation History 設定 graph — 名前の写し違い", () => {
     expect(envBindingNames("src/data-platform/tail-worker.ts", "TailWorkerEnv")).toEqual(
       (tailConfig.queues?.producers ?? []).map((producer) => producer.binding).sort(),
     );
-    expect(envBindingNames("src/data-platform/raw-arrival-consumer.ts", "RawArrivalConsumerEnv")).toEqual(
-      (consumerConfig.r2_buckets ?? []).map((bucket) => bucket.binding).sort(),
-    );
+    expect(
+      envBindingNames("src/data-platform/raw-arrival-consumer.ts", "RawArrivalConsumerEnv"),
+    ).toEqual((consumerConfig.r2_buckets ?? []).map((bucket) => bucket.binding).sort());
   });
 
   it("Tail Worker と Consumer の main が実在し、Queue 名が両側で一致する", () => {
-    for (const [path, parsed] of [[tailConfigPath, tailConfig], [consumerConfigPath, consumerConfig]] as const) {
+    for (const [path, parsed] of [
+      [tailConfigPath, tailConfig],
+      [consumerConfigPath, consumerConfig],
+    ] as const) {
       expect(parsed.main, `${path} に main がない`).toBeDefined();
-      expect(existsSync(resolve(repoRoot, parsed.main ?? "")), `${path} の main が実在しない`).toBe(true);
+      expect(existsSync(resolve(repoRoot, parsed.main ?? "")), `${path} の main が実在しない`).toBe(
+        true,
+      );
     }
     expect((tailConfig.queues?.producers ?? []).map((producer) => producer.queue)).toEqual(
       (consumerConfig.queues?.consumers ?? []).map((consumer) => consumer.queue),
@@ -353,6 +396,8 @@ describe("Operation History 設定 graph — Producer 側に下流能力がな�
       // コメントを落とした本文だけを見る。Tail attachment の service 名は上の突き合わせが担う。
       expect(active.includes(name), `root が有効な設定として ${name} を持つ`).toBe(false);
     }
-    expect(active).not.toMatch(/"(?:queues|r2_buckets|kv_namespaces|d1_databases|triggers|crons)"\s*:/);
+    expect(active).not.toMatch(
+      /"(?:queues|r2_buckets|kv_namespaces|d1_databases|triggers|crons)"\s*:/,
+    );
   });
 });

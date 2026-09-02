@@ -28,7 +28,12 @@ import type { StoreProjection } from "../../src/registry/projection";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
 import { configResidualDefaults } from "../storeConfigDefaults";
-import { establishAccessSigning, freshTeamDomain, POLICY_AUD, type AccessSigning } from "./support/accessJwt";
+import {
+  establishAccessSigning,
+  freshTeamDomain,
+  POLICY_AUD,
+  type AccessSigning,
+} from "./support/accessJwt";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO を型付きで引く）。
 declare module "cloudflare:test" {
@@ -164,7 +169,11 @@ describe("worker fetch — ACCESS ON の /s/{storeId}/ws は有効時のみ店�
   });
 
   /** ACCESS ON の Worker 経路で WS 接続を試みる。JWT 検証は Worker 端（testEnv）で走る。 */
-  async function connect(storeId: string, teamDomain: string, token: string | null): Promise<Response> {
+  async function connect(
+    storeId: string,
+    teamDomain: string,
+    token: string | null,
+  ): Promise<Response> {
     const headers = new Headers({ Upgrade: "websocket" });
     if (token !== null) headers.set("Cf-Access-Jwt-Assertion", token);
     const request = new Request(`https://access.invalid/s/${storeId}/ws`, { headers });
@@ -172,7 +181,12 @@ describe("worker fetch — ACCESS ON の /s/{storeId}/ws は有効時のみ店�
     // （DO バインディングは実 env から継承）。JWT 検証は Worker 端で完結する（要件8.6 の防御点）。
     // vars の literal 型（ACCESS_REQUIRED "0" / POLICY_AUD 等）を実値へ差し替えるため unknown 経由で写す
     // （worker は実行時に string として読む）。DO バインディングは実 env から継承する。
-    const testEnv = { ...env, ACCESS_REQUIRED: "1", TEAM_DOMAIN: teamDomain, POLICY_AUD } as unknown as Env;
+    const testEnv = {
+      ...env,
+      ACCESS_REQUIRED: "1",
+      TEAM_DOMAIN: teamDomain,
+      POLICY_AUD,
+    } as unknown as Env;
     return worker.fetch(request, testEnv);
   }
 

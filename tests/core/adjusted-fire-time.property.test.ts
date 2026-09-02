@@ -4,7 +4,13 @@ import { fireDueTimers } from "../../src/engine/fire";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import { synchronize, type SyncParams } from "../../src/engine/sync";
 import { createTimer, type Timer } from "../../src/engine/timer";
-import { EPSILON_MS, type EpochMillis, type NoodleType, type SlotId, type TimerId } from "../../src/engine/types";
+import {
+  EPSILON_MS,
+  type EpochMillis,
+  type NoodleType,
+  type SlotId,
+  type TimerId,
+} from "../../src/engine/types";
 import { nonEmpty } from "../nonEmpty";
 import { settleParams } from "../settleParams";
 
@@ -86,7 +92,11 @@ function newlyBoiledIds(before: readonly Timer[], after: readonly Timer[]): read
     .sort();
 }
 
-function fireFromConfirmedState(state: TimerState, now: EpochMillis, params: SyncParams): readonly string[] {
+function fireFromConfirmedState(
+  state: TimerState,
+  now: EpochMillis,
+  params: SyncParams,
+): readonly string[] {
   const outcome = fireDueTimers(state, now, settleParams(params));
   expect(outcome.ok).toBe(true);
   if (!outcome.ok) throw new Error(`発火が拒否された: ${outcome.rejection.code}`);

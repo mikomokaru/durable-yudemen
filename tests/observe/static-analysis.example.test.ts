@@ -276,7 +276,9 @@ describe("(a) core 無変更・計装は src/shell・src/observe・tools/observe
   it("src/core は観測層（src/observe）を import せず console 出力も持たない", () => {
     for (const file of coreFiles) {
       const code = readBareCode(file);
-      expect(code, `${file} が観測層を import している`).not.toMatch(/from\s+["'][^"']*observe[^"']*["']/);
+      expect(code, `${file} が観測層を import している`).not.toMatch(
+        /from\s+["'][^"']*observe[^"']*["']/,
+      );
       expect(code, `${file} に console 出力がある`).not.toMatch(/\bconsole\s*\./);
     }
   });
@@ -287,10 +289,9 @@ describe("(a) core 無変更・計装は src/shell・src/observe・tools/observe
       const code = readBareCode(file);
       const containsMarker = INSTRUMENTATION_MARKERS.some((marker) => code.includes(marker));
       if (containsMarker) {
-        expect(
-          isWithinInstrumentationDirs(file),
-          `${file} が許可外で計装トークンを含む`,
-        ).toBe(true);
+        expect(isWithinInstrumentationDirs(file), `${file} が許可外で計装トークンを含む`).toBe(
+          true,
+        );
       }
     }
   });
@@ -301,7 +302,9 @@ describe("(a) core 無変更・計装は src/shell・src/observe・tools/observe
 describe("(b) emitSeam の呼び出しは 4 継ぎ目に限定（要件4.9）", () => {
   it("shell の emitSeam 呼び出し（this.emitSeam(...)）はちょうど 4 点", () => {
     const code = readBareCode(SHELL_FILE);
-    expect(countMatches(code, /\bthis\.emitSeam\s*\(/g), "emitSeam の呼び出し点が 4 でない").toBe(4);
+    expect(countMatches(code, /\bthis\.emitSeam\s*\(/g), "emitSeam の呼び出し点が 4 でない").toBe(
+      4,
+    );
   });
 
   it("4 継ぎ目（construct / rehydrate / alarm / broadcast）がそれぞれ 1 回ずつ計装される", () => {
@@ -330,7 +333,9 @@ describe("(c) shell の hibernation 規律（要件4.7）", () => {
 
   it("shell は ctx.acceptWebSocket で WS を収容する（hibernate 可能構成）", () => {
     const code = readBareCode(SHELL_FILE);
-    expect(code, `${SHELL_FILE} で acceptWebSocket を使っていない`).toMatch(/\bacceptWebSocket\s*\(/);
+    expect(code, `${SHELL_FILE} で acceptWebSocket を使っていない`).toMatch(
+      /\bacceptWebSocket\s*\(/,
+    );
   });
 });
 
@@ -348,10 +353,9 @@ describe("(d) Probe_Client は src/domain/messages の既存型のみを用い�
     const harnessFiles = [...collectTsFiles("tools/observe"), ...collectTsFiles("src/observe")];
     for (const file of harnessFiles) {
       const code = readBareCode(file);
-      expect(
-        code,
-        `${file} がワイヤ型を再定義している`,
-      ).not.toMatch(/\b(?:type|interface)\s+(?:ClientMessage|ServerMessage|TimerFact)\b/);
+      expect(code, `${file} がワイヤ型を再定義している`).not.toMatch(
+        /\b(?:type|interface)\s+(?:ClientMessage|ServerMessage|TimerFact)\b/,
+      );
     }
   });
 
@@ -381,7 +385,10 @@ describe("(e) CLI（tools/observe）のユーザー向け文字列に日本語�
       // コメント（日本語可）を除き、文字列リテラルを残したテキストを検査する。
       const code = readCodeWithStrings(file);
       const match = JAPANESE.exec(code);
-      expect(match, `${file} のユーザー向け文字列に日本語 "${match?.[0] ?? ""}" が含まれる`).toBeNull();
+      expect(
+        match,
+        `${file} のユーザー向け文字列に日本語 "${match?.[0] ?? ""}" が含まれる`,
+      ).toBeNull();
     }
   });
 });

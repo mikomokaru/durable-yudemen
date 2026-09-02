@@ -65,7 +65,11 @@ describe("100 店 fan-out の Alarm 継続で全店が最終収束する（Requi
     for (const storeId of storeIds) {
       // 直列に登録する（レジストリはシングルトン DO 内で直列化される。RPC は都度スタブで足りる）。
       // oxlint-disable-next-line no-await-in-loop
-      const created = await stub.createStore({ storeId, chainId: CHAIN_ID, name: `Store ${storeId}` });
+      const created = await stub.createStore({
+        storeId,
+        chainId: CHAIN_ID,
+        name: `Store ${storeId}`,
+      });
       expect(created.accepted).toBe(true);
     }
 
@@ -120,7 +124,9 @@ describe("100 店 fan-out の Alarm 継続で全店が最終収束する（Requi
       const storeStub = env.STORE_TIMER_DO.get(env.STORE_TIMER_DO.idFromName(storeId));
       // oxlint-disable-next-line no-await-in-loop
       await runInDurableObject(storeStub, async (_instance, state) => {
-        const projection = (await state.storage.get(STORE_PROJECTION_KEY)) as { version: number } | undefined;
+        const projection = (await state.storage.get(STORE_PROJECTION_KEY)) as
+          | { version: number }
+          | undefined;
         // 投影が押し込まれ、version がレジストリの meta:revision に一致する（全店が最終収束）。
         expect(projection).toBeDefined();
         expect(projection?.version).toBe(finalRevision);

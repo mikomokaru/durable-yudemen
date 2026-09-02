@@ -44,10 +44,7 @@ export type IdealChange =
  * 参照するのは stores のみ（チェーン所属と Policy 割当はいずれも Store が保持する）。純粋・決定的。
  * 返す storeId は重複しない（各 Store の storeId は一意）。
  */
-export function affectedStores(
-  change: IdealChange,
-  stores: readonly Store[],
-): readonly StoreId[] {
+export function affectedStores(change: IdealChange, stores: readonly Store[]): readonly StoreId[] {
   switch (change.kind) {
     case "chain":
       return storeIdsInChain(stores, change.chainId);

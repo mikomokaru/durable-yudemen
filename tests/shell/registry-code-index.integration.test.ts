@@ -1,6 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { env, runInDurableObject, reset } from "cloudflare:test";
-import { REGISTRY_NAME, CODE_INDEX_KEY, type StoreRegistryDO } from "../../src/shell/store-registry-do";
+import {
+  REGISTRY_NAME,
+  CODE_INDEX_KEY,
+  type StoreRegistryDO,
+} from "../../src/shell/store-registry-do";
 
 // registry-code-index.integration.test.ts — Code_Index の書き込みと resolveStoreCode の統合テスト（Workers pool）。
 //
@@ -48,8 +52,12 @@ function putStores(body: unknown): Request {
 }
 
 /** 永続の index:code を生のまま読む（導出値が put で確定していることの確認）。 */
-async function readCodeIndex(stub: DurableObjectStub<StoreRegistryDO>): Promise<readonly [string, string][]> {
-  const raw = await runInDurableObject(stub, (_instance, state) => state.storage.get(CODE_INDEX_KEY));
+async function readCodeIndex(
+  stub: DurableObjectStub<StoreRegistryDO>,
+): Promise<readonly [string, string][]> {
+  const raw = await runInDurableObject(stub, (_instance, state) =>
+    state.storage.get(CODE_INDEX_KEY),
+  );
   return Array.isArray(raw) ? (raw as readonly [string, string][]) : [];
 }
 
@@ -62,7 +70,12 @@ describe("Code_Index の書き込みと resolveStoreCode（Requirements 2.1, 2.3
     const stub = registryStub();
 
     const res = await stub.fetch(
-      postStore({ storeId: "code-create", chainId: "yamaokaya", name: "1263 つくば中央店", storeCode: "1263" }),
+      postStore({
+        storeId: "code-create",
+        chainId: "yamaokaya",
+        name: "1263 つくば中央店",
+        storeCode: "1263",
+      }),
     );
 
     expect(res.status).toBe(201);
@@ -72,7 +85,12 @@ describe("Code_Index の書き込みと resolveStoreCode（Requirements 2.1, 2.3
   it("updateStore（PUT /admin/stores/{id}）で索引が書かれる — 索引を捨てても書き込みで再導出される", async () => {
     const stub = registryStub();
     await stub.fetch(
-      postStore({ storeId: "code-update", chainId: "yamaokaya", name: "1102 南2条店", storeCode: "1102" }),
+      postStore({
+        storeId: "code-update",
+        chainId: "yamaokaya",
+        name: "1102 南2条店",
+        storeCode: "1102",
+      }),
     );
     const beforeIndex = await readCodeIndex(stub);
 
@@ -106,7 +124,12 @@ describe("Code_Index の書き込みと resolveStoreCode（Requirements 2.1, 2.3
   it("非活性（active=false）の店舗も逆引きできる（索引を活性で絞らない）", async () => {
     const stub = registryStub();
     await stub.fetch(
-      postStore({ storeId: "code-closed", chainId: "yamaokaya", name: "閉店予定店", storeCode: "3001" }),
+      postStore({
+        storeId: "code-closed",
+        chainId: "yamaokaya",
+        name: "閉店予定店",
+        storeCode: "3001",
+      }),
     );
 
     const res = await stub.fetch(putStore("code-closed", { active: false }));
@@ -118,7 +141,9 @@ describe("Code_Index の書き込みと resolveStoreCode（Requirements 2.1, 2.3
   it("storeCode を持たない店舗は索引に載らない", async () => {
     const stub = registryStub();
 
-    await stub.fetch(postStore({ storeId: "code-absent", chainId: "yamaokaya", name: "POS 未連携店" }));
+    await stub.fetch(
+      postStore({ storeId: "code-absent", chainId: "yamaokaya", name: "POS 未連携店" }),
+    );
 
     expect(await readCodeIndex(stub)).toEqual([]);
   });

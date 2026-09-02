@@ -59,7 +59,9 @@ const genReceived: fc.Arbitrary<ReceivedOrder> = fc
   }));
 
 /** 受領列（空・単独・複数端末混在・同一端末の連続をすべて踏む）。 */
-const genReceivedList: fc.Arbitrary<readonly ReceivedOrder[]> = fc.array(genReceived, { maxLength: 6 });
+const genReceivedList: fc.Arbitrary<readonly ReceivedOrder[]> = fc.array(genReceived, {
+  maxLength: 6,
+});
 
 /** 遷移前の状態。待ち行列は注文の在/不在、判定材料は端末ごとに未知・古い・新しいを跨ぐ。 */
 const genState: fc.Arbitrary<TimerState> = fc
@@ -82,7 +84,11 @@ const genState: fc.Arbitrary<TimerState> = fc
 
 const genScene = fc.record({ state: genState, received: genReceivedList });
 
-const eventOf = (received: readonly ReceivedOrder[]): Event => ({ type: "RecordsReceived", received, now: NOW });
+const eventOf = (received: readonly ReceivedOrder[]): Event => ({
+  type: "RecordsReceived",
+  received,
+  now: NOW,
+});
 
 const effectsOfType = (effects: readonly Effect[], type: Effect["type"]): readonly Effect[] =>
   effects.filter((effect) => effect.type === type);
@@ -106,7 +112,9 @@ function foldAccepted(state: TimerState, received: readonly ReceivedOrder[]) {
 }
 
 /** 受理された受領のうち、各注文について最後に効いたもの（集合の最終形を決める一件）。 */
-function lastAcceptedByOrder(accepted: readonly ReceivedOrder[]): ReadonlyMap<string, ReceivedOrder> {
+function lastAcceptedByOrder(
+  accepted: readonly ReceivedOrder[],
+): ReadonlyMap<string, ReceivedOrder> {
   const last = new Map<string, ReceivedOrder>();
   for (const one of accepted) last.set(one.externalOrderId, one);
   return last;
@@ -151,7 +159,9 @@ describe("engine/receive — 受領の畳み込み", () => {
     expect(outcome.ok && effectsOfType(outcome.effects, "Persist")).toHaveLength(1);
     expect(outcome.ok && effectsOfType(outcome.effects, "Broadcast")).toHaveLength(1);
     expect(outcome.ok && outcome.state.pendingOrders).toHaveLength(10);
-    expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({ "t-1": toSequenceNumber(10) });
+    expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({
+      "t-1": toSequenceNumber(10),
+    });
   });
 
   // Feature: pos-order-ingress, Property 14: 判定材料と状態は同時に確定する
@@ -182,7 +192,9 @@ describe("engine/receive — 受領の畳み込み", () => {
         // 受理があれば確定は 1 回。その状態が集合の最終形も持つ（品目群は最後に効いた受領のもの）。
         expect(effectsOfType(outcome.effects, "Persist")).toHaveLength(1);
         for (const [externalOrderId, last] of lastAcceptedByOrder(accepted)) {
-          const settled = outcome.state.pendingOrders.filter((o) => o.externalOrderId === externalOrderId);
+          const settled = outcome.state.pendingOrders.filter(
+            (o) => o.externalOrderId === externalOrderId,
+          );
           expect(settled.map((o) => o.itemIndex)).toEqual(last.items.map((o) => o.itemIndex));
         }
         // 受領が触れていない注文は巻き込まれない。

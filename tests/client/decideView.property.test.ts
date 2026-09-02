@@ -23,7 +23,13 @@ import {
   type UnreachableReason,
 } from "../../src/client/connection";
 import { clockOffset } from "../../src/client/clock";
-import { genClientView, genEvent, genEventStream, genServerMessage, genUnreachableReason } from "./generators";
+import {
+  genClientView,
+  genEvent,
+  genEventStream,
+  genServerMessage,
+  genUnreachableReason,
+} from "./generators";
 
 const NUM_RUNS = 200;
 
@@ -63,8 +69,8 @@ function fold(view: ClientView, events: readonly ClientEvent[]): ClientView {
 }
 
 /** ビューと、そのビューに対して意味のある入力空間から引いたイベントの組。 */
-const genViewAndEvent: fc.Arbitrary<{ view: ClientView; event: ClientEvent }> = genClientView.chain((view) =>
-  genEvent(view).map((event) => ({ view, event })),
+const genViewAndEvent: fc.Arbitrary<{ view: ClientView; event: ClientEvent }> = genClientView.chain(
+  (view) => genEvent(view).map((event) => ({ view, event })),
 );
 
 describe("client/connection 純粋層 — offline-degradation Property 1 / 2 / 7 / 10", () => {
@@ -140,7 +146,9 @@ describe("client/connection 純粋層 — offline-degradation Property 1 / 2 / 7
       fc.property(
         genClientView.chain((view) =>
           genEvent(view)
-            .filter((event): event is Exclude<ClientEvent, { kind: "Server" }> => event.kind !== "Server")
+            .filter(
+              (event): event is Exclude<ClientEvent, { kind: "Server" }> => event.kind !== "Server",
+            )
             .map((event) => ({ view, event })),
         ),
         ({ view, event }) => {
@@ -191,7 +199,9 @@ describe("client/connection 純粋層 — offline-degradation Property 1 / 2 / 7
         expect(canonical(classified)).toEqual(canonical({ ...view, unreachableReason: reason }));
 
         // up 復帰は到達不能理由を既定へ戻す（要件15.12）。
-        expect(decideView(view, { kind: "Connectivity", status: "up" }).unreachableReason).toBe("offline");
+        expect(decideView(view, { kind: "Connectivity", status: "up" }).unreachableReason).toBe(
+          "offline",
+        );
         // down では変えない。up 側だけの主張では「常に offline へ潰す」実装でも緑になる。
         expect(decideView(view, { kind: "Connectivity", status: "down" }).unreachableReason).toBe(
           view.unreachableReason,

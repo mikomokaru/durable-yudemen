@@ -138,7 +138,10 @@ type Pipeline = {
  */
 async function runWithCallTrace(
   events: readonly TraceItem[],
-  options: { readonly queueSendFails?: boolean; readonly putFailsFor?: (key: string) => boolean } = {},
+  options: {
+    readonly queueSendFails?: boolean;
+    readonly putFailsFor?: (key: string) => boolean;
+  } = {},
 ): Promise<Pipeline> {
   const trace: CallTrace = [];
   const producerLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -225,10 +228,9 @@ async function runWithCallTrace(
     });
   });
 
-  const consumerEnv = envWithTripwires(
-    trace,
-    { OPERATION_RAW_ARRIVALS: bucket } satisfies RawArrivalConsumerEnv,
-  );
+  const consumerEnv = envWithTripwires(trace, {
+    OPERATION_RAW_ARRIVALS: bucket,
+  } satisfies RawArrivalConsumerEnv);
   if (messages.length > 0) {
     const batch = new Proxy(
       { queue: "operation-records", messages },
@@ -256,7 +258,12 @@ async function runWithCallTrace(
 /** 全 fixture。妥当・除外・不正・重複・put 失敗・Queue send 失敗を一巡させる。 */
 async function allFixtures(): Promise<readonly Pipeline[]> {
   const lines = producerLines();
-  const valid = [tailEvent(PRODUCER_SCRIPT, lines.map((line) => ({ level: "log", message: [line] })))];
+  const valid = [
+    tailEvent(
+      PRODUCER_SCRIPT,
+      lines.map((line) => ({ level: "log", message: [line] })),
+    ),
+  ];
   const excluded = [
     tailEvent("other-worker", [{ level: "log", message: [lines[0]] }]),
     tailEvent(PRODUCER_SCRIPT, [
@@ -289,7 +296,8 @@ async function allFixtures(): Promise<readonly Pipeline[]> {
   ];
 }
 
-const reversePath = /STORE_TIMER_DO|STORE_REGISTRY_DO|PRODUCER|TIMER_SERVICE|idFromName|getByName|newUniqueId|setAlarm|deleteAlarm|WebSocket|globalFetch|scheduled/i;
+const reversePath =
+  /STORE_TIMER_DO|STORE_REGISTRY_DO|PRODUCER|TIMER_SERVICE|idFromName|getByName|newUniqueId|setAlarm|deleteAlarm|WebSocket|globalFetch|scheduled/i;
 
 const FORWARD_BINDINGS = ["env.OPERATION_RECORDS:get", "env.OPERATION_RAW_ARRIVALS:get"];
 
@@ -304,18 +312,26 @@ describe("Tail／Consumer から Producer への逆方向経路の不在（call 
     const pipelines = await allFixtures();
 
     // 前向き edge が現に踏まれている fixture があってこそ、逆方向 0 件の主張は空虚でない。
-    const allCapabilityTrace = pipelines.flatMap((pipeline) => pipeline.trace.filter((entry) => entry.startsWith("env.")));
+    const allCapabilityTrace = pipelines.flatMap((pipeline) =>
+      pipeline.trace.filter((entry) => entry.startsWith("env.")),
+    );
     for (const forward of FORWARD_BINDINGS) expect(allCapabilityTrace).toContain(forward);
 
     for (const pipeline of pipelines) {
       for (const entry of pipeline.trace.filter((item) => item.startsWith("env."))) {
-        expect(FORWARD_BINDINGS, `${entry} は Data Platform に許された binding ではない`).toContain(entry);
+        expect(FORWARD_BINDINGS, `${entry} は Data Platform に許された binding ではない`).toContain(
+          entry,
+        );
       }
       expect(pipeline.trace.filter((entry) => reversePath.test(entry))).toEqual([]);
       expect(pipeline.trace.filter((entry) => entry.endsWith(":new"))).toEqual([]);
       // Data Platform の外向き作用は Queue send と R2 put だけである。
-      expect(pipeline.trace.filter((entry) => entry.endsWith(":call") && !entry.startsWith("message."))).toEqual(
-        pipeline.trace.filter((entry) => entry === "queue.sendBatch:call" || entry === "bucket.put:call"),
+      expect(
+        pipeline.trace.filter((entry) => entry.endsWith(":call") && !entry.startsWith("message.")),
+      ).toEqual(
+        pipeline.trace.filter(
+          (entry) => entry === "queue.sendBatch:call" || entry === "bucket.put:call",
+        ),
       );
       // 逆方向の待機・保持経路も作らない。
       expect(pipeline.waitUntilCalls).toBe(0);
@@ -331,11 +347,17 @@ describe("Tail／Consumer から Producer への逆方向経路の不在（call 
       for (const receiver of pipeline.ackReceivers) {
         expect(receiver).toMatch(/^queue-message:msg-\d+$/);
       }
-      const ackTrace = pipeline.trace.filter((entry) => entry.endsWith(":call") && /(?:ack|retry)/.test(entry));
+      const ackTrace = pipeline.trace.filter(
+        (entry) => entry.endsWith(":call") && /(?:ack|retry)/.test(entry),
+      );
       for (const entry of ackTrace) {
-        expect(entry, `${entry} の ack 宛先が Queue message ではない`).toMatch(/^message\.msg-\d+\.(?:ack|retry):call$/);
+        expect(entry, `${entry} の ack 宛先が Queue message ではない`).toMatch(
+          /^message\.msg-\d+\.(?:ack|retry):call$/,
+        );
       }
-      expect(pipeline.acks.length + pipeline.retries.length).toBe(new Set(pipeline.acks.concat(pipeline.retries)).size);
+      expect(pipeline.acks.length + pipeline.retries.length).toBe(
+        new Set(pipeline.acks.concat(pipeline.retries)).size,
+      );
       // ack は R2 put 成功件数と一致し、Producer 側へは一件も向かない。
       expect(pipeline.acks).toHaveLength(pipeline.storedKeys.length);
     }
@@ -346,10 +368,26 @@ describe("Tail／Consumer から Producer への逆方向経路の不在（call 
     expect(Object.keys(rawArrivalConsumer)).toEqual(["queue"]);
     const tailHandler = tailWorker as Record<string, unknown>;
     const consumerHandler = rawArrivalConsumer as Record<string, unknown>;
-    for (const entrypoint of ["fetch", "scheduled", "alarm", "webSocketMessage", "webSocketClose", "webSocketError", "queue"]) {
+    for (const entrypoint of [
+      "fetch",
+      "scheduled",
+      "alarm",
+      "webSocketMessage",
+      "webSocketClose",
+      "webSocketError",
+      "queue",
+    ]) {
       expect(tailHandler[entrypoint], `Tail Worker が ${entrypoint} を公開する`).toBeUndefined();
     }
-    for (const entrypoint of ["fetch", "scheduled", "alarm", "webSocketMessage", "webSocketClose", "webSocketError", "tail"]) {
+    for (const entrypoint of [
+      "fetch",
+      "scheduled",
+      "alarm",
+      "webSocketMessage",
+      "webSocketClose",
+      "webSocketError",
+      "tail",
+    ]) {
       expect(consumerHandler[entrypoint], `Consumer が ${entrypoint} を公開する`).toBeUndefined();
     }
   });

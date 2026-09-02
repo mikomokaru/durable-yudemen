@@ -159,7 +159,8 @@ function feasibleRelease(
 ): SlotRelease | null {
   // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
   const ordered = [...placements].sort(
-    (placement, other) => placement.startAt - other.startAt || slotOf(placement.slotIds[0]) - slotOf(other.slotIds[0]),
+    (placement, other) =>
+      placement.startAt - other.startAt || slotOf(placement.slotIds[0]) - slotOf(other.slotIds[0]),
   );
 
   let free = release;

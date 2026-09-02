@@ -52,7 +52,12 @@ describe("ingress/noodle-spec — 麺量の有無が茹で対象を決める", (
         ],
       },
       // 麺 2: 新プレ塩（普通・硬さの指定なし）。
-      { plu_no: 116_051, item_type: 1, qty: 1, child_items: [{ plu_no: 19_401, s_class_code: 65 }] },
+      {
+        plu_no: 116_051,
+        item_type: 1,
+        qty: 1,
+        child_items: [{ plu_no: 19_401, s_class_code: 65 }],
+      },
       // 非麺 1: 餃子（child_items を持たない）。
       { plu_no: 20_001, item_type: 1, qty: 1 },
       // 非麺 2: 丼（トッピングの指定だけを持つ——麺量ではない）。
@@ -101,7 +106,10 @@ describe("ingress/noodle-spec — 判定が依らないもの", () => {
       { plu_no: 11_421, child_items: [{ plu_no: 19_401, s_class_code: 65 }] },
       lookup,
     );
-    const withoutClassCode = toNoodleSpec({ plu_no: 11_421, child_items: [{ plu_no: 19_401 }] }, lookup);
+    const withoutClassCode = toNoodleSpec(
+      { plu_no: 11_421, child_items: [{ plu_no: 19_401 }] },
+      lookup,
+    );
     const withOtherClassCode = toNoodleSpec(
       { plu_no: 11_421, child_items: [{ plu_no: 19_401, s_class_code: 999 }] },
       lookup,
@@ -123,8 +131,14 @@ describe("ingress/noodle-spec — 判定が依らないもの", () => {
   });
 
   it("qty が 2 以上でも 1 品目 1 件の解釈は変わらない（AC 6.35）", () => {
-    const single = toNoodleSpec({ plu_no: 11_421, qty: 1, child_items: [{ plu_no: 19_401 }] }, lookup);
-    const multiple = toNoodleSpec({ plu_no: 11_421, qty: 3, child_items: [{ plu_no: 19_401 }] }, lookup);
+    const single = toNoodleSpec(
+      { plu_no: 11_421, qty: 1, child_items: [{ plu_no: 19_401 }] },
+      lookup,
+    );
+    const multiple = toNoodleSpec(
+      { plu_no: 11_421, qty: 3, child_items: [{ plu_no: 19_401 }] },
+      lookup,
+    );
     expect(multiple).toEqual(single);
   });
 });
@@ -136,7 +150,10 @@ describe("ingress/noodle-spec — 硬さの既定と空の対応表", () => {
   });
 
   it("対応表に無い硬さコードは指定として解釈せず normal へ畳む", () => {
-    const spec = toNoodleSpec({ plu_no: 11_421, child_items: [{ plu_no: 19_401 }, { plu_no: 10_099 }] }, lookup);
+    const spec = toNoodleSpec(
+      { plu_no: 11_421, child_items: [{ plu_no: 19_401 }, { plu_no: 10_099 }] },
+      lookup,
+    );
     expect(spec?.firmness).toBe("normal");
   });
 

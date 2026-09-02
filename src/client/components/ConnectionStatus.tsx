@@ -58,7 +58,7 @@ export function ConnectionStatus({ connection }: { readonly connection: TimerCon
     <span
       role="status"
       className={cn(
-        "inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-[0.875rem] py-[0.375rem] text-[0.8125rem] font-bold",
+        "inline-flex items-center gap-2 rounded-full border px-[0.875rem] py-[0.375rem] text-[0.8125rem] font-bold whitespace-nowrap",
         unreachable ? "border-danger/45 text-ink" : "border-line bg-panel2 text-muted",
       )}
     >

@@ -1,7 +1,10 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { Firmness } from "../../src/domain/firmness";
-import { recordsFromCommittedDiff, type OperationObservation } from "../../src/operation-history/derive";
+import {
+  recordsFromCommittedDiff,
+  type OperationObservation,
+} from "../../src/operation-history/derive";
 import { toWireTimer } from "../../src/engine/project";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import { createTimer, type Timer } from "../../src/engine/timer";
@@ -40,7 +43,10 @@ type Scenario = {
 };
 
 const genIdentifier = fc
-  .array(fc.constantFrom(..."abcdefghijklmnopqrstuvwxyz0123456789-"), { minLength: 1, maxLength: 16 })
+  .array(fc.constantFrom(..."abcdefghijklmnopqrstuvwxyz0123456789-"), {
+    minLength: 1,
+    maxLength: 16,
+  })
   .map((characters) => characters.join(""));
 
 const genTimerSeed: fc.Arbitrary<TimerSeed> = fc.record({
@@ -70,8 +76,16 @@ const genBlueprint: fc.Arbitrary<Blueprint> = fc.record({
   noise: fc.array(genTimerSeed, { maxLength: 3 }),
 });
 
-function seededTimers(seeds: readonly TimerSeed[], prefix: string, seqOffset: number): readonly SeededTimer[] {
-  return seeds.map((seed, index) => ({ ...seed, id: `${prefix}-${index}`, seq: seqOffset + index }));
+function seededTimers(
+  seeds: readonly TimerSeed[],
+  prefix: string,
+  seqOffset: number,
+): readonly SeededTimer[] {
+  return seeds.map((seed, index) => ({
+    ...seed,
+    id: `${prefix}-${index}`,
+    seq: seqOffset + index,
+  }));
 }
 
 function nextFirmness(firmness: Firmness): Firmness {
@@ -125,7 +139,10 @@ function scenarioFromBlueprint(blueprint: Blueprint): Scenario {
   const nextSeq = shared.length + targets.length + noise.length;
   const baseShared = shared.map((seed) => timer(seed));
   const baseTargets = targets.map((seed) => timer(seed));
-  const observation = (before: readonly Timer[], after: readonly Timer[]): OperationObservation => ({
+  const observation = (
+    before: readonly Timer[],
+    after: readonly Timer[],
+  ): OperationObservation => ({
     storeId: blueprint.storeId,
     eventTime: blueprint.eventTime,
     eventKind: blueprint.eventKind,
@@ -135,7 +152,9 @@ function scenarioFromBlueprint(blueprint: Blueprint): Scenario {
 
   switch (blueprint.eventKind) {
     case "Start": {
-      const resynchronized = shared.map((seed) => timer(seed, { adjustmentDelta: seed.changeAmount }));
+      const resynchronized = shared.map((seed) =>
+        timer(seed, { adjustmentDelta: seed.changeAmount }),
+      );
       return {
         observation: observation(baseShared, [...resynchronized, ...baseTargets]),
         expectedKind: "boil-started",
@@ -144,7 +163,9 @@ function scenarioFromBlueprint(blueprint: Blueprint): Scenario {
     }
     case "Complete":
     case "Cancel": {
-      const resynchronized = shared.map((seed) => timer(seed, { adjustmentDelta: seed.changeAmount }));
+      const resynchronized = shared.map((seed) =>
+        timer(seed, { adjustmentDelta: seed.changeAmount }),
+      );
       return {
         observation: observation([...baseShared, ...baseTargets], resynchronized),
         expectedKind: blueprint.eventKind === "Complete" ? "completed" : "cancelled",
@@ -157,11 +178,10 @@ function scenarioFromBlueprint(blueprint: Blueprint): Scenario {
         timer(seed, { endTimeDelta: seed.changeAmount, adjustmentDelta: -seed.changeAmount }),
       );
       return {
-        observation: observation([...baseTargets, ...baseShared, ...noise.map((seed) => timer(seed))], [
-          ...changedTargets,
-          ...baseShared,
-          ...factPreservingNoise,
-        ]),
+        observation: observation(
+          [...baseTargets, ...baseShared, ...noise.map((seed) => timer(seed))],
+          [...changedTargets, ...baseShared, ...factPreservingNoise],
+        ),
         expectedKind: "adjusted",
         sources: changedTargets,
       };
@@ -174,11 +194,10 @@ function scenarioFromBlueprint(blueprint: Blueprint): Scenario {
       const boiledTargets = targets.map((seed) => timer(seed, { boiledAt: blueprint.eventTime }));
       const addedBoiledNoise = noise.map((seed) => timer(seed, { boiledAt: blueprint.eventTime }));
       return {
-        observation: observation([...stableShared, ...baseTargets], [
-          ...addedBoiledNoise,
-          ...boiledTargets,
-          ...stableShared,
-        ]),
+        observation: observation(
+          [...stableShared, ...baseTargets],
+          [...addedBoiledNoise, ...boiledTargets, ...stableShared],
+        ),
         expectedKind: "boiled",
         sources: boiledTargets,
       };
@@ -186,7 +205,10 @@ function scenarioFromBlueprint(blueprint: Blueprint): Scenario {
   }
 }
 
-function expectRecordFromSource(record: ReturnType<typeof recordsFromCommittedDiff>[number], source: Timer): void {
+function expectRecordFromSource(
+  record: ReturnType<typeof recordsFromCommittedDiff>[number],
+  source: Timer,
+): void {
   const fact = toWireTimer(source);
   expect(record).toMatchObject({
     timerId: fact.id,
@@ -210,18 +232,23 @@ describe("Property 1: 確定差分と record の一対一対応", () => {
   // **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.11, 2.12, 2.13**
   it("対象差分だけを取得元の Timer 事実と同じ Event Time で一件ずつ導出する", () => {
     fc.assert(
-      fc.property(genBlueprint.map(scenarioFromBlueprint), ({ observation, expectedKind, sources }) => {
-        const records = recordsFromCommittedDiff(observation);
+      fc.property(
+        genBlueprint.map(scenarioFromBlueprint),
+        ({ observation, expectedKind, sources }) => {
+          const records = recordsFromCommittedDiff(observation);
 
-        expect(records).toHaveLength(sources.length);
-        expect(records.map((record) => record.timerId)).toEqual(sources.map((source) => source.id));
-        for (const [index, record] of records.entries()) {
-          expect(record.operationKind).toBe(expectedKind);
-          expect(record.storeId).toBe(observation.storeId);
-          expect(record.eventTime).toBe(observation.eventTime);
-          expectRecordFromSource(record, sources[index] as Timer);
-        }
-      }),
+          expect(records).toHaveLength(sources.length);
+          expect(records.map((record) => record.timerId)).toEqual(
+            sources.map((source) => source.id),
+          );
+          for (const [index, record] of records.entries()) {
+            expect(record.operationKind).toBe(expectedKind);
+            expect(record.storeId).toBe(observation.storeId);
+            expect(record.eventTime).toBe(observation.eventTime);
+            expectRecordFromSource(record, sources[index] as Timer);
+          }
+        },
+      ),
       { numRuns: NUM_RUNS },
     );
   });

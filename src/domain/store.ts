@@ -118,7 +118,14 @@ export interface GridPoint {
 export type UnitOrigin = GridPoint;
 
 /** ユニット内 slot のオフセット。全ユニットで共通（ユニットは同型の台である）。 */
-export type SlotOffsets = readonly [GridPoint, GridPoint, GridPoint, GridPoint, GridPoint, GridPoint];
+export type SlotOffsets = readonly [
+  GridPoint,
+  GridPoint,
+  GridPoint,
+  GridPoint,
+  GridPoint,
+  GridPoint,
+];
 
 /**
  * ユニット内オフセットの既定（3 行 × 2 列・j → (j % 2, ⌊j / 2⌋)）。
@@ -423,7 +430,11 @@ export function toTableSyncToleranceSeconds(raw: unknown): number {
  * AFFINITY_TOLERANCE_DISTANCE_MIN の傍に一度だけ記す）。
  */
 export function toAffinityToleranceDistance(raw: unknown): number {
-  return toIntegerAtLeast(raw, AFFINITY_TOLERANCE_DISTANCE_MIN, DEFAULT_AFFINITY_TOLERANCE_DISTANCE);
+  return toIntegerAtLeast(
+    raw,
+    AFFINITY_TOLERANCE_DISTANCE_MIN,
+    DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  );
 }
 
 /**

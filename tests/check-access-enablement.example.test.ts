@@ -114,7 +114,7 @@ describe("check-access-enablement — accessEnablementPreflight（デプロイ�
     }
   });
 
-  it("OFF（accessRequired=\"0\"）: 検査を課さず proceed:true と安全側の既定を示す英語注記を返す（要件5.3）", () => {
+  it('OFF（accessRequired="0"）: 検査を課さず proceed:true と安全側の既定を示す英語注記を返す（要件5.3）', () => {
     // OFF のときはプレースホルダ・型再生成未実行でも有効化前提を課さない（安全側の既定）。
     const input: PreflightInput = {
       accessRequired: "0",

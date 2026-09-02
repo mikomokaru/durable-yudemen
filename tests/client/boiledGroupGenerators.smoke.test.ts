@@ -69,16 +69,19 @@ describe("client/boiledGroupGenerators genBatchCase の入力空間（Property 1
     // Property 1 / 3 は boiled を前提に採り、Property 4 は running と不在という二つの現れ方を一つの言明に
     // 畳んでいる。双方が踏まれなければ Property 4 は言明の半分しか検査していない（要件1.2 の窓）。
     const cases = fc.sample(genBatchCase, SAMPLE_SIZE);
-    const endTimeOf = (batch: BatchCase): number | undefined => findTarget(batch.view, batch.timerId)?.endTime;
+    const endTimeOf = (batch: BatchCase): number | undefined =>
+      findTarget(batch.view, batch.timerId)?.endTime;
 
     expect(cases.some((batch) => (endTimeOf(batch) ?? Infinity) <= batch.correctedNow)).toBe(true);
     expect(cases.some((batch) => (endTimeOf(batch) ?? -Infinity) > batch.correctedNow)).toBe(true);
     expect(cases.some((batch) => endTimeOf(batch) === undefined)).toBe(true);
 
     // 境界は boiled 側に転ぶ（述語は endTime <= correctedNow）。
-    expect(cases.some((batch) => batch.view.timers.some((timer) => timer.endTime === batch.correctedNow))).toBe(
-      true,
-    );
+    expect(
+      cases.some((batch) =>
+        batch.view.timers.some((timer) => timer.endTime === batch.correctedNow),
+      ),
+    ).toBe(true);
   });
 
   it("origin は server / local 混在で、slotIds は担当ユニット内・外の双方を駆動する", () => {
@@ -88,7 +91,9 @@ describe("client/boiledGroupGenerators genBatchCase の入力空間（Property 1
     expect(timers.some((timer) => timer.origin === "server")).toBe(true);
     expect(timers.some((timer) => timer.origin === "local")).toBe(true);
     expect(timers.some((timer) => timer.slotIds.some(isAssignedToUnitZero))).toBe(true);
-    expect(timers.some((timer) => timer.slotIds.every((slotId) => !isAssignedToUnitZero(slotId)))).toBe(true);
+    expect(
+      timers.some((timer) => timer.slotIds.every((slotId) => !isAssignedToUnitZero(slotId))),
+    ).toBe(true);
   });
 
   it("ビューは空・非空、退化スロット、処理済み記録、既存残滓の各次元を踏む", () => {
@@ -98,11 +103,15 @@ describe("client/boiledGroupGenerators genBatchCase の入力空間（Property 1
     expect(views.some((view) => view.timers.length > 0)).toBe(true);
 
     // 同一スロットを複数の Timer が駆動する退化入力（要件8.4 / 8.8 の前提）。
-    expect(views.some((view) => slotsDrivenBy(view.timers).size < drivenSlotCount(view.timers))).toBe(true);
+    expect(
+      views.some((view) => slotsDrivenBy(view.timers).size < drivenSlotCount(view.timers)),
+    ).toBe(true);
 
     // processedIds は空・timers の id と一部一致の双方（要件5.4 の処理済み記録の前提）。
     expect(views.some((view) => view.processedIds.size === 0)).toBe(true);
-    expect(views.some((view) => view.timers.some((timer) => view.processedIds.has(timer.id)))).toBe(true);
+    expect(views.some((view) => view.timers.some((timer) => view.processedIds.has(timer.id)))).toBe(
+      true,
+    );
 
     // lastResults は空・既存残滓ありの双方（要件8.4 の上書き検査の前提）。
     expect(views.some((view) => view.lastResults.size === 0)).toBe(true);
@@ -110,7 +119,9 @@ describe("client/boiledGroupGenerators genBatchCase の入力空間（Property 1
   });
 
   it("群は 2 件以上に立つ盤面と 1 件へ退化する盤面の双方に分布し、群外 Timer による占有を踏む", () => {
-    const boards = fc.sample(genBatchCase, SAMPLE_SIZE).map((batch) => ({ batch, group: groupOf(batch) }));
+    const boards = fc
+      .sample(genBatchCase, SAMPLE_SIZE)
+      .map((batch) => ({ batch, group: groupOf(batch) }));
 
     // 同値衝突で群が複数件に立つ盤面（要件1.5）と、1 件へ退化する盤面（要件2.2）の双方。
     expect(boards.some(({ group }) => group.length >= 2)).toBe(true);
@@ -217,7 +228,9 @@ describe("client/boiledGroupGenerators genReflectionOrderCase の入力空間（
     }
 
     expect(
-      orders.some((order) => order.group.some((member, index) => member.id !== order.reflected[index]?.id)),
+      orders.some((order) =>
+        order.group.some((member, index) => member.id !== order.reflected[index]?.id),
+      ),
     ).toBe(true);
   });
 
@@ -225,7 +238,9 @@ describe("client/boiledGroupGenerators genReflectionOrderCase の入力空間（
     const orders = fc.sample(genReflectionOrderCase, SAMPLE_SIZE);
 
     // 同一スロットを複数メンバーが駆動する退化群（要件8.4 の競合規則の前提）。
-    expect(orders.some((order) => slotsDrivenBy(order.group).size < drivenSlotCount(order.group))).toBe(true);
+    expect(
+      orders.some((order) => slotsDrivenBy(order.group).size < drivenSlotCount(order.group)),
+    ).toBe(true);
 
     // 既存残滓（stale-*・負の at）が群のスロットに載っている盤面——上書きが現に起きる。
     expect(
@@ -241,7 +256,8 @@ describe("client/boiledGroupGenerators genReflectionOrderCase の入力空間（
       orders.some((order) =>
         [...slotsDrivenBy(order.group)].some(
           (slotId) =>
-            lastDriverOf(order.reflected, slotId)?.noodleType !== lastDriverOf(order.group, slotId)?.noodleType,
+            lastDriverOf(order.reflected, slotId)?.noodleType !==
+            lastDriverOf(order.group, slotId)?.noodleType,
         ),
       ),
     ).toBe(true);

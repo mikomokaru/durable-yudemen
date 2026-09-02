@@ -13,9 +13,7 @@ const thresholds = {
   conflictRate: 0.4,
 } as const;
 
-function assess(
-  counts: Parameters<typeof operationQualityAssessmentFromCounts>[0]["counts"],
-) {
+function assess(counts: Parameters<typeof operationQualityAssessmentFromCounts>[0]["counts"]) {
   return operationQualityAssessmentFromCounts({ ...scope, counts, thresholds });
 }
 
@@ -61,22 +59,19 @@ describe("operationQualityAssessmentFromCounts", () => {
     });
     expect(result.trustedAnalysis).toEqual({
       status: "excluded",
-      exclusions: [
-        "lifecycleMissingRate",
-        "duplicateRate",
-        "orphanRate",
-        "conflictRate",
-      ].map((qualityRate) => ({
-        qualityRate,
-        rate: {
-          status: "not-calculable",
-          numerator: 0,
-          denominator: 0,
-          reason: "denominator-is-zero",
-        },
-        threshold: thresholds[qualityRate as keyof typeof thresholds],
-        reason: "rate-not-calculable",
-      })),
+      exclusions: ["lifecycleMissingRate", "duplicateRate", "orphanRate", "conflictRate"].map(
+        (qualityRate) => ({
+          qualityRate,
+          rate: {
+            status: "not-calculable",
+            numerator: 0,
+            denominator: 0,
+            reason: "denominator-is-zero",
+          },
+          threshold: thresholds[qualityRate as keyof typeof thresholds],
+          reason: "rate-not-calculable",
+        }),
+      ),
     });
   });
 
@@ -94,12 +89,14 @@ describe("operationQualityAssessmentFromCounts", () => {
 
     expect(result.trustedAnalysis).toEqual({
       status: "excluded",
-      exclusions: [{
-        qualityRate: "lifecycleMissingRate",
-        rate: { status: "calculated", numerator: 3, denominator: 10, value: 0.3 },
-        threshold: 0.2,
-        reason: "threshold-exceeded",
-      }],
+      exclusions: [
+        {
+          qualityRate: "lifecycleMissingRate",
+          rate: { status: "calculated", numerator: 3, denominator: 10, value: 0.3 },
+          threshold: 0.2,
+          reason: "threshold-exceeded",
+        },
+      ],
     });
     expect(result.analysisDisclosure).toEqual({
       storeId: "store-1",
@@ -112,7 +109,8 @@ describe("operationQualityAssessmentFromCounts", () => {
       status: "unmeasurable",
       reason: "producer-telemetry-total-unobservable",
       distinctFrom: "lifecycleMissingRate",
-      display: "Unmeasurable: Producer telemetry total is not observable; distinct from lifecycle missing rate",
+      display:
+        "Unmeasurable: Producer telemetry total is not observable; distinct from lifecycle missing rate",
     });
   });
 

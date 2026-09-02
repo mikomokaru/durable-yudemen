@@ -371,11 +371,17 @@ const ACCESS_CERTS_PATH = "/cdn-cgi/access/certs";
 // createRemoteJWKSet は内部に署名鍵のキャッシュを持つ。跨リクエストで再利用するためモジュールスコープに保持する
 // （毎リクエストで新規生成すると鍵取得が走りキャッシュが効かない）。env は module load 時には手に入らないため、
 // TEAM_DOMAIN をキーに遅延生成・メモ化する（team が変われば張り直す）。
-let cachedJwks: { readonly teamDomain: string; readonly jwks: ReturnType<typeof createRemoteJWKSet> } | null = null;
+let cachedJwks: {
+  readonly teamDomain: string;
+  readonly jwks: ReturnType<typeof createRemoteJWKSet>;
+} | null = null;
 
 function accessJwks(teamDomain: string): ReturnType<typeof createRemoteJWKSet> {
   if (cachedJwks?.teamDomain !== teamDomain) {
-    cachedJwks = { teamDomain, jwks: createRemoteJWKSet(new URL(`${teamDomain}${ACCESS_CERTS_PATH}`)) };
+    cachedJwks = {
+      teamDomain,
+      jwks: createRemoteJWKSet(new URL(`${teamDomain}${ACCESS_CERTS_PATH}`)),
+    };
   }
   return cachedJwks.jwks;
 }
@@ -552,7 +558,8 @@ export default {
       // 宛先店舗数に比例する処理の継続機構は持たない（残作業＋Alarm 継続を本経路に持ち込まない・AC 5.9）。
       // 未完了は一時的失敗として上流の再送に委ねる。
       let transient = false;
-      const unrouted: { readonly storeCode: string; readonly records: readonly ArrivalRecord[] }[] = [];
+      const unrouted: { readonly storeCode: string; readonly records: readonly ArrivalRecord[] }[] =
+        [];
       for (const { storeCode, records, delivery } of delivered) {
         switch (delivery.kind) {
           case "settled":

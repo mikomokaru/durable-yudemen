@@ -61,7 +61,11 @@ function genSyncCase(minLength: number): fc.Arbitrary<SyncCase> {
 const genPossiblyEmptyCase = genSyncCase(0);
 const genNonEmptyCase = genSyncCase(1);
 
-function endOffsets(seeds: readonly TimerSeed[], params: SyncParams, layout: EndTimeLayout): readonly number[] {
+function endOffsets(
+  seeds: readonly TimerSeed[],
+  params: SyncParams,
+  layout: EndTimeLayout,
+): readonly number[] {
   if (layout === "same") return seeds.map(() => 0);
   if (layout === "separate") return seeds.map((_, index) => index * SEPARATE_GAP);
 
@@ -74,7 +78,8 @@ function endOffsets(seeds: readonly TimerSeed[], params: SyncParams, layout: End
 
     const previous = seeds[index - 1];
     const previousOffset = offsets[index - 1];
-    if (previous === undefined || previousOffset === undefined) throw new Error("近接時刻の生成に失敗した");
+    if (previous === undefined || previousOffset === undefined)
+      throw new Error("近接時刻の生成に失敗した");
 
     // 隣接する窓の半幅合計より小さい正の差を使い、連鎖する近接時刻を作る。
     const overlappingGap = Math.max(

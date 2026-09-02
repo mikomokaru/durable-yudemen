@@ -17,7 +17,12 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { PLAN_TARGET_LIMIT, baselineSchedule, initialRelease, type SlotRelease } from "../../src/engine/schedule";
+import {
+  PLAN_TARGET_LIMIT,
+  baselineSchedule,
+  initialRelease,
+  type SlotRelease,
+} from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
 import type { PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
@@ -59,7 +64,9 @@ const genScene: fc.Arbitrary<Scene> = fc
       params: genParams(unitCount),
       running: fc.array(genRunning(slotCount), { maxLength: 5 }),
       // 未知の麺種を低い頻度で混ぜる（既知 3 種 + 未知 1 種）。
-      orders: fc.array(genOrderSpec([...KNOWN_NOODLE_TYPES, UNKNOWN_NOODLE_TYPE]), { maxLength: 5 }),
+      orders: fc.array(genOrderSpec([...KNOWN_NOODLE_TYPES, UNKNOWN_NOODLE_TYPE]), {
+        maxLength: 5,
+      }),
     });
   })
   .map(({ slotCount, params, running, orders }) => ({
@@ -115,8 +122,18 @@ describe("engine/schedule — baselineSchedule", () => {
             .map((shuffled) => ({ scene, shuffled })),
         ),
         ({ scene, shuffled }) => {
-          const canonical = baselineSchedule(scene.pending, scene.release, DEFAULT_NOODLE_PRESETS, scene.params);
-          const permuted = baselineSchedule(shuffled, scene.release, DEFAULT_NOODLE_PRESETS, scene.params);
+          const canonical = baselineSchedule(
+            scene.pending,
+            scene.release,
+            DEFAULT_NOODLE_PRESETS,
+            scene.params,
+          );
+          const permuted = baselineSchedule(
+            shuffled,
+            scene.release,
+            DEFAULT_NOODLE_PRESETS,
+            scene.params,
+          );
 
           expect(permuted).toEqual(canonical);
         },
@@ -149,7 +166,8 @@ describe("engine/schedule — baselineSchedule", () => {
 });
 
 /** 品目を一意に指す鍵（テスト側の照合用）。 */
-const keyOf = (externalOrderId: string, itemIndex: number): string => `${externalOrderId}#${itemIndex}`;
+const keyOf = (externalOrderId: string, itemIndex: number): string =>
+  `${externalOrderId}#${itemIndex}`;
 
 /** テスト側で独立に求めた計画対象の鍵集合（実装と同じ正準順序を、実装を呼ばずに組む）。 */
 function planTargetKeys(pending: readonly PendingOrder[]): readonly string[] {
@@ -157,7 +175,11 @@ function planTargetKeys(pending: readonly PendingOrder[]): readonly string[] {
     .sort(
       (order, other) =>
         order.arrivalTime - other.arrivalTime ||
-        (order.externalOrderId === other.externalOrderId ? 0 : order.externalOrderId < other.externalOrderId ? -1 : 1) ||
+        (order.externalOrderId === other.externalOrderId
+          ? 0
+          : order.externalOrderId < other.externalOrderId
+            ? -1
+            : 1) ||
         order.itemIndex - other.itemIndex,
     )
     .slice(0, PLAN_TARGET_LIMIT)

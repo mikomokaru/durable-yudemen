@@ -76,7 +76,9 @@ describe("engine/sync — synchronization fallback", () => {
         const isolatedTimers = referenceProximityClusters(timers, params.toleranceRatio)
           .filter((cluster) => cluster.length === 1)
           .flatMap((cluster) => cluster);
-        const synchronizedById = new Map(synchronize(timers, params).map((timer) => [timer.id, timer]));
+        const synchronizedById = new Map(
+          synchronize(timers, params).map((timer) => [timer.id, timer]),
+        );
 
         for (const set of unsyncableSets) {
           expectAdjustmentZeroById(synchronizedById, set);

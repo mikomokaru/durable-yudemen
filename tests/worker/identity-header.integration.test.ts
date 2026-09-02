@@ -25,9 +25,18 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:test";
 import worker from "../../src/worker";
 import { IDENTITY_HEADER } from "../../src/shell/store-timer-do";
-import { establishAccessSigning, freshTeamDomain, POLICY_AUD, type AccessSigning } from "./support/accessJwt";
+import {
+  establishAccessSigning,
+  freshTeamDomain,
+  POLICY_AUD,
+  type AccessSigning,
+} from "./support/accessJwt";
 // 転送先 DO を横取りする観測ハーネス。同じ観測を要する Upgrade 拒否のテストと共有する（重複を作らない）。
-import { capturingStoreNamespace, emptyForwardSink, type ForwardSink } from "./support/storeTimerSink";
+import {
+  capturingStoreNamespace,
+  emptyForwardSink,
+  type ForwardSink,
+} from "./support/storeTimerSink";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する。
 declare module "cloudflare:test" {
@@ -119,7 +128,11 @@ describe("worker fetch — クライアント由来 IDENTITY_HEADER の無条件
     it(`ACCESS_REQUIRED="1"（JWT 検証成功）：クライアント由来 "${casing}" の偽装値は DO 受信ヘッダに現れない`, async () => {
       const teamDomain = freshTeamDomain();
       access.stubCertsFetch();
-      const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
+      const token = await access.mintToken({
+        issuer: teamDomain,
+        audience: POLICY_AUD,
+        email: VERIFIED_IDENTITY,
+      });
 
       const { response, forwarded } = await driveWs({
         storeId: freshStoreId(),
@@ -145,7 +158,11 @@ describe("worker fetch — 検証済み identity の付与は ON かつ JWT 検�
   it('ACCESS_REQUIRED="1"（JWT 検証成功）：偽装ヘッダがあっても DO 受信 IDENTITY_HEADER は検証済み identity になる', async () => {
     const teamDomain = freshTeamDomain();
     access.stubCertsFetch();
-    const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
+    const token = await access.mintToken({
+      issuer: teamDomain,
+      audience: POLICY_AUD,
+      email: VERIFIED_IDENTITY,
+    });
 
     const { response, forwarded } = await driveWs({
       storeId: freshStoreId(),
@@ -165,7 +182,11 @@ describe("worker fetch — 検証済み identity の付与は ON かつ JWT 検�
   it('ACCESS_REQUIRED="0"：JWT があっても identity を付与しない（OFF は付与元でない・要件7.3 の対偶）', async () => {
     const teamDomain = freshTeamDomain();
     access.stubCertsFetch();
-    const token = await access.mintToken({ issuer: teamDomain, audience: POLICY_AUD, email: VERIFIED_IDENTITY });
+    const token = await access.mintToken({
+      issuer: teamDomain,
+      audience: POLICY_AUD,
+      email: VERIFIED_IDENTITY,
+    });
 
     const { response, forwarded } = await driveWs({
       storeId: freshStoreId(),

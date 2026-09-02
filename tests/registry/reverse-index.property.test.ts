@@ -62,9 +62,11 @@ const genChains: fc.Arbitrary<readonly Chain[]> = fc
   .tuple(genRoster, genRoster, genRoster)
   .map(([rosterA, rosterB, rosterC]): readonly Chain[] => {
     const rosterByChain = { "chain-a": rosterA, "chain-b": rosterB, "chain-c": rosterC } as const;
-    return CHAIN_IDS.map(
-      (chainId): Chain => ({ chainId, name: `Chain ${chainId}`, chainRoster: rosterByChain[chainId] }),
-    );
+    return CHAIN_IDS.map((chainId): Chain => ({
+      chainId,
+      name: `Chain ${chainId}`,
+      chainRoster: rosterByChain[chainId],
+    }));
   });
 
 /**
@@ -96,7 +98,10 @@ function activeStoresInOrder(stores: readonly Store[]): readonly Store[] {
   return stores
     .filter((store) => store.active)
     .slice()
-    .sort((a, b) => a.createdAt - b.createdAt || (a.storeId < b.storeId ? -1 : a.storeId > b.storeId ? 1 : 0));
+    .sort(
+      (a, b) =>
+        a.createdAt - b.createdAt || (a.storeId < b.storeId ? -1 : a.storeId > b.storeId ? 1 : 0),
+    );
 }
 
 /**
@@ -110,7 +115,11 @@ function expectedStoresForIdentity(
   identity: Identity,
 ): readonly StoreId[] {
   return orderedActive
-    .filter((store) => effectiveRoster(chainRosterById.get(store.chainId) ?? [], store.storeRoster).includes(identity))
+    .filter((store) =>
+      effectiveRoster(chainRosterById.get(store.chainId) ?? [], store.storeRoster).includes(
+        identity,
+      ),
+    )
     .map((store) => store.storeId);
 }
 
@@ -130,7 +139,9 @@ describe("registry/reverse-index — buildReverseIndex / storesForIdentity", () 
         const index = buildReverseIndex(chains, stores);
 
         // 参照 oracle の材料（チェーン Roster の引き当て表・登録順の活性店舗列）を独立に用意する。
-        const chainRosterById = new Map<string, Roster>(chains.map((c) => [c.chainId, c.chainRoster]));
+        const chainRosterById = new Map<string, Roster>(
+          chains.map((c) => [c.chainId, c.chainRoster]),
+        );
         const orderedActive = activeStoresInOrder(stores);
 
         // 出現し得る全 identity（プール）について、順序込みで参照 oracle と一致する。

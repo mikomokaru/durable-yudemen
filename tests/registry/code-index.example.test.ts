@@ -5,7 +5,11 @@
 // 衝突は列として返る（要件3.6）。
 
 import { describe, expect, it } from "vitest";
-import { buildCodeIndex, detectDuplicateStoreCodes, storeForCode } from "../../src/registry/code-index";
+import {
+  buildCodeIndex,
+  detectDuplicateStoreCodes,
+  storeForCode,
+} from "../../src/registry/code-index";
 import type { Store } from "../../src/registry/ideal";
 
 /** 検証に影響する事実（storeId・storeCode・active・createdAt）だけを与えて Store を組む。 */
@@ -41,7 +45,10 @@ describe("registry/code-index — 索引の構築と読み出し", () => {
   });
 
   it("Store_Code を持たない店舗は索引に載らない（要件3.8）", () => {
-    const index = buildCodeIndex([store({ storeId: "abc123" }), store({ storeId: "def456", storeCode: "1001" })]);
+    const index = buildCodeIndex([
+      store({ storeId: "abc123" }),
+      store({ storeId: "def456", storeCode: "1001" }),
+    ]);
 
     expect(index.size).toBe(1);
     expect(storeForCode(index, "1001")).toBe("def456");

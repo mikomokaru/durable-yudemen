@@ -13,7 +13,8 @@ import { toUniqueKey } from "../../src/ingress/unique-key";
 const UNIQUE_KEY_FIELDS = ["store_id", "terminal_id", "bill_no", "datetime"] as const;
 
 /** Unique_Key の 4 要素に当たらないキーか（余剰フィールドの生成に用いる）。 */
-const isExtraKey = (key: string): boolean => !(UNIQUE_KEY_FIELDS as readonly string[]).includes(key);
+const isExtraKey = (key: string): boolean =>
+  !(UNIQUE_KEY_FIELDS as readonly string[]).includes(key);
 
 /**
  * 読み出せる要素の値（非空文字列と有限の数値）。実データでは 3 要素が数値・`datetime` が文字列で届くが、
@@ -94,18 +95,23 @@ describe("ingress/unique-key — toUniqueKey", () => {
       "delete" | "null" | "undefined" | "empty" | "array" | "object" | "boolean" | "not-finite"
     >("delete", "null", "undefined", "empty", "array", "object", "boolean", "not-finite");
     fc.assert(
-      fc.property(genCompletePayload, fc.constantFrom(...UNIQUE_KEY_FIELDS), genBreaker, (payload, field, breaker) => {
-        const broken: Record<string, unknown> = { ...payload };
-        if (breaker === "delete") delete broken[field];
-        else if (breaker === "null") broken[field] = null;
-        else if (breaker === "undefined") broken[field] = undefined;
-        else if (breaker === "empty") broken[field] = "";
-        else if (breaker === "array") broken[field] = [7];
-        else if (breaker === "object") broken[field] = {};
-        else if (breaker === "boolean") broken[field] = true;
-        else broken[field] = Number.NaN;
-        expect(toUniqueKey(broken)).toBeNull();
-      }),
+      fc.property(
+        genCompletePayload,
+        fc.constantFrom(...UNIQUE_KEY_FIELDS),
+        genBreaker,
+        (payload, field, breaker) => {
+          const broken: Record<string, unknown> = { ...payload };
+          if (breaker === "delete") delete broken[field];
+          else if (breaker === "null") broken[field] = null;
+          else if (breaker === "undefined") broken[field] = undefined;
+          else if (breaker === "empty") broken[field] = "";
+          else if (breaker === "array") broken[field] = [7];
+          else if (breaker === "object") broken[field] = {};
+          else if (breaker === "boolean") broken[field] = true;
+          else broken[field] = Number.NaN;
+          expect(toUniqueKey(broken)).toBeNull();
+        },
+      ),
       { numRuns: 300 },
     );
   });
@@ -129,9 +135,14 @@ describe("ingress/unique-key — toUniqueKey", () => {
   // **Validates: Requirements 14.2, 14.3, 14.4**
   it("Property 3: 余剰フィールドを混ぜても値が変わらない（素通しは payload に閉じる）", () => {
     fc.assert(
-      fc.property(genCompletePayload, fc.string({ maxLength: 8 }).filter(isExtraKey), fc.anything(), (payload, key, value) => {
-        expect(toUniqueKey({ ...payload, [key]: value })).toBe(toUniqueKey(payload));
-      }),
+      fc.property(
+        genCompletePayload,
+        fc.string({ maxLength: 8 }).filter(isExtraKey),
+        fc.anything(),
+        (payload, key, value) => {
+          expect(toUniqueKey({ ...payload, [key]: value })).toBe(toUniqueKey(payload));
+        },
+      ),
       { numRuns: 300 },
     );
   });

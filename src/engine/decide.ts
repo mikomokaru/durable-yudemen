@@ -40,7 +40,14 @@ export function decide(state: TimerState, event: Event, params: SettleParams): O
     case "Complete":
       return completeTimer(state, event.timerId, event.now, params);
     case "Adjust":
-      return adjustTimer(state, event.timerId, event.firmness, event.boilSeconds, event.now, params);
+      return adjustTimer(
+        state,
+        event.timerId,
+        event.firmness,
+        event.boilSeconds,
+        event.now,
+        params,
+      );
     case "AlarmFired":
       return fireDueTimers(state, event.now, params);
     case "Reconcile":

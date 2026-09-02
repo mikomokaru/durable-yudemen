@@ -130,7 +130,10 @@ function storeStub(storeId: string): DurableObjectStub<StoreTimerDO> {
 }
 
 /** 投影を押し込んでプロビジョニングする（レジストリを介さない・design.md の推奨経路）。 */
-async function provision(storeId: string, active: boolean = true): Promise<DurableObjectStub<StoreTimerDO>> {
+async function provision(
+  storeId: string,
+  active: boolean = true,
+): Promise<DurableObjectStub<StoreTimerDO>> {
   const stub = storeStub(storeId);
   const projection: StoreProjection = { config: storeConfig, roster: [], active, version: 1 };
   await stub.applyProjection(projection);
@@ -140,7 +143,12 @@ async function provision(storeId: string, active: boolean = true): Promise<Durab
 /** 対応表 2 枚が空の店舗をプロビジョニングする（`[Q8]` の値が未提示のままの状態）。 */
 async function provisionWithoutTables(storeId: string): Promise<DurableObjectStub<StoreTimerDO>> {
   const stub = storeStub(storeId);
-  const projection: StoreProjection = { config: untabledStoreConfig, roster: [], active: true, version: 1 };
+  const projection: StoreProjection = {
+    config: untabledStoreConfig,
+    roster: [],
+    active: true,
+    version: 1,
+  };
   await stub.applyProjection(projection);
   return stub;
 }
@@ -154,7 +162,11 @@ function seq(n: number): string {
 }
 
 /** 麺の品目（麺量を持つ＝茹で対象）。硬さの指定は任意。 */
-function noodleItem(productCode: number, sizeCode: number, firmnessCode?: number): Record<string, unknown> {
+function noodleItem(
+  productCode: number,
+  sizeCode: number,
+  firmnessCode?: number,
+): Record<string, unknown> {
   const childItems: Record<string, unknown>[] = [{ plu_no: sizeCode }];
   if (firmnessCode !== undefined) childItems.push({ plu_no: firmnessCode });
   return { plu_no: productCode, child_items: childItems };
@@ -191,8 +203,12 @@ function orderRecord(args: {
 }
 
 /** 永続スナップショットを読む（待ち行列の確定状態はここが正本である）。 */
-async function readSnapshot(stub: DurableObjectStub<StoreTimerDO>): Promise<StoreSnapshot | undefined> {
-  return runInDurableObject(stub, (_instance, state) => state.storage.get<StoreSnapshot>(SNAPSHOT_KEY));
+async function readSnapshot(
+  stub: DurableObjectStub<StoreTimerDO>,
+): Promise<StoreSnapshot | undefined> {
+  return runInDurableObject(stub, (_instance, state) =>
+    state.storage.get<StoreSnapshot>(SNAPSHOT_KEY),
+  );
 }
 
 /** 品目の同定（externalOrderId × itemIndex）。待ち行列の突き合わせをこの組で行う。 */
@@ -205,13 +221,18 @@ function itemKeys(
 /** 接続中クライアントの受信を観測するハンドル（broadcast の回数と不在を件数で見るため生の列を持つ）。 */
 interface WsProbe {
   readonly messages: readonly ServerMessage[];
-  waitForSnapshot(predicate: (message: ServerMessage) => boolean, timeoutMs?: number): Promise<ServerMessage>;
+  waitForSnapshot(
+    predicate: (message: ServerMessage) => boolean,
+    timeoutMs?: number,
+  ): Promise<ServerMessage>;
   close(): void;
 }
 
 /** WS を張り、client 端を accept して受信を収集する（cook-scheduling.integration.test.ts と同形）。 */
 async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> {
-  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", { headers: { Upgrade: "websocket" } });
+  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", {
+    headers: { Upgrade: "websocket" },
+  });
   const ws = upgrade.webSocket;
   if (ws === null) throw new Error(`WS 接続が確立されなかった（status=${upgrade.status}）`);
 
@@ -239,7 +260,10 @@ async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> 
       const already = messages.find((message) => predicate(message));
       if (already !== undefined) return Promise.resolve(already);
       return new Promise<ServerMessage>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("メッセージの待機がタイムアウトした")), timeoutMs);
+        const timer = setTimeout(
+          () => reject(new Error("メッセージの待機がタイムアウトした")),
+          timeoutMs,
+        );
         waiters.push({
           predicate,
           resolve: (message) => {
@@ -338,7 +362,9 @@ describe("確定は put 成功の上にのみ立つ（Requirements 5.6, 5.7）",
     await client.waitForSnapshot((message) => message.type === "snapshot");
 
     // 対照：put が働くときは settled が返り broadcast も出る（後段の「出ない」が空虚でないことの担保）。
-    const first = await stub.receiveRecords([orderRecord({ billNo: "bill-a", sequenceNumber: seq(1) })]);
+    const first = await stub.receiveRecords([
+      orderRecord({ billNo: "bill-a", sequenceNumber: seq(1) }),
+    ]);
     expect(first.kind).toBe("settled");
     await client.waitForSnapshot(
       (message) => message.type === "snapshot" && message.pendingOrders.length === 1,
@@ -402,7 +428,10 @@ describe("翻訳できた品目のみが写る（Requirements 6.5, 6.16, 6.27, 6
         ],
       }),
     ]);
-    expect(outcome).toEqual({ kind: "settled", counts: { doDedupeSkipped: 0, unknownNoodleType: 0 } });
+    expect(outcome).toEqual({
+      kind: "settled",
+      counts: { doDedupeSkipped: 0, unknownNoodleType: 0 },
+    });
 
     const persisted = await readSnapshot(stub);
     const orders = persisted?.pendingOrders ?? [];
@@ -427,7 +456,10 @@ describe("翻訳できた品目のみが写る（Requirements 6.5, 6.16, 6.27, 6
       }),
     ]);
 
-    expect(outcome).toEqual({ kind: "settled", counts: { doDedupeSkipped: 0, unknownNoodleType: 1 } });
+    expect(outcome).toEqual({
+      kind: "settled",
+      counts: { doDedupeSkipped: 0, unknownNoodleType: 1 },
+    });
     const orders = (await readSnapshot(stub))?.pendingOrders ?? [];
     expect(orders.map((order) => order.itemIndex)).toEqual([0]);
     expect(orders.map((order) => order.noodleType)).toEqual([NOODLE]);
@@ -455,7 +487,10 @@ describe("重複は読み飛ばして数える（Requirements 12.15）", () => {
       orderRecord({ billNo: "bill-a", sequenceNumber: seq(10) }),
       orderRecord({ billNo: "bill-b", sequenceNumber: seq(11) }),
     ]);
-    expect(first).toEqual({ kind: "settled", counts: { doDedupeSkipped: 0, unknownNoodleType: 0 } });
+    expect(first).toEqual({
+      kind: "settled",
+      counts: { doDedupeSkipped: 0, unknownNoodleType: 0 },
+    });
     const confirmed = await readSnapshot(stub);
     expect(itemKeys(confirmed?.pendingOrders ?? [])).toHaveLength(2);
 
@@ -465,7 +500,10 @@ describe("重複は読み飛ばして数える（Requirements 12.15）", () => {
       orderRecord({ billNo: "bill-b", sequenceNumber: seq(11) }),
       orderRecord({ billNo: "bill-c", sequenceNumber: seq(9) }),
     ]);
-    expect(resent).toEqual({ kind: "settled", counts: { doDedupeSkipped: 3, unknownNoodleType: 0 } });
+    expect(resent).toEqual({
+      kind: "settled",
+      counts: { doDedupeSkipped: 3, unknownNoodleType: 0 },
+    });
     // 状態は初回受理と同一へ収束する（bill-c は入らない）。
     expect(await readSnapshot(stub)).toEqual(confirmed);
   });
@@ -508,7 +546,10 @@ describe("Property 9: 冪等は収束する（Requirements 9.9, 10.2, 10.7）", 
       orderRecord({ billNo: "bill-b", sequenceNumber: seq(2) }),
     ];
     const first = await stub.receiveRecords(records);
-    expect(first).toEqual({ kind: "settled", counts: { doDedupeSkipped: 0, unknownNoodleType: 0 } });
+    expect(first).toEqual({
+      kind: "settled",
+      counts: { doDedupeSkipped: 0, unknownNoodleType: 0 },
+    });
     await client.waitForSnapshot(
       (message) => message.type === "snapshot" && message.pendingOrders.length === 2,
     );
@@ -653,7 +694,9 @@ describe("Property 16: 後着は置換・0 件は除去または無変更（Requ
 
   it("初回から 0 件の受領は集合を変えず、判定材料だけを進める", async () => {
     const stub = await provision(freshStoreId("pos-empty-first"));
-    const first = await stub.receiveRecords([orderRecord({ billNo: "bill-a", sequenceNumber: seq(1) })]);
+    const first = await stub.receiveRecords([
+      orderRecord({ billNo: "bill-a", sequenceNumber: seq(1) }),
+    ]);
     expect(first.kind).toBe("settled");
     const confirmed = await readSnapshot(stub);
 
@@ -685,13 +728,19 @@ describe("対応表が空でも経路は成立する（`[Q8]` の値が未提示
   // 受領が受理されるのか、判定材料が進むのか、再送が冪等かは `runEffects` を通した先の事実である。
   it("空の表では茹で対象が 0 件になるだけで受理され、判定材料は進む", async () => {
     const stub = await provisionWithoutTables(freshStoreId("pos-untabled"));
-    const items = [noodleItem(MENU_CODE, SIZE_REGULAR, FIRMNESS_HARD_CODE), noodleItem(MENU_CODE, SIZE_LARGE)];
+    const items = [
+      noodleItem(MENU_CODE, SIZE_REGULAR, FIRMNESS_HARD_CODE),
+      noodleItem(MENU_CODE, SIZE_LARGE),
+    ];
     const received = await receiveCountingPuts(stub, [
       orderRecord({ billNo: "bill-a", sequenceNumber: seq(1), items }),
     ]);
 
     // 未知麺種ではない——麺量を引けない品目は「茹でない」であって、弾かれた品目ではない。
-    expect(received.outcome).toEqual({ kind: "settled", counts: { doDedupeSkipped: 0, unknownNoodleType: 0 } });
+    expect(received.outcome).toEqual({
+      kind: "settled",
+      counts: { doDedupeSkipped: 0, unknownNoodleType: 0 },
+    });
     const persisted = await readSnapshot(stub);
     expect(persisted?.pendingOrders).toEqual([]);
     // 判定材料は進む（進まなければ再送のたびに同じ Record を翻訳し直すことになる）。
@@ -701,13 +750,21 @@ describe("対応表が空でも経路は成立する（`[Q8]` の値が未提示
     const resent = await receiveCountingPuts(stub, [
       orderRecord({ billNo: "bill-a", sequenceNumber: seq(1), items }),
     ]);
-    expect(resent.outcome).toEqual({ kind: "settled", counts: { doDedupeSkipped: 1, unknownNoodleType: 0 } });
+    expect(resent.outcome).toEqual({
+      kind: "settled",
+      counts: { doDedupeSkipped: 1, unknownNoodleType: 0 },
+    });
     expect(resent.putCalls).toBe(0);
 
     // 同じ Record が、表を投入した店舗では待ち行列へ写る（0 件は表の欠落の帰結であって経路の破れではない）。
     const tabled = await provision(freshStoreId("pos-tabled"));
-    expect((await tabled.receiveRecords([orderRecord({ billNo: "bill-a", sequenceNumber: seq(1), items })])).kind)
-      .toBe("settled");
+    expect(
+      (
+        await tabled.receiveRecords([
+          orderRecord({ billNo: "bill-a", sequenceNumber: seq(1), items }),
+        ])
+      ).kind,
+    ).toBe("settled");
     expect((await readSnapshot(tabled))?.pendingOrders).toHaveLength(2);
   });
 });

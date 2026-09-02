@@ -55,7 +55,8 @@ function filesUnder(relativeDirectory: string): readonly string[] {
   return readdirSync(resolve(repoRoot, relativeDirectory), { withFileTypes: true })
     .sort((left, right) => left.name.localeCompare(right.name))
     .flatMap((entry): readonly string[] => {
-      const path = relativeDirectory.length === 0 ? entry.name : `${relativeDirectory}/${entry.name}`;
+      const path =
+        relativeDirectory.length === 0 ? entry.name : `${relativeDirectory}/${entry.name}`;
       if (entry.isDirectory()) return ignored.has(entry.name) ? [] : filesUnder(path);
       return entry.isFile() ? [path] : [];
     });
@@ -73,7 +74,8 @@ const configSamplePaths = filesUnder("config").filter((path) => /\.jsonc?$/.test
  * Queue の再配送（`message.retry()`）は下流に閉じた正当な再試行（要件4.11）なので対象にしない。
  * 除いてある語: `revive`（永続移行の解釈・engine/migrate.ts）、`cursor`（codec の走査位置と CSS）。
  */
-const backfillVocabulary = /back[-_]?fill|replay|re[-_]?emit|reemit|re[-_]?publish|republish|re[-_]?send|resend|retransmit|outbox|catch[-_]?up/i;
+const backfillVocabulary =
+  /back[-_]?fill|replay|re[-_]?emit|reemit|re[-_]?publish|republish|re[-_]?send|resend|retransmit|outbox|catch[-_]?up/i;
 
 /**
  * 語が一致しても概念が違うもの — pos-order-ingress の「保留の再生」（Unrouted_Record の再生・同 spec
@@ -107,10 +109,12 @@ const unroutedReplayNames: ReadonlySet<string> = new Set([
 ]);
 
 /** 未観測期間を記録して後から埋めるための進捗状態。観測側にも持たない（要件1.3 / 4.8）。 */
-const resumeStateVocabulary = /watermark|checkpoint|resume[-_]?token|last[-_]?delivered|unobserved[-_]?window|missing[-_]?window/i;
+const resumeStateVocabulary =
+  /watermark|checkpoint|resume[-_]?token|last[-_]?delivered|unobserved[-_]?window|missing[-_]?window/i;
 
 /** Logpush 縮退の構成。タスク 12.1 の確定により対象環境0件ゆえ一つも存在しない。 */
-const logpushConfigKey = /"(?:logpush|logpush_config|logpull|log_destination|workers_trace_events)"\s*:/i;
+const logpushConfigKey =
+  /"(?:logpush|logpush_config|logpull|log_destination|workers_trace_events)"\s*:/i;
 
 /** Validates: Requirements 4.8, 4.13 */
 describe("Operation History 縮退経路 — Logpush 構成が0件である", () => {
@@ -126,9 +130,10 @@ describe("Operation History 縮退経路 — Logpush 構成が0件である", ()
   it("Logpush job／logs destination を定義するファイルがリポジトリにない", () => {
     expect(filesUnder("").filter((path) => /logpush|logpull/i.test(path))).toEqual([]);
     for (const path of [...wranglerConfigPaths, ...configSamplePaths, ...workflowPaths]) {
-      expect(source(path).replace(/^\s*(?:\/\/|#).*$/gm, ""), `${path} が Logpush 構成を持つ`).not.toMatch(
-        /logpush|logpull/i,
-      );
+      expect(
+        source(path).replace(/^\s*(?:\/\/|#).*$/gm, ""),
+        `${path} が Logpush 構成を持つ`,
+      ).not.toMatch(/logpush|logpull/i);
     }
   });
 });
@@ -142,7 +147,9 @@ describe("Operation History 縮退経路 — 未観測期間の補完機構が�
       walk(file, (node) => {
         if (ts.isIdentifier(node) || ts.isStringLiteralLike(node)) {
           if (unroutedReplayNames.has(node.text)) return;
-          expect(node.text, `${path} が補完機構 ${node.text} を持つ`).not.toMatch(backfillVocabulary);
+          expect(node.text, `${path} が補完機構 ${node.text} を持つ`).not.toMatch(
+            backfillVocabulary,
+          );
         }
       });
     }
@@ -157,7 +164,9 @@ describe("Operation History 縮退経路 — 未観測期間の補完機構が�
       const file = parse(path);
       walk(file, (node) => {
         if (ts.isIdentifier(node) || ts.isStringLiteralLike(node)) {
-          expect(node.text, `${path} が補完用の進捗状態 ${node.text} を持つ`).not.toMatch(resumeStateVocabulary);
+          expect(node.text, `${path} が補完用の進捗状態 ${node.text} を持つ`).not.toMatch(
+            resumeStateVocabulary,
+          );
         }
       });
     }
@@ -169,9 +178,10 @@ describe("Operation History 縮退経路 — 未観測期間の補完機構が�
     }
     for (const path of [...configSamplePaths, ...workflowPaths]) {
       // CI／sample のコメントは手順の説明ゆえ落とし、実行される行だけを見る。
-      expect(source(path).replace(/^\s*(?:\/\/|#).*$/gm, ""), `${path} が補完機構を持つ`).not.toMatch(
-        backfillVocabulary,
-      );
+      expect(
+        source(path).replace(/^\s*(?:\/\/|#).*$/gm, ""),
+        `${path} が補完機構を持つ`,
+      ).not.toMatch(backfillVocabulary);
     }
   });
 
@@ -179,14 +189,24 @@ describe("Operation History 縮退経路 — 未観測期間の補完機構が�
     // cron も scheduled handler も、観測のために StoreTimerDO を起こす唯一の残り道である
     // （要件1.8 / 2.15）。設定と実装の両側で0件を保つ。
     for (const path of wranglerConfigPaths) {
-      expect(activeConfig(path), `${path} が cron trigger を持つ`).not.toMatch(/"(?:triggers|crons)"\s*:/);
+      expect(activeConfig(path), `${path} が cron trigger を持つ`).not.toMatch(
+        /"(?:triggers|crons)"\s*:/,
+      );
     }
     for (const path of sourceFilePaths) {
       const file = parse(path);
       walk(file, (node) => {
-        if (!ts.isMethodDeclaration(node) && !ts.isMethodSignature(node) && !ts.isPropertyAssignment(node)) return;
+        if (
+          !ts.isMethodDeclaration(node) &&
+          !ts.isMethodSignature(node) &&
+          !ts.isPropertyAssignment(node)
+        )
+          return;
         const name = node.name;
-        const text = name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) ? name.text : "";
+        const text =
+          name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteralLike(name))
+            ? name.text
+            : "";
         expect(text, `${path} が scheduled handler を定義する`).not.toBe("scheduled");
       });
     }
@@ -203,9 +223,9 @@ describe("Operation History 縮退経路 — 搬送経路の分岐と補完手�
     const envKeys = new Set<string>();
     walk(shell, (node) => {
       if (
-        ts.isPropertyAccessExpression(node)
-        && ts.isPropertyAccessExpression(node.expression)
-        && node.expression.name.text === "env"
+        ts.isPropertyAccessExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "env"
       ) {
         envKeys.add(node.name.text);
       }
@@ -232,6 +252,8 @@ describe("Operation History 縮退経路 — 搬送経路の分岐と補完手�
     }
     expect(procedure).toMatch(/(?:backfill|再出力|再起動)[^\n]*必要としない/);
     // 手順が補完・再出力・DO 再起動を「行う」側で書かれていないこと。
-    expect(procedure).not.toMatch(/(?:backfill|再出力|再起動)[^\n]*(?:を(?:実行|投入|要求)する|してから)/);
+    expect(procedure).not.toMatch(
+      /(?:backfill|再出力|再起動)[^\n]*(?:を(?:実行|投入|要求)する|してから)/,
+    );
   });
 });

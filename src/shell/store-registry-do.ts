@@ -1,7 +1,23 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Chain, ChainId, Identity, Policy, PolicyFields, PolicyId, Roster, Store, StoreId, StoreOverride } from "../registry/ideal";
+import type {
+  Chain,
+  ChainId,
+  Identity,
+  Policy,
+  PolicyFields,
+  PolicyId,
+  Roster,
+  Store,
+  StoreId,
+  StoreOverride,
+} from "../registry/ideal";
 import { isValidStoreId, mintStoreId } from "../registry/slug";
-import { affectedStores, nextResidual, recomposeProjection, type IdealChange } from "../registry/converge";
+import {
+  affectedStores,
+  nextResidual,
+  recomposeProjection,
+  type IdealChange,
+} from "../registry/converge";
 import { buildReverseIndex, storesForIdentity, type ReverseIndex } from "../registry/reverse-index";
 import {
   buildCodeIndex,
@@ -11,7 +27,10 @@ import {
   type DuplicateStoreCode,
 } from "../registry/code-index";
 import { validateProvisioningInput, type Rejection } from "../registry/validate";
-import { detectAmbiguousAssignment, type AmbiguousPolicyConflict } from "../registry/policy-conflict";
+import {
+  detectAmbiguousAssignment,
+  type AmbiguousPolicyConflict,
+} from "../registry/policy-conflict";
 import { isHeldReplayable, retainHeld, type HeldRecord } from "../registry/held-record";
 import type { ArrivalRecord } from "../ingress/batch";
 import { isNewerSequence } from "../engine/state";
@@ -157,7 +176,10 @@ const ALARM_REARM_THRESHOLD = ALARM_MAX_RETRIES - 1;
  */
 type ProvisionFailure =
   | { readonly kind: "validation"; readonly rejections: NonEmptyArray<Rejection> }
-  | { readonly kind: "ambiguous-assignment"; readonly conflicts: NonEmptyArray<AmbiguousPolicyConflict> } // 同一 priority・同一フィールドの曖昧割当（要件3.4）
+  | {
+      readonly kind: "ambiguous-assignment";
+      readonly conflicts: NonEmptyArray<AmbiguousPolicyConflict>;
+    } // 同一 priority・同一フィールドの曖昧割当（要件3.4）
   | { readonly kind: "store-id-invalid"; readonly storeId: string } // 文字集合・長さ違反（要件2.4）
   | { readonly kind: "store-id-in-use"; readonly storeId: string } // 使用済み（要件2.4）
   // Store_Code が他店舗で使用済み（pos-order-ingress 要件3.1 / 3.2）。storeId は既に当該コードを
@@ -226,11 +248,14 @@ function storeCodeAfterUpdate(existing: Store | undefined, claimed: unknown): St
       ok: false,
       failure: {
         kind: "validation",
-        rejections: [{ path: "storeCode", reason: "type-mismatch", detail: "非空の文字列である必要がある" }],
+        rejections: [
+          { path: "storeCode", reason: "type-mismatch", detail: "非空の文字列である必要がある" },
+        ],
       },
     };
   }
-  if (existing === undefined || existing.storeCode === undefined) return { ok: true, storeCode: claimed };
+  if (existing === undefined || existing.storeCode === undefined)
+    return { ok: true, storeCode: claimed };
   if (existing.storeCode === claimed) return { ok: true, storeCode: claimed };
   return {
     ok: false,
@@ -554,7 +579,11 @@ export class StoreRegistryDO extends DurableObject<Env> {
    *
    * 失効・件数上限の判定は純粋関数（`retainHeld`）に閉じ、ここは読み・書き・件数の受け渡しだけを行う。
    */
-  private async hold(key: string, arriving: readonly HeldRecord[], now: number): Promise<HoldOutcome> {
+  private async hold(
+    key: string,
+    arriving: readonly HeldRecord[],
+    now: number,
+  ): Promise<HoldOutcome> {
     const retention = retainHeld(await this.loadHeld(key), arriving, now);
     if (arriving.length === 0 && retention.expired === 0 && retention.overflow === 0) {
       // 何も変わらないなら書かない（書いた事実が無いのに書いたことになる状態を作らない）。
@@ -638,7 +667,9 @@ export class StoreRegistryDO extends DurableObject<Env> {
         // 行の種別がカウンタ名そのものである（リクエストの行は名 → 数の 11 対を並べるが、こちらは 1 つの
         // カウンタだけを運ぶ）。破棄が生じた再生だけを出す——0 件の再生まで出せば、頻度の高い再生が定常の
         // ノイズになる。**Store_Code は載せない**（カウンタの行はいずれも識別子を運ばず件数だけを運ぶ）。
-        console.log(JSON.stringify({ posIngress: "replayWindowExpired", discarded: progress.windowExpired }));
+        console.log(
+          JSON.stringify({ posIngress: "replayWindowExpired", discarded: progress.windowExpired }),
+        );
       }
       return progress;
     } finally {
@@ -669,7 +700,9 @@ export class StoreRegistryDO extends DurableObject<Env> {
       if (held.length === 0) return { kind: "drained", windowExpired };
       const now = Date.now();
       // 失効・窓外は送らない（AC 11.22）。刈るのは書き戻しの一箇所だけで、ここでは選ぶだけである。
-      const sendable = held.filter((entry) => isHeldReplayable(entry, now)).map((entry) => entry.record);
+      const sendable = held
+        .filter((entry) => isHeldReplayable(entry, now))
+        .map((entry) => entry.record);
       if (!isNonEmpty(sendable)) {
         // 送れるものが 1 件も無い＝残っているのは失効・窓外だけ。RPC を通さずに刈って終える。
         // **読み直さない**——`loadHeld` の解決からここまでに await が無いため、この値は現在の値そのままで
@@ -750,7 +783,8 @@ export class StoreRegistryDO extends DurableObject<Env> {
       }
       // **比較は isNewerSequence を通す**（桁数を揃えた文字列比較の規則の単一の出所）。素の `>` で書けば、
       // 桁が繰り上がる瞬間に片方だけが誤り、送信済みの Record が残るか未送信の Record が消える。
-      if (lastSent !== undefined && !isNewerSequence(entry.record.sequenceNumber, lastSent)) continue;
+      if (lastSent !== undefined && !isNewerSequence(entry.record.sequenceNumber, lastSent))
+        continue;
       retained.push(entry);
     }
     if (retained.length === 0) {
@@ -857,7 +891,10 @@ export class StoreRegistryDO extends DurableObject<Env> {
    * 保持する意味は上流のバグを調べる証跡であり、待ち行列へ入れることではない。ゆえに 2 時間で失効し、
    * 破棄されるだけである。受理時刻・`payload.datetime` のいずれも代替の起点に用いない（AC 8.10）。
    */
-  async quarantineContractViolations(storeCode: string, raws: readonly unknown[]): Promise<HoldOutcome> {
+  async quarantineContractViolations(
+    storeCode: string,
+    raws: readonly unknown[],
+  ): Promise<HoldOutcome> {
     const now = Date.now();
     return this.hold(
       contractViolationKey(storeCode),
@@ -909,7 +946,11 @@ export class StoreRegistryDO extends DurableObject<Env> {
   async createOrUpdateChain(chainId: ChainId, raw: unknown): Promise<ProvisionResult> {
     const body = asRecord(raw);
     if (body === null) {
-      return rejectValidation({ path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" });
+      return rejectValidation({
+        path: "",
+        reason: "type-mismatch",
+        detail: "オブジェクトである必要がある",
+      });
     }
 
     const rejections: Rejection[] = [];
@@ -964,7 +1005,11 @@ export class StoreRegistryDO extends DurableObject<Env> {
   async createOrUpdatePolicy(policyId: PolicyId, raw: unknown): Promise<ProvisionResult> {
     const body = asRecord(raw);
     if (body === null) {
-      return rejectValidation({ path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" });
+      return rejectValidation({
+        path: "",
+        reason: "type-mismatch",
+        detail: "オブジェクトである必要がある",
+      });
     }
 
     const rejections: Rejection[] = [];
@@ -1029,9 +1074,15 @@ export class StoreRegistryDO extends DurableObject<Env> {
   async createStore(raw: unknown): Promise<CreateStoreResult> {
     const body = asRecord(raw);
     if (body === null) {
-      return { accepted: false, failure: { kind: "validation", rejections: [
-        { path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" },
-      ] } };
+      return {
+        accepted: false,
+        failure: {
+          kind: "validation",
+          rejections: [
+            { path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" },
+          ],
+        },
+      };
     }
 
     // ── 値検証（storeId の文字集合・衝突検証とは別レイヤ・要件4.6）──
@@ -1075,7 +1126,10 @@ export class StoreRegistryDO extends DurableObject<Env> {
     } else {
       if (typeof body.storeId !== "string" || !isValidStoreId(body.storeId)) {
         // 文字集合・長さ違反。別 ID の自動採番による代替受理は行わない（要件2.4）。
-        return { accepted: false, failure: { kind: "store-id-invalid", storeId: String(body.storeId) } };
+        return {
+          accepted: false,
+          failure: { kind: "store-id-invalid", storeId: String(body.storeId) },
+        };
       }
       if ((await this.ctx.storage.get(storeKey(body.storeId))) !== undefined) {
         // 使用済み。外部マスタとの対応が黙って壊れるのを防ぐため、別 ID で受理しない（要件2.4）。
@@ -1150,7 +1204,11 @@ export class StoreRegistryDO extends DurableObject<Env> {
       // storeId を返すが PUT の結果表現は ProvisionResult ゆえ受理/失敗のみへ写す（失敗理由は共通の ProvisionFailure）。
       const createBody = asRecord(raw);
       if (createBody === null) {
-        return rejectValidation({ path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" });
+        return rejectValidation({
+          path: "",
+          reason: "type-mismatch",
+          detail: "オブジェクトである必要がある",
+        });
       }
       const created = await this.createStore({ ...createBody, storeId });
       return created.accepted ? { accepted: true } : { accepted: false, failure: created.failure };
@@ -1158,7 +1216,11 @@ export class StoreRegistryDO extends DurableObject<Env> {
 
     const body = asRecord(raw);
     if (body === null) {
-      return rejectValidation({ path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" });
+      return rejectValidation({
+        path: "",
+        reason: "type-mismatch",
+        detail: "オブジェクトである必要がある",
+      });
     }
 
     const rejections: Rejection[] = [];
@@ -1167,17 +1229,29 @@ export class StoreRegistryDO extends DurableObject<Env> {
       if (!verdict.accepted) rejections.push(...verdict.rejections);
     }
     if (body.name !== undefined && (typeof body.name !== "string" || body.name.length === 0)) {
-      rejections.push({ path: "name", reason: "type-mismatch", detail: "非空の文字列である必要がある" });
+      rejections.push({
+        path: "name",
+        reason: "type-mismatch",
+        detail: "非空の文字列である必要がある",
+      });
     }
     if (body.active !== undefined && typeof body.active !== "boolean") {
-      rejections.push({ path: "active", reason: "type-mismatch", detail: "真偽値である必要がある" });
+      rejections.push({
+        path: "active",
+        reason: "type-mismatch",
+        detail: "真偽値である必要がある",
+      });
     }
     // policyIds は Policy 割当（PolicyId の配列）。存在するときのみ文字列配列であることを検証する。
     if (
       body.policyIds !== undefined &&
       (!Array.isArray(body.policyIds) || body.policyIds.some((id) => typeof id !== "string"))
     ) {
-      rejections.push({ path: "policyIds", reason: "type-mismatch", detail: "文字列の配列である必要がある" });
+      rejections.push({
+        path: "policyIds",
+        reason: "type-mismatch",
+        detail: "文字列の配列である必要がある",
+      });
     }
     // storeRoster は省略可（部分更新）。存在するときのみ Roster の値を拒否型検証する（要件4.6）。
     if (body.storeRoster !== undefined) {
@@ -1198,8 +1272,11 @@ export class StoreRegistryDO extends DurableObject<Env> {
       ...existing,
       name: typeof body.name === "string" ? body.name : existing.name,
       override: body.override !== undefined ? (body.override as StoreOverride) : existing.override,
-      policyIds: Array.isArray(body.policyIds) ? (body.policyIds as readonly PolicyId[]) : existing.policyIds,
-      storeRoster: body.storeRoster !== undefined ? (body.storeRoster as Roster) : existing.storeRoster,
+      policyIds: Array.isArray(body.policyIds)
+        ? (body.policyIds as readonly PolicyId[])
+        : existing.policyIds,
+      storeRoster:
+        body.storeRoster !== undefined ? (body.storeRoster as Roster) : existing.storeRoster,
       active: typeof body.active === "boolean" ? body.active : existing.active,
       ...(codeVerdict.storeCode !== undefined ? { storeCode: codeVerdict.storeCode } : {}),
       updatedAt: Date.now(),
@@ -1359,7 +1436,9 @@ export class StoreRegistryDO extends DurableObject<Env> {
         ok: false,
         failure: {
           kind: "validation",
-          rejections: [{ path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" }],
+          rejections: [
+            { path: "", reason: "type-mismatch", detail: "オブジェクトである必要がある" },
+          ],
         },
       };
     }
@@ -1374,7 +1453,13 @@ export class StoreRegistryDO extends DurableObject<Env> {
         storeId,
         failure: {
           kind: "validation",
-          rejections: [{ path: "storeId", reason: "out-of-range", detail: "同一バッチ内で storeId が重複している" }],
+          rejections: [
+            {
+              path: "storeId",
+              reason: "out-of-range",
+              detail: "同一バッチ内で storeId が重複している",
+            },
+          ],
         },
       };
     }
@@ -1397,8 +1482,15 @@ export class StoreRegistryDO extends DurableObject<Env> {
           detail: "非空の文字列である必要がある",
         });
       }
-    } else if (body.name !== undefined && (typeof body.name !== "string" || body.name.length === 0)) {
-      rejections.push({ path: "name", reason: "type-mismatch", detail: "非空の文字列である必要がある" });
+    } else if (
+      body.name !== undefined &&
+      (typeof body.name !== "string" || body.name.length === 0)
+    ) {
+      rejections.push({
+        path: "name",
+        reason: "type-mismatch",
+        detail: "非空の文字列である必要がある",
+      });
     }
     if (body.override !== undefined) {
       const verdict = validateProvisioningInput({ target: "storeOverride", raw: body.override });
@@ -1409,13 +1501,21 @@ export class StoreRegistryDO extends DurableObject<Env> {
       if (!verdict.accepted) rejections.push(...verdict.rejections);
     }
     if (body.active !== undefined && typeof body.active !== "boolean") {
-      rejections.push({ path: "active", reason: "type-mismatch", detail: "真偽値である必要がある" });
+      rejections.push({
+        path: "active",
+        reason: "type-mismatch",
+        detail: "真偽値である必要がある",
+      });
     }
     if (
       body.policyIds !== undefined &&
       (!Array.isArray(body.policyIds) || body.policyIds.some((id) => typeof id !== "string"))
     ) {
-      rejections.push({ path: "policyIds", reason: "type-mismatch", detail: "文字列の配列である必要がある" });
+      rejections.push({
+        path: "policyIds",
+        reason: "type-mismatch",
+        detail: "文字列の配列である必要がある",
+      });
     }
     if (isNonEmpty(rejections)) {
       return { ok: false, storeId, failure: { kind: "validation", rejections } };
@@ -1441,11 +1541,15 @@ export class StoreRegistryDO extends DurableObject<Env> {
     const store: Store = {
       storeId,
       chainId: existing ? existing.chainId : (body.chainId as string),
-      name: typeof body.name === "string" && body.name.length > 0 ? body.name : (existing?.name ?? ""),
+      name:
+        typeof body.name === "string" && body.name.length > 0 ? body.name : (existing?.name ?? ""),
       policyIds,
-      override: body.override !== undefined ? (body.override as StoreOverride) : (existing?.override ?? {}),
+      override:
+        body.override !== undefined ? (body.override as StoreOverride) : (existing?.override ?? {}),
       storeRoster:
-        body.storeRoster !== undefined ? (body.storeRoster as Roster) : (existing?.storeRoster ?? []),
+        body.storeRoster !== undefined
+          ? (body.storeRoster as Roster)
+          : (existing?.storeRoster ?? []),
       // 作成時は active:true（単発 createStore と同一・作成では body.active を既定 true に畳む）。更新時は指定を尊重し既存を保持。
       active: existing ? (typeof body.active === "boolean" ? body.active : existing.active) : true,
       ...(codeVerdict.storeCode !== undefined ? { storeCode: codeVerdict.storeCode } : {}),
@@ -1473,7 +1577,8 @@ export class StoreRegistryDO extends DurableObject<Env> {
    */
   async listStores(chainId?: ChainId): Promise<readonly StoreSummary[]> {
     const stores = await this.loadStores();
-    const scoped = chainId === undefined ? stores : stores.filter((store) => store.chainId === chainId);
+    const scoped =
+      chainId === undefined ? stores : stores.filter((store) => store.chainId === chainId);
     return scoped.map((store) => ({
       storeId: store.storeId,
       chainId: store.chainId,
@@ -1505,7 +1610,9 @@ export class StoreRegistryDO extends DurableObject<Env> {
    */
   async storesForIdentity(identity: Identity): Promise<readonly StoreId[]> {
     const raw = await this.ctx.storage.get(REVERSE_INDEX_KEY);
-    const entries = Array.isArray(raw) ? (raw as readonly (readonly [Identity, readonly StoreId[]])[]) : [];
+    const entries = Array.isArray(raw)
+      ? (raw as readonly (readonly [Identity, readonly StoreId[]])[])
+      : [];
     const index: ReverseIndex = new Map(entries);
     return storesForIdentity(index, identity);
   }
@@ -1782,7 +1889,9 @@ function rejectValidation(rejection: Rejection): ProvisionResult {
 }
 
 /** Request ボディを JSON として読む。解釈不能は ok:false（呼び出し側が 400 を返す）。 */
-async function readJsonBody(request: Request): Promise<{ readonly ok: true; readonly value: unknown } | { readonly ok: false }> {
+async function readJsonBody(
+  request: Request,
+): Promise<{ readonly ok: true; readonly value: unknown } | { readonly ok: false }> {
   try {
     return { ok: true, value: await request.json() };
   } catch {
@@ -1797,7 +1906,10 @@ function malformedJson(): Response {
 
 /** JSON 応答を組む（Content-Type 付与の一箇所）。 */
 function jsonResponse(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 /** ProvisionFailure を HTTP ステータスへ写す（validation・storeId 系は 400、not-found は 404）。 */

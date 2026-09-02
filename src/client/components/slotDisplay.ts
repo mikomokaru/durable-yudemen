@@ -27,7 +27,12 @@ export type SlotDisplay =
       readonly remainingMs: number;
       readonly unconfirmed: boolean;
     }
-  | { readonly kind: "boiled"; readonly slot: number; readonly timer: TimerFact; readonly overdueMs: number }
+  | {
+      readonly kind: "boiled";
+      readonly slot: number;
+      readonly timer: TimerFact;
+      readonly overdueMs: number;
+    }
   | { readonly kind: "idle"; readonly slot: number }
   | { readonly kind: "unreceived"; readonly slot: number };
 

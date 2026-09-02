@@ -47,7 +47,10 @@ const camelToUpperSnake = (name: string): string =>
 /** quality.ts の object literal から、文字列値を持つ属性だけを宣言順に取り出す。 */
 function literalFields(symbol: string): readonly (readonly [string, string])[] {
   const body = qualitySource.match(new RegExp(`${symbol}: \\{([\\s\\S]*?)\\n    \\},`))![1]!;
-  return [...body.matchAll(/(\w+): "([^"]*)"/g)].map(([, name, value]) => [name!, value!] as const);
+  // コロンと値の間は \s* で受ける。長い文字列値は整形で次行へ送られるが、属性と値の対応は変わらない。
+  return [...body.matchAll(/(\w+):\s*"([^"]*)"/g)].map(
+    ([, name, value]) => [name!, value!] as const,
+  );
 }
 
 const disclosureFields = literalFields("analysisDisclosure");
@@ -185,7 +188,5 @@ describe("この層の責務境界", () => {
 /** quality.ts の analysisDisclosure が storeId / period に何を入れているか。 */
 function disclosureSource(names: readonly string[]): readonly string[] {
   const body = qualitySource.match(/analysisDisclosure: \{([\s\S]*?)\n    \},/)![1]!;
-  return names.map(
-    (name) => body.match(new RegExp(`${name}: ([\\w.]+),`))![1]!,
-  );
+  return names.map((name) => body.match(new RegExp(`${name}:\\s*([\\w.]+),`))![1]!);
 }

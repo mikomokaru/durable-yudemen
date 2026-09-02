@@ -96,7 +96,10 @@ async function seedReplayResidual(
   });
 }
 
-async function readKey<T>(stub: DurableObjectStub<StoreRegistryDO>, key: string): Promise<T | undefined> {
+async function readKey<T>(
+  stub: DurableObjectStub<StoreRegistryDO>,
+  key: string,
+): Promise<T | undefined> {
   return runInDurableObject(stub, (_instance, state) => state.storage.get<T>(key));
 }
 
@@ -113,7 +116,9 @@ async function readAlarm(stub: DurableObjectStub<StoreRegistryDO>): Promise<numb
 interface AlarmInternals {
   converge(): Promise<void>;
   armAlarm(at: number): Promise<void>;
-  drainUnrouted(storeCode: string): Promise<{ readonly kind: string; readonly windowExpired: number }>;
+  drainUnrouted(
+    storeCode: string,
+  ): Promise<{ readonly kind: string; readonly windowExpired: number }>;
 }
 
 function internals(instance: StoreRegistryDO): AlarmInternals {
@@ -198,7 +203,8 @@ describe("再生の失敗は収束の retryCount を消費しない（Requiremen
     await runInDurableObject(stub, async (instance, state) => {
       await state.storage.deleteAlarm();
       const original = internals(instance).drainUnrouted.bind(instance);
-      internals(instance).drainUnrouted = () => Promise.reject(new Error("injected replay failure"));
+      internals(instance).drainUnrouted = () =>
+        Promise.reject(new Error("injected replay failure"));
       try {
         // throw しない＝Cloudflare の自動リトライを起こさない＝retryCount を消費しない。
         await expect(instance.alarm()).resolves.toBeUndefined();

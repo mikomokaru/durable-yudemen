@@ -226,7 +226,9 @@ describe("client/connectivity — blackhole は送信 ping のみを落とす（
     expect(connection.getView().connectivity).toBe("up");
 
     // 受信は素通し。blackhole 中でも全量 snapshot が届き、盤面と offset に畳まれる。
-    live.listeners.onMessage(snapshotFrame([serverTimer("S", RECEIVED_AT + 180_000)], RECEIVED_AT + 5_000));
+    live.listeners.onMessage(
+      snapshotFrame([serverTimer("S", RECEIVED_AT + 180_000)], RECEIVED_AT + 5_000),
+    );
     expect(connection.getView().timers.map((timer) => timer.id)).toEqual(["S"]);
     expect(connection.getView().offset).toBe(5_000);
 
@@ -306,7 +308,9 @@ describe("client/connectivity — blackhole 解除はランタイム可逆で up
 
     // boot の初回 up は down→up 遷移ではない。ゆえにこの snapshot は通常 hydration を通り offset を確立する。
     latest().listeners.onOpen();
-    latest().listeners.onMessage(snapshotFrame([serverTimer("S", RECEIVED_AT + 180_000)], RECEIVED_AT + 5_000));
+    latest().listeners.onMessage(
+      snapshotFrame([serverTimer("S", RECEIVED_AT + 180_000)], RECEIVED_AT + 5_000),
+    );
     expect(connection.getView().offset).toBe(5_000);
 
     // blackhole で down まで落とす（本物の silent-loss 経路）。
@@ -334,14 +338,18 @@ describe("client/connectivity — blackhole 解除はランタイム可逆で up
     // 復帰後の最初の全量 snapshot は Reconcile として畳まれる。観測点は **offset の凍結** に取る
     // ——Reconcile は serverTime を運ばないため offset を変えず、通常 snapshot 経路なら 9_000 へ書き換わる。
     // 盤面の置換規律は両経路で同一ゆえ、ここが二つの経路を外から分ける唯一の観測点である。
-    revived.listeners.onMessage(snapshotFrame([serverTimer("N", RECEIVED_AT + 240_000)], RECEIVED_AT + 9_000));
+    revived.listeners.onMessage(
+      snapshotFrame([serverTimer("N", RECEIVED_AT + 240_000)], RECEIVED_AT + 9_000),
+    );
     expect(connection.getView().offset).toBe(5_000);
     // 契機だけ立てて中身を捨てていないこと（Reconcile が snapshot の timers を確かに畳んだ）。
     expect(connection.getView().timers.map((timer) => timer.id)).toEqual(["N"]);
 
     // 契機は 1 通で消費されて下りる。以降は通常経路へ戻り offset が再確立される——offset が凍結したのは
     // Reconcile だからであって「offset が二度と動かない」からではない。
-    revived.listeners.onMessage(snapshotFrame([serverTimer("N", RECEIVED_AT + 240_000)], RECEIVED_AT + 12_000));
+    revived.listeners.onMessage(
+      snapshotFrame([serverTimer("N", RECEIVED_AT + 240_000)], RECEIVED_AT + 12_000),
+    );
     expect(connection.getView().offset).toBe(12_000);
 
     connection.close();

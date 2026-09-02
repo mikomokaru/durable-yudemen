@@ -118,11 +118,7 @@ function correlate(
 
   const merged = mergeByTime(operation.entries, instrumentation.entries);
   const observationEndAt = latestObservedAt(merged);
-  const instances = classifyInstances(
-    instrumentation.entries,
-    operation.entries,
-    observationEndAt,
-  );
+  const instances = classifyInstances(instrumentation.entries, operation.entries, observationEndAt);
   const verdict = determineVerdict(merged, instances, observationEndAt);
 
   const lines: string[] = [
@@ -162,7 +158,9 @@ function correlate(
     case "inconclusive": {
       lines.push("Verdict: INCONCLUSIVE");
       lines.push("");
-      lines.push("No hibernation wake signal (new instanceId + rehydrate) observed within the window.");
+      lines.push(
+        "No hibernation wake signal (new instanceId + rehydrate) observed within the window.",
+      );
       return { report: lines.join("\n"), exitCode: EXIT_INCONCLUSIVE };
     }
   }

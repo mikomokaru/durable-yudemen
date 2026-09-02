@@ -47,7 +47,7 @@ function admits(flag: string, roster: Roster, identity: Identity | null): boolea
 describe("worker-entry — Entry の行き先解決（example / edge-case）", () => {
   // 0 店舗 → 接続先なし（要件7.5）。いかなる店舗へもフォールバックしない。
   // **Validates: Requirements 7.5**
-  it("0 店舗は { kind: \"none\" } を返す（要件7.5）", () => {
+  it('0 店舗は { kind: "none" } を返す（要件7.5）', () => {
     const destination: EntryDestination = resolveEntryDestination([]);
     expect(destination).toEqual({ kind: "none" });
   });
@@ -80,7 +80,7 @@ describe("接続admission — Access_Required_Flag の意味論（example / edge
 
   // OFF（"0"）: 非所属 identity でも接続を許す（合鍵 URL のみで接続でき、Roster 照合を行わない・要件6.4 / 7.8 / 8.7）。
   // **Validates: Requirements 6.4, 7.8, 8.7**
-  it("ACCESS_REQUIRED=\"0\" は非所属 identity の接続を許す（要件6.4 / 7.8）", () => {
+  it('ACCESS_REQUIRED="0" は非所属 identity の接続を許す（要件6.4 / 7.8）', () => {
     expect(admits("0", roster, outsider)).toBe(true);
     // identity 欠如（合鍵 URL 直叩き・OFF 期の通常経路）でも許す。
     expect(admits("0", roster, null)).toBe(true);
@@ -88,7 +88,7 @@ describe("接続admission — Access_Required_Flag の意味論（example / edge
 
   // ON（"1"）: 非所属 identity は拒否し、所属 identity のみ許す（Roster 判定が必須・要件6.4）。
   // **Validates: Requirements 6.4, 8.7**
-  it("ACCESS_REQUIRED=\"1\" は非所属 identity を拒否し所属 identity を許す（要件6.4）", () => {
+  it('ACCESS_REQUIRED="1" は非所属 identity を拒否し所属 identity を許す（要件6.4）', () => {
     expect(admits("1", roster, outsider)).toBe(false);
     expect(admits("1", roster, insider)).toBe(true);
     // ON かつ identity 欠如は拒否（未検証・null は非所属扱い）。
@@ -97,7 +97,7 @@ describe("接続admission — Access_Required_Flag の意味論（example / edge
 
   // ON でも所属判定は normalize（大小文字・前後空白の差の吸収）を通す（要件9.5）。表現差があっても同一人物として許す。
   // **Validates: Requirements 6.4**
-  it("ACCESS_REQUIRED=\"1\" の所属判定は normalize 後に照合する（大小文字・空白差を吸収・要件9.5）", () => {
+  it('ACCESS_REQUIRED="1" の所属判定は normalize 後に照合する（大小文字・空白差を吸収・要件9.5）', () => {
     expect(admits("1", roster, "  ALICE@Example.com  ")).toBe(true);
   });
 

@@ -1,6 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { env, runInDurableObject, reset } from "cloudflare:test";
-import { REGISTRY_NAME, REVISION_KEY, type StoreRegistryDO } from "../../src/shell/store-registry-do";
+import {
+  REGISTRY_NAME,
+  REVISION_KEY,
+  type StoreRegistryDO,
+} from "../../src/shell/store-registry-do";
 
 // registry-store-bulk-upsert.integration.test.ts — PUT /admin/stores（配列）の一括冪等 upsert の統合テスト（Workers pool）。
 //
@@ -34,7 +38,9 @@ async function getStore(
   stub: DurableObjectStub<StoreRegistryDO>,
   storeId: string,
 ): Promise<{ status: number; body: Record<string, unknown> | null }> {
-  const res = await stub.fetch(new Request(`https://registry/admin/stores/${storeId}`, { method: "GET" }));
+  const res = await stub.fetch(
+    new Request(`https://registry/admin/stores/${storeId}`, { method: "GET" }),
+  );
   const body = res.status === 200 ? ((await res.json()) as Record<string, unknown>) : null;
   return { status: res.status, body };
 }
@@ -96,10 +102,15 @@ describe("PUT /admin/stores（配列）— 一括冪等 upsert（Requirements 2.
     const revisionBefore = await readRevision(stub);
 
     // 2 番目は空文字列 identity で roster 検証違反。
-    const res = await stub.fetch(bulk([el("1102"), el("1105", { storeRoster: ["ok@example.com", ""] }), el("1107")]));
+    const res = await stub.fetch(
+      bulk([el("1102"), el("1105", { storeRoster: ["ok@example.com", ""] }), el("1107")]),
+    );
 
     expect(res.status).toBe(400);
-    const body = (await res.json()) as { accepted: boolean; failures: { index: number; storeId?: string }[] };
+    const body = (await res.json()) as {
+      accepted: boolean;
+      failures: { index: number; storeId?: string }[];
+    };
     expect(body.accepted).toBe(false);
     expect(body.failures.some((f) => f.index === 1 && f.storeId === "1105")).toBe(true);
 

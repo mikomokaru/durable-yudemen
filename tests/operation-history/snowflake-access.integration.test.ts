@@ -41,20 +41,36 @@ const DATABASE = "OPERATION_HISTORY";
 
 /** `--` 行コメントを除いた SQL 本文。コメント中の語を object や grant と読まないため。 */
 const activeSql = (sql: string): string =>
-  sql.split("\n").filter((line) => !line.trimStart().startsWith("--")).join("\n");
+  sql
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n");
 
 /** 08 が宣言する grant。（権限, 対象, 被与者）だけを読む。 */
-const grants = [...activeSql(accessSql).matchAll(/GRANT\s+(\w+)\s+ON\s+(.+?)\s+TO ROLE (\S+);/g)]
-  .map(([, privilege, target, grantee]) => ({
-    privilege: privilege!,
-    target: target!.trim(),
-    grantee: grantee!,
-  }));
-const [analystRole] = /CREATE ROLE IF NOT EXISTS (\S+)/.exec(activeSql(accessSql))!.slice(1) as [string];
+const grants = [
+  ...activeSql(accessSql).matchAll(/GRANT\s+(\w+)\s+ON\s+(.+?)\s+TO ROLE (\S+);/g),
+].map(([, privilege, target, grantee]) => ({
+  privilege: privilege!,
+  target: target!.trim(),
+  grantee: grantee!,
+}));
+const [analystRole] = /CREATE ROLE IF NOT EXISTS (\S+)/.exec(activeSql(accessSql))!.slice(1) as [
+  string,
+];
 
 type ObjectKind =
-  | "DATABASE" | "SCHEMA" | "FILE FORMAT" | "STAGE" | "TABLE" | "VIEW"
-  | "PIPE" | "FUNCTION" | "TASK" | "ALERT" | "PROCEDURE" | "TAG";
+  | "DATABASE"
+  | "SCHEMA"
+  | "FILE FORMAT"
+  | "STAGE"
+  | "TABLE"
+  | "VIEW"
+  | "PIPE"
+  | "FUNCTION"
+  | "TASK"
+  | "ALERT"
+  | "PROCEDURE"
+  | "TAG";
 
 /** 01〜07 が実際に作る object の目録。層を足すたびにここが増える。 */
 const inventory = Object.entries({
@@ -89,8 +105,8 @@ const plural: Partial<Record<ObjectKind, string>> = {
 };
 
 const granted = (role: string, privilege: string, target: string): boolean =>
-  grants.some((grant) =>
-    grant.grantee === role && grant.privilege === privilege && grant.target === target
+  grants.some(
+    (grant) => grant.grantee === role && grant.privilege === privilege && grant.target === target,
   );
 
 /**
@@ -104,10 +120,12 @@ function readAccess(role: string, object: { readonly kind: ObjectKind; readonly 
     return { decision: "denied", reason: "not-a-read-target" } as const;
   }
   const throughDatabase = granted(role, "USAGE", `DATABASE ${DATABASE}`);
-  const throughSchema = object.kind === "DATABASE"
-    || granted(role, "USAGE", `ALL SCHEMAS IN DATABASE ${DATABASE}`);
-  const onObject = object.kind === "DATABASE" || object.kind === "SCHEMA"
-    || granted(role, privilege, `ALL ${plural[object.kind]} IN DATABASE ${DATABASE}`);
+  const throughSchema =
+    object.kind === "DATABASE" || granted(role, "USAGE", `ALL SCHEMAS IN DATABASE ${DATABASE}`);
+  const onObject =
+    object.kind === "DATABASE" ||
+    object.kind === "SCHEMA" ||
+    granted(role, privilege, `ALL ${plural[object.kind]} IN DATABASE ${DATABASE}`);
 
   return throughDatabase && throughSchema && onObject
     ? ({ decision: "allowed", privilege } as const)
@@ -133,7 +151,10 @@ async function readableContent() {
 
   vi.spyOn(Date, "now").mockReturnValue(OBSERVED_AT);
   const pipeline = await runTailToR2([
-    tailEvent(PRODUCER_SCRIPT, lines.map((line) => ({ level: "log", message: [line] }))),
+    tailEvent(
+      PRODUCER_SCRIPT,
+      lines.map((line) => ({ level: "log", message: [line] })),
+    ),
   ]);
   const arrivals = await snowpipeIngest(pipeline.stored, {
     putAt: OBSERVED_AT,
@@ -210,14 +231,18 @@ describe("承認済み分析担当者のアクセス", () => {
 
     for (const kind of readKinds) {
       const privilege = readPrivilege[kind]!;
-      expect(granted(analystRole, privilege, `ALL ${plural[kind]} IN DATABASE ${DATABASE}`)).toBe(true);
-      expect(granted(analystRole, privilege, `FUTURE ${plural[kind]} IN DATABASE ${DATABASE}`)).toBe(true);
+      expect(granted(analystRole, privilege, `ALL ${plural[kind]} IN DATABASE ${DATABASE}`)).toBe(
+        true,
+      );
+      expect(
+        granted(analystRole, privilege, `FUTURE ${plural[kind]} IN DATABASE ${DATABASE}`),
+      ).toBe(true);
     }
   });
 
   it("承認済みでも運用者の object は読む対象にならない", () => {
     const operational = inventory.filter(({ kind }) =>
-      ["STAGE", "PIPE", "TASK", "ALERT", "PROCEDURE", "FILE FORMAT", "TAG"].includes(kind)
+      ["STAGE", "PIPE", "TASK", "ALERT", "PROCEDURE", "FILE FORMAT", "TAG"].includes(kind),
     );
 
     expect(operational.length).toBeGreaterThan(0);
@@ -228,7 +253,10 @@ describe("承認済み分析担当者のアクセス", () => {
       });
     }
     // 与えられている権限は SELECT と USAGE の二つだけである（record も指標も変えられない）。
-    expect([...new Set(grants.map((grant) => grant.privilege))].sort()).toEqual(["SELECT", "USAGE"]);
+    expect([...new Set(grants.map((grant) => grant.privilege))].sort()).toEqual([
+      "SELECT",
+      "USAGE",
+    ]);
   });
 });
 
@@ -237,7 +265,9 @@ describe("未承認主体のアクセスと拒否後の不変", () => {
   it("承認済み role 以外は一つも読めない", () => {
     // PUBLIC は全 user が持つ既定の role である。ここへ一つも grant が無いことが既定拒否の要点である。
     for (const subject of ["PUBLIC", "OPERATION_HISTORY_OPERATOR", ""]) {
-      const allowed = inventory.filter((object) => readAccess(subject, object).decision === "allowed");
+      const allowed = inventory.filter(
+        (object) => readAccess(subject, object).decision === "allowed",
+      );
       expect(allowed, `${subject} が読める object がある`).toEqual([]);
     }
   });

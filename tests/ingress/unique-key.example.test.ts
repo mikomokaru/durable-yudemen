@@ -26,7 +26,9 @@ describe("ingress/unique-key — 実データ形", () => {
   });
 
   it("実データ形の範囲では encodeURIComponent と差が出ない", () => {
-    const byEncodeURIComponent = ["1001", "41", "7", "2026-08-17T20:52:19"].map(encodeURIComponent).join(":");
+    const byEncodeURIComponent = ["1001", "41", "7", "2026-08-17T20:52:19"]
+      .map(encodeURIComponent)
+      .join(":");
     expect(toUniqueKey(payloadWith())).toBe(byEncodeURIComponent);
   });
 
@@ -41,13 +43,17 @@ describe("ingress/unique-key — 実データ形", () => {
 
 describe("ingress/unique-key — 上流のエンコード規則（quote の safe='/'）", () => {
   it("`/` はエンコードしない（既定の safe）", () => {
-    expect(toUniqueKey(payloadWith({ store_id: "a/b/c" }))).toBe("a/b/c:41:7:2026-08-17T20%3A52%3A19");
+    expect(toUniqueKey(payloadWith({ store_id: "a/b/c" }))).toBe(
+      "a/b/c:41:7:2026-08-17T20%3A52%3A19",
+    );
     // encodeURIComponent はここで食い違う（`%2F` へ写す）。
     expect(encodeURIComponent("a/b/c")).toBe("a%2Fb%2Fc");
   });
 
   it("`! * ' ( )` はエンコードする（encodeURIComponent は素通しする）", () => {
-    expect(toUniqueKey(payloadWith({ terminal_id: "!*'()" }))).toBe("1001:%21%2A%27%28%29:7:2026-08-17T20%3A52%3A19");
+    expect(toUniqueKey(payloadWith({ terminal_id: "!*'()" }))).toBe(
+      "1001:%21%2A%27%28%29:7:2026-08-17T20%3A52%3A19",
+    );
     expect(encodeURIComponent("!*'()")).toBe("!*'()");
   });
 
@@ -56,16 +62,24 @@ describe("ingress/unique-key — 上流のエンコード規則（quote の safe
   });
 
   it("英数字と `- _ . ~` はそのまま通る", () => {
-    expect(toUniqueKey(payloadWith({ store_id: "aZ09-_.~" }))).toBe("aZ09-_.~:41:7:2026-08-17T20%3A52%3A19");
+    expect(toUniqueKey(payloadWith({ store_id: "aZ09-_.~" }))).toBe(
+      "aZ09-_.~:41:7:2026-08-17T20%3A52%3A19",
+    );
   });
 
   it("それ以外は UTF-8 バイト列の大文字 16 進 `%XX` へ写る", () => {
     // 麺 = U+9EBA → E9 BA BA。小文字 16 進にしない（上流は大文字で出す）。
-    expect(toUniqueKey(payloadWith({ store_id: "麺" }))).toBe("%E9%BA%BA:41:7:2026-08-17T20%3A52%3A19");
+    expect(toUniqueKey(payloadWith({ store_id: "麺" }))).toBe(
+      "%E9%BA%BA:41:7:2026-08-17T20%3A52%3A19",
+    );
     // 空白は `+` ではなく `%20`（quote は quote_plus と違う）。
-    expect(toUniqueKey(payloadWith({ terminal_id: "a b" }))).toBe("1001:a%20b:7:2026-08-17T20%3A52%3A19");
+    expect(toUniqueKey(payloadWith({ terminal_id: "a b" }))).toBe(
+      "1001:a%20b:7:2026-08-17T20%3A52%3A19",
+    );
     // `%` 自身も写る（生の `%2F` が `/` に化けない）。
-    expect(toUniqueKey(payloadWith({ bill_no: "%2F" }))).toBe("1001:41:%252F:2026-08-17T20%3A52%3A19");
+    expect(toUniqueKey(payloadWith({ bill_no: "%2F" }))).toBe(
+      "1001:41:%252F:2026-08-17T20%3A52%3A19",
+    );
   });
 
   it("要素内の `:` は `%3A` へ写り、区切りと混ざらない", () => {
@@ -101,7 +115,9 @@ describe("ingress/unique-key — 導出できない payload", () => {
     // 実データは `bill_no` が数値・`datetime` が文字列で届くが、要素ごとに規則を変えない。
     expect(toUniqueKey(payloadWith({ bill_no: "7" }))).toBe("1001:41:7:2026-08-17T20%3A52%3A19");
     expect(toUniqueKey(payloadWith({ datetime: 20260817 }))).toBe("1001:41:7:20260817");
-    expect(toUniqueKey(payloadWith({ store_id: "1001" }))).toBe("1001:41:7:2026-08-17T20%3A52%3A19");
+    expect(toUniqueKey(payloadWith({ store_id: "1001" }))).toBe(
+      "1001:41:7:2026-08-17T20%3A52%3A19",
+    );
   });
 
   it("オブジェクト・配列・真偽値は読み出せず毒になる（Store_Code の読み出しと同一の規則）", () => {

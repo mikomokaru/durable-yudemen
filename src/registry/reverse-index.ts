@@ -23,7 +23,10 @@ export type ReverseIndex = ReadonlyMap<Identity, readonly StoreId[]>;
  *   updatedAt を順序基準にすると店舗更新のたびに「先頭」が動くため、不変の createdAt を用いる。
  * ・純粋・決定的：同一イデアからは常に同一のインデックスを返す。
  */
-export function buildReverseIndex(chains: readonly Chain[], stores: readonly Store[]): ReverseIndex {
+export function buildReverseIndex(
+  chains: readonly Chain[],
+  stores: readonly Store[],
+): ReverseIndex {
   // chainId → チェーン Roster の引き当て表（店舗が参照するチェーン名簿の供給源）。
   const chainRosterById = new Map<string, Roster>();
   for (const chain of chains) {
@@ -34,7 +37,10 @@ export function buildReverseIndex(chains: readonly Chain[], stores: readonly Sto
   const activeStores = stores
     .filter((store) => store.active)
     .slice()
-    .sort((a, b) => a.createdAt - b.createdAt || (a.storeId < b.storeId ? -1 : a.storeId > b.storeId ? 1 : 0));
+    .sort(
+      (a, b) =>
+        a.createdAt - b.createdAt || (a.storeId < b.storeId ? -1 : a.storeId > b.storeId ? 1 : 0),
+    );
 
   const index = new Map<Identity, StoreId[]>();
   for (const store of activeStores) {

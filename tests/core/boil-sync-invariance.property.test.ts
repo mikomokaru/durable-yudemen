@@ -26,7 +26,9 @@ import { genScheduledScene, type ScheduledScene } from "./schedulingScenes";
 
 /** Effect 列の Alarm。DO は同時に 1 Alarm ゆえ、列に現れるのは高々 1 件である。 */
 function alarmOf(effects: readonly Effect[]): Effect | null {
-  const alarms = effects.filter((effect) => effect.type === "SetAlarm" || effect.type === "ClearAlarm");
+  const alarms = effects.filter(
+    (effect) => effect.type === "SetAlarm" || effect.type === "ClearAlarm",
+  );
   expect(alarms.length).toBeLessThanOrEqual(1);
   return alarms[0] ?? null;
 }
@@ -43,13 +45,18 @@ function anchorOf(timer: Timer): unknown {
  * running のみ再同期し boiled は据え置く。実装（settle）を呼ばずにテスト側で組むのは、同じ関数の
  * 戻り値を二度確かめるだけになるのを避けるためである。
  */
-function resynchronized(timers: readonly Timer[], params: { arms: number; toleranceRatio: number }): readonly Timer[] {
+function resynchronized(
+  timers: readonly Timer[],
+  params: { arms: number; toleranceRatio: number },
+): readonly Timer[] {
   const synced = synchronize(
     timers.filter((timer) => timer.boiledAt === null),
     params,
   );
   const syncedById = new Map<string, Timer>(synced.map((timer) => [timer.id as string, timer]));
-  return timers.map((timer) => (timer.boiledAt === null ? (syncedById.get(timer.id as string) ?? timer) : timer));
+  return timers.map((timer) =>
+    timer.boiledAt === null ? (syncedById.get(timer.id as string) ?? timer) : timer,
+  );
 }
 
 describe("engine/settle — Boil_Sync の不変", () => {

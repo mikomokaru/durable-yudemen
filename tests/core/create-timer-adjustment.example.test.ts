@@ -31,11 +31,14 @@ describe("createTimer — Adjustment の構築境界", () => {
     ["負", -30_000],
     ["0", 0],
     ["正", 45_000],
-  ] as const)("%sの adjustment を明示すると値と時刻アンカーを保持する", (_direction, adjustment) => {
-    const timer = createTimer({ ...base, adjustment });
+  ] as const)(
+    "%sの adjustment を明示すると値と時刻アンカーを保持する",
+    (_direction, adjustment) => {
+      const timer = createTimer({ ...base, adjustment });
 
-    expect(timer.adjustment).toBe(adjustment);
-    expect(timer.startTime).toBe(START_TIME);
-    expect(timer.endTime).toBe(END_TIME);
-  });
+      expect(timer.adjustment).toBe(adjustment);
+      expect(timer.startTime).toBe(START_TIME);
+      expect(timer.endTime).toBe(END_TIME);
+    },
+  );
 });

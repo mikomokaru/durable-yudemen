@@ -11,7 +11,12 @@
 // （湯切りで麺が上がる。Complete は UI 上の確認であって占有ではない）。
 
 import { describe, it, expect } from "vitest";
-import { PLAN_TARGET_LIMIT, baselineSchedule, initialRelease, toCookSchedule } from "../../src/engine/schedule";
+import {
+  PLAN_TARGET_LIMIT,
+  baselineSchedule,
+  initialRelease,
+  toCookSchedule,
+} from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
 import { createTimer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
@@ -48,7 +53,12 @@ describe("initialRelease — slot の最早解放時刻", () => {
   it("running / boiled / 空き slot がそれぞれの解放時刻になる", () => {
     // slot 0: 走行中（30 秒後に上がる）／slot 1: 茹で上がり済み（10 秒前に上がった）／slot 2..5: 空き。
     const running = timerOn({ id: "t-running", slot: "0", endTime: NOW + 30_000 });
-    const boiled = timerOn({ id: "t-boiled", slot: "1", endTime: NOW - 10_000, boiledAt: NOW - 10_000 });
+    const boiled = timerOn({
+      id: "t-boiled",
+      slot: "1",
+      endTime: NOW - 10_000,
+      boiledAt: NOW - 10_000,
+    });
 
     const release = initialRelease([running, boiled], NOW, 6);
 
@@ -59,7 +69,12 @@ describe("initialRelease — slot の最早解放時刻", () => {
 
   it("解放時刻は実効 endTime（endTime + adjustment）で立つ", () => {
     // Boil_Sync が 5 秒早めた Timer。オリジナル endTime ではなく実効値が釜の解放時刻を決める。
-    const adjusted = timerOn({ id: "t-adjusted", slot: "0", endTime: NOW + 30_000, adjustment: -5_000 });
+    const adjusted = timerOn({
+      id: "t-adjusted",
+      slot: "0",
+      endTime: NOW + 30_000,
+      adjustment: -5_000,
+    });
 
     expect(initialRelease([adjusted], NOW, 6)[0]).toBe(NOW + 25_000);
   });
@@ -120,7 +135,13 @@ function pendingItem(input: {
 }
 
 /** 配置を照合しやすい形へ（slot 番号・開始と提供の相対秒）。 */
-function readable(placement: { externalOrderId: string; itemIndex: number; slotIds: readonly string[]; startAt: number; serveAt: number }) {
+function readable(placement: {
+  externalOrderId: string;
+  itemIndex: number;
+  slotIds: readonly string[];
+  startAt: number;
+  serveAt: number;
+}) {
   return {
     item: `${placement.externalOrderId}#${placement.itemIndex}`,
     slots: [...placement.slotIds],
@@ -156,7 +177,10 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
   });
 
   it("Pending_Order が空なら空の計画", () => {
-    expect(baselineSchedule([], EMPTY_KITCHEN, DEFAULT_NOODLE_PRESETS, PARAMS)).toEqual({ slices: [], score: 0 });
+    expect(baselineSchedule([], EMPTY_KITCHEN, DEFAULT_NOODLE_PRESETS, PARAMS)).toEqual({
+      slices: [],
+      score: 0,
+    });
   });
 });
 
@@ -204,7 +228,12 @@ describe("baselineSchedule — 釜が埋まっている", () => {
     ];
     const pending = [pendingItem({ orderId: "o-1", noodleType: "Thin" })];
 
-    const schedule = baselineSchedule(pending, initialRelease(running, NOW, 6), DEFAULT_NOODLE_PRESETS, PARAMS);
+    const schedule = baselineSchedule(
+      pending,
+      initialRelease(running, NOW, 6),
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+    );
 
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
       { item: "o-1#0", slots: ["5"], startSeconds: 20, serveSeconds: 80 },
@@ -217,14 +246,22 @@ describe("baselineSchedule — 釜が埋まっている", () => {
 describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => {
   // 先に届いた単独品目 63 件と、後から届いた 3 品目の卓。境界は卓の 1 品目目で切れる。
   const solo = Array.from({ length: PLAN_TARGET_LIMIT - 1 }, (_unused, index) =>
-    pendingItem({ orderId: `s-${String(index).padStart(2, "0")}`, arrivalTime: NOW - 100_000 + index }),
+    pendingItem({
+      orderId: `s-${String(index).padStart(2, "0")}`,
+      arrivalTime: NOW - 100_000 + index,
+    }),
   );
   const table = [0, 1, 2].map((itemIndex) =>
     pendingItem({ orderId: "o-big", itemIndex, tableId: "t-big", arrivalTime: NOW }),
   );
 
   it("計画対象に入った品目のみで PlanSlice を成す（残りは計画に現れない）", () => {
-    const schedule = baselineSchedule([...solo, ...table], EMPTY_KITCHEN, DEFAULT_NOODLE_PRESETS, PARAMS);
+    const schedule = baselineSchedule(
+      [...solo, ...table],
+      EMPTY_KITCHEN,
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+    );
     const placed = schedule.slices.flatMap((slice) => slice.placements);
     const split = schedule.slices.find((slice) => slice.tableKey === "t-big");
 
@@ -233,7 +270,12 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
   });
 
   it("割れた卓のソフト制約は対象品目の間だけで評価される（部分和は Wait_Time のみ）", () => {
-    const schedule = baselineSchedule([...solo, ...table], EMPTY_KITCHEN, DEFAULT_NOODLE_PRESETS, PARAMS);
+    const schedule = baselineSchedule(
+      [...solo, ...table],
+      EMPTY_KITCHEN,
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+    );
     const split = schedule.slices.find((slice) => slice.tableKey === "t-big")!;
     const placement = split.placements[0]!;
 
@@ -256,14 +298,26 @@ describe("toCookSchedule — 外部計画の生値の検証", () => {
           tableKey: "t-1",
           score: 70,
           placements: [
-            { externalOrderId: "o-1", itemIndex: 0, slotIds: ["0"], startAt: NOW, serveAt: NOW + 60_000 },
+            {
+              externalOrderId: "o-1",
+              itemIndex: 0,
+              slotIds: ["0"],
+              startAt: NOW,
+              serveAt: NOW + 60_000,
+            },
           ],
         },
         {
           tableKey: "t-2",
           score: 50,
           placements: [
-            { externalOrderId: "o-2", itemIndex: 1, slotIds: ["1", "2"], startAt: NOW, serveAt: NOW + 90_000 },
+            {
+              externalOrderId: "o-2",
+              itemIndex: 1,
+              slotIds: ["1", "2"],
+              startAt: NOW,
+              serveAt: NOW + 90_000,
+            },
           ],
         },
       ],

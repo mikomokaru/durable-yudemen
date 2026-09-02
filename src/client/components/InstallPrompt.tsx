@@ -80,10 +80,14 @@ export function InstallPrompt() {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
       <div className="pointer-events-auto flex max-w-[min(34rem,calc(100vw-2rem))] items-center gap-3 rounded-[0.875rem] border border-line bg-panel2 px-4 py-3 shadow-[0_1.125rem_3.125rem_rgba(0,0,0,.55)]">
-        <span className="text-2xl leading-none" aria-hidden="true">🍜</span>
+        <span className="text-2xl leading-none" aria-hidden="true">
+          🍜
+        </span>
         <div className="min-w-0 flex-1 text-sm">
           {mode === "available" ? (
-            <p className="m-0 font-semibold text-ink">Install BoilIt for full-screen, offline use.</p>
+            <p className="m-0 font-semibold text-ink">
+              Install BoilIt for full-screen, offline use.
+            </p>
           ) : (
             <p className="m-0 font-semibold text-ink">
               Install: tap <span className="font-bold">Share</span>, then{" "}

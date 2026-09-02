@@ -75,7 +75,9 @@ describe("Entry routing — `/` が Worker に届く", () => {
   it("run_worker_first は `true` ではなく必要な経路だけを挙げる", () => {
     const { run_worker_first: runWorkerFirst } = producerAssets();
     // `true` はアセット 1 本ごとに Worker を起動して要求数を食う。Entry 以外に先行の理由がない。
-    expect(runWorkerFirst, "run_worker_first: true は全アセットで Worker を起動する").not.toBe(true);
+    expect(runWorkerFirst, "run_worker_first: true は全アセットで Worker を起動する").not.toBe(
+      true,
+    );
     expect(Array.isArray(runWorkerFirst)).toBe(true);
   });
 
@@ -113,8 +115,16 @@ describe("Entry routing — `/` が Worker に届く", () => {
     const { run_worker_first: runWorkerFirst } = producerAssets();
     const patterns = Array.isArray(runWorkerFirst) ? runWorkerFirst : [];
     // JS/CSS/アイコンごとに Worker を起動させない（`true` を避ける理由と同じ・要求数を食う）。
-    for (const path of ["/index.html", "/favicon.svg", "/pwa-512x512.png", "/assets/index-abc123.js"]) {
-      expect(matchesRunWorkerFirst(path, patterns), `${path} で Worker を先行させる理由がない`).toBe(false);
+    for (const path of [
+      "/index.html",
+      "/favicon.svg",
+      "/pwa-512x512.png",
+      "/assets/index-abc123.js",
+    ]) {
+      expect(
+        matchesRunWorkerFirst(path, patterns),
+        `${path} で Worker を先行させる理由がない`,
+      ).toBe(false);
     }
   });
 });

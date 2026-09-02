@@ -74,7 +74,14 @@ const genGridPoint: fc.Arbitrary<GridPoint> = fc.record({
 /** 6 点の配列をオフセット組（タプル）へ昇格する。fast-check はタプル型を直に生成できないための橋渡し。 */
 function asSlotOffsets(points: readonly GridPoint[]): SlotOffsets {
   const [a, b, c, d, e, f] = points;
-  if (a === undefined || b === undefined || c === undefined || d === undefined || e === undefined || f === undefined) {
+  if (
+    a === undefined ||
+    b === undefined ||
+    c === undefined ||
+    d === undefined ||
+    e === undefined ||
+    f === undefined
+  ) {
     throw new Error("test generator invariant violated: expected 6 slot offsets");
   }
   return [a, b, c, d, e, f];
@@ -86,8 +93,14 @@ function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     orderSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     tableSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     affinityWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
-    orderSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
-    tableSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
+    orderSyncToleranceSeconds: fc.integer({
+      min: SYNC_TOLERANCE_SECONDS_MIN,
+      max: SYNC_TOLERANCE_SECONDS_MAX,
+    }),
+    tableSyncToleranceSeconds: fc.integer({
+      min: SYNC_TOLERANCE_SECONDS_MIN,
+      max: SYNC_TOLERANCE_SECONDS_MAX,
+    }),
     affinityToleranceDistance: fc.integer({
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
       max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
@@ -98,7 +111,9 @@ function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     ),
     slotOffsets: fc.oneof(
       fc.constant(DEFAULT_SLOT_OFFSETS),
-      fc.array(genGridPoint, { minLength: SLOTS_PER_UNIT, maxLength: SLOTS_PER_UNIT }).map(asSlotOffsets),
+      fc
+        .array(genGridPoint, { minLength: SLOTS_PER_UNIT, maxLength: SLOTS_PER_UNIT })
+        .map(asSlotOffsets),
     ),
   });
 }
@@ -106,7 +121,10 @@ function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
 /** 品目の素材。slot は解放表の内側（存在する釜）に収める。 */
 function genItemSeed(slotCount: number): fc.Arbitrary<ItemSeed> {
   return fc.record({
-    slots: fc.uniqueArray(fc.integer({ min: 0, max: slotCount - 1 }), { minLength: 1, maxLength: 2 }),
+    slots: fc.uniqueArray(fc.integer({ min: 0, max: slotCount - 1 }), {
+      minLength: 1,
+      maxLength: 2,
+    }),
     serveOffsetMillis: fc.integer({ min: 0, max: 600_000 }),
     waitMillis: fc.integer({ min: 0, max: 1_200_000 }),
     inPending: fc.boolean(),
@@ -115,7 +133,10 @@ function genItemSeed(slotCount: number): fc.Arbitrary<ItemSeed> {
 
 /** Table_Group（オーダーの入れ子）の素材。 */
 function genGroupSeed(slotCount: number): fc.Arbitrary<readonly (readonly ItemSeed[])[]> {
-  return fc.array(fc.array(genItemSeed(slotCount), { minLength: 1, maxLength: 3 }), { minLength: 1, maxLength: 3 });
+  return fc.array(fc.array(genItemSeed(slotCount), { minLength: 1, maxLength: 3 }), {
+    minLength: 1,
+    maxLength: 3,
+  });
 }
 
 /** 計画一式。品目の一部だけを Pending_Order 集合に入れ、起点を持たない配置（アドホック由来）も混ぜる。 */
@@ -217,7 +238,10 @@ describe("engine/objective — 目的関数", () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 /** 原点 (0,0) の単一ユニットで、指定した 6 点を slot 0..5 の座標として持つレイアウト。 */
-function singleUnitLayout(points: readonly GridPoint[]): { origins: readonly GridPoint[]; offsets: SlotOffsets } {
+function singleUnitLayout(points: readonly GridPoint[]): {
+  origins: readonly GridPoint[];
+  offsets: SlotOffsets;
+} {
   return { origins: [{ x: 0, y: 0 }], offsets: asSlotOffsets(points) };
 }
 
@@ -276,7 +300,8 @@ describe("engine/objective — 距離尺度", () => {
   // 「同一ユニット内 ≤ 異なるユニット、かつ後者は真に正」という緩んだ形で主張する。
   // 「別の台へ手を伸ばすより、自分の台の端まで動くほうが近い」という現場の事実の表明である。
   it("Property 18: 同一ユニット内の対は異なるユニットの対より近い（ペナルティは前者 ≤ 後者・後者は正）", () => {
-    const penalty = (distance: number) => Math.max(0, distance - DEFAULT_AFFINITY_TOLERANCE_DISTANCE);
+    const penalty = (distance: number) =>
+      Math.max(0, distance - DEFAULT_AFFINITY_TOLERANCE_DISTANCE);
 
     fc.assert(
       fc.property(
@@ -290,12 +315,16 @@ describe("engine/objective — 距離尺度", () => {
           const origins = defaultUnitOrigins(unitCount);
           const unit = sameUnit % unitCount;
           const otherUnit = (unit + 1) % unitCount;
-          const distance = (slot: number, other: number) => slotDistance(slot, other, origins, DEFAULT_SLOT_OFFSETS);
+          const distance = (slot: number, other: number) =>
+            slotDistance(slot, other, origins, DEFAULT_SLOT_OFFSETS);
 
           // 同一ユニット内の任意の対（同一 slot も含む——距離 0 で主張を破らない）。
           const within = distance(unit * SLOTS_PER_UNIT + offsetA, unit * SLOTS_PER_UNIT + offsetB);
           // 異なるユニットに属する任意の対。
-          const across = distance(unit * SLOTS_PER_UNIT + offsetA, otherUnit * SLOTS_PER_UNIT + offsetC);
+          const across = distance(
+            unit * SLOTS_PER_UNIT + offsetA,
+            otherUnit * SLOTS_PER_UNIT + offsetC,
+          );
 
           // 生の距離では真の不等号が立つ（既定の離隔 2 がこれを満たすために選ばれている）。
           expect(within).toBeLessThan(across);
@@ -340,7 +369,11 @@ describe("engine/objective — 距離尺度", () => {
   it("既定の許容距離 14 では縦横隣接と斜め隣接がともにペナルティ 0", () => {
     const origins = defaultUnitOrigins(1);
     const penalty = (slot: number, other: number) =>
-      Math.max(0, slotDistance(slot, other, origins, DEFAULT_SLOT_OFFSETS) - DEFAULT_AFFINITY_TOLERANCE_DISTANCE);
+      Math.max(
+        0,
+        slotDistance(slot, other, origins, DEFAULT_SLOT_OFFSETS) -
+          DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+      );
 
     expect(penalty(0, 1)).toBe(0); // 縦横隣接（10）
     expect(penalty(0, 2)).toBe(0); // 縦横隣接（10）

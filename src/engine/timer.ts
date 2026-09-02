@@ -69,7 +69,8 @@ export interface Ordered {
  * 残り秒は状態として持たない。保持するのは絶対終了時刻 endTime という「事実」だけ。
  */
 export interface Timer
-  extends TimerFact<TimerId, SlotId, NoodleType, EpochMillis>,
+  extends
+    TimerFact<TimerId, SlotId, NoodleType, EpochMillis>,
     Sequenced,
     Boilable,
     Adjusted,

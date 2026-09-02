@@ -19,7 +19,7 @@ function timer(id: string, boiledAt: number | null, seq: number): Timer {
     firmness: "normal",
     startTime: START_TIME as EpochMillis,
     endTime: (START_TIME + 60_000) as EpochMillis,
-    boiledAt: boiledAt === null ? null : boiledAt as EpochMillis,
+    boiledAt: boiledAt === null ? null : (boiledAt as EpochMillis),
     seq,
   });
 }
@@ -46,7 +46,9 @@ describe("tryWriteOperationLines", () => {
   it("OFF時はrecord構築前に同期returnする", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const observation = {
-      get storeId(): string { throw new Error("record construction must not start"); },
+      get storeId(): string {
+        throw new Error("record construction must not start");
+      },
     } as OperationObservation;
 
     expect(tryWriteOperationLines(false, observation)).toBeUndefined();
@@ -59,23 +61,28 @@ describe("tryWriteOperationLines", () => {
 
     expect(tryWriteOperationLines(true, observation)).toBeUndefined();
 
-    const expected = observation.after.timers.map((afterTimer, index) => printCanonicalOperationLine({
-      storeId: "store-1",
-      timerId: afterTimer.id,
-      operationKind: "boiled",
-      eventTime: EVENT_TIME as never,
-      slotIds: afterTimer.slotIds,
-      noodleType: afterTimer.noodleType,
-      firmness: afterTimer.firmness,
-      endTime: afterTimer.endTime as never,
-      boiledAt: (EVENT_TIME + index) as never,
-    }));
+    const expected = observation.after.timers.map((afterTimer, index) =>
+      printCanonicalOperationLine({
+        storeId: "store-1",
+        timerId: afterTimer.id,
+        operationKind: "boiled",
+        eventTime: EVENT_TIME as never,
+        slotIds: afterTimer.slotIds,
+        noodleType: afterTimer.noodleType,
+        firmness: afterTimer.firmness,
+        endTime: afterTimer.endTime as never,
+        boiledAt: (EVENT_TIME + index) as never,
+      }),
+    );
     expect(log.mock.calls).toEqual(expected.map((line) => [line]));
   });
 
   it("一件のconsole失敗後も後続recordを各一回試行し再試行しない", () => {
-    const log = vi.spyOn(console, "log")
-      .mockImplementationOnce(() => { throw new Error("console failed"); })
+    const log = vi
+      .spyOn(console, "log")
+      .mockImplementationOnce(() => {
+        throw new Error("console failed");
+      })
       .mockImplementation(() => undefined);
 
     expect(() => tryWriteOperationLines(true, boiledObservation())).not.toThrow();
@@ -98,7 +105,9 @@ describe("tryWriteOperationLines", () => {
   it("record構築失敗を伝播させずconsoleへ別行を出さない", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
-    expect(() => tryWriteOperationLines(true, { ...boiledObservation(), eventTime: 0 })).not.toThrow();
+    expect(() =>
+      tryWriteOperationLines(true, { ...boiledObservation(), eventTime: 0 }),
+    ).not.toThrow();
     expect(log).not.toHaveBeenCalled();
   });
 });

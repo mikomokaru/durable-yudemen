@@ -29,7 +29,11 @@ type OrderArrivedEvent = Extract<Event, { type: "OrderArrived" }>;
  *
  * `mayRequestPlan` は真——到着は計画の入力が変わる契機そのものであり、外部へ改善を求めてよい（AC 5.5）。
  */
-export function arriveOrder(state: TimerState, args: OrderArrivedEvent, params: SettleParams): Outcome {
+export function arriveOrder(
+  state: TimerState,
+  args: OrderArrivedEvent,
+  params: SettleParams,
+): Outcome {
   const moved: TimerState = {
     ...state,
     pendingOrders: upsertOrder(state.pendingOrders, state.timers, args.arrival),

@@ -447,7 +447,9 @@ describe("client degraded 経路 A — 発火済みスロットへの start が�
     expect(stages.due.map((timer) => timer.id)).toEqual([FIXED_RUN.serverTimerId]);
     // 発火は processedIds に記録するだけで timers から除去しない（修正後も不変の性質）。
     expect(stages.afterLocalDone.processedIds.has(FIXED_RUN.serverTimerId)).toBe(true);
-    expect(stages.afterLocalDone.timers.map((timer) => timer.id)).toEqual([FIXED_RUN.serverTimerId]);
+    expect(stages.afterLocalDone.timers.map((timer) => timer.id)).toEqual([
+      FIXED_RUN.serverTimerId,
+    ]);
     // この時点ではまだ local 起源が居ないため C(X) は偽。
     expect(isBugCondition(stages.afterLocalDone)).toBe(false);
 
@@ -474,15 +476,19 @@ describe("client degraded 経路 A — 発火済みスロットへの start が�
     const stages = replayBoiledThenLocalStart(FIXED_RUN);
 
     // 前提の確認 — server 集合の全置換で、ローカルで消化したはずの id が戻っている（write-back 不在）。
-    expect(stages.afterReconcile.timers.filter((timer) => timer.origin === "server").map((timer) => timer.id)).toEqual([
-      FIXED_RUN.serverTimerId,
-    ]);
+    expect(
+      stages.afterReconcile.timers
+        .filter((timer) => timer.origin === "server")
+        .map((timer) => timer.id),
+    ).toEqual([FIXED_RUN.serverTimerId]);
     // 経路 A では provisional が存在しない——ゲートが注入を拒んだため、戻った server と争う相手が居ない。
     // 「復活した server を統一規則が落とす」観測は経路 B が担う（provisional 在席の Reconcile を合法に
     // 組めるのは経路 B だけである）。
-    expect(stages.afterReconcile.timers.filter((timer) => timer.origin === "local").map((timer) => timer.id)).toEqual(
-      [],
-    );
+    expect(
+      stages.afterReconcile.timers
+        .filter((timer) => timer.origin === "local")
+        .map((timer) => timer.id),
+    ).toEqual([]);
 
     // 不変条件の主張（要件2.4）— Reconcile を跨いでも 1 スロット ≤ 1 タイマーが保たれる。
     expect(
@@ -561,11 +567,13 @@ describe("client degraded 経路 A — 発火済みスロットへの start が�
     const view = stages.afterReconcile;
 
     // 戻り: 同一 id の server-confirmed が全置換で在席を取り戻している。
-    expect(view.timers.filter((timer) => timer.origin === "server").map((timer) => timer.id)).toEqual([
-      FIXED_RUN.serverTimerId,
-    ]);
+    expect(
+      view.timers.filter((timer) => timer.origin === "server").map((timer) => timer.id),
+    ).toEqual([FIXED_RUN.serverTimerId]);
     // 経路 A に provisional は居ない（ゲートが注入を拒んだため）。
-    expect(view.timers.filter((timer) => timer.origin === "local").map((timer) => timer.id)).toEqual([]);
+    expect(
+      view.timers.filter((timer) => timer.origin === "local").map((timer) => timer.id),
+    ).toEqual([]);
     // 刈り取り後も処理済み記録は残る（保持 id 集合に属するため）。
     expect(view.processedIds.has(FIXED_RUN.serverTimerId)).toBe(true);
     // ゆえに戻ってきた server タイマーはローカル再発火しない。
@@ -588,7 +596,9 @@ describe("client degraded 経路 B — 消し込み後に Reconcile が戻す se
     expect(stages.afterDegraded.connectivity).toBe("down");
     expect(stages.due.map((timer) => timer.id)).toEqual([FIXED_RUN.serverTimerId]);
     // 発火だけでは timers から消えない（経路 A と同じ出発点）。
-    expect(stages.afterLocalDone.timers.map((timer) => timer.id)).toEqual([FIXED_RUN.serverTimerId]);
+    expect(stages.afterLocalDone.timers.map((timer) => timer.id)).toEqual([
+      FIXED_RUN.serverTimerId,
+    ]);
 
     // 消し込みは在席を解く。釜は空きになり、処理済み記録は残る（ローカル再発火の抑止）。
     expect(stages.afterLocalComplete.timers).toEqual([]);
@@ -627,11 +637,15 @@ describe("client degraded 経路 B — 消し込み後に Reconcile が戻す se
     // 走行中の主張が勝ち、戻ってきた server-confirmed は落ちる。落として失われるのは鳴り終わった通知の
     // 残骸だけで、走っている麺の秒読みは残る。
     expect(
-      stages.afterReconcile.timers.filter((timer) => timer.origin === "server").map((timer) => timer.id),
+      stages.afterReconcile.timers
+        .filter((timer) => timer.origin === "server")
+        .map((timer) => timer.id),
     ).toEqual([]);
     // provisional は保持される（決定 B）。現場が空き釜へ入れた麺の秒読みは消えない。
     expect(
-      stages.afterReconcile.timers.filter((timer) => timer.origin === "local").map((timer) => timer.id),
+      stages.afterReconcile.timers
+        .filter((timer) => timer.origin === "local")
+        .map((timer) => timer.id),
     ).toEqual([FIXED_RUN.localTimerId]);
     // 当該スロットの在席はちょうど 1 本。
     expect(
@@ -676,7 +690,9 @@ describe("client degraded 経路 B — 消し込み後に Reconcile が戻す se
         expect(stages.due.map((timer) => timer.id)).toEqual([run.serverTimerId]);
         expect(stages.afterLocalComplete.timers).toEqual([]);
         expect(
-          stages.afterLocalStart.timers.filter((timer) => timer.origin === "local").map((timer) => timer.id),
+          stages.afterLocalStart.timers
+            .filter((timer) => timer.origin === "local")
+            .map((timer) => timer.id),
         ).toEqual([run.localTimerId]);
         // 不変条件の主張。破れれば fast-check が最小反例へ縮約し、反例を報告する。
         expect(

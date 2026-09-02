@@ -86,7 +86,11 @@ function startEvent(operation: StartOperation, step: number, now: EpochMillis): 
 }
 
 function fallbackStart(step: number, now: EpochMillis): Event {
-  return startEvent({ kind: "start", boilSeconds: 60, slotIndex: step % 18, delayMillis: 0 }, step, now);
+  return startEvent(
+    { kind: "start", boilSeconds: 60, slotIndex: step % 18, delayMillis: 0 },
+    step,
+    now,
+  );
 }
 
 function resolveEvent(
@@ -168,7 +172,11 @@ describe("engine/decide — synchronization after running set changes", () => {
     const secondStartAt = (position.now + 1_000) as EpochMillis;
     position = applyAndAssert(
       position,
-      startEvent({ kind: "start", boilSeconds: 60, slotIndex: 1, delayMillis: 0 }, 1, secondStartAt),
+      startEvent(
+        { kind: "start", boilSeconds: 60, slotIndex: 1, delayMillis: 0 },
+        1,
+        secondStartAt,
+      ),
       params,
     );
     expect(runningOf(position.state).some((timer) => timer.adjustment !== 0)).toBe(true);
@@ -189,7 +197,9 @@ describe("engine/decide — synchronization after running set changes", () => {
       startEvent({ kind: "start", boilSeconds: 60, slotIndex: 2, delayMillis: 0 }, 2, thirdStartAt),
       params,
     );
-    const alarmAt = Math.min(...runningOf(position.state).map((timer) => adjustedEndTime(timer) as number)) as EpochMillis;
+    const alarmAt = Math.min(
+      ...runningOf(position.state).map((timer) => adjustedEndTime(timer) as number),
+    ) as EpochMillis;
     position = applyAndAssert(position, { type: "AlarmFired", now: alarmAt }, params);
 
     const boiled = position.state.timers.filter((timer) => timer.boiledAt !== null);

@@ -72,7 +72,10 @@ export const EMPTY_STATE: TimerState = {
  * 未知の端末（`undefined`）は常に新しい。ここで畳むのは、初回受理の扱いを呼び出し側へ出せば同じ判断が
  * 二箇所に現れるためである。
  */
-export function isNewerSequence(sequenceNumber: string, lastSequenceNumber: string | undefined): boolean {
+export function isNewerSequence(
+  sequenceNumber: string,
+  lastSequenceNumber: string | undefined,
+): boolean {
   if (lastSequenceNumber === undefined) return true;
   if (sequenceNumber.length !== lastSequenceNumber.length) {
     return sequenceNumber.length > lastSequenceNumber.length;

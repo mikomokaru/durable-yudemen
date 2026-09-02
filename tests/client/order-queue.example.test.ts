@@ -49,7 +49,14 @@ function viewWith(
   pendingOrders: readonly PendingOrder[],
   recommendations: readonly CookRecommendation[],
 ): ClientView {
-  return { ...EMPTY_VIEW, sync: "synced", connectivity: "up", pendingOrders, recommendations, noodlePresets: DEFAULT_NOODLE_PRESETS };
+  return {
+    ...EMPTY_VIEW,
+    sync: "synced",
+    connectivity: "up",
+    pendingOrders,
+    recommendations,
+    noodlePresets: DEFAULT_NOODLE_PRESETS,
+  };
 }
 
 describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
@@ -83,7 +90,13 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
     // 次の snapshot が空を運べば、待ち行列も推奨も空へ置き換わる（サーバだけが確定させる事実）。
     const emptied = decideView(applied, {
       kind: "Server",
-      message: { type: "snapshot", serverTime: T + 1, timers: [], pendingOrders: [], recommendations: [] },
+      message: {
+        type: "snapshot",
+        serverTime: T + 1,
+        timers: [],
+        pendingOrders: [],
+        recommendations: [],
+      },
       receivedAt: T + 1,
     });
     expect(emptied.pendingOrders).toEqual([]);
@@ -119,7 +132,10 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
         orderSyncToleranceSeconds: 30,
         tableSyncToleranceSeconds: 60,
         affinityToleranceDistance: 14,
-        unitOrigins: [{ x: 0, y: 0 }, { x: 4, y: 0 }],
+        unitOrigins: [
+          { x: 0, y: 0 },
+          { x: 4, y: 0 },
+        ],
         slotOffsets: [
           { x: 0, y: 0 },
           { x: 1, y: 0 },
@@ -129,7 +145,9 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
           { x: 1, y: 2 },
         ],
         firmnessCodes: [{ code: 10010, firmness: "hard" }],
-        menuItems: [{ productCode: 11421, noodleType: "Thin", sizes: [{ code: 19401, slotSpan: 1 }] }],
+        menuItems: [
+          { productCode: 11421, noodleType: "Thin", sizes: [{ code: 19401, slotSpan: 1 }] },
+        ],
       },
       receivedAt: T,
     });
@@ -147,12 +165,9 @@ describe("待ち行列の表示導出（AC 8.1 / 8.2 / 8.5）", () => {
       [],
     );
     const entries = orderQueueEntries(view, [0], T);
-    expect(entries.map((entry) => `${entry.order.externalOrderId}#${entry.order.itemIndex}`)).toEqual([
-      "o-a#0",
-      "o-a#1",
-      "o-c#0",
-      "o-b#0",
-    ]);
+    expect(
+      entries.map((entry) => `${entry.order.externalOrderId}#${entry.order.itemIndex}`),
+    ).toEqual(["o-a#0", "o-a#1", "o-c#0", "o-b#0"]);
   });
 
   it("待ち時間は arrivalTime と補正後現在時刻からの導出で、負にはならない", () => {

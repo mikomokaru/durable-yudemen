@@ -169,7 +169,13 @@ export function openConnectionWithFakeWatch(rehydrated: ClientView = EMPTY_VIEW)
      */
     receiveSnapshot: (timers: readonly TimerFact[]) =>
       serverMessageHandler?.(
-        { type: "snapshot", serverTime: currentNow, timers, pendingOrders: [], recommendations: [] },
+        {
+          type: "snapshot",
+          serverTime: currentNow,
+          timers,
+          pendingOrders: [],
+          recommendations: [],
+        },
         currentNow,
       ),
     /**

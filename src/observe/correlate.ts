@@ -206,7 +206,11 @@ export interface IdleInterval {
  */
 export type ConditionA =
   | { readonly verdict: "pass"; readonly timerId: string }
-  | { readonly verdict: "fail"; readonly timerId: string; readonly cause: "NoAlarm" | "AlarmAfterDone" };
+  | {
+      readonly verdict: "fail";
+      readonly timerId: string;
+      readonly cause: "NoAlarm" | "AlarmAfterDone";
+    };
 
 /**
  * idle 区間内で、当該タイマーの `done` に対し `alarm` が「done 以下の epoch ms」で先行するかを判定する
@@ -320,9 +324,17 @@ export function verifyRehydrateCount(
  *  - fail: wake signal は観測したが、検証条件 a/b のいずれかが fail。
  */
 export type HarnessVerdict =
-  | { readonly kind: "confirmed"; readonly conditionA: readonly ConditionA[]; readonly conditionB: readonly ConditionB[] }
+  | {
+      readonly kind: "confirmed";
+      readonly conditionA: readonly ConditionA[];
+      readonly conditionB: readonly ConditionB[];
+    }
   | { readonly kind: "inconclusive" }
-  | { readonly kind: "fail"; readonly conditionA: readonly ConditionA[]; readonly conditionB: readonly ConditionB[] };
+  | {
+      readonly kind: "fail";
+      readonly conditionA: readonly ConditionA[];
+      readonly conditionB: readonly ConditionB[];
+    };
 
 /** 観測ウィンドウ満了点 = idle 経過時点 + 最大 60 秒（要件7.4）。 */
 export const OBSERVATION_TAIL_MS = 60_000;
@@ -423,7 +435,10 @@ function instrumentationOf(row: MergedRow): InstrumentationLogEntry | null {
  * 区間に対応する rehydrate 継ぎ目（同一 instanceId・区間内）の最初の 1 件を返す。
  * 最終区間以外は [bornAt, endAt)、最終区間は右端 endAt を含む（construct→rehydrate は同一 at でもよい）。
  */
-function rehydrateFor(merged: readonly MergedRow[], interval: InstanceInterval): RehydrateEntry | null {
+function rehydrateFor(
+  merged: readonly MergedRow[],
+  interval: InstanceInterval,
+): RehydrateEntry | null {
   for (const row of merged) {
     const entry = instrumentationOf(row);
     if (
@@ -488,7 +503,10 @@ function startedTimerId(entry: OperationLogEntry): string | null {
 /** 受信した `completed` / `cancelled` の payload.timerId（active 集合からの除去・要件6.4）。該当しなければ null。
  *  茹で上がり（boiled）は除去しない——boiled は明示完了まで集合に残る（active のまま rehydrate で復元される）。 */
 function endedTimerId(entry: OperationLogEntry): string | null {
-  if (entry.direction !== "recv" || (entry.messageType !== "completed" && entry.messageType !== "cancelled")) {
+  if (
+    entry.direction !== "recv" ||
+    (entry.messageType !== "completed" && entry.messageType !== "cancelled")
+  ) {
     return null;
   }
   return stringField(entry.payload, "timerId");

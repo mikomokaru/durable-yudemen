@@ -17,9 +17,9 @@ export interface FirmnessLevel {
 // 並び順 = 硬い → 柔らかい（UI もこの順で左→右に並ぶ）
 export const FIRMNESS_LEVELS: FirmnessLevel[] = [
   { id: "バリカタ", deltaSec: -20 },
-  { id: "かため",   deltaSec: -10 },
-  { id: "ふつう",   deltaSec: 0 },
-  { id: "やわめ",   deltaSec: 15 },
+  { id: "かため", deltaSec: -10 },
+  { id: "ふつう", deltaSec: 0 },
+  { id: "やわめ", deltaSec: 15 },
 ];
 
 export const DEFAULT_FIRMNESS: Firmness = "ふつう";

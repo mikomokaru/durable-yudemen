@@ -14,11 +14,17 @@ describe("client/clock 残りのクランプ", () => {
   // 任意の endTime / serverTime / localReceipt / 現在時刻について、導出した残りは常に 0 以上。
   it("残り時間は決して負にならない", () => {
     fc.assert(
-      fc.property(genEpochMillis, genEpochMillis, genEpochMillis, genEpochMillis, (endTime, serverTime, localReceipt, now) => {
-        const offset = clockOffset(serverTime, localReceipt);
-        const remaining = remainingMs(endTime, offset, now);
-        expect(remaining).toBeGreaterThanOrEqual(0);
-      }),
+      fc.property(
+        genEpochMillis,
+        genEpochMillis,
+        genEpochMillis,
+        genEpochMillis,
+        (endTime, serverTime, localReceipt, now) => {
+          const offset = clockOffset(serverTime, localReceipt);
+          const remaining = remainingMs(endTime, offset, now);
+          expect(remaining).toBeGreaterThanOrEqual(0);
+        },
+      ),
       { numRuns: 200 },
     );
   });
@@ -26,12 +32,18 @@ describe("client/clock 残りのクランプ", () => {
   // 補正後現在時刻が endTime 以上のとき、残りは厳密に 0 になる。
   it("補正後現在時刻 ≥ endTime のとき残りは 0", () => {
     fc.assert(
-      fc.property(genEpochMillis, genEpochMillis, genEpochMillis, genEpochMillis, (endTime, serverTime, localReceipt, now) => {
-        const offset = clockOffset(serverTime, localReceipt);
-        // 補正後現在時刻が endTime 以上である入力に絞ってからクランプ結果を確認する。
-        fc.pre(correctedNow(offset, now) >= endTime);
-        expect(remainingMs(endTime, offset, now)).toBe(0);
-      }),
+      fc.property(
+        genEpochMillis,
+        genEpochMillis,
+        genEpochMillis,
+        genEpochMillis,
+        (endTime, serverTime, localReceipt, now) => {
+          const offset = clockOffset(serverTime, localReceipt);
+          // 補正後現在時刻が endTime 以上である入力に絞ってからクランプ結果を確認する。
+          fc.pre(correctedNow(offset, now) >= endTime);
+          expect(remainingMs(endTime, offset, now)).toBe(0);
+        },
+      ),
       { numRuns: 200 },
     );
   });

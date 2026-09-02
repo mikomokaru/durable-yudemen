@@ -19,7 +19,12 @@ import type { SettleParams } from "./settle";
  * 権威表現）。Persist を先頭に置くのは SSOT 規律の表明。
  * 残存ゼロなら settle 内の nextAlarmEffect が ClearAlarm を返す（要件6.4）。
  */
-export function cancelTimer(state: TimerState, timerId: string, now: EpochMillis, params: SettleParams): Outcome {
+export function cancelTimer(
+  state: TimerState,
+  timerId: string,
+  now: EpochMillis,
+  params: SettleParams,
+): Outcome {
   // 対象が存在しなければ状態不変で拒否する（要件6.6）。
   if (!state.timers.some((t) => t.id === timerId)) {
     return {

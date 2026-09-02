@@ -8,7 +8,13 @@
 // それらは採点を経由して要求するのであって、値の意味を定めているのは目的関数である（sync.ts が
 // SyncParams を持つのと同じ置き方）。
 
-import { SLOTS_PER_UNIT, slotOf, type GridPoint, type SlotOffsets, type UnitOrigin } from "../domain/store";
+import {
+  SLOTS_PER_UNIT,
+  slotOf,
+  type GridPoint,
+  type SlotOffsets,
+  type UnitOrigin,
+} from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { Placement, PlanSlice } from "./schedule";
@@ -105,14 +111,18 @@ function scoreSlice(
 ): number {
   return (
     waitSeconds(placements, arrivals) +
-    params.tableSyncWeight * excessSeconds(serveSpread(placements), params.tableSyncToleranceSeconds) +
+    params.tableSyncWeight *
+      excessSeconds(serveSpread(placements), params.tableSyncToleranceSeconds) +
     params.orderSyncWeight * orderExcessSeconds(placements, params.orderSyncToleranceSeconds) +
     params.affinityWeight * affinityExcess(placements, params)
   );
 }
 
 /** Σ Wait_Time（秒）。起点を持たない配置は寄与しない。 */
-function waitSeconds(placements: readonly Placement[], arrivals: ReadonlyMap<string, number>): number {
+function waitSeconds(
+  placements: readonly Placement[],
+  arrivals: ReadonlyMap<string, number>,
+): number {
   let total = 0;
   for (const placement of placements) {
     const arrivalTime = arrivals.get(itemKey(placement));
@@ -139,11 +149,18 @@ function orderExcessSeconds(placements: readonly Placement[], toleranceSeconds: 
 
 /** グループ内の全ペアについて、代表 slot 間距離の許容超過分を足す。 */
 function affinityExcess(placements: readonly Placement[], params: ScheduleParams): number {
-  const representatives = placements.map((placement) => representativeSlot(placement.slotIds, params));
+  const representatives = placements.map((placement) =>
+    representativeSlot(placement.slotIds, params),
+  );
   let total = 0;
   for (let i = 0; i < representatives.length; i++) {
     for (let j = i + 1; j < representatives.length; j++) {
-      const distance = slotDistance(representatives[i]!, representatives[j]!, params.unitOrigins, params.slotOffsets);
+      const distance = slotDistance(
+        representatives[i]!,
+        representatives[j]!,
+        params.unitOrigins,
+        params.slotOffsets,
+      );
       total += Math.max(0, distance - params.affinityToleranceDistance);
     }
   }
@@ -162,7 +179,10 @@ function representativeSlot(slotIds: NonEmptyArray<SlotId>, params: SchedulePara
   for (const slotId of slotIds) {
     const slot = slotOf(slotId);
     const at = position(slot, params.unitOrigins, params.slotOffsets);
-    if (at.y < bestAt.y || (at.y === bestAt.y && (at.x < bestAt.x || (at.x === bestAt.x && slot < best)))) {
+    if (
+      at.y < bestAt.y ||
+      (at.y === bestAt.y && (at.x < bestAt.x || (at.x === bestAt.x && slot < best)))
+    ) {
       best = slot;
       bestAt = at;
     }
@@ -248,7 +268,11 @@ export function slotDistance(
  * 定義上 6 要素タプルの内側に収まる。起こり得ない状態に既定座標を用意すれば、不正な slot 番号が
  * 座標を持ててしまい（嘘をつく計画が作れる）、かつ本当の設定不整合が黙って埋もれる。
  */
-function position(slot: number, unitOrigins: readonly UnitOrigin[], slotOffsets: SlotOffsets): GridPoint {
+function position(
+  slot: number,
+  unitOrigins: readonly UnitOrigin[],
+  slotOffsets: SlotOffsets,
+): GridPoint {
   const origin = unitOrigins[Math.floor(slot / SLOTS_PER_UNIT)]!;
   const offset = slotOffsets[slot % SLOTS_PER_UNIT]!;
 

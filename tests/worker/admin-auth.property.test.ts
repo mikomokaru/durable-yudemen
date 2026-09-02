@@ -24,7 +24,11 @@ const genPair: fc.Arbitrary<readonly [string, string]> = fc.oneof(
   genBase.map((s) => [s, s] as const),
   fc.tuple(genBase, genBase),
   fc
-    .tuple(fc.string({ minLength: 1, maxLength: 32 }), fc.nat(), fc.integer({ min: 0, max: 0xffff }))
+    .tuple(
+      fc.string({ minLength: 1, maxLength: 32 }),
+      fc.nat(),
+      fc.integer({ min: 0, max: 0xffff }),
+    )
     .map(([s, idx, code]) => {
       const pos = idx % s.length;
       const original = s.charCodeAt(pos);

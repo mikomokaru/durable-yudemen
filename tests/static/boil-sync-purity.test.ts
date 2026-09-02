@@ -36,16 +36,16 @@ function moduleSpecifiers(sourceFile: ts.SourceFile): readonly string[] {
     if (ts.isImportDeclaration(statement) && ts.isStringLiteralLike(statement.moduleSpecifier)) {
       specifiers.push(statement.moduleSpecifier.text);
     } else if (
-      ts.isExportDeclaration(statement)
-      && statement.moduleSpecifier !== undefined
-      && ts.isStringLiteralLike(statement.moduleSpecifier)
+      ts.isExportDeclaration(statement) &&
+      statement.moduleSpecifier !== undefined &&
+      ts.isStringLiteralLike(statement.moduleSpecifier)
     ) {
       specifiers.push(statement.moduleSpecifier.text);
     } else if (
-      ts.isImportEqualsDeclaration(statement)
-      && ts.isExternalModuleReference(statement.moduleReference)
-      && statement.moduleReference.expression !== undefined
-      && ts.isStringLiteralLike(statement.moduleReference.expression)
+      ts.isImportEqualsDeclaration(statement) &&
+      ts.isExternalModuleReference(statement.moduleReference) &&
+      statement.moduleReference.expression !== undefined &&
+      ts.isStringLiteralLike(statement.moduleReference.expression)
     ) {
       specifiers.push(statement.moduleReference.expression.text);
     }
@@ -54,7 +54,9 @@ function moduleSpecifiers(sourceFile: ts.SourceFile): readonly string[] {
 }
 
 function importedPath(importer: string, specifier: string): string {
-  return relative(repoRoot, resolve(repoRoot, dirname(importer), specifier)).split(sep).join("/");
+  return relative(repoRoot, resolve(repoRoot, dirname(importer), specifier))
+    .split(sep)
+    .join("/");
 }
 
 function propertySegments(expression: ts.Expression): readonly string[] {
@@ -63,9 +65,9 @@ function propertySegments(expression: ts.Expression): readonly string[] {
     return [...propertySegments(expression.expression), expression.name.text];
   }
   if (
-    ts.isElementAccessExpression(expression)
-    && expression.argumentExpression !== undefined
-    && ts.isStringLiteralLike(expression.argumentExpression)
+    ts.isElementAccessExpression(expression) &&
+    expression.argumentExpression !== undefined &&
+    ts.isStringLiteralLike(expression.argumentExpression)
   ) {
     return [...propertySegments(expression.expression), expression.argumentExpression.text];
   }
@@ -106,8 +108,8 @@ function actionViolations(sourceFile: ts.SourceFile): readonly string[] {
     if (ts.isAwaitExpression(node)) violations.add("await expression");
 
     if (
-      ts.canHaveModifiers(node)
-      && ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword)
+      ts.canHaveModifiers(node) &&
+      ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword)
     ) {
       violations.add("async declaration");
     }
@@ -125,11 +127,15 @@ function actionViolations(sourceFile: ts.SourceFile): readonly string[] {
           ? node.expression.name.text
           : undefined;
       if (called === "require") violations.add("require()");
-      if (called !== undefined && forbiddenCalls.has(called)) violations.add(`effect call ${called}()`);
+      if (called !== undefined && forbiddenCalls.has(called))
+        violations.add(`effect call ${called}()`);
 
       if (ts.isPropertyAccessExpression(node.expression)) {
         const receiver = propertySegments(node.expression.expression);
-        if (receiver.some((segment) => segment.toLowerCase() === "storage") && storageMethods.has(node.expression.name.text)) {
+        if (
+          receiver.some((segment) => segment.toLowerCase() === "storage") &&
+          storageMethods.has(node.expression.name.text)
+        ) {
           violations.add(`storage call ${node.expression.name.text}()`);
         }
       }
@@ -142,7 +148,9 @@ describe("Feature: synchronized-boil-adjustment, Smoke: sync and projection rema
   it("import を engine/domain の純粋境界内に限定する", () => {
     for (const targetPath of targetPaths) {
       for (const specifier of moduleSpecifiers(parse(targetPath))) {
-        expect(specifier, `${targetPath} が外部 module ${specifier} を import している`).toMatch(/^\./);
+        expect(specifier, `${targetPath} が外部 module ${specifier} を import している`).toMatch(
+          /^\./,
+        );
         const resolved = importedPath(targetPath, specifier);
         expect(
           resolved.startsWith("src/engine/") || resolved.startsWith("src/domain/"),
@@ -154,7 +162,9 @@ describe("Feature: synchronized-boil-adjustment, Smoke: sync and projection rema
 
   it("storage・常駐 timer・platform I/O・非同期継続を実行しない", () => {
     for (const targetPath of targetPaths) {
-      expect(actionViolations(parse(targetPath)), `${targetPath} が実行作用を持っている`).toEqual([]);
+      expect(actionViolations(parse(targetPath)), `${targetPath} が実行作用を持っている`).toEqual(
+        [],
+      );
     }
   });
 });

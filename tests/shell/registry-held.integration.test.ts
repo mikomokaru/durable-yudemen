@@ -90,11 +90,18 @@ describe("保留は put 成功の上にのみ立つ（Requirements 11.3, 11.4）
     const stub = registryStub();
     const now = Date.now();
 
-    await stub.holdUnrouted("9002", [arrivalRecord("1", now - 2000), arrivalRecord("2", now - 1500)]);
+    await stub.holdUnrouted("9002", [
+      arrivalRecord("1", now - 2000),
+      arrivalRecord("2", now - 1500),
+    ]);
     await stub.holdUnrouted("9002", [arrivalRecord("3", now - 1000)]);
 
     const held = await readHeld(stub, unroutedKey("9002"));
-    expect(held?.map((h) => (h.kind === "unrouted" ? h.record.sequenceNumber : null))).toEqual(["1", "2", "3"]);
+    expect(held?.map((h) => (h.kind === "unrouted" ? h.record.sequenceNumber : null))).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
   });
 });
 
@@ -124,14 +131,21 @@ describe("保持は 2 時間で失効し、常設 Alarm を持たない（Requir
 
     expect(outcome).toEqual({ kind: "held", counts: { heldExpired: 1, heldOverflow: 0 } });
     const held = await readHeld(stub, unroutedKey("9003"));
-    expect(held?.map((h) => (h.kind === "unrouted" ? h.record.sequenceNumber : null))).toEqual(["2", "3"]);
+    expect(held?.map((h) => (h.kind === "unrouted" ? h.record.sequenceNumber : null))).toEqual([
+      "2",
+      "3",
+    ]);
   });
 
   it("保持を続ける Record が無くなればキーが消え、Alarm は張られない", async () => {
     const stub = registryStub();
     const now = Date.now();
     await seedHeld(stub, unroutedKey("9004"), [
-      { kind: "unrouted", heldAt: now - ARRIVAL_WINDOW_MS - 1, record: arrivalRecord("1", now - 1000) },
+      {
+        kind: "unrouted",
+        heldAt: now - ARRIVAL_WINDOW_MS - 1,
+        record: arrivalRecord("1", now - 1000),
+      },
     ]);
 
     // 新たに保つものが無い呼び出し（空列）でも、読んだ時点で失効が落ちる。
@@ -166,7 +180,8 @@ describe("件数上限は 1 Store_Code あたり 2000 Record（Requirements 11.2
     expect(outcome).toEqual({ kind: "held", counts: { heldExpired: 0, heldOverflow: 3 } });
     const held = await readHeld(stub, unroutedKey("9005"));
     expect(held).toHaveLength(HELD_RECORD_LIMIT);
-    const sequences = held?.map((h) => (h.kind === "unrouted" ? h.record.sequenceNumber : null)) ?? [];
+    const sequences =
+      held?.map((h) => (h.kind === "unrouted" ? h.record.sequenceNumber : null)) ?? [];
     // 落ちたのは古い側の 3 件。保全と即時性が衝突する分岐では即時性を選ぶ（新しい注文を残す）。
     expect(sequences[0]).toBe("seed-3");
     expect(sequences.slice(-3)).toEqual(["late-1", "late-2", "late-3"]);
@@ -194,14 +209,20 @@ describe("隔離は保留と別のキーに置く（Requirements 8.8, 8.10, 8.11
     expect(unrouted?.map((h) => h.kind)).toEqual(["unrouted"]);
     expect(isolated?.map((h) => h.kind)).toEqual(["contract-violation"]);
     // 隔離は検証前の生値をそのまま保つ（起点を推測で埋めない・AC 8.10）。
-    expect(isolated?.[0]?.kind === "contract-violation" ? isolated[0].raw : null).toEqual(violation);
+    expect(isolated?.[0]?.kind === "contract-violation" ? isolated[0].raw : null).toEqual(
+      violation,
+    );
   });
 
   it("隔離も同一の規律で失効する（2 時間・件数を返す）", async () => {
     const stub = registryStub();
     const now = Date.now();
     await seedHeld(stub, contractViolationKey("9007"), [
-      { kind: "contract-violation", heldAt: now - ARRIVAL_WINDOW_MS - 1, raw: { sequence_number: "old" } },
+      {
+        kind: "contract-violation",
+        heldAt: now - ARRIVAL_WINDOW_MS - 1,
+        raw: { sequence_number: "old" },
+      },
     ]);
 
     const outcome = await stub.quarantineContractViolations("9007", [{ sequence_number: "new" }]);
@@ -223,7 +244,9 @@ describe("保持を始めた時刻は上流の観測時刻とは別の事実で�
     const first = held?.[0];
     expect(first?.heldAt).toBeGreaterThanOrEqual(before);
     // 起点（Order_Arrival_Time）は保持の時刻に置き換わらない——保持は失効の判定にしか使わない。
-    expect(first?.kind === "unrouted" ? first.record.arrivalTimestampMs : null).toBe(arrivalTimestampMs);
+    expect(first?.kind === "unrouted" ? first.record.arrivalTimestampMs : null).toBe(
+      arrivalTimestampMs,
+    );
     expect(first?.heldAt).not.toBe(arrivalTimestampMs);
   });
 });

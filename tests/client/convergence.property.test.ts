@@ -20,7 +20,10 @@ import type { ServerMessage } from "../../src/domain/messages";
 import { settleParams } from "../settleParams";
 
 /** 実運用の既定同期パラメータ（arms=2 / toleranceRatio=10%）。近接 start が synchronize で調整される。 */
-const PARAMS: SettleParams = settleParams({ arms: DEFAULT_ARMS, toleranceRatio: DEFAULT_TOLERANCE_RATIO });
+const PARAMS: SettleParams = settleParams({
+  arms: DEFAULT_ARMS,
+  toleranceRatio: DEFAULT_TOLERANCE_RATIO,
+});
 
 type SnapshotMessage = Extract<ServerMessage, { type: "snapshot" }>;
 type StartEvent = Extract<Event, { type: "Start" }>;
@@ -61,7 +64,12 @@ function project(timer: {
   readonly noodleType: string;
   readonly endTime: number;
 }): TimerProjection {
-  return { id: timer.id, slotIds: [...timer.slotIds], noodleType: timer.noodleType, endTime: timer.endTime };
+  return {
+    id: timer.id,
+    slotIds: [...timer.slotIds],
+    noodleType: timer.noodleType,
+    endTime: timer.endTime,
+  };
 }
 
 /** Start イベントを組み立てる（startTimer は Start 種別だけを受け取る）。 */
@@ -105,7 +113,10 @@ const genStartSpec: fc.Arbitrary<StartSpec> = fc.record({
 });
 
 /** MAX_TIMERS を十分下回る 1〜20 件の start 列。空列は収束検証の意味がないため最低 1 件。 */
-const genStartSequence: fc.Arbitrary<readonly StartSpec[]> = fc.array(genStartSpec, { minLength: 1, maxLength: 20 });
+const genStartSequence: fc.Arbitrary<readonly StartSpec[]> = fc.array(genStartSpec, {
+  minLength: 1,
+  maxLength: 20,
+});
 
 describe("client/convergence — snapshot 単一表現による収束一致", () => {
   // Feature: snapshot-broadcast, Property 2: bug#1 の消滅（収束一致）
@@ -140,7 +151,11 @@ describe("client/convergence — snapshot 単一表現による収束一致", ()
 
           // 要求元・非要求元の双方が同一 snapshot を同一順序で適用する（Reply は存在しない）。
           requester = decideView(requester, { kind: "Server", message: snapshot, receivedAt: now });
-          nonRequester = decideView(nonRequester, { kind: "Server", message: snapshot, receivedAt: now + 1 });
+          nonRequester = decideView(nonRequester, {
+            kind: "Server",
+            message: snapshot,
+            receivedAt: now + 1,
+          });
 
           const expected = snapshotProjection(snapshot);
           // (a) 要求元の server-confirmed 集合は snapshot.timers に完全一致する。
@@ -166,7 +181,13 @@ describe("client/convergence — snapshot 単一表現による収束一致", ()
     // 1 本目（timer-A）: 非要求元が観測する既存の茹で。endTime_A = T + 60_000。
     const outcomeA = startTimer(
       EMPTY_STATE,
-      startEvent({ slotIds: ["0"], noodleType: "Medium", boilSeconds: 60, newTimerId: "timer-A", now: T }),
+      startEvent({
+        slotIds: ["0"],
+        noodleType: "Medium",
+        boilSeconds: 60,
+        newTimerId: "timer-A",
+        now: T,
+      }),
       PARAMS,
     );
     expect(outcomeA.ok).toBe(true);
@@ -176,15 +197,29 @@ describe("client/convergence — snapshot 単一表現による収束一致", ()
     if (snapshotA === null) return;
 
     // 両 client が 1 本目の snapshot を適用する。
-    let requester: ClientView = decideView(EMPTY_VIEW, { kind: "Server", message: snapshotA, receivedAt: T });
-    let nonRequester: ClientView = decideView(EMPTY_VIEW, { kind: "Server", message: snapshotA, receivedAt: T });
+    let requester: ClientView = decideView(EMPTY_VIEW, {
+      kind: "Server",
+      message: snapshotA,
+      receivedAt: T,
+    });
+    let nonRequester: ClientView = decideView(EMPTY_VIEW, {
+      kind: "Server",
+      message: snapshotA,
+      receivedAt: T,
+    });
 
     // 2 本目（timer-B）: 要求元が 2_000ms 後に開始する。未同期 endTime_B = 1_062_000。窓が 1 本目と重なり synchronize が走る。
     const nowB = T + 2_000;
     const unsyncedEndTimeB = nowB + 60 * 1000; // 変更前の Reply が運んでいた未同期 endTime。
     const outcomeB = startTimer(
       outcomeA.state,
-      startEvent({ slotIds: ["1"], noodleType: "Medium", boilSeconds: 60, newTimerId: "timer-B", now: nowB }),
+      startEvent({
+        slotIds: ["1"],
+        noodleType: "Medium",
+        boilSeconds: 60,
+        newTimerId: "timer-B",
+        now: nowB,
+      }),
       PARAMS,
     );
     expect(outcomeB.ok).toBe(true);
@@ -195,7 +230,11 @@ describe("client/convergence — snapshot 単一表現による収束一致", ()
 
     // 要求元（2 本目を開始した側）と非要求元が同一の 2 本目 snapshot を適用する。
     requester = decideView(requester, { kind: "Server", message: snapshotB, receivedAt: nowB });
-    nonRequester = decideView(nonRequester, { kind: "Server", message: snapshotB, receivedAt: nowB });
+    nonRequester = decideView(nonRequester, {
+      kind: "Server",
+      message: snapshotB,
+      receivedAt: nowB,
+    });
 
     // snapshot が運ぶ timer-B の実効 endTime（同期済み）。
     const snapshotTimerB = snapshotB.timers.find((timer) => timer.id === "timer-B");

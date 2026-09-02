@@ -36,7 +36,9 @@ describe("toMenuItems — サイズ 0 個のメニューは立たない", () => 
 describe("toMenuItems — slotSpan の値域", () => {
   it("境界ちょうど（1 と 6）は通る", () => {
     const sizes = [size(SLOT_SPAN_MIN), { code: 19_603, slotSpan: SLOT_SPAN_MAX }];
-    expect(toMenuItems([menu(sizes)])).toEqual([{ productCode: 11_421, noodleType: "Thin", sizes }]);
+    expect(toMenuItems([menu(sizes)])).toEqual([
+      { productCode: 11_421, noodleType: "Thin", sizes },
+    ]);
   });
 
   it("0・負値・上限超過・非整数はクランプせず拒否する", () => {

@@ -47,7 +47,12 @@ export type ScenarioStep =
     }
   | { readonly at: number; readonly op: "cancel"; readonly timerId: string }
   | { readonly at: number; readonly op: "wait"; readonly durationMs: number }
-  | { readonly at: number; readonly op: "await-done"; readonly timerId: string; readonly timeoutMs: number };
+  | {
+      readonly at: number;
+      readonly op: "await-done";
+      readonly timerId: string;
+      readonly timeoutMs: number;
+    };
 
 /** 宣言的シナリオ。1..100 ステップと idle interval（整数秒）からなる（要件3.1 / 7.2）。 */
 export interface Scenario {
@@ -114,7 +119,13 @@ export function validateScenario(raw: unknown): ScenarioValidation {
   }
 
   // idle interval（1..3600 の整数秒）。
-  if (!isIntegerInRange(record.idleIntervalSeconds, MIN_IDLE_INTERVAL_SECONDS, MAX_IDLE_INTERVAL_SECONDS)) {
+  if (
+    !isIntegerInRange(
+      record.idleIntervalSeconds,
+      MIN_IDLE_INTERVAL_SECONDS,
+      MAX_IDLE_INTERVAL_SECONDS,
+    )
+  ) {
     return { ok: false, reason: "IdleIntervalOutOfRange" };
   }
 
@@ -161,7 +172,13 @@ function validateStep(candidate: unknown): StepValidation {
       }
       return {
         ok: true,
-        step: { at, op: "start", slotId: step.slotId, noodleType: step.noodleType, boilSeconds: step.boilSeconds },
+        step: {
+          at,
+          op: "start",
+          slotId: step.slotId,
+          noodleType: step.noodleType,
+          boilSeconds: step.boilSeconds,
+        },
       };
     }
     case "cancel": {
@@ -185,7 +202,10 @@ function validateStep(candidate: unknown): StepValidation {
       if (!isIntegerInRange(step.timeoutMs, MIN_AWAIT_TIMEOUT_MS, MAX_AWAIT_TIMEOUT_MS)) {
         return { ok: false, reason: "AwaitTimeoutOutOfRange" };
       }
-      return { ok: true, step: { at, op: "await-done", timerId: step.timerId, timeoutMs: step.timeoutMs } };
+      return {
+        ok: true,
+        step: { at, op: "await-done", timerId: step.timerId, timeoutMs: step.timeoutMs },
+      };
     }
     default:
       // 4 種以外の op は相対時刻を語る以前に不正。RelativeTimeOutOfRange として拒否する。

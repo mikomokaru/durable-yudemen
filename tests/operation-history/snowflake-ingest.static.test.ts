@@ -26,9 +26,9 @@ function statements(sql: string): string {
 
 /** 取込 SQL に書かれた object key の正規表現を、そのまま JS の RegExp として取り出す。 */
 function objectKeyPatterns(): readonly string[] {
-  return [
-    ...statements(ingestSql).matchAll(/REGEXP_SUBSTR\(METADATA\$FILENAME, '([^']+)'/g),
-  ].map(([, pattern]) => pattern!);
+  return [...statements(ingestSql).matchAll(/REGEXP_SUBSTR\(METADATA\$FILENAME, '([^']+)'/g)].map(
+    ([, pattern]) => pattern!,
+  );
 }
 
 const canonicalLine = printCanonicalOperationLine({
@@ -55,8 +55,11 @@ describe("取込 SQL の object key 文法", () => {
     expect(patterns).toHaveLength(3);
     expect(new Set(patterns).size).toBe(1);
     expect(
-      [...statements(ingestSql).matchAll(/REGEXP_SUBSTR\(METADATA\$FILENAME, '[^']+', 1, 1, 'e', (\d)\)/g)]
-        .map(([, group]) => group),
+      [
+        ...statements(ingestSql).matchAll(
+          /REGEXP_SUBSTR\(METADATA\$FILENAME, '[^']+', 1, 1, 'e', (\d)\)/g,
+        ),
+      ].map(([, group]) => group),
     ).toEqual(["1", "2", "3"]);
   });
 

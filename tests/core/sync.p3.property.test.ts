@@ -57,7 +57,9 @@ function timersFromSeeds(seeds: readonly TimerSeed[]): readonly Timer[] {
   });
 }
 
-function canonicalMembership(clusters: readonly (readonly Timer[])[]): readonly (readonly string[])[] {
+function canonicalMembership(
+  clusters: readonly (readonly Timer[])[],
+): readonly (readonly string[])[] {
   return clusters
     .map((cluster) => cluster.map((timer) => timer.id as string).sort())
     .sort((a, b) => compareText(a.join("\u0000"), b.join("\u0000")));

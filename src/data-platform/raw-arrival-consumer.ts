@@ -96,7 +96,13 @@ const rawArrivalConsumer: ExportedHandler<RawArrivalConsumerEnv, OperationRecord
         });
       } catch (error) {
         // put 成功前の ack は 0 件。再配送は Queue 側の方針に委ね、診断は Data Platform に閉じる。
-        console.warn(JSON.stringify({ observation: "raw-arrival-put-failure", messageId: message.id, error: `${error}` }));
+        console.warn(
+          JSON.stringify({
+            observation: "raw-arrival-put-failure",
+            messageId: message.id,
+            error: `${error}`,
+          }),
+        );
         message.retry();
         continue;
       }

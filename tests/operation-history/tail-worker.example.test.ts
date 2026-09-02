@@ -21,10 +21,13 @@ const line = printCanonicalOperationLine({
 const PRODUCER_SCRIPT = "yude-men-timer";
 
 // TraceItem を構造的に満たす最小の tail event。純粋 filter が読むのは scriptName と logs だけ。
-const event = (scriptName: string | null, logs: readonly {
-  readonly level: string;
-  readonly message: readonly unknown[];
-}[]) => ({ scriptName, logs } as unknown as TraceItem);
+const event = (
+  scriptName: string | null,
+  logs: readonly {
+    readonly level: string;
+    readonly message: readonly unknown[];
+  }[],
+) => ({ scriptName, logs }) as unknown as TraceItem;
 
 // sendBatch 呼び出しを捕捉する Data Platform 側 Queue の擬装。Producer への逆経路を持たない。
 function fakeQueue() {
@@ -93,10 +96,14 @@ describe("tailWorker.tail", () => {
       ]),
     ];
 
-    await tailWorker.tail!(events as TraceItem[], { OPERATION_RECORDS: queue } as TailWorkerEnv, {
-      waitUntil() {},
-      passThroughOnException() {},
-    } as unknown as ExecutionContext);
+    await tailWorker.tail!(
+      events as TraceItem[],
+      { OPERATION_RECORDS: queue } as TailWorkerEnv,
+      {
+        waitUntil() {},
+        passThroughOnException() {},
+      } as unknown as ExecutionContext,
+    );
 
     expect(batches).toHaveLength(1);
     expect(batches[0]!.map((m) => m.canonicalLine)).toEqual([line]);
@@ -104,14 +111,16 @@ describe("tailWorker.tail", () => {
 
   it("妥当な候補が無ければQueueへ送信しない", async () => {
     const { queue, batches } = fakeQueue();
-    const events = [
-      event("other-worker", [{ level: "log", message: [line] }]),
-    ];
+    const events = [event("other-worker", [{ level: "log", message: [line] }])];
 
-    await tailWorker.tail!(events as TraceItem[], { OPERATION_RECORDS: queue } as TailWorkerEnv, {
-      waitUntil() {},
-      passThroughOnException() {},
-    } as unknown as ExecutionContext);
+    await tailWorker.tail!(
+      events as TraceItem[],
+      { OPERATION_RECORDS: queue } as TailWorkerEnv,
+      {
+        waitUntil() {},
+        passThroughOnException() {},
+      } as unknown as ExecutionContext,
+    );
 
     expect(batches).toEqual([]);
   });

@@ -12,7 +12,8 @@ const NOODLES: Noodle[] = [
 
 // 設定ポップオーバー内のフォームは Tailwind 環境だと reset で素っ気なくなるので、
 // 軽くユーティリティで体裁を整えています。
-const fieldset = "m-0 mb-[10px] flex flex-wrap items-center gap-x-[18px] gap-y-2 rounded-xl border border-line p-[10px_14px] last:mb-0";
+const fieldset =
+  "m-0 mb-[10px] flex flex-wrap items-center gap-x-[18px] gap-y-2 rounded-xl border border-line p-[10px_14px] last:mb-0";
 const legend = "px-[6px] text-[12px] font-bold uppercase tracking-[.04em] text-muted";
 const label = "inline-flex cursor-pointer items-center gap-2 text-[15px] text-ink";
 const radio = "h-[18px] w-[18px] accent-running";
@@ -30,13 +31,23 @@ export default function App() {
           <fieldset className={fieldset}>
             <legend className={legend}>Units</legend>
             <label className={label}>
-              <input type="radio" name="unit-count" className={radio}
-                checked={slotCount === 6} onChange={() => setSlotCount(6)} />
+              <input
+                type="radio"
+                name="unit-count"
+                className={radio}
+                checked={slotCount === 6}
+                onChange={() => setSlotCount(6)}
+              />
               1 unit (6 slots)
             </label>
             <label className={label}>
-              <input type="radio" name="unit-count" className={radio}
-                checked={slotCount === 12} onChange={() => setSlotCount(12)} />
+              <input
+                type="radio"
+                name="unit-count"
+                className={radio}
+                checked={slotCount === 12}
+                onChange={() => setSlotCount(12)}
+              />
               2 units (12 slots)
             </label>
           </fieldset>

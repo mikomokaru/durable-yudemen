@@ -76,7 +76,8 @@ function buildScene(orders: readonly OrderSpec[]): Scene {
   const running: Timer[] = [];
   for (const order of orders) {
     order.items.forEach((item, itemIndex) => {
-      if (item.status === "pending") pending.push(toPendingOrder(order, item, itemIndex, order.arrivalTime));
+      if (item.status === "pending")
+        pending.push(toPendingOrder(order, item, itemIndex, order.arrivalTime));
       if (item.status === "started") {
         running.push(timerFor(order.externalOrderId, itemIndex, running.length));
       }
@@ -133,7 +134,10 @@ function adHocTimer(seq: number): Timer {
 }
 
 /** 到着の品目群（itemIndex は位置から振る。arrivalTime は受理時刻 NOW）。 */
-function arrivalOf(externalOrderId: string, items: readonly ItemSpec[]): NonEmptyArray<PendingOrder> {
+function arrivalOf(
+  externalOrderId: string,
+  items: readonly ItemSpec[],
+): NonEmptyArray<PendingOrder> {
   return nonEmpty(
     items.map((item, itemIndex) =>
       toPendingOrder({ externalOrderId, arrivalTime: NOW, items }, item, itemIndex, NOW),
@@ -165,11 +169,14 @@ const genSceneAndArrival = genScene.chain((scene) =>
 );
 
 /** 品目を一意に指す鍵（テスト側の照合用）。 */
-const keyOf = (externalOrderId: string, itemIndex: number): string => `${externalOrderId}#${itemIndex}`;
+const keyOf = (externalOrderId: string, itemIndex: number): string =>
+  `${externalOrderId}#${itemIndex}`;
 
 /** 当該注文が集合に持つ最早の arrivalTime。無ければ null。 */
 function originOf(pending: readonly PendingOrder[], externalOrderId: string): number | null {
-  const times = pending.filter((o) => o.externalOrderId === externalOrderId).map((o) => o.arrivalTime);
+  const times = pending
+    .filter((o) => o.externalOrderId === externalOrderId)
+    .map((o) => o.arrivalTime);
   return times.length === 0 ? null : Math.min(...times);
 }
 
@@ -239,7 +246,9 @@ describe("engine/pending — 到着の upsert", () => {
         for (const item of arrival) {
           const key = keyOf(item.externalOrderId, item.itemIndex);
           if (startedKeys.has(key)) continue;
-          expect(next.some((order) => keyOf(order.externalOrderId, order.itemIndex) === key)).toBe(true);
+          expect(next.some((order) => keyOf(order.externalOrderId, order.itemIndex) === key)).toBe(
+            true,
+          );
         }
       }),
       { numRuns: 300 },
@@ -276,7 +285,9 @@ const genRevivalScene: fc.Arbitrary<{
     // tail から started を落として「未開始が必ず 1 つ以上」を確保する（started は head が担う）。
     const items: readonly ItemSpec[] = [
       head,
-      ...tail.map((item) => (item.status === "started" ? { ...item, status: "pending" as ItemStatus } : item)),
+      ...tail.map((item) =>
+        item.status === "started" ? { ...item, status: "pending" as ItemStatus } : item,
+      ),
     ];
     const target: OrderSpec = { externalOrderId, arrivalTime, items };
     const bystander: OrderSpec = { externalOrderId: "o-9", arrivalTime, items: other };

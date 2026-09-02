@@ -29,16 +29,43 @@ const iso = (at: number): string => new Date(at).toISOString();
 // idle 中に T が発火して done が届く。idle 後の最初のイベントで新 instanceId B が wake し、
 // rehydrate が active 1 件を復元する——hibernation 観測の正準ケース。
 const ops: readonly OperationLogEntry[] = [
-  { seq: 0, at: 40, atIso: iso(40), direction: "recv", messageType: "snapshot",
-    payload: { type: "snapshot", serverTime: 50, timers: [] } },
-  { seq: 1, at: 60, atIso: iso(60), direction: "send", messageType: "start",
-    payload: { type: "start", slotId: "kama-1", noodleType: "Medium", boilSeconds: 90 } },
-  { seq: 2, at: 100, atIso: iso(100), direction: "recv", messageType: "started",
-    payload: { type: "started", serverTime: 110,
-      timer: { id: "T", slotId: "kama-1", noodleType: "Medium", endTime: SERVER_TIME } } },
+  {
+    seq: 0,
+    at: 40,
+    atIso: iso(40),
+    direction: "recv",
+    messageType: "snapshot",
+    payload: { type: "snapshot", serverTime: 50, timers: [] },
+  },
+  {
+    seq: 1,
+    at: 60,
+    atIso: iso(60),
+    direction: "send",
+    messageType: "start",
+    payload: { type: "start", slotId: "kama-1", noodleType: "Medium", boilSeconds: 90 },
+  },
+  {
+    seq: 2,
+    at: 100,
+    atIso: iso(100),
+    direction: "recv",
+    messageType: "started",
+    payload: {
+      type: "started",
+      serverTime: 110,
+      timer: { id: "T", slotId: "kama-1", noodleType: "Medium", endTime: SERVER_TIME },
+    },
+  },
   // 逆転の核心: client は 1000 で boiled を受信したが、サーバ確定時刻（serverTime）は 1010。
-  { seq: 3, at: CLIENT_DONE_AT, atIso: iso(CLIENT_DONE_AT), direction: "recv", messageType: "boiled",
-    payload: { type: "boiled", serverTime: SERVER_TIME, timerId: "T" } },
+  {
+    seq: 3,
+    at: CLIENT_DONE_AT,
+    atIso: iso(CLIENT_DONE_AT),
+    direction: "recv",
+    messageType: "boiled",
+    payload: { type: "boiled", serverTime: SERVER_TIME, timerId: "T" },
+  },
 ];
 
 const seams: readonly InstrumentationLogEntry[] = [
@@ -47,9 +74,21 @@ const seams: readonly InstrumentationLogEntry[] = [
   { seam: "broadcast", at: 110, atIso: iso(110), instanceId: "A", messageType: "started" },
   // idle 後の wake（新 instanceId B）。すべてサーバ時計 1010。
   { seam: "construct", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B" },
-  { seam: "rehydrate", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B", restoredCount: 1 },
+  {
+    seam: "rehydrate",
+    at: SERVER_TIME,
+    atIso: iso(SERVER_TIME),
+    instanceId: "B",
+    restoredCount: 1,
+  },
   { seam: "alarm", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B" },
-  { seam: "broadcast", at: SERVER_TIME, atIso: iso(SERVER_TIME), instanceId: "B", messageType: "boiled" },
+  {
+    seam: "broadcast",
+    at: SERVER_TIME,
+    atIso: iso(SERVER_TIME),
+    instanceId: "B",
+    messageType: "boiled",
+  },
 ];
 
 const OBSERVATION_END = 2000;

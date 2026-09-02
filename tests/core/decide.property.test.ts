@@ -34,7 +34,9 @@ const genStartEvent: fc.Arbitrary<Event> = fc
 /** 状態に応じたイベント生成器（Cancel は既存 id を多めに選び、ok:true を踏みやすくする）。 */
 function genEventFor(state: TimerState): fc.Arbitrary<Event> {
   const existingId =
-    state.timers.length > 0 ? fc.constantFrom(...state.timers.map((t) => t.id as string)) : fc.constant("absent");
+    state.timers.length > 0
+      ? fc.constantFrom(...state.timers.map((t) => t.id as string))
+      : fc.constant("absent");
   return fc.oneof(
     genStartEvent,
     genNow.map((now) => ({ type: "AlarmFired", now }) satisfies Event),
@@ -45,8 +47,8 @@ function genEventFor(state: TimerState): fc.Arbitrary<Event> {
   );
 }
 
-const genStateAndEvent: fc.Arbitrary<{ state: TimerState; event: Event }> = genState.chain((state) =>
-  genEventFor(state).map((event) => ({ state, event })),
+const genStateAndEvent: fc.Arbitrary<{ state: TimerState; event: Event }> = genState.chain(
+  (state) => genEventFor(state).map((event) => ({ state, event })),
 );
 
 describe("core/decide", () => {

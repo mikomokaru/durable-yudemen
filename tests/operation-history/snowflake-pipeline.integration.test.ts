@@ -46,7 +46,10 @@ const PERIOD = "2023-11-14";
 
 // timer ごとの事実。lifecycle が届いた／届かない／開始が届かない／両立しない、の四通りを一つの
 // fixture に同居させる。
-const arrived = { running: producerTimer("arrived", null, 0), boiled: producerTimer("arrived", BOILED_AT, 0) };
+const arrived = {
+  running: producerTimer("arrived", null, 0),
+  boiled: producerTimer("arrived", BOILED_AT, 0),
+};
 const missing = { running: producerTimer("missing", null, 1) };
 const orphan = { boiled: producerTimer("orphan", BOILED_AT, 2) };
 const conflicting = {
@@ -151,7 +154,10 @@ async function stagedArrivals(): Promise<{
 
   vi.spyOn(Date, "now").mockReturnValue(OBSERVED_AT);
   const pipeline = await runTailToR2([
-    tailEvent(PRODUCER_SCRIPT, observedLines.map((line) => ({ level: "log", message: [line] }))),
+    tailEvent(
+      PRODUCER_SCRIPT,
+      observedLines.map((line) => ({ level: "log", message: [line] })),
+    ),
   ]);
 
   return {
@@ -165,7 +171,10 @@ async function stagedArrivals(): Promise<{
 }
 
 /** 到達列から、quality.ts の counts（= 04 の八集計）と四つの品質状態を得る。 */
-function analysis(arrivals: readonly RawArrival[], expected: readonly OperationRecord[] = expectedRecords) {
+function analysis(
+  arrivals: readonly RawArrival[],
+  expected: readonly OperationRecord[] = expectedRecords,
+) {
   const evidence = arrivalEvidence(arrivals);
   const quality = operationArrivalQualityFromEvidence(evidence, expected);
   const candidates = correlationCandidatesFromOperationEvidence(evidence);
@@ -245,8 +254,8 @@ describe("重複 raw の保持", () => {
     const duplicated = arrivals.filter((arrival) => arrival.canonicalLine === producedLines[0]);
     const { quality } = analysis(arrivals);
     const converged = quality.convergedRecords.find(
-      ({ analysisRecord }) => analysisRecord.timerId === "arrived"
-        && analysisRecord.operationKind === "boil-started",
+      ({ analysisRecord }) =>
+        analysisRecord.timerId === "arrived" && analysisRecord.operationKind === "boil-started",
     );
 
     expect(duplicated).toHaveLength(2);
@@ -265,11 +274,15 @@ describe("四つの品質状態", () => {
     const { quality, candidates } = analysis(arrivals);
 
     // 欠落: 復元できる boiled のうち届かなかった二件。
-    expect(quality.quality.missing.map((record) => record.timerId)).toEqual(["missing", "conflicting"]);
+    expect(quality.quality.missing.map((record) => record.timerId)).toEqual([
+      "missing",
+      "conflicting",
+    ]);
     for (const record of quality.quality.missing) expect(record.operationKind).toBe("boiled");
     // 孤児: 観測できた boil-started へ相関できない一件。
-    expect(quality.quality.orphan.map((group) => group.map(({ record }) => record.operationKind)))
-      .toEqual([["completed"]]);
+    expect(
+      quality.quality.orphan.map((group) => group.map(({ record }) => record.operationKind)),
+    ).toEqual([["completed"]]);
     expect(quality.quality.orphan[0]![0]!.record.timerId).toBe("orphan");
     // 競合: 同じ一次相関 key に両立しない実効 endTime が二つ。
     expect(quality.quality.conflict).toHaveLength(1);
@@ -309,12 +322,14 @@ describe("四品質率と信頼済み分析の範囲", () => {
     // 閾値ちょうど（重複率）は除外しない。超過した欠落率だけが理由と共に現れる。
     expect(assessment.trustedAnalysis).toEqual({
       status: "excluded",
-      exclusions: [{
-        qualityRate: "lifecycleMissingRate",
-        rate: { status: "calculated", numerator: 2, denominator: 3, value: 2 / 3 },
-        threshold: thresholds.lifecycleMissingRate,
-        reason: "threshold-exceeded",
-      }],
+      exclusions: [
+        {
+          qualityRate: "lifecycleMissingRate",
+          rate: { status: "calculated", numerator: 2, denominator: 3, value: 2 / 3 },
+          threshold: thresholds.lifecycleMissingRate,
+          reason: "threshold-exceeded",
+        },
+      ],
     });
   });
 
@@ -328,7 +343,11 @@ describe("四品質率と信頼済み分析の範囲", () => {
 
     expect(arrivals).toEqual([]);
     for (const rate of Object.values(assessment.rates)) {
-      expect(rate).toMatchObject({ status: "not-calculable", denominator: 0, reason: "denominator-is-zero" });
+      expect(rate).toMatchObject({
+        status: "not-calculable",
+        denominator: 0,
+        reason: "denominator-is-zero",
+      });
       expect(rate).not.toHaveProperty("value");
     }
     expect(assessment.trustedAnalysis.status).toBe("excluded");
@@ -336,7 +355,12 @@ describe("四品質率と信頼済み分析の範囲", () => {
       assessment.trustedAnalysis.status === "excluded"
         ? assessment.trustedAnalysis.exclusions.map((exclusion) => exclusion.reason)
         : [],
-    ).toEqual(["rate-not-calculable", "rate-not-calculable", "rate-not-calculable", "rate-not-calculable"]);
+    ).toEqual([
+      "rate-not-calculable",
+      "rate-not-calculable",
+      "rate-not-calculable",
+      "rate-not-calculable",
+    ]);
   });
 });
 

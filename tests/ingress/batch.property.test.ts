@@ -43,12 +43,16 @@ describe("ingress/batch — toArrivalBatch", () => {
   // **Validates: Requirements 1.11, 14.1**
   it("Property 1: null を返すのはボディが records 配列を成さないときだけ", () => {
     fc.assert(
-      fc.property(fc.array(fc.anything(), { maxLength: 8 }), fc.dictionary(fc.string(), fc.anything()), (records, extra) => {
-        // 要素が何であれ（毒・型違反を含む）バッチは受理され、要素は生値のまま保たれる。
-        const batch = toArrivalBatch({ ...extra, records });
-        expect(batch).not.toBeNull();
-        expect(batch?.records).toEqual(records);
-      }),
+      fc.property(
+        fc.array(fc.anything(), { maxLength: 8 }),
+        fc.dictionary(fc.string(), fc.anything()),
+        (records, extra) => {
+          // 要素が何であれ（毒・型違反を含む）バッチは受理され、要素は生値のまま保たれる。
+          const batch = toArrivalBatch({ ...extra, records });
+          expect(batch).not.toBeNull();
+          expect(batch?.records).toEqual(records);
+        },
+      ),
       { numRuns: 300 },
     );
   });

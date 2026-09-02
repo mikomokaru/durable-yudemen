@@ -34,7 +34,9 @@ const genTimers: fc.Arbitrary<readonly TimerFact[]> = fc
   .map((specs) => specs.map((spec, index) => ({ id: `timer-${index}`, ...spec })));
 
 // 担当ユニット集合。小さめの非負整数（重複・空集合を含む）でスロット範囲を可制御に保つ。
-const genUnits: fc.Arbitrary<readonly number[]> = fc.array(fc.integer({ min: 0, max: 5 }), { maxLength: 6 });
+const genUnits: fc.Arbitrary<readonly number[]> = fc.array(fc.integer({ min: 0, max: 5 }), {
+  maxLength: 6,
+});
 
 describe("client/assignment", () => {
   // Feature: yude-men-timer, Property 15: 担当絞り込みは健全かつ完全（クライアント表示スコープ）
@@ -43,38 +45,44 @@ describe("client/assignment", () => {
   // が成り立つことを単一テストで検証する（要件12.2・12.5）。
   it("Property 15: 担当絞り込みは健全かつ完全（部分集合性・担当性・完全性＋スロット写像の一致）", () => {
     fc.assert(
-      fc.property(genTimers, genUnits, fc.integer({ min: 0, max: 5 }), fc.integer({ min: -5, max: 40 }), (all, units, u, slot) => {
-        const assigned = assignedTimers(all, units);
-        const assignedSlots = slotsOfUnits(units);
+      fc.property(
+        genTimers,
+        genUnits,
+        fc.integer({ min: 0, max: 5 }),
+        fc.integer({ min: -5, max: 40 }),
+        (all, units, u, slot) => {
+          const assigned = assignedTimers(all, units);
+          const assignedSlots = slotsOfUnits(units);
 
-        // (a) 部分集合性（健全性）: 出力は入力の部分集合（同一参照＝Timer を増殖・変質させない）。
-        for (const timer of assigned) {
-          expect(all.includes(timer)).toBe(true);
-        }
-
-        // (b) 担当性: 出力の各 Timer は、駆動スロットのいずれかが担当スロット集合に属する（any-overlap）。
-        for (const timer of assigned) {
-          expect(timer.slotIds.some((slotId) => assignedSlots.has(slotOf(slotId)))).toBe(true);
-        }
-
-        // (c) 完全性（漏れなし）: 入力のうち駆動スロットのいずれかが担当集合に属する Timer は、すべて出力に含まれる。
-        for (const timer of all) {
-          if (timer.slotIds.some((slotId) => assignedSlots.has(slotOf(slotId)))) {
-            expect(assigned.includes(timer)).toBe(true);
+          // (a) 部分集合性（健全性）: 出力は入力の部分集合（同一参照＝Timer を増殖・変質させない）。
+          for (const timer of assigned) {
+            expect(all.includes(timer)).toBe(true);
           }
-        }
 
-        // slotsOfUnits([u]) == {6u, 6u+1, …, 6u+5}（0 始まり・連続 6 スロット）。
-        const single = slotsOfUnits([u]);
-        const expected = new Set<number>();
-        for (let offset = 0; offset < SLOTS_PER_UNIT; offset++) {
-          expected.add(u * SLOTS_PER_UNIT + offset);
-        }
-        expect([...single].sort((a, b) => a - b)).toEqual([...expected].sort((a, b) => a - b));
+          // (b) 担当性: 出力の各 Timer は、駆動スロットのいずれかが担当スロット集合に属する（any-overlap）。
+          for (const timer of assigned) {
+            expect(timer.slotIds.some((slotId) => assignedSlots.has(slotOf(slotId)))).toBe(true);
+          }
 
-        // isAssigned(slot, units) は slot ∈ slotsOfUnits(units) と一致する。
-        expect(isAssigned(slot, units)).toBe(assignedSlots.has(slot));
-      }),
+          // (c) 完全性（漏れなし）: 入力のうち駆動スロットのいずれかが担当集合に属する Timer は、すべて出力に含まれる。
+          for (const timer of all) {
+            if (timer.slotIds.some((slotId) => assignedSlots.has(slotOf(slotId)))) {
+              expect(assigned.includes(timer)).toBe(true);
+            }
+          }
+
+          // slotsOfUnits([u]) == {6u, 6u+1, …, 6u+5}（0 始まり・連続 6 スロット）。
+          const single = slotsOfUnits([u]);
+          const expected = new Set<number>();
+          for (let offset = 0; offset < SLOTS_PER_UNIT; offset++) {
+            expected.add(u * SLOTS_PER_UNIT + offset);
+          }
+          expect([...single].sort((a, b) => a - b)).toEqual([...expected].sort((a, b) => a - b));
+
+          // isAssigned(slot, units) は slot ∈ slotsOfUnits(units) と一致する。
+          expect(isAssigned(slot, units)).toBe(assignedSlots.has(slot));
+        },
+      ),
       { numRuns: 200 },
     );
   });

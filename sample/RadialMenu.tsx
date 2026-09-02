@@ -76,7 +76,12 @@ export function RadialMenu({
   if (!anchor || !layout) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Select noodle">
+    <div
+      className="fixed inset-0 z-[60]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Select noodle"
+    >
       {/* 背景 */}
       <div
         onClick={onClose}
@@ -91,8 +96,8 @@ export function RadialMenu({
         <div
           style={{ left: layout.cx, top: layout.cy - radius - 30 }}
           className={cn(
-            "absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[12px] font-bold",
-            "uppercase tracking-[.06em] text-muted transition-opacity duration-200 delay-[50ms]",
+            "absolute -translate-x-1/2 -translate-y-1/2 text-[12px] font-bold whitespace-nowrap",
+            "tracking-[.06em] text-muted uppercase transition-opacity delay-[50ms] duration-200",
             shown ? "opacity-100" : "opacity-0",
           )}
         >
@@ -107,8 +112,8 @@ export function RadialMenu({
         aria-label="Cancel"
         style={{ left: layout.cx, top: layout.cy }}
         className={cn(
-          "absolute -ml-[29px] -mt-[29px] grid h-[58px] w-[58px] place-items-center rounded-full",
-          "border border-line bg-panel text-2xl font-bold text-muted cursor-pointer",
+          "absolute -mt-[29px] -ml-[29px] grid h-[58px] w-[58px] place-items-center rounded-full",
+          "cursor-pointer border border-line bg-panel text-2xl font-bold text-muted",
           "shadow-[0_6px_20px_rgba(0,0,0,.45)] transition duration-200 ease-[cubic-bezier(.2,.9,.3,1.3)]",
           shown ? "scale-100 opacity-100" : "scale-[.4] opacity-0",
         )}
@@ -129,14 +134,14 @@ export function RadialMenu({
             transform: shown ? `translate(${x}px, ${y}px) scale(1)` : "translate(0, 0) scale(0.3)",
           }}
           className={cn(
-            "absolute left-0 top-0 -ml-[46px] -mt-[46px] flex h-[92px] w-[92px] flex-col items-center justify-center gap-0.5",
-            "rounded-full border border-line bg-panel2 text-ink cursor-pointer",
+            "absolute top-0 left-0 -mt-[46px] -ml-[46px] flex h-[92px] w-[92px] flex-col items-center justify-center gap-0.5",
+            "cursor-pointer rounded-full border border-line bg-panel2 text-ink",
             "shadow-[0_8px_22px_rgba(0,0,0,.4)] hover:border-running hover:bg-running/15 active:brightness-110",
             "transition-[transform,opacity,border-color,background-color] duration-[260ms] ease-[cubic-bezier(.2,.9,.3,1.25)]",
             shown ? "opacity-100" : "opacity-0",
           )}
         >
-          <span className="text-[16px] font-extrabold leading-none">{nd.name}</span>
+          <span className="text-[16px] leading-none font-extrabold">{nd.name}</span>
           <span className="font-mono text-[13px] font-medium text-running">{nd.sec}s</span>
         </button>
       ))}

@@ -50,7 +50,10 @@ const hotPathConfig: StoreConfig = {
   arms: 3,
   toleranceRatio: 12,
   noodlePresets: [
-    { noodleType: HOTPATH_NOODLE, boilSeconds: { extraHard: 70, hard: 85, normal: 100, soft: 130 } },
+    {
+      noodleType: HOTPATH_NOODLE,
+      boilSeconds: { extraHard: 70, hard: 85, normal: 100, soft: 130 },
+    },
   ] as NonEmptyArray<NoodlePreset>,
   ...configResidualDefaults(5),
 };

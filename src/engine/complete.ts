@@ -20,7 +20,12 @@ import type { SettleParams } from "./settle";
  * [Persist, (SetAlarm|ClearAlarm), Broadcast(snapshot)]（snapshot は残余 Timer の調整変化を含む全量・唯一の
  * 権威表現）。Persist を先頭に置くのは SSOT 規律の表明。
  */
-export function completeTimer(state: TimerState, timerId: string, now: EpochMillis, params: SettleParams): Outcome {
+export function completeTimer(
+  state: TimerState,
+  timerId: string,
+  now: EpochMillis,
+  params: SettleParams,
+): Outcome {
   // 対象が存在しなければ状態不変で拒否する。
   if (!state.timers.some((t) => t.id === timerId)) {
     return {

@@ -65,7 +65,10 @@ function timersFromSeeds(seeds: readonly TimerSeed[]): readonly Timer[] {
   });
 }
 
-function independentlyConfirmedSets(timers: readonly Timer[], params: SyncParams): readonly (readonly Timer[])[] {
+function independentlyConfirmedSets(
+  timers: readonly Timer[],
+  params: SyncParams,
+): readonly (readonly Timer[])[] {
   return referenceSyncSets(timers, params).filter((set) => {
     if (set.length < 2) return false;
     const intersection = referenceWindowIntersection(set, params.toleranceRatio);

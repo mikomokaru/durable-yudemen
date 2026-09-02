@@ -33,7 +33,9 @@ import type { TimerState } from "../../src/engine/state";
 import { genScheduledScene, type ScheduledScene } from "./schedulingScenes";
 
 /** 列に現れる RequestPlan（高々 1 件。位置＝末尾の主張は Property 12 の担当）。 */
-function requestOf(effects: readonly Effect[]): Extract<Effect, { readonly type: "RequestPlan" }> | null {
+function requestOf(
+  effects: readonly Effect[],
+): Extract<Effect, { readonly type: "RequestPlan" }> | null {
   const requests = effects.filter((effect) => effect.type === "RequestPlan");
   expect(requests.length).toBeLessThanOrEqual(1);
   return requests[0] ?? null;
@@ -71,7 +73,11 @@ describe("engine/settle — 要求の抑制", () => {
           return;
         }
 
-        const digest = digestInput(received.state.pendingOrders, received.state.timers, scene.params);
+        const digest = digestInput(
+          received.state.pendingOrders,
+          received.state.timers,
+          scene.params,
+        );
         // 「計画対象」の判定は planTargets ただ一つ（settle と同じ定義を見る・同じ規則を二度書かない）。
         const hasTargets = planTargets(received.state.pendingOrders).length > 0;
         if (hasTargets) withTargets++;
@@ -94,7 +100,9 @@ describe("engine/settle — 要求の抑制", () => {
           expect(requesting.state.requestedDigest).toBe(digest);
           expect(persistedDigest(requesting.effects)).toBe(digest);
           // 要求が運ぶ入力は、指紋を取った入力そのものである（受領時に入力を同定する手がかり・AC 5.3）。
-          expect(request === null ? null : digestInput(request.pending, request.running, scene.params)).toBe(digest);
+          expect(
+            request === null ? null : digestInput(request.pending, request.running, scene.params),
+          ).toBe(digest);
         } else {
           // 対象が無い遷移では新しい指紋を永続しない。次に対象が現れた遷移で指紋はまだ食い違っており、
           // 要求はそこで出る（機会を落とさない）。
@@ -120,11 +128,17 @@ describe("engine/settle — 要求の抑制", () => {
         //     指紋の食い違い（生成器の状態は未要求＝null）と計画対象の非空に応じて要求が出る。
         const outcome = decide(scene.state, scene.event, scene.params);
         if (!outcome.ok || outcome.effects.length === 0) return;
-        const expected = digestInput(outcome.state.pendingOrders, outcome.state.timers, scene.params);
+        const expected = digestInput(
+          outcome.state.pendingOrders,
+          outcome.state.timers,
+          scene.params,
+        );
         const differs = expected !== scene.state.requestedDigest;
         const requestable = differs && planTargets(outcome.state.pendingOrders).length > 0;
         expect(requestOf(outcome.effects) !== null).toBe(requestable);
-        expect(outcome.state.requestedDigest).toBe(requestable ? expected : scene.state.requestedDigest);
+        expect(outcome.state.requestedDigest).toBe(
+          requestable ? expected : scene.state.requestedDigest,
+        );
       }),
       { numRuns: 300 },
     );

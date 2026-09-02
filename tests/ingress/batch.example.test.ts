@@ -16,7 +16,9 @@ const orderRaw = {
     datetime: "2026-08-17T20:52:19",
     order_id: "display-only",
     table_no: 12,
-    order_items: [{ plu_no: 11421, item_type: 1, qty: 1, child_items: [{ plu_no: 19401, s_class_code: 65 }] }],
+    order_items: [
+      { plu_no: 11421, item_type: 1, qty: 1, child_items: [{ plu_no: 19401, s_class_code: 65 }] },
+    ],
   },
   arrival_timestamp_ms: 1_755_432_739_000,
   sequence_number: "49590338271490256608027716141221070800233838749102571522",

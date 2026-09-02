@@ -103,15 +103,22 @@ const genMenuItem: fc.Arbitrary<MenuItem> = fc.record({
 });
 
 /** メニュー対応表（空も振る）。再利用可能。 */
-export const genMenuItems: fc.Arbitrary<readonly MenuItem[]> = fc.array(genMenuItem, { maxLength: 3 });
+export const genMenuItems: fc.Arbitrary<readonly MenuItem[]> = fc.array(genMenuItem, {
+  maxLength: 3,
+});
 
 // 値域内外の双方を跨ぐ数値生成器（compose の出口クランプの健全性まで検査するため境界外へ振る）。
 const genUnitCountValue = fc.integer({ min: UNIT_COUNT_MIN - 5, max: UNIT_COUNT_MAX + 8 });
 const genArmsValue = fc.integer({ min: ARMS_MIN - 5, max: ARMS_MAX + 5 });
-const genToleranceValue = fc.integer({ min: TOLERANCE_RATIO_MIN - 10, max: TOLERANCE_RATIO_MAX + 30 });
+const genToleranceValue = fc.integer({
+  min: TOLERANCE_RATIO_MIN - 10,
+  max: TOLERANCE_RATIO_MAX + 30,
+});
 
 /** mode 付きの数値フィールド主張を生成するヘルパ。 */
-function genModedNumber(valueArb: fc.Arbitrary<number>): fc.Arbitrary<{ mode: PolicyMode; value: number }> {
+function genModedNumber(
+  valueArb: fc.Arbitrary<number>,
+): fc.Arbitrary<{ mode: PolicyMode; value: number }> {
   return fc.record({ mode: genPolicyMode, value: valueArb });
 }
 
@@ -174,7 +181,10 @@ export const genStoreOverride: fc.Arbitrary<StoreOverride> = fc.record(
 const genComposeInput = genPolicies.chain((policies) =>
   fc.record({
     policies: fc.constant(policies),
-    shuffled: fc.shuffledSubarray([...policies], { minLength: policies.length, maxLength: policies.length }),
+    shuffled: fc.shuffledSubarray([...policies], {
+      minLength: policies.length,
+      maxLength: policies.length,
+    }),
     override: genStoreOverride,
   }),
 );
@@ -317,7 +327,9 @@ function oracleWinningRaw(
   const enforced = policies.filter((p) => p.fields[field]?.mode === "enforced");
   if (enforced.length > 0) {
     const winner = enforced.reduce((best, p) =>
-      p.priority < best.priority || (p.priority === best.priority && p.policyId < best.policyId) ? p : best,
+      p.priority < best.priority || (p.priority === best.priority && p.policyId < best.policyId)
+        ? p
+        : best,
     );
     return winner.fields[field]?.value;
   }
@@ -327,7 +339,9 @@ function oracleWinningRaw(
   const asserting = policies.filter((p) => p.fields[field] !== undefined);
   if (asserting.length === 0) return undefined; // どの層も主張しない → 検証関数が DEFAULT_* へ畳む
   const winner = asserting.reduce((best, p) =>
-    p.priority > best.priority || (p.priority === best.priority && p.policyId > best.policyId) ? p : best,
+    p.priority > best.priority || (p.priority === best.priority && p.policyId > best.policyId)
+      ? p
+      : best,
   );
   return winner.fields[field]?.value;
 }
@@ -375,15 +389,13 @@ describe("registry/compose — enforced 支配（Property 11）", () => {
 
 /** 層固有タグ付きの非空プリセット列を生成する（各要素の noodleType に tag を刻み、層をまたぐマージを検出可能にする）。 */
 function genTaggedNoodlePresets(tag: string): fc.Arbitrary<NonEmptyArray<NoodlePreset>> {
-  return fc
-    .array(genBoilSeconds, { minLength: 1, maxLength: 3 })
-    .map((secondsList) => {
-      const [head, ...tail] = secondsList.map((boilSeconds, i) => ({
-        noodleType: `${tag}-${i}`,
-        boilSeconds,
-      }));
-      return [head, ...tail] as NonEmptyArray<NoodlePreset>;
-    });
+  return fc.array(genBoilSeconds, { minLength: 1, maxLength: 3 }).map((secondsList) => {
+    const [head, ...tail] = secondsList.map((boilSeconds, i) => ({
+      noodleType: `${tag}-${i}`,
+      boilSeconds,
+    }));
+    return [head, ...tail] as NonEmptyArray<NoodlePreset>;
+  });
 }
 
 /**
@@ -424,7 +436,10 @@ const genPresetOverride: fc.Arbitrary<StoreOverride> = fc.oneof(
 const genPresetScenario = genPresetLayers.chain((layers) =>
   fc.record({
     layers: fc.constant(layers),
-    shuffled: fc.shuffledSubarray([...layers], { minLength: layers.length, maxLength: layers.length }),
+    shuffled: fc.shuffledSubarray([...layers], {
+      minLength: layers.length,
+      maxLength: layers.length,
+    }),
     override: genPresetOverride,
   }),
 );
@@ -440,7 +455,9 @@ function oracleWinningPresets(
   const enforced = policies.filter((p) => p.fields.noodlePresets?.mode === "enforced");
   if (enforced.length > 0) {
     const winner = enforced.reduce((best, p) =>
-      p.priority < best.priority || (p.priority === best.priority && p.policyId < best.policyId) ? p : best,
+      p.priority < best.priority || (p.priority === best.priority && p.policyId < best.policyId)
+        ? p
+        : best,
     );
     return toNoodlePresets(winner.fields.noodlePresets?.value);
   }
@@ -448,7 +465,9 @@ function oracleWinningPresets(
   const asserting = policies.filter((p) => p.fields.noodlePresets !== undefined);
   if (asserting.length === 0) return DEFAULT_NOODLE_PRESETS;
   const winner = asserting.reduce((best, p) =>
-    p.priority > best.priority || (p.priority === best.priority && p.policyId > best.policyId) ? p : best,
+    p.priority > best.priority || (p.priority === best.priority && p.policyId > best.policyId)
+      ? p
+      : best,
   );
   return toNoodlePresets(winner.fields.noodlePresets?.value);
 }
@@ -548,7 +567,10 @@ const genRevivalScenario = fc
           // 統制あり：基底(f剥がし) + enforced 層。
           enforcedPolicies: [...strippedBase, enforcedLayer] as readonly Policy[],
           // 統制解除：同一イデアから enforced 層の f 主張だけを取り除く（＝f を主張する層が Override のみになる）。
-          deEnforcedPolicies: [...strippedBase, withoutField(enforcedLayer, field)] as readonly Policy[],
+          deEnforcedPolicies: [
+            ...strippedBase,
+            withoutField(enforcedLayer, field),
+          ] as readonly Policy[],
           override,
         };
       }),
@@ -565,7 +587,14 @@ describe("registry/compose — 統制解除で Override 復活（Property 13）"
     fc.assert(
       fc.property(
         genRevivalScenario,
-        ({ field, enforcedValue, overrideValue, enforcedPolicies, deEnforcedPolicies, override }) => {
+        ({
+          field,
+          enforcedValue,
+          overrideValue,
+          enforcedPolicies,
+          deEnforcedPolicies,
+          override,
+        }) => {
           const validate = FIELD_VALIDATOR[field];
 
           // 統制あり：enforced 層が f をロックし、override.f は無視される（出力 f は enforced 値）。

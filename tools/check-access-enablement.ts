@@ -85,7 +85,9 @@ export function accessEnablementPreflight(input: PreflightInput): PreflightVerdi
   if (isNonEmpty(errors)) return { proceed: false, errors };
   return {
     proceed: true,
-    notes: ['All deploy-time preconditions are satisfied; enabling Access (ACCESS_REQUIRED="1") may proceed.'],
+    notes: [
+      'All deploy-time preconditions are satisfied; enabling Access (ACCESS_REQUIRED="1") may proceed.',
+    ],
   };
 }
 
@@ -211,12 +213,20 @@ function resolveValue(envKey: keyof WranglerVars, fallback: string | undefined):
 function runTypegen(): TypegenOutcome {
   const result = spawnSync("pnpm", ["cf-typegen"], { encoding: "utf8", stdio: "pipe" });
   if (result.error) {
-    return { ran: true, ok: false, detail: `Could not launch pnpm cf-typegen: ${result.error.message}` };
+    return {
+      ran: true,
+      ok: false,
+      detail: `Could not launch pnpm cf-typegen: ${result.error.message}`,
+    };
   }
   if (result.status !== 0) {
     const detail = (result.stderr ?? "").trim();
     const tail = detail.length > 0 ? ` Details: ${detail}` : "";
-    return { ran: true, ok: false, detail: `pnpm cf-typegen exited with code ${result.status ?? "unknown"}.${tail}` };
+    return {
+      ran: true,
+      ok: false,
+      detail: `pnpm cf-typegen exited with code ${result.status ?? "unknown"}.${tail}`,
+    };
   }
   return { ran: true, ok: true };
 }
@@ -250,7 +260,9 @@ function main(): void {
     exit(0);
   }
 
-  stderr.write('Refusing to enable Cloudflare Access (ACCESS_REQUIRED="1"): deploy-time preconditions are not met.\n');
+  stderr.write(
+    'Refusing to enable Cloudflare Access (ACCESS_REQUIRED="1"): deploy-time preconditions are not met.\n',
+  );
   for (const error of verdict.errors) stderr.write(`  - ${error}\n`);
   stderr.write('ACCESS_REQUIRED stays "0" (OFF) until the issues above are resolved.\n');
   exit(1);

@@ -80,16 +80,28 @@ export function toPendingOrders(
 }
 
 /** 生値を 1 件の PendingOrder へ正規化する。必須属性の欠落・未知の品目種別・型違反はいずれも null。 */
-function toPendingOrder(value: unknown, presets: readonly NoodlePreset[], arrivalTime: number): PendingOrder | null {
+function toPendingOrder(
+  value: unknown,
+  presets: readonly NoodlePreset[],
+  arrivalTime: number,
+): PendingOrder | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
-  if (typeof candidate.externalOrderId !== "string" || candidate.externalOrderId.length === 0) return null;
+  if (typeof candidate.externalOrderId !== "string" || candidate.externalOrderId.length === 0)
+    return null;
   // 品目連番は 0 以上の整数。NaN / Infinity は比較をすり抜けるため整数性を先に要求する。
-  if (typeof candidate.itemIndex !== "number" || !Number.isInteger(candidate.itemIndex) || candidate.itemIndex < 0) {
+  if (
+    typeof candidate.itemIndex !== "number" ||
+    !Number.isInteger(candidate.itemIndex) ||
+    candidate.itemIndex < 0
+  ) {
     return null;
   }
   // 未知の品目種別を弾く（AC 1.4）。空文字はどのプリセットにも一致しないため、この一手で型違反も覆う。
-  if (typeof candidate.noodleType !== "string" || !presets.some((preset) => preset.noodleType === candidate.noodleType)) {
+  if (
+    typeof candidate.noodleType !== "string" ||
+    !presets.some((preset) => preset.noodleType === candidate.noodleType)
+  ) {
     return null;
   }
   if (!isFirmness(candidate.firmness)) return null;

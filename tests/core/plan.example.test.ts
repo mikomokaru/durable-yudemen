@@ -65,7 +65,12 @@ const LONG: PendingOrder = {
   arrivalTime: NOW,
   slotSpan: 1,
 };
-const SHORT: PendingOrder = { ...LONG, externalOrderId: "o-short", noodleType: "Short", tableId: "t-b" };
+const SHORT: PendingOrder = {
+  ...LONG,
+  externalOrderId: "o-short",
+  noodleType: "Short",
+  tableId: "t-b",
+};
 
 /** 待ち行列と塞がれた釜を持つ状態（採用済み計画は無い＝確定計画は自前解そのもの）。 */
 const STATE: TimerState = {
@@ -109,7 +114,11 @@ describe("receivePlan — 採用（AC 6.5）", () => {
     if (!outcome.ok) return;
     // score は engine が算出した値（60 秒待ち）に差し替わる。
     expect(outcome.state.acceptedSlices).toEqual([{ ...IMPROVING.slices[0]!, score: 60 }]);
-    expect(outcome.effects.map((effect) => effect.type)).toEqual(["Persist", "SetAlarm", "Broadcast"]);
+    expect(outcome.effects.map((effect) => effect.type)).toEqual([
+      "Persist",
+      "SetAlarm",
+      "Broadcast",
+    ]);
   });
 
   it("Timer 集合・待ち行列には触れない（受領が動かすのは採用済み計画だけ・AC 9.1）", () => {
@@ -210,7 +219,11 @@ describe("decide — PlanArrived の配線", () => {
   });
 
   it("棄却された受領は decide 経由でも状態を変えない", () => {
-    const outcome = decide(STATE, { type: "PlanArrived", plan: { slices: [], score: 0 }, now: NOW }, PARAMS);
+    const outcome = decide(
+      STATE,
+      { type: "PlanArrived", plan: { slices: [], score: 0 }, now: NOW },
+      PARAMS,
+    );
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;

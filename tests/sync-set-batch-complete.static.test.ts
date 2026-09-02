@@ -380,7 +380,9 @@ describe("(a) engine / domain / shell に一括完了由来の差分が無い（
     // 一括完了は既存 complete のファンアウトのみで実現する。ワイヤに群を表す種別を持ち込まない。
     const types = collectTagLiterals(readCodeWithStrings(MESSAGES_FILE), "type");
     expect(types).toEqual(WIRE_MESSAGE_TYPES);
-    expect(types.has("complete"), "ワイヤから complete が失われている（ファンアウトの足場）").toBe(true);
+    expect(types.has("complete"), "ワイヤから complete が失われている（ファンアウトの足場）").toBe(
+      true,
+    );
   });
 
   it("Effect の種別集合が既存 5 種と一致する（一括のための新しい作用を足していない・要件10.3）", () => {
@@ -411,7 +413,9 @@ describe("(a) engine / domain / shell に一括完了由来の差分が無い（
     for (const file of SERVER_SIDE_FILES) {
       const code = readBareCode(file);
       for (const token of BATCH_TOKENS) {
-        expect(code, `${file} に一括完了の語彙 ${token} が実コードとして現れる`).not.toContain(token);
+        expect(code, `${file} に一括完了の語彙 ${token} が実コードとして現れる`).not.toContain(
+          token,
+        );
       }
     }
   });
@@ -444,7 +448,9 @@ describe("(b) ClientEvent の種別が増えず、群を状態に昇格させな
   it("ClientEvent の kind 集合が既存 9 種と一致する（LocalCompleteGroup 等を足していない・要件10.3）", () => {
     const kinds = collectTagLiterals(clientEventDeclaration(), "kind");
     expect(kinds).toEqual(CLIENT_EVENT_KINDS);
-    expect(kinds.has("LocalComplete"), "LocalComplete が失われている（複数回畳み込みの足場）").toBe(true);
+    expect(kinds.has("LocalComplete"), "LocalComplete が失われている（複数回畳み込みの足場）").toBe(
+      true,
+    );
   });
 
   it("complete の端が既存 LocalComplete の複数回畳み込みで一括を実現する（要件10.3）", () => {
@@ -482,11 +488,11 @@ describe("(b) ClientEvent の種別が増えず、群を状態に昇格させな
       "export type ClientEvent",
       CONNECTION_FILE,
     );
-    expect(declaration, "ClientView に群のフィールドが在る（導出値を状態へ昇格させている）").not.toMatch(
-      /\breadonly\s+\w*group\w*\s*:/i,
-    );
+    expect(
+      declaration,
+      "ClientView に群のフィールドが在る（導出値を状態へ昇格させている）",
+    ).not.toMatch(/\breadonly\s+\w*group\w*\s*:/i);
   });
-
 });
 
 // ── (c) UI に差分が無い（要件4.3 / 7.1 / 7.3 / 8.3） ───────────────────────────
@@ -497,9 +503,10 @@ describe("(c) UI が群を知らず一括専用の操作要素を持たない（
     for (const file of UI_FILES) {
       const code = readBareCode(file);
       for (const token of BATCH_TOKENS) {
-        expect(code, `${file} に一括完了の語彙 ${token} が現れる（UI が群を知っている）`).not.toContain(
-          token,
-        );
+        expect(
+          code,
+          `${file} に一括完了の語彙 ${token} が現れる（UI が群を知っている）`,
+        ).not.toContain(token);
       }
       // import 元のパスは文字列リテラルゆえ、文字列を残したテキストで見る。
       expect(readCodeWithStrings(file), `${file} が boiledGroup を import している`).not.toMatch(
@@ -522,7 +529,6 @@ describe("(c) UI が群を知らず一括専用の操作要素を持たない（
       /onComplete\(\s*slot\s*,\s*display\.timer\s*\)/,
     );
   });
-
 
   it("SlotCard に確認ダイアログ・一括であることを示す操作要素が無い（要件7.3）", () => {
     // 一括は既存の単一 Complete が暗黙に担う。新しい操作要素・確認・特別な視覚フィードバックを足さない。
@@ -559,7 +565,10 @@ describe("(c) UI が群を知らず一括専用の操作要素を持たない（
 
   it("SlotBoard の Complete ハンドラは単一 timerId で窓口を呼ぶだけ（要件7.3）", () => {
     const code = readBareCode(SLOT_BOARD_FILE);
-    expect(countMatches(code, /connection\.complete\(/g), "complete の呼び出し点が 1 つでない").toBe(1);
+    expect(
+      countMatches(code, /connection\.complete\(/g),
+      "complete の呼び出し点が 1 つでない",
+    ).toBe(1);
     expect(code, "complete の呼び先が単一 timerId でない").toMatch(
       /connection\.complete\(\s*timer\.id\s*\)/,
     );
@@ -646,7 +655,6 @@ describe("(d) boiledGroup が暗黙の作用に触れない（要件9.4 / 10.3�
     expect(code, "動的 import を持っている").not.toMatch(/\bimport\s*\(/);
     expect(code, "require を持っている").not.toMatch(/\brequire\s*\(/);
   });
-
 
   it("時計（Date / performance）に触れない（要件9.4）", () => {
     // 現在時刻は端が now() + view.offset で採り、correctedNow として渡す。ここで実時刻を読めば、同じ

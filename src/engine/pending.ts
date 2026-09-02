@@ -84,7 +84,10 @@ export function upsertOrder(
  * 釜の中の麺を外部システムの都合で消せば、現場が「無くなった理由」を確かめる手段を持たない。
  * 現場の判断に委ねる。
  */
-export function removeOrder(pending: readonly PendingOrder[], externalOrderId: string): readonly PendingOrder[] {
+export function removeOrder(
+  pending: readonly PendingOrder[],
+  externalOrderId: string,
+): readonly PendingOrder[] {
   const next = pending.filter((order) => order.externalOrderId !== externalOrderId);
   return next.length === pending.length ? pending : next;
 }
@@ -177,7 +180,10 @@ function itemKey(externalOrderId: string, itemIndex: number): string {
  * 「Pending_Order 集合が同一とは何か」を settle 側に書き写せば、待ち行列の同一性が二つになる。
  * 並びを含めるのは、集合が snapshot に全量で載る（並びが配信内容の一部である）ためである。
  */
-export function isSamePending(left: readonly PendingOrder[], right: readonly PendingOrder[]): boolean {
+export function isSamePending(
+  left: readonly PendingOrder[],
+  right: readonly PendingOrder[],
+): boolean {
   if (left.length !== right.length) return false;
   return left.every((order, index) => isSameOrder(order, right[index]));
 }

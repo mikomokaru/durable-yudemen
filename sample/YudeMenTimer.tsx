@@ -58,13 +58,17 @@ export function YudeMenTimer({
     if (!settingsOpen) return;
     const onDown = (e: MouseEvent) => {
       if (
-        popRef.current && !popRef.current.contains(e.target as Node) &&
-        btnRef.current && !btnRef.current.contains(e.target as Node)
+        popRef.current &&
+        !popRef.current.contains(e.target as Node) &&
+        btnRef.current &&
+        !btnRef.current.contains(e.target as Node)
       ) {
         setSettingsOpen(false);
       }
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSettingsOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSettingsOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -101,11 +105,11 @@ export function YudeMenTimer({
         className={cn(
           "relative z-30 flex flex-none items-center gap-4",
           "h-[calc(clamp(52px,7.5vh,66px)+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)]",
-          "px-[clamp(12px,2.4vw,26px)] border-b border-line",
+          "border-b border-line px-[clamp(12px,2.4vw,26px)]",
           "bg-[color-mix(in_oklab,var(--color-panel)_92%,black)]",
         )}
       >
-        <h1 className="m-0 text-[clamp(15px,2.2vw,20px)] font-extrabold uppercase tracking-[.06em] text-ink">
+        <h1 className="m-0 text-[clamp(15px,2.2vw,20px)] font-extrabold tracking-[.06em] text-ink uppercase">
           {title}
         </h1>
         <div className="flex-1" />
@@ -124,7 +128,7 @@ export function YudeMenTimer({
               aria-haspopup="dialog"
               aria-expanded={settingsOpen}
               onClick={() => setSettingsOpen((o) => !o)}
-              className="inline-flex h-10 items-center gap-2 rounded-[11px] border border-line bg-panel2 px-4 text-sm font-bold text-ink cursor-pointer hover:border-muted before:text-[17px] before:content-['⚙']"
+              className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[11px] border border-line bg-panel2 px-4 text-sm font-bold text-ink before:text-[17px] before:content-['⚙'] hover:border-muted"
             >
               Settings
             </button>
@@ -133,7 +137,7 @@ export function YudeMenTimer({
                 ref={popRef}
                 role="dialog"
                 aria-label="Settings"
-                className="absolute right-[clamp(12px,2.4vw,26px)] top-[calc(100%+8px)] z-40 w-[min(360px,calc(100vw-24px))] rounded-[14px] border border-line bg-panel p-[14px] shadow-[0_18px_50px_rgba(0,0,0,.55)]"
+                className="absolute top-[calc(100%+8px)] right-[clamp(12px,2.4vw,26px)] z-40 w-[min(360px,calc(100vw-24px))] rounded-[14px] border border-line bg-panel p-[14px] shadow-[0_18px_50px_rgba(0,0,0,.55)]"
               >
                 {settings}
               </div>

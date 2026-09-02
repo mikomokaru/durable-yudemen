@@ -27,7 +27,8 @@ import { nonEmpty } from "../nonEmpty";
 
 // 既定レイアウトの unit 0 は slot 0..5 → (0,0) (1,0) / (0,1) (1,1) / (0,2) (1,2)。
 const origins = defaultUnitOrigins(1);
-const distance = (slot: number, other: number) => slotDistance(slot, other, origins, DEFAULT_SLOT_OFFSETS);
+const distance = (slot: number, other: number) =>
+  slotDistance(slot, other, origins, DEFAULT_SLOT_OFFSETS);
 
 describe("slotDistance — 既定レイアウトの代表対", () => {
   it("縦横隣接は 10", () => {
@@ -59,7 +60,12 @@ const PARAMS: ScheduleParams = {
 };
 
 /** 配置 1 件。目的関数は提供時刻だけを見るため startAt は整合する値を置くだけ。 */
-function placement(input: { orderId: string; itemIndex: number; slot: number; serveAtMillis: number }) {
+function placement(input: {
+  orderId: string;
+  itemIndex: number;
+  slot: number;
+  serveAtMillis: number;
+}) {
   return {
     externalOrderId: input.orderId,
     itemIndex: input.itemIndex,
@@ -93,7 +99,11 @@ describe("scoreSchedule — 確定式の内訳", () => {
       placement({ orderId: "B", itemIndex: 0, slot: 4, serveAtMillis: T0 + 300_000 }),
     ],
   };
-  const pending = [pendingItem("A", 0, T0), pendingItem("A", 1, T0), pendingItem("B", 0, T0 + 60_000)];
+  const pending = [
+    pendingItem("A", 0, T0),
+    pendingItem("A", 1, T0),
+    pendingItem("B", 0, T0 + 60_000),
+  ];
 
   it("Σ Wait_Time と 3 つのソフト制約項の重み付き和になる", () => {
     // Σ Wait_Time = 120 + 160 + 240 = 520 秒
@@ -104,7 +114,12 @@ describe("scoreSchedule — 確定式の内訳", () => {
   });
 
   it("重みを 0 にした項は消える（Σ Wait_Time だけが残る）", () => {
-    const noSoftConstraints = { ...PARAMS, tableSyncWeight: 0, orderSyncWeight: 0, affinityWeight: 0 };
+    const noSoftConstraints = {
+      ...PARAMS,
+      tableSyncWeight: 0,
+      orderSyncWeight: 0,
+      affinityWeight: 0,
+    };
 
     expect(scoreSchedule([slice], pending, noSoftConstraints).total).toBe(520);
   });

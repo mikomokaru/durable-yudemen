@@ -67,10 +67,10 @@ function harness(params?: {
   const holds: string[] = [];
   const index = params?.index ?? {};
   const outcome =
-    params?.outcome ?? (() => ({ kind: "settled", counts: { doDedupeSkipped: 0, unknownNoodleType: 0 } }));
+    params?.outcome ??
+    (() => ({ kind: "settled", counts: { doDedupeSkipped: 0, unknownNoodleType: 0 } }));
   const holdOutcome =
-    params?.holdOutcome ??
-    (() => ({ kind: "held", counts: { heldExpired: 0, heldOverflow: 0 } }));
+    params?.holdOutcome ?? (() => ({ kind: "held", counts: { heldExpired: 0, heldOverflow: 0 } }));
 
   const timerNamespace = {
     idFromName: (name: string) => ({ storeId: name }),
@@ -183,7 +183,12 @@ describe("カウンタは 1 リクエストにつき 1 行（Requirements 12.13,
           // Status_Path（意図的な破棄）
           orderRecord({ storeCode: "A", seq: "3", path: "/lio/status" }),
           // 上流の契約違反（値域窓の外）→ 隔離（A）
-          { path: "/lio/order", payload: { store_id: "A" }, arrival_timestamp_ms: 0, sequence_number: "4" },
+          {
+            path: "/lio/order",
+            payload: { store_id: "A" },
+            arrival_timestamp_ms: 0,
+            sequence_number: "4",
+          },
           // 確定する店舗（重複吸収 2 件・未知麺種 3 件を返す）
           orderRecord({ storeCode: "A", seq: "5" }),
           // 宛先未解決 → 保留（Z）
@@ -219,10 +224,15 @@ describe("カウンタは 1 リクエストにつき 1 行（Requirements 12.13,
     const h = harness({ index: { A: "store-a" } });
     const captured = capture();
 
-    await worker.fetch(postRecords({ records: [orderRecord({ storeCode: "A", seq: "1" })] }), h.testEnv);
+    await worker.fetch(
+      postRecords({ records: [orderRecord({ storeCode: "A", seq: "1" })] }),
+      h.testEnv,
+    );
 
     const counts = parsed(captured.lines(), "counts")[0] ?? {};
-    expect(Object.keys(counts).filter((key) => key !== "posIngress")).toEqual([...REQUEST_COUNTER_NAMES]);
+    expect(Object.keys(counts).filter((key) => key !== "posIngress")).toEqual([
+      ...REQUEST_COUNTER_NAMES,
+    ]);
   });
 
   it("一時的失敗（5xx）のリクエストでも 1 行出る（観測が応答の種類に依存しない）", async () => {
@@ -248,7 +258,11 @@ describe("診断ログは sequence_number と理由の 2 項目のみ（Requirem
       postRecords({
         records: [
           // `path` 欠落
-          { payload: { store_id: "A", datetime: PAYLOAD_DATETIME }, arrival_timestamp_ms: Date.now(), sequence_number: "1" },
+          {
+            payload: { store_id: "A", datetime: PAYLOAD_DATETIME },
+            arrival_timestamp_ms: Date.now(),
+            sequence_number: "1",
+          },
           // Unique_Key 不完全（4 要素のうち datetime が無い）
           {
             path: "/lio/order",
@@ -284,7 +298,11 @@ describe("診断ログは sequence_number と理由の 2 項目のみ（Requirem
         records: [
           // `sequence_number` 欠落（上流が毒として除外済みゆえ本来届かない・Req 10.4）。到着時刻は窓の内側に
           // 置く——型・値域が破れれば分類は契約違反へ落ち、毒の診断にならない。
-          { path: "/lio/order", payload: { store_id: "A" }, arrival_timestamp_ms: Date.now() - 1000 },
+          {
+            path: "/lio/order",
+            payload: { store_id: "A" },
+            arrival_timestamp_ms: Date.now() - 1000,
+          },
         ],
       }),
       h.testEnv,
@@ -302,7 +320,12 @@ describe("診断ログは sequence_number と理由の 2 項目のみ（Requirem
     await worker.fetch(
       postRecords({
         records: [
-          { path: "/lio/order", payload: { store_id: {} }, arrival_timestamp_ms: "0", sequence_number: "9" },
+          {
+            path: "/lio/order",
+            payload: { store_id: {} },
+            arrival_timestamp_ms: "0",
+            sequence_number: "9",
+          },
         ],
       }),
       h.testEnv,
@@ -341,7 +364,10 @@ describe("認可失敗の観測は Worker 内で完結する（Requirements 9.12
     const captured = capture();
 
     const response = await worker.fetch(
-      postRecords({ records: [orderRecord({ storeCode: "A", seq: "1" })] }, { token: "wrong-token" }),
+      postRecords(
+        { records: [orderRecord({ storeCode: "A", seq: "1" })] },
+        { token: "wrong-token" },
+      ),
       h.testEnv,
     );
 
@@ -367,7 +393,10 @@ describe("破棄の 3 つは別のカウンタである（Requirements 12.12）"
     });
     const captured = capture();
 
-    await worker.fetch(postRecords({ records: [orderRecord({ storeCode: "Z", seq: "1" })] }), h.testEnv);
+    await worker.fetch(
+      postRecords({ records: [orderRecord({ storeCode: "Z", seq: "1" })] }),
+      h.testEnv,
+    );
 
     const counts = parsed(captured.lines(), "counts")[0];
     expect(counts?.heldExpired).toBe(7);
@@ -401,7 +430,12 @@ describe("破棄の 3 つは別のカウンタである（Requirements 12.12）"
       heldAt: Date.now(),
       record: {
         path: "/lio/order",
-        payload: { store_id: storeCode, terminal_id: "1", bill_no: "1", datetime: PAYLOAD_DATETIME },
+        payload: {
+          store_id: storeCode,
+          terminal_id: "1",
+          bill_no: "1",
+          datetime: PAYLOAD_DATETIME,
+        },
         arrivalTimestampMs: Date.now() - ARRIVAL_WINDOW_MS - 60_000,
         sequenceNumber: "1".padStart(56, "0"),
       },

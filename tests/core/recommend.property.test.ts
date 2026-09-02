@@ -32,7 +32,12 @@ import type { SyncParams } from "../../src/engine/sync";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { Firmness } from "../../src/domain/firmness";
-import { DEFAULT_NOODLE_PRESETS, SLOTS_PER_UNIT, UNIT_COUNT_MAX, UNIT_COUNT_MIN } from "../../src/domain/store";
+import {
+  DEFAULT_NOODLE_PRESETS,
+  SLOTS_PER_UNIT,
+  UNIT_COUNT_MAX,
+  UNIT_COUNT_MIN,
+} from "../../src/domain/store";
 import {
   KNOWN_NOODLE_TYPES,
   NOW,
@@ -137,7 +142,10 @@ function genEventFor(timers: readonly Timer[], now: EpochMillis): fc.Arbitrary<E
     existingId.map((timerId) => ({ type: "Cancel", timerId, now }) satisfies Event),
     existingId.map((timerId) => ({ type: "Complete", timerId, now }) satisfies Event),
     fc
-      .record({ timerId: existingId, firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft") })
+      .record({
+        timerId: existingId,
+        firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
+      })
       .map(
         (adjust) =>
           ({
@@ -153,7 +161,9 @@ function genEventFor(timers: readonly Timer[], now: EpochMillis): fc.Arbitrary<E
 
 /** Effect 列の Alarm。DO は同時に 1 Alarm ゆえ、列に現れるのは高々 1 件である。 */
 function alarmOf(effects: readonly Effect[]): Effect | null {
-  const alarms = effects.filter((effect) => effect.type === "SetAlarm" || effect.type === "ClearAlarm");
+  const alarms = effects.filter(
+    (effect) => effect.type === "SetAlarm" || effect.type === "ClearAlarm",
+  );
   expect(alarms.length).toBeLessThanOrEqual(1);
   return alarms[0] ?? null;
 }
@@ -167,7 +177,9 @@ function alarmOf(effects: readonly Effect[]): Effect | null {
 function expectedAlarm(state: TimerState): Effect {
   const running = state.timers.filter((timer) => timer.boiledAt === null);
   if (running.length === 0) return { type: "ClearAlarm" };
-  const earliest = Math.min(...running.map((timer) => (timer.endTime as number) + timer.adjustment));
+  const earliest = Math.min(
+    ...running.map((timer) => (timer.endTime as number) + timer.adjustment),
+  );
   return { type: "SetAlarm", at: earliest as EpochMillis };
 }
 

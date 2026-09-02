@@ -103,8 +103,14 @@ export function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     orderSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     tableSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     affinityWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
-    orderSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
-    tableSyncToleranceSeconds: fc.integer({ min: SYNC_TOLERANCE_SECONDS_MIN, max: SYNC_TOLERANCE_SECONDS_MAX }),
+    orderSyncToleranceSeconds: fc.integer({
+      min: SYNC_TOLERANCE_SECONDS_MIN,
+      max: SYNC_TOLERANCE_SECONDS_MAX,
+    }),
+    tableSyncToleranceSeconds: fc.integer({
+      min: SYNC_TOLERANCE_SECONDS_MIN,
+      max: SYNC_TOLERANCE_SECONDS_MAX,
+    }),
     affinityToleranceDistance: fc.integer({
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
       max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
@@ -183,7 +189,9 @@ export function externalPlan(
   const planned =
     victim === undefined
       ? pending
-      : pending.filter((order) => !victim.placements.some((placement) => refersTo(placement, order)));
+      : pending.filter(
+          (order) => !victim.placements.some((placement) => refersTo(placement, order)),
+        );
   return baselineSchedule(planned, release, DEFAULT_NOODLE_PRESETS, params);
 }
 
@@ -219,12 +227,19 @@ export function shortestFirstPlan(
     arrivalTime: NOW - byBoil.length + index,
     slotSpan: order.slotSpan,
   }));
-  return baselineSchedule(resequenced, initialRelease(running, NOW, slotCount), DEFAULT_NOODLE_PRESETS, params);
+  return baselineSchedule(
+    resequenced,
+    initialRelease(running, NOW, slotCount),
+    DEFAULT_NOODLE_PRESETS,
+    params,
+  );
 }
 
 /** 品目の茹で時間（秒）。プリセットに無い麺種は最後尾へ回す（そもそも配置されない）。 */
 function boilSecondsOf(order: PendingOrder): number {
-  const preset = DEFAULT_NOODLE_PRESETS.find((candidate) => candidate.noodleType === order.noodleType);
+  const preset = DEFAULT_NOODLE_PRESETS.find(
+    (candidate) => candidate.noodleType === order.noodleType,
+  );
   return preset === undefined ? Number.MAX_SAFE_INTEGER : preset.boilSeconds[order.firmness];
 }
 
@@ -272,7 +287,10 @@ export function exceedsSlotCount(placements: readonly Placement[], slotCount: nu
 }
 
 /** (c) 解放表の初期値より前に開始する配置が無いこと（開始済み Timer の占有と実効 endTime を侵さない）。 */
-export function startsBeforeRelease(placements: readonly Placement[], release: SlotRelease): boolean {
+export function startsBeforeRelease(
+  placements: readonly Placement[],
+  release: SlotRelease,
+): boolean {
   return placements.some((placement) =>
     placement.slotIds.some((slotId) => {
       const free = release[slotOf(slotId)];

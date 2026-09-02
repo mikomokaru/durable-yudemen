@@ -37,7 +37,10 @@ import { jsoncToJson } from "./support/jsonc";
 
 /** `--` 行コメントを除いた SQL 本文。コメント中の語で判定しないため。 */
 const activeSql = (sql: string): string =>
-  sql.split("\n").filter((line) => !line.trimStart().startsWith("--")).join("\n");
+  sql
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n");
 
 const statements = activeSql(accessSql);
 
@@ -56,7 +59,11 @@ const [classificationTag, classificationValue] = matched(
 
 /** 08 の GRANT 文を（権限, 対象, 被与者）へ開く。 */
 const grants = [...statements.matchAll(/GRANT\s+(\w+)\s+ON\s+(.+?)\s+TO ROLE (\S+);/g)].map(
-  ([, privilege, target, grantee]) => ({ privilege: privilege!, target: target!.trim(), grantee: grantee! }),
+  ([, privilege, target, grantee]) => ({
+    privilege: privilege!,
+    target: target!.trim(),
+    grantee: grantee!,
+  }),
 );
 
 const earlierLayers = {
@@ -95,12 +102,16 @@ describe("個人情報ではない機密業務データとしての分類", () =
 
   it("分類 tag を置く schema は record も指標も持たない", () => {
     expect(statements).toContain("CREATE SCHEMA IF NOT EXISTS OPERATION_HISTORY.GOVERNANCE");
-    expect(statements).not.toMatch(/CREATE (?:OR REPLACE )?(?:VIEW|TABLE|STAGE|PIPE|FILE FORMAT)\b/);
+    expect(statements).not.toMatch(
+      /CREATE (?:OR REPLACE )?(?:VIEW|TABLE|STAGE|PIPE|FILE FORMAT)\b/,
+    );
   });
 
   it("分類の語を他の層が持たない（正本を二つにしない）", () => {
     for (const [name, sql] of Object.entries(earlierLayers)) {
-      expect(activeSql(sql), `${name} が分類を宣言する`).not.toMatch(/CREATE TAG|SET TAG|DATA_CLASSIFICATION/i);
+      expect(activeSql(sql), `${name} が分類を宣言する`).not.toMatch(
+        /CREATE TAG|SET TAG|DATA_CLASSIFICATION/i,
+      );
     }
   });
 
@@ -158,7 +169,9 @@ describe("承認済み分析担当者だけが読める", () => {
 describe("拒否は read-only である", () => {
   it("与える権限は SELECT と USAGE だけである", () => {
     for (const grant of grants) {
-      expect(["SELECT", "USAGE"], `${grant.privilege} ON ${grant.target}`).toContain(grant.privilege);
+      expect(["SELECT", "USAGE"], `${grant.privilege} ON ${grant.target}`).toContain(
+        grant.privilege,
+      );
     }
     expect(statements).not.toMatch(
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|OWNERSHIP|MODIFY|MONITOR|OPERATE|EXECUTE TASK|EXECUTE MANAGED TASK|APPLY|MANAGE GRANTS|ALL PRIVILEGES)\b/i,
@@ -178,14 +191,18 @@ describe("拒否は read-only である", () => {
   });
 
   it("08 は拒否を契機に走る object を作らない", () => {
-    expect(statements).not.toMatch(/CREATE (?:OR REPLACE )?(?:TASK|ALERT|PROCEDURE|STREAM|FUNCTION)\b/i);
+    expect(statements).not.toMatch(
+      /CREATE (?:OR REPLACE )?(?:TASK|ALERT|PROCEDURE|STREAM|FUNCTION)\b/i,
+    );
     // 拒否の記録を table へ書けば、拒否が write になる。
     expect(statements).not.toMatch(/DENIED|DENIAL|ACCESS_LOG|AUDIT/i);
   });
 
   it("アクセス承認状態を SQL 正本が持たない", () => {
     // 承認状態は role member である。実名は credential と同じ規律で運用者が与える。
-    expect(statements).not.toMatch(/GRANT ROLE|REVOKE ROLE|CREATE USER|ALTER USER|CREATE SECURITY INTEGRATION/i);
+    expect(statements).not.toMatch(
+      /GRANT ROLE|REVOKE ROLE|CREATE USER|ALTER USER|CREATE SECURITY INTEGRATION/i,
+    );
     for (const [name, sql] of Object.entries(earlierLayers)) {
       expect(activeSql(sql), `${name} が承認状態を持つ`).not.toMatch(/GRANT|REVOKE|CREATE ROLE/i);
     }

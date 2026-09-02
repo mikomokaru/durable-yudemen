@@ -95,7 +95,18 @@ describe("migrate — v6 → v8", () => {
   });
 
   it("v6 以前の各段（v1 の単一 slotId・後続版の欠如フィールド）も v8 へ着地する", () => {
-    const v1Raw = { timers: [{ id: "timer-0", slotId: "slot-9", noodleType: "Thick", endTime: 1_700_000_000_000, seq: 0 }], nextSeq: 1 };
+    const v1Raw = {
+      timers: [
+        {
+          id: "timer-0",
+          slotId: "slot-9",
+          noodleType: "Thick",
+          endTime: 1_700_000_000_000,
+          seq: 0,
+        },
+      ],
+      nextSeq: 1,
+    };
 
     const result = migrate(v1Raw);
 
@@ -154,7 +165,10 @@ describe("migrate — v7 → v8", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.snapshot.timers[0]!.orderItem).toEqual({ externalOrderId: "order-7", itemIndex: 1 });
+    expect(result.snapshot.timers[0]!.orderItem).toEqual({
+      externalOrderId: "order-7",
+      itemIndex: 1,
+    });
     // v7 の待ち行列は slotSpan を持たない。欠如は 1 スロット占有として読み戻る（当時の実際の挙動に一致する）。
     expect(result.snapshot.pendingOrders).toEqual([{ ...v7Raw.pendingOrders[0], slotSpan: 1 }]);
     expect(result.snapshot.acceptedSlices).toEqual(v7Raw.acceptedSlices);
@@ -164,7 +178,11 @@ describe("migrate — v7 → v8", () => {
   });
 
   it("形を満たさない orderItem は移行失敗にせず null へ畳む（計時は保たれる）", () => {
-    const result = migrate({ version: 7, timers: [{ ...v6Timer, orderItem: { externalOrderId: "" } }], nextSeq: 42 });
+    const result = migrate({
+      version: 7,
+      timers: [{ ...v6Timer, orderItem: { externalOrderId: "" } }],
+      nextSeq: 42,
+    });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -181,8 +199,18 @@ describe("migrate — v7 → v8", () => {
   });
 
   it("待ち行列と採用済み計画の不正要素は全体を移行失敗にする（部分受理という嘘を作らない）", () => {
-    const badPending = migrate({ version: 7, timers: [], nextSeq: 0, pendingOrders: [{ externalOrderId: "order-9" }] });
-    const badAccepted = migrate({ version: 7, timers: [], nextSeq: 0, acceptedSlices: [{ tableKey: "t", placements: [], score: 1.5 }] });
+    const badPending = migrate({
+      version: 7,
+      timers: [],
+      nextSeq: 0,
+      pendingOrders: [{ externalOrderId: "order-9" }],
+    });
+    const badAccepted = migrate({
+      version: 7,
+      timers: [],
+      nextSeq: 0,
+      acceptedSlices: [{ tableKey: "t", placements: [], score: 1.5 }],
+    });
 
     expect(badPending.ok).toBe(false);
     expect(badAccepted.ok).toBe(false);
@@ -210,7 +238,9 @@ describe("migrate — v8 の往復", () => {
       timers: [],
       nextSeq: 0,
       pendingOrders: [v8Order],
-      lastSequenceByTerminal: { "terminal-1": "00000000000000000000000000000000000000000000000000000042" },
+      lastSequenceByTerminal: {
+        "terminal-1": "00000000000000000000000000000000000000000000000000000042",
+      },
     };
 
     const result = migrate(structuredClone(v8Raw));
@@ -222,9 +252,24 @@ describe("migrate — v8 の往復", () => {
   });
 
   it("値域外・非整数の slotSpan は全体を移行失敗にする（既存の全体拒否の規律）", () => {
-    const tooWide = migrate({ version: 8, timers: [], nextSeq: 0, pendingOrders: [{ ...v8Order, slotSpan: 7 }] });
-    const fractional = migrate({ version: 8, timers: [], nextSeq: 0, pendingOrders: [{ ...v8Order, slotSpan: 1.5 }] });
-    const zero = migrate({ version: 8, timers: [], nextSeq: 0, pendingOrders: [{ ...v8Order, slotSpan: 0 }] });
+    const tooWide = migrate({
+      version: 8,
+      timers: [],
+      nextSeq: 0,
+      pendingOrders: [{ ...v8Order, slotSpan: 7 }],
+    });
+    const fractional = migrate({
+      version: 8,
+      timers: [],
+      nextSeq: 0,
+      pendingOrders: [{ ...v8Order, slotSpan: 1.5 }],
+    });
+    const zero = migrate({
+      version: 8,
+      timers: [],
+      nextSeq: 0,
+      pendingOrders: [{ ...v8Order, slotSpan: 0 }],
+    });
 
     expect([tooWide.ok, fractional.ok, zero.ok]).toEqual([false, false, false]);
     if (tooWide.ok || fractional.ok || zero.ok) return;
@@ -234,8 +279,18 @@ describe("migrate — v8 の往復", () => {
   });
 
   it("形を満たさない判定材料は空へ畳む（喪失が生むのは重複だけで欠落は生じない）", () => {
-    const notRecord = migrate({ version: 8, timers: [], nextSeq: 0, lastSequenceByTerminal: ["terminal-1"] });
-    const badValue = migrate({ version: 8, timers: [], nextSeq: 0, lastSequenceByTerminal: { "terminal-1": 42 } });
+    const notRecord = migrate({
+      version: 8,
+      timers: [],
+      nextSeq: 0,
+      lastSequenceByTerminal: ["terminal-1"],
+    });
+    const badValue = migrate({
+      version: 8,
+      timers: [],
+      nextSeq: 0,
+      lastSequenceByTerminal: { "terminal-1": 42 },
+    });
 
     expect(notRecord.ok).toBe(true);
     expect(badValue.ok).toBe(true);

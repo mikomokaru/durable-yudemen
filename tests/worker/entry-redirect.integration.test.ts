@@ -29,7 +29,12 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { env, reset } from "cloudflare:test";
 import worker from "../../src/worker";
-import { establishAccessSigning, freshTeamDomain, POLICY_AUD, type AccessSigning } from "./support/accessJwt";
+import {
+  establishAccessSigning,
+  freshTeamDomain,
+  POLICY_AUD,
+  type AccessSigning,
+} from "./support/accessJwt";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する。
 declare module "cloudflare:test" {
@@ -62,7 +67,12 @@ function isRedirect(status: number): boolean {
  * （worker は実行時に string として読む）。DO バインディングは実 env から継承する。
  */
 function testEnv(accessRequired: string, teamDomain: string): Env {
-  return { ...env, ACCESS_REQUIRED: accessRequired, TEAM_DOMAIN: teamDomain, POLICY_AUD } as unknown as Env;
+  return {
+    ...env,
+    ACCESS_REQUIRED: accessRequired,
+    TEAM_DOMAIN: teamDomain,
+    POLICY_AUD,
+  } as unknown as Env;
 }
 
 /** トークンの与え方。妥当は JWKS 上の正規鍵、不正は JWKS に無い別鍵で署名する。 */
@@ -136,7 +146,9 @@ describe("worker fetch — GET /entry/signin/{storeId} は店舗画面へ 302 �
       const response = await getSignInEntry(accessRequired, "yamaokaya-1263");
 
       expect(response.status).toBe(302);
-      expect(new URL(response.headers.get("Location") ?? "", ORIGIN).pathname).toBe("/s/yamaokaya-1263/");
+      expect(new URL(response.headers.get("Location") ?? "", ORIGIN).pathname).toBe(
+        "/s/yamaokaya-1263/",
+      );
     });
   }
 

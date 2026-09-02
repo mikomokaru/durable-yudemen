@@ -152,9 +152,10 @@ describe("変更は src/client に閉じている（degraded-slot-superimpositio
     for (const file of ENGINE_CONTRACT_FILES) {
       const code = readBareCode(file);
       for (const token of RESOLUTION_TOKENS) {
-        expect(code, `${file} に ${token} が実コードとして現れる（変更が src/client から漏れている）`).not.toContain(
-          token,
-        );
+        expect(
+          code,
+          `${file} に ${token} が実コードとして現れる（変更が src/client から漏れている）`,
+        ).not.toContain(token);
       }
     }
   });

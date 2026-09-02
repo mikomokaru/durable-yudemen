@@ -16,7 +16,15 @@ const KNOWN_ATTRIBUTES = new Set([
   "boiledAt",
 ]);
 
-const COMMON_ATTRIBUTES = ["storeId", "timerId", "operationKind", "eventTime", "slotIds", "noodleType", "firmness"] as const;
+const COMMON_ATTRIBUTES = [
+  "storeId",
+  "timerId",
+  "operationKind",
+  "eventTime",
+  "slotIds",
+  "noodleType",
+  "firmness",
+] as const;
 const OPERATION_KINDS = ["boil-started", "boiled", "adjusted", "completed", "cancelled"] as const;
 type OperationKind = (typeof OPERATION_KINDS)[number];
 export type OperationLineFailure =
@@ -125,11 +133,15 @@ function isOperationKind(value: unknown): value is OperationKind {
 
 function requiredAttributes(kind: OperationKind): readonly string[] {
   switch (kind) {
-    case "boil-started": return [...COMMON_ATTRIBUTES, "startTime", "endTime"];
-    case "boiled": return [...COMMON_ATTRIBUTES, "endTime", "boiledAt"];
-    case "adjusted": return [...COMMON_ATTRIBUTES, "endTime"];
+    case "boil-started":
+      return [...COMMON_ATTRIBUTES, "startTime", "endTime"];
+    case "boiled":
+      return [...COMMON_ATTRIBUTES, "endTime", "boiledAt"];
+    case "adjusted":
+      return [...COMMON_ATTRIBUTES, "endTime"];
     case "completed":
-    case "cancelled": return COMMON_ATTRIBUTES;
+    case "cancelled":
+      return COMMON_ATTRIBUTES;
   }
 }
 
@@ -141,12 +153,20 @@ function hasOwn(record: Record<string, unknown>, attribute: string): boolean {
   return Object.prototype.hasOwnProperty.call(record, attribute);
 }
 
-function hasKnownAttributeTypeViolation(record: Record<string, unknown>, allowed: ReadonlySet<string>): boolean {
+function hasKnownAttributeTypeViolation(
+  record: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+): boolean {
   for (const attribute of allowed) {
     const value = record[attribute];
     if (attribute === "slotIds") {
       if (!Array.isArray(value) || value.some((slotId) => typeof slotId !== "string")) return true;
-    } else if (attribute === "eventTime" || attribute === "startTime" || attribute === "endTime" || attribute === "boiledAt") {
+    } else if (
+      attribute === "eventTime" ||
+      attribute === "startTime" ||
+      attribute === "endTime" ||
+      attribute === "boiledAt"
+    ) {
       if (typeof value !== "number") return true;
     } else if (typeof value !== "string") return true;
   }
@@ -159,17 +179,19 @@ function isPositiveInteger(value: unknown): value is number {
 
 function hasKnownAttributeValueViolation(record: Record<string, unknown>): boolean {
   const slotIds = record.slotIds as readonly string[];
-  return !isValidStoreId(record.storeId as string)
-    || (record.timerId as string).length === 0
-    || !isOperationKind(record.operationKind)
-    || !isPositiveInteger(record.eventTime)
-    || slotIds.length === 0
-    || slotIds.some((slotId) => slotId.length === 0)
-    || (record.noodleType as string).length === 0
-    || !isFirmness(record.firmness)
-    || (hasOwn(record, "startTime") && !isPositiveInteger(record.startTime))
-    || (hasOwn(record, "endTime") && !isPositiveInteger(record.endTime))
-    || (hasOwn(record, "boiledAt") && !isPositiveInteger(record.boiledAt));
+  return (
+    !isValidStoreId(record.storeId as string) ||
+    (record.timerId as string).length === 0 ||
+    !isOperationKind(record.operationKind) ||
+    !isPositiveInteger(record.eventTime) ||
+    slotIds.length === 0 ||
+    slotIds.some((slotId) => slotId.length === 0) ||
+    (record.noodleType as string).length === 0 ||
+    !isFirmness(record.firmness) ||
+    (hasOwn(record, "startTime") && !isPositiveInteger(record.startTime)) ||
+    (hasOwn(record, "endTime") && !isPositiveInteger(record.endTime)) ||
+    (hasOwn(record, "boiledAt") && !isPositiveInteger(record.boiledAt))
+  );
 }
 
 function operationRecord(record: Record<string, unknown>, kind: OperationKind): OperationRecord {
@@ -184,11 +206,25 @@ function operationRecord(record: Record<string, unknown>, kind: OperationKind): 
   };
   switch (kind) {
     case "boil-started":
-      return { ...common, operationKind: kind, startTime: record.startTime as OperationRecord["eventTime"], endTime: record.endTime as OperationRecord["eventTime"] };
+      return {
+        ...common,
+        operationKind: kind,
+        startTime: record.startTime as OperationRecord["eventTime"],
+        endTime: record.endTime as OperationRecord["eventTime"],
+      };
     case "boiled":
-      return { ...common, operationKind: kind, endTime: record.endTime as OperationRecord["eventTime"], boiledAt: record.boiledAt as OperationRecord["eventTime"] };
+      return {
+        ...common,
+        operationKind: kind,
+        endTime: record.endTime as OperationRecord["eventTime"],
+        boiledAt: record.boiledAt as OperationRecord["eventTime"],
+      };
     case "adjusted":
-      return { ...common, operationKind: kind, endTime: record.endTime as OperationRecord["eventTime"] };
+      return {
+        ...common,
+        operationKind: kind,
+        endTime: record.endTime as OperationRecord["eventTime"],
+      };
     case "completed":
     case "cancelled":
       return { ...common, operationKind: kind };
@@ -234,7 +270,9 @@ function parseOperationLine(line: string): ParsedOperationLineResult {
       return { ok: false, failure: "missing-required-attribute" };
     }
     const allowed = allowedAttributes(kind);
-    if (memberNames.some((attribute) => KNOWN_ATTRIBUTES.has(attribute) && !allowed.has(attribute))) {
+    if (
+      memberNames.some((attribute) => KNOWN_ATTRIBUTES.has(attribute) && !allowed.has(attribute))
+    ) {
       return { ok: false, failure: "disallowed-operation-kind-attribute" };
     }
     if (hasKnownAttributeTypeViolation(parsed, allowed)) {
@@ -254,8 +292,6 @@ function parseOperationLine(line: string): ParsedOperationLineResult {
 export function parseOperationLines(lines: string): readonly OperationLineResult[] {
   return lines.split("\n").map((line, index) => {
     const result = parseOperationLine(line);
-    return result.ok
-      ? result
-      : { ...result, lineNumber: index + 1 };
+    return result.ok ? result : { ...result, lineNumber: index + 1 };
   });
 }

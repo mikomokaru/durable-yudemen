@@ -96,4 +96,9 @@ export type ServerMessage =
       // 改めて確立する（snapshot の TimerFact.slotIds が NonEmptyArray のまま運ばれるのと同じ扱い）。
       readonly menuItems: readonly MenuItem[];
     }
-  | { readonly type: "error"; readonly serverTime: number; readonly code: string; readonly message: string }; // 各拒否・失敗（要求元へ直接 ws.send）
+  | {
+      readonly type: "error";
+      readonly serverTime: number;
+      readonly code: string;
+      readonly message: string;
+    }; // 各拒否・失敗（要求元へ直接 ws.send）

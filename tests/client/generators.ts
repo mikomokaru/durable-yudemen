@@ -97,7 +97,10 @@ const genSlotIds: fc.Arbitrary<NonEmptyArray<string>> = fc
 const genEndTime: fc.Arbitrary<number> = fc.integer({ min: -5_000, max: 5_000 });
 
 /** クロックオフセット。負・0・正をまたぐ。 */
-const genOffset: fc.Arbitrary<number> = fc.oneof(fc.constant(0), fc.integer({ min: -200_000, max: 200_000 }));
+const genOffset: fc.Arbitrary<number> = fc.oneof(
+  fc.constant(0),
+  fc.integer({ min: -200_000, max: 200_000 }),
+);
 
 /** 受信時刻 / serverTime / 除去時刻のエポックミリ秒。既存残滓の at（負）と重ならない非負域から引く。 */
 const genReceivedAt: fc.Arbitrary<number> = fc.integer({ min: 0, max: 10_000_000 });
@@ -106,17 +109,21 @@ const genReceivedAt: fc.Arbitrary<number> = fc.integer({ min: 0, max: 10_000_000
 const genTimerOrigin: fc.Arbitrary<TimerOrigin> = fc.constantFrom<TimerOrigin>("server", "local");
 
 /** Connectivity の二値。 */
-export const genConnectivity: fc.Arbitrary<Connectivity> = fc.constantFrom<Connectivity>("up", "down");
-
-/** 到達不能理由の 3 値（down 時のみ意味を持つ独立軸・要件15.7 / 15.12）。 */
-export const genUnreachableReason: fc.Arbitrary<UnreachableReason> = fc.constantFrom<UnreachableReason>(
-  "offline",
-  "noAccess",
-  "signInRequired",
+export const genConnectivity: fc.Arbitrary<Connectivity> = fc.constantFrom<Connectivity>(
+  "up",
+  "down",
 );
 
+/** 到達不能理由の 3 値（down 時のみ意味を持つ独立軸・要件15.7 / 15.12）。 */
+export const genUnreachableReason: fc.Arbitrary<UnreachableReason> =
+  fc.constantFrom<UnreachableReason>("offline", "noAccess", "signInRequired");
+
 /** 同期フェーズ。 */
-const genSyncPhase: fc.Arbitrary<SyncPhase> = fc.constantFrom<SyncPhase>("connecting", "synced", "syncFailed");
+const genSyncPhase: fc.Arbitrary<SyncPhase> = fc.constantFrom<SyncPhase>(
+  "connecting",
+  "synced",
+  "syncFailed",
+);
 
 /** 茹で加減。 */
 const genFirmness: fc.Arbitrary<Firmness> = fc.constantFrom(...FIRMNESS_POOL);
@@ -148,10 +155,9 @@ const ALT_NOODLE_PRESETS: readonly NoodlePreset[] = [
 ];
 
 /** 麺種プリセット。既定と別値の二択（開始 UI の選択肢の元。畳み込みの主張には関与しない）。 */
-const genNoodlePresets: fc.Arbitrary<readonly NoodlePreset[]> = fc.constantFrom<readonly NoodlePreset[]>(
-  DEFAULT_NOODLE_PRESETS,
-  ALT_NOODLE_PRESETS,
-);
+const genNoodlePresets: fc.Arbitrary<readonly NoodlePreset[]> = fc.constantFrom<
+  readonly NoodlePreset[]
+>(DEFAULT_NOODLE_PRESETS, ALT_NOODLE_PRESETS);
 
 /** ユニット総数（担当範囲のクランプ元）。 */
 const genUnitCount: fc.Arbitrary<number> = fc.integer({ min: 1, max: 4 });
@@ -184,7 +190,10 @@ const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
 });
 
 /** 開始推奨の全量（空・複数の双方）。 */
-const genRecommendations: fc.Arbitrary<readonly CookRecommendation[]> = fc.array(genRecommendation, { maxLength: 3 });
+const genRecommendations: fc.Arbitrary<readonly CookRecommendation[]> = fc.array(
+  genRecommendation,
+  { maxLength: 3 },
+);
 
 // ── Timer / View 生成器 ────────────────────────────────────────────────────────────────────────
 
@@ -206,7 +215,9 @@ export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
 function genProcessedIds(timerIds: readonly string[]): fc.Arbitrary<ReadonlySet<string>> {
   const fromTimers = timerIds.length === 0 ? fc.constant<string[]>([]) : fc.subarray([...timerIds]);
   const unrelated = fc.subarray([...UNRELATED_ID_POOL]);
-  return fc.tuple(fromTimers, unrelated).map(([a, b]): ReadonlySet<string> => new Set<string>([...a, ...b]));
+  return fc
+    .tuple(fromTimers, unrelated)
+    .map(([a, b]): ReadonlySet<string> => new Set<string>([...a, ...b]));
 }
 
 /**
@@ -348,7 +359,9 @@ export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
 /** イベント対象 timerId — ビューに存在（server / local）と非存在の双方。 */
 function genEventTimerId(view: ClientView): fc.Arbitrary<string> {
   const existing =
-    view.timers.length > 0 ? fc.constantFrom(...view.timers.map((t) => t.id)) : fc.constantFrom(...TIMER_ID_POOL);
+    view.timers.length > 0
+      ? fc.constantFrom(...view.timers.map((t) => t.id))
+      : fc.constantFrom(...TIMER_ID_POOL);
   return fc.oneof(existing, fc.constantFrom(...ABSENT_ID_POOL));
 }
 
@@ -372,10 +385,22 @@ export function genEvent(view: ClientView): fc.Arbitrary<ClientEvent> {
     }),
   );
   return fc.oneof(
-    fc.record({ kind: fc.constant("Server" as const), message: genServerMessage, receivedAt: genReceivedAt }),
+    fc.record({
+      kind: fc.constant("Server" as const),
+      message: genServerMessage,
+      receivedAt: genReceivedAt,
+    }),
     localStart,
-    fc.record({ kind: fc.constant("LocalCancel" as const), timerId: genEventTimerId(view), now: genReceivedAt }),
-    fc.record({ kind: fc.constant("LocalComplete" as const), timerId: genEventTimerId(view), now: genReceivedAt }),
+    fc.record({
+      kind: fc.constant("LocalCancel" as const),
+      timerId: genEventTimerId(view),
+      now: genReceivedAt,
+    }),
+    fc.record({
+      kind: fc.constant("LocalComplete" as const),
+      timerId: genEventTimerId(view),
+      now: genReceivedAt,
+    }),
     fc.record({ kind: fc.constant("Connectivity" as const), status: genConnectivity }),
     fc.record({ kind: fc.constant("Classify" as const), reason: genUnreachableReason }),
     fc.record({ kind: fc.constant("LocalDone" as const), timerId: genEventTimerId(view) }),
@@ -410,7 +435,9 @@ export const genPersistedView: fc.Arbitrary<PersistedView> = genClientView.map((
 }));
 
 /** 妥当な永続ブロブ文字列（serializeView 相当の round-trip 入力）。 */
-export const genValidPersistedBlob: fc.Arbitrary<string> = genPersistedView.map((p) => JSON.stringify(p));
+export const genValidPersistedBlob: fc.Arbitrary<string> = genPersistedView.map((p) =>
+  JSON.stringify(p),
+);
 
 /** 不正な永続ブロブ文字列 — 壊れた JSON・非オブジェクト・未知 version・型不一致・空文字など。 */
 export const genInvalidPersistedBlob: fc.Arbitrary<string> = fc.oneof(
@@ -435,6 +462,7 @@ export const genPersistedBlob: fc.Arbitrary<string | null> = fc.oneof(
 );
 
 /** ビューと、その状態に対して境界を踏む correctedNow の組（純粋発火判定 dueLocalTimers 検証の足場）。 */
-export const genViewAndCorrectedNow: fc.Arbitrary<{ view: ClientView; correctedNow: number }> = genClientView.chain(
-  (view) => genCorrectedNow(view).map((correctedNow) => ({ view, correctedNow })),
-);
+export const genViewAndCorrectedNow: fc.Arbitrary<{ view: ClientView; correctedNow: number }> =
+  genClientView.chain((view) =>
+    genCorrectedNow(view).map((correctedNow) => ({ view, correctedNow })),
+  );

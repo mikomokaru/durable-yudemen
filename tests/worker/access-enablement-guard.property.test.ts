@@ -89,7 +89,9 @@ const genMissingScheme: fc.Arbitrary<string> = fc.oneof(
 );
 
 /** 末尾ドメイン不一致。 */
-const genWrongSuffix: fc.Arbitrary<string> = genValidLabel.map((sub) => SCHEME + sub + ".example.com");
+const genWrongSuffix: fc.Arbitrary<string> = genValidLabel.map(
+  (sub) => SCHEME + sub + ".example.com",
+);
 
 /** `<` `>` を含む擬似プレースホルダ（長さ判定だけでは通過しうるが文字集合で弾かれる）。 */
 const genAngleBracket: fc.Arbitrary<string> = fc.oneof(
@@ -152,8 +154,10 @@ describe("access-enablement — Property 2: 有効化ガードの合成判定と
         } else {
           // (b) 不可時: 期待される不正変数集合を独立に組み、過不足なく一致することを集合として検証する。
           const expectedInvalid: InvalidVariable[] = [];
-          if (teamReason !== null) expectedInvalid.push({ variable: "TEAM_DOMAIN", reason: teamReason });
-          if (policyReason !== null) expectedInvalid.push({ variable: "POLICY_AUD", reason: policyReason });
+          if (teamReason !== null)
+            expectedInvalid.push({ variable: "TEAM_DOMAIN", reason: teamReason });
+          if (policyReason !== null)
+            expectedInvalid.push({ variable: "POLICY_AUD", reason: policyReason });
 
           expect(sortInvalid(result.invalid)).toEqual(sortInvalid(expectedInvalid));
           // 「不可なら理由あり」を実値でも確認する（型の NonEmptyArray 表明の実地確認）。

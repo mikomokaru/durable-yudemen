@@ -15,10 +15,12 @@ import { FIRMNESS_ORDER } from "../../src/domain/firmness";
 import { SLOT_SPAN_MIN } from "../../src/domain/store";
 
 /** version > 現行スキーマの永続データ。timers/nextSeq の妥当性に関わらず UnsupportedSchemaVersion になる。 */
-const genUnsupported = fc.integer({ min: CURRENT_SCHEMA_VERSION + 1, max: 100_000 }).map((version) => ({
-  raw: { version, timers: [], nextSeq: 0 } as unknown,
-  expected: "UnsupportedSchemaVersion" as const,
-}));
+const genUnsupported = fc
+  .integer({ min: CURRENT_SCHEMA_VERSION + 1, max: 100_000 })
+  .map((version) => ({
+    raw: { version, timers: [], nextSeq: 0 } as unknown,
+    expected: "UnsupportedSchemaVersion" as const,
+  }));
 
 /** スナップショットとして解釈できない壊れたデータ。MigrationFailed になる。 */
 const genCorrupt = fc
@@ -26,11 +28,19 @@ const genCorrupt = fc
     // 非オブジェクトのプリミティブ（null/undefined は「未保存」扱いなので除く）。
     fc.oneof(fc.integer(), fc.string({ minLength: 1 }), fc.boolean()),
     // version は妥当だが timers が配列でない。
-    fc.record({ version: fc.constant(1), timers: fc.oneof(fc.string(), fc.integer(), fc.constant({})), nextSeq: fc.nat() }),
+    fc.record({
+      version: fc.constant(1),
+      timers: fc.oneof(fc.string(), fc.integer(), fc.constant({})),
+      nextSeq: fc.nat(),
+    }),
     // version・timers は形を満たすが、要素 Timer が壊れている（id が文字列でない）。
     fc.record({ version: fc.constant(1), timers: fc.constant([{ id: 123 }]), nextSeq: fc.nat() }),
     // timers は妥当だが nextSeq が負または非整数。
-    fc.record({ version: fc.constant(1), timers: fc.constant([]), nextSeq: fc.constantFrom(-1, -5, 1.5, 2.7) }),
+    fc.record({
+      version: fc.constant(1),
+      timers: fc.constant([]),
+      nextSeq: fc.constantFrom(-1, -5, 1.5, 2.7),
+    }),
   )
   .map((raw) => ({ raw: raw as unknown, expected: "MigrationFailed" as const }));
 
@@ -71,10 +81,15 @@ const genV7Timer = fc.record({
   startTime: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
   endTime: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
   seq: fc.nat({ max: 1000 }),
-  boiledAt: fc.option(fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }), { nil: null }),
+  boiledAt: fc.option(fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }), {
+    nil: null,
+  }),
   adjustment: fc.integer({ min: -60_000, max: 60_000 }),
   orderItem: fc.option(
-    fc.record({ externalOrderId: fc.string({ minLength: 1, maxLength: 8 }), itemIndex: fc.nat({ max: 9 }) }),
+    fc.record({
+      externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+      itemIndex: fc.nat({ max: 9 }),
+    }),
     { nil: null },
   ),
 });
@@ -141,7 +156,8 @@ describe("core/migrate — v7 → v8 の面", () => {
         if (!result.ok) return;
         expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
         expect(result.snapshot.pendingOrders).toHaveLength(v7.pendingOrders.length);
-        for (const order of result.snapshot.pendingOrders) expect(order.slotSpan).toBe(SLOT_SPAN_MIN);
+        for (const order of result.snapshot.pendingOrders)
+          expect(order.slotSpan).toBe(SLOT_SPAN_MIN);
         expect(result.snapshot.lastSequenceByTerminal).toEqual({});
       }),
       { numRuns: 300 },
@@ -162,7 +178,9 @@ describe("core/migrate — v7 → v8 の面", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         // slotSpan を除いた待ち行列は v7 の値そのままである。
-        expect(result.snapshot.pendingOrders.map(({ slotSpan: _unused, ...rest }) => rest)).toEqual(v7.pendingOrders);
+        expect(result.snapshot.pendingOrders.map(({ slotSpan: _unused, ...rest }) => rest)).toEqual(
+          v7.pendingOrders,
+        );
         expect(result.snapshot.acceptedSlices).toEqual(v7.acceptedSlices);
         expect(result.snapshot.requestedDigest).toBe(v7.requestedDigest);
         expect(result.snapshot.nextSeq).toBe(v7.nextSeq);

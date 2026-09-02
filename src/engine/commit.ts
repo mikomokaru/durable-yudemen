@@ -99,7 +99,9 @@ function livePrefix(
   targets: readonly PendingOrder[],
   now: EpochMillis,
 ): readonly AcceptedSlice[] {
-  const stale = accepted.findIndex((slice) => isStale(slice, targets) || hasLapsedStart(slice, now));
+  const stale = accepted.findIndex(
+    (slice) => isStale(slice, targets) || hasLapsedStart(slice, now),
+  );
   return stale === -1 ? accepted : accepted.slice(0, stale);
 }
 

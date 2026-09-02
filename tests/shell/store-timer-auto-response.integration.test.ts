@@ -104,7 +104,11 @@ interface WsProbe {
    * 2 本打った pong の 2 本目を待てず、待機が主張より弱くなる。通算本数は単調に増えるので遡りが
    * 取り違えを生まず、かつ主張（pong が 2 本）と待機（pong が 2 本に達する）が同じ言葉で書ける。
    */
-  waitForFrame(predicate: (frame: string) => boolean, count?: number, timeoutMs?: number): Promise<string>;
+  waitForFrame(
+    predicate: (frame: string) => boolean,
+    count?: number,
+    timeoutMs?: number,
+  ): Promise<string>;
   /** 生フレームをそのまま送る（心拍は素の文字列、ClientMessage は JSON 文字列）。 */
   send(frame: string): void;
   close(): void;
@@ -134,7 +138,9 @@ async function provision(storeId: string): Promise<DurableObjectStub<StoreTimerD
 
 /** WS を張り、client 端を accept して生フレームを収集する（accept より前にリスナを張り取りこぼしを防ぐ）。 */
 async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> {
-  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", { headers: { Upgrade: "websocket" } });
+  const upgrade = await stub.fetch("https://do.invalid/s/store/ws", {
+    headers: { Upgrade: "websocket" },
+  });
   const ws = upgrade.webSocket;
   if (ws === null) throw new Error(`WS 接続が確立されなかった（status=${upgrade.status}）`);
 
@@ -166,7 +172,10 @@ async function connect(stub: DurableObjectStub<StoreTimerDO>): Promise<WsProbe> 
       const already = frames.filter(predicate)[count - 1];
       if (already !== undefined) return Promise.resolve(already);
       return new Promise<string>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("フレームの待機がタイムアウトした")), timeoutMs);
+        const timeout = setTimeout(
+          () => reject(new Error("フレームの待機がタイムアウトした")),
+          timeoutMs,
+        );
         waiters.push({
           predicate,
           count,
@@ -211,7 +220,10 @@ async function watchMessageSeam(stub: DurableObjectStub<StoreTimerDO>): Promise<
     const arrived: string[] = [];
     watched[ARRIVED_AT_SEAM] = arrived;
     const original = instance.webSocketMessage.bind(instance);
-    watched.webSocketMessage = async (socket: WebSocket, message: string | ArrayBuffer): Promise<void> => {
+    watched.webSocketMessage = async (
+      socket: WebSocket,
+      message: string | ArrayBuffer,
+    ): Promise<void> => {
       arrived.push(typeof message === "string" ? message : "<binary>");
       await original(socket, message);
     };
@@ -219,7 +231,9 @@ async function watchMessageSeam(stub: DurableObjectStub<StoreTimerDO>): Promise<
 }
 
 /** 監視が記録した到着列を読む。live な配列を跨って渡さないため、複製を返す。 */
-async function arrivedAtMessageSeam(stub: DurableObjectStub<StoreTimerDO>): Promise<readonly string[]> {
+async function arrivedAtMessageSeam(
+  stub: DurableObjectStub<StoreTimerDO>,
+): Promise<readonly string[]> {
   return runInDurableObject(stub, (instance) => {
     const arrived = (instance as WatchedInstance)[ARRIVED_AT_SEAM];
     if (arrived === undefined) throw new Error("監視が被せられていない（対照が成立しない）");
@@ -244,7 +258,9 @@ async function registeredHeartbeatPair(
  * Date そのものを跨って渡さず epoch millis へ落とす。比較したいのは「応答があったか」と
  * 「その後変わっていないか」だけで、Date のインスタンス同一性ではない。
  */
-async function autoResponseTimestamps(stub: DurableObjectStub<StoreTimerDO>): Promise<readonly (number | null)[]> {
+async function autoResponseTimestamps(
+  stub: DurableObjectStub<StoreTimerDO>,
+): Promise<readonly (number | null)[]> {
   return runInDurableObject(stub, (_instance, state) =>
     state.getWebSockets().map((socket) => {
       const at = state.getWebSocketAutoResponseTimestamp(socket);
@@ -262,7 +278,9 @@ async function acceptedSocketCount(stub: DurableObjectStub<StoreTimerDO>): Promi
 async function readPersistedSnapshot(
   stub: DurableObjectStub<StoreTimerDO>,
 ): Promise<StoreSnapshot | undefined> {
-  return runInDurableObject(stub, (_instance, state) => state.storage.get<StoreSnapshot>(SNAPSHOT_KEY));
+  return runInDurableObject(stub, (_instance, state) =>
+    state.storage.get<StoreSnapshot>(SNAPSHOT_KEY),
+  );
 }
 
 /** 心拍の応答フレームか（待機の述語と件数の数え上げで同じ判定を使い、二重定義を避ける）。 */
@@ -334,7 +352,9 @@ describe("心拍は webSocketMessage を起動せずランタイムが応答す�
     //     成立してしまう。start は確定変化を生み snapshot が broadcast されるので、そこまで見て
     //     経路が本番どおり働いていることも同時に押さえる。
     probe.send(START_FRAME);
-    await probe.waitForFrame((frame) => frame.includes('"type":"snapshot"') && frame.includes(NOODLE));
+    await probe.waitForFrame(
+      (frame) => frame.includes('"type":"snapshot"') && frame.includes(NOODLE),
+    );
     expect(await arrivedAtMessageSeam(stub)).toEqual([START_FRAME]);
 
     // (5) 通常メッセージは auto-response 経路を通らない——打刻は心拍のときのまま動かない。
@@ -395,7 +415,11 @@ describe("auto-response を登録しても既存の WS 経路は生きている�
     const pongFrames = first.frames.filter(isPong);
     expect(pongFrames).toHaveLength(2);
     expect(second.frames.filter(isPong)).toHaveLength(1);
-    expect(serverMessages(first).map((message) => message.type)).toEqual(["config", "snapshot", "snapshot"]);
+    expect(serverMessages(first).map((message) => message.type)).toEqual([
+      "config",
+      "snapshot",
+      "snapshot",
+    ]);
     expect(serverMessages(first)).toHaveLength(first.frames.length - pongFrames.length);
 
     first.close();

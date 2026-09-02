@@ -65,15 +65,13 @@ const genPolicies: fc.Arbitrary<readonly Policy[]> = fc
     { maxLength: 8 },
   )
   .map((specs) =>
-    specs.map(
-      (spec, index): Policy => ({
-        policyId: `policy-${index}`,
-        chainId: "chain-a",
-        name: `Policy ${index}`,
-        priority: spec.priority,
-        fields: spec.fields,
-      }),
-    ),
+    specs.map((spec, index): Policy => ({
+      policyId: `policy-${index}`,
+      chainId: "chain-a",
+      name: `Policy ${index}`,
+      priority: spec.priority,
+      fields: spec.fields,
+    })),
   );
 
 /** Policy が実際に主張しているフィールド名の集合（値が存在するもの）。 */

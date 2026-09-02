@@ -71,7 +71,10 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   // ラジアルメニューの開閉。ボード内で一つだけ持ち、RadialMenu も一つだけ描画する。
   const [picker, setPicker] = useState<PickerAnchor | null>(null);
   // 麺色の resolver。メニュー順に重複なく色を割り当てる（config 受信時のみ再構築・毎ティックでは作り直さない）。
-  const colorOf = useMemo(() => noodleColors(view.noodlePresets.map((preset) => preset.noodleType)), [view.noodlePresets]);
+  const colorOf = useMemo(
+    () => noodleColors(view.noodlePresets.map((preset) => preset.noodleType)),
+    [view.noodlePresets],
+  );
 
   // slotId はスロット番号の文字列表現（slotOf = Number(slotId) の逆／要件12.5）。
   // UI はスロット単位なので 1 スロットを駆動する Timer として開始する（slotIds は 1 件）。
@@ -109,15 +112,22 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
         {[...units]
           .sort((a, b) => a - b)
           .map((unit) => (
-            <div key={unit} className="grid min-h-0 auto-rows-fr grid-cols-2 gap-[clamp(0.5rem,1.2vw,0.875rem)]">
+            <div
+              key={unit}
+              className="grid min-h-0 auto-rows-fr grid-cols-2 gap-[clamp(0.5rem,1.2vw,0.875rem)]"
+            >
               {displays
                 .filter((display) => Math.floor(display.slot / 6) === unit)
                 .map((display) => {
                   // 直前結果は idle スロットにのみ、記録から LAST_RESULT_TTL_MS の間だけ提示する（要件13.5）。
                   const recorded =
-                    display.kind === "idle" ? view.lastResults.get(String(display.slot)) : undefined;
+                    display.kind === "idle"
+                      ? view.lastResults.get(String(display.slot))
+                      : undefined;
                   const lastResultNoodle =
-                    recorded && now - recorded.at < LAST_RESULT_TTL_MS ? recorded.noodleType : undefined;
+                    recorded && now - recorded.at < LAST_RESULT_TTL_MS
+                      ? recorded.noodleType
+                      : undefined;
                   return (
                     <SlotCard
                       key={display.slot}

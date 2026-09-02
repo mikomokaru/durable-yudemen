@@ -28,7 +28,11 @@ import { drivesAssignedSlot, findTarget, lastDriverOf } from "./support/boiledGr
  * 畳み込みは共有 support（./support/boiledGroupFacts）へ出さずここに置く。カバレッジの検査は畳み込みの
  * 結果について何も主張しないため、これを要するのは性質の検査だけである。
  */
-function foldLocalComplete(view: ClientView, members: readonly ClientTimer[], at: number): ClientView {
+function foldLocalComplete(
+  view: ClientView,
+  members: readonly ClientTimer[],
+  at: number,
+): ClientView {
   return members.reduce(
     (next, member) => decideView(next, { kind: "LocalComplete", timerId: member.id, now: at }),
     view,
@@ -111,7 +115,9 @@ describe("client/boiledGroup 同時上がり群の再構成", () => {
         const memberIds = new Set(group.map((member) => member.id));
         const missing = view.timers.filter(
           (timer) =>
-            timer.endTime === targetEndTime && timer.endTime <= correctedNow && !memberIds.has(timer.id),
+            timer.endTime === targetEndTime &&
+            timer.endTime <= correctedNow &&
+            !memberIds.has(timer.id),
         );
         expect(missing).toEqual([]);
       }),
@@ -152,43 +158,52 @@ describe("client/boiledGroup 同時上がり群の再構成", () => {
     // 下の scoped 比較が空虚でないこと——担当スロットからの押下が現に担当外メンバーを引き込む盤面が
     // 標本に現れること——は boiledGroupGenerators.smoke.test.ts が確かめる（カバレッジは別の主張）。
     fc.assert(
-      fc.property(genBatchCase, genUnits, genUnits, ({ view, timerId, correctedNow }, unitsA, unitsB) => {
-        const target = findTarget(view, timerId);
-        // fc.pre を用いず一般ケースを採るため、対象の endTime は optional chaining で受ける（Property 3 と同形）。
-        const targetEndTime = target?.endTime;
-        const actual = boiledGroup(view, timerId, correctedNow);
+      fc.property(
+        genBatchCase,
+        genUnits,
+        genUnits,
+        ({ view, timerId, correctedNow }, unitsA, unitsB) => {
+          const target = findTarget(view, timerId);
+          // fc.pre を用いず一般ケースを採るため、対象の endTime は optional chaining で受ける（Property 3 と同形）。
+          const targetEndTime = target?.endTime;
+          const actual = boiledGroup(view, timerId, correctedNow);
 
-        // boiledGroup は units を引数に取らない。ゆえに「担当集合に依らない」を空虚でない形で言うには、
-        // 担当射影を先に掛けた「もしも」の実装——units に依って答えが変わる形の代表——と比べる。
-        const scopedGroup = (units: readonly number[]): readonly ClientTimer[] =>
-          boiledGroup({ ...view, timers: assignedTimers(view.timers, units) }, timerId, correctedNow);
+          // boiledGroup は units を引数に取らない。ゆえに「担当集合に依らない」を空虚でない形で言うには、
+          // 担当射影を先に掛けた「もしも」の実装——units に依って答えが変わる形の代表——と比べる。
+          const scopedGroup = (units: readonly number[]): readonly ClientTimer[] =>
+            boiledGroup(
+              { ...view, timers: assignedTimers(view.timers, units) },
+              timerId,
+              correctedNow,
+            );
 
-        for (const units of [unitsA, unitsB]) {
-          const scoped = scopedGroup(units);
-          const pressable = target !== undefined && drivesAssignedSlot(target, units);
+          for (const units of [unitsA, unitsB]) {
+            const scoped = scopedGroup(units);
+            const pressable = target !== undefined && drivesAssignedSlot(target, units);
 
-          // 射影は落とすだけで足さない（起点が担当外なら対象ごと落ちて空になる）。
-          expect(actual).toEqual(expect.arrayContaining([...scoped]));
+            // 射影は落とすだけで足さない（起点が担当外なら対象ごと落ちて空になる）。
+            expect(actual).toEqual(expect.arrayContaining([...scoped]));
 
-          // 操作口は担当スロットにしか現れない（要件4.3）。その起点から押した場合、担当射影版が失うのは
-          // 「担当外メンバーちょうど」であり、実際の群は units が何であれそれを保つ（要件4.1）。
-          if (pressable) {
-            expect(scoped).toEqual(assignedTimers(actual, units));
+            // 操作口は担当スロットにしか現れない（要件4.3）。その起点から押した場合、担当射影版が失うのは
+            // 「担当外メンバーちょうど」であり、実際の群は units が何であれそれを保つ（要件4.1）。
+            if (pressable) {
+              expect(scoped).toEqual(assignedTimers(actual, units));
+            }
+
+            // 対象と実効 endTime が等しい boiled Timer は、担当ユニットのどのスロットも駆動しなくても群に
+            // 含まれる（要件4.2）。actual から引き直さず view.timers から独立に導いて突き合わせる。
+            const outsiders =
+              targetEndTime !== undefined && targetEndTime <= correctedNow
+                ? view.timers.filter(
+                    (timer) => timer.endTime === targetEndTime && !drivesAssignedSlot(timer, units),
+                  )
+                : [];
+            for (const outsider of outsiders) {
+              expect(actual).toContain(outsider);
+            }
           }
-
-          // 対象と実効 endTime が等しい boiled Timer は、担当ユニットのどのスロットも駆動しなくても群に
-          // 含まれる（要件4.2）。actual から引き直さず view.timers から独立に導いて突き合わせる。
-          const outsiders =
-            targetEndTime !== undefined && targetEndTime <= correctedNow
-              ? view.timers.filter(
-                  (timer) => timer.endTime === targetEndTime && !drivesAssignedSlot(timer, units),
-                )
-              : [];
-          for (const outsider of outsiders) {
-            expect(actual).toContain(outsider);
-          }
-        }
-      }),
+        },
+      ),
       // 1 run で units を 2 通り引くため、他の Property より多く回す（言明は units の全域について立つ）。
       { numRuns: 200 },
     );

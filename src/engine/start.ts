@@ -33,7 +33,12 @@ export function validateStart(input: {
   readonly noodleType: string;
   readonly boilSeconds: number;
 }):
-  | { readonly ok: true; readonly slotIds: NonEmptyArray<SlotId>; readonly noodleType: NoodleType; readonly boilSeconds: number }
+  | {
+      readonly ok: true;
+      readonly slotIds: NonEmptyArray<SlotId>;
+      readonly noodleType: NoodleType;
+      readonly boilSeconds: number;
+    }
   | { readonly ok: false; readonly rejection: Rejection } {
   // NaN / Infinity は比較が常に false で範囲検査をすり抜けるため、有限値であることを先に要求する。
   if (

@@ -40,7 +40,11 @@ import type { ConnectivityWatchFactory } from "./connectivity";
 // dev/test 限定の縮退テストトグル。UI（窓口の利用者）は connectivity 層を直接 import せず、
 // 唯一の窓口である本モジュール経由でのみ blackhole の有効状態を読み書きする（静的検査 c・要件4.4）。
 // 本番では pingBlackholeDebugEnabled() が false を返し、これらは参照されず tree-shaking 対象になる（要件14.4）。
-export { pingBlackholeDebugEnabled, isPingBlackholeActive, setPingBlackholeActive } from "./connectivity";
+export {
+  pingBlackholeDebugEnabled,
+  isPingBlackholeActive,
+  setPingBlackholeActive,
+} from "./connectivity";
 import { markProcessed, shouldHandleDone } from "./notification";
 import { localStorageViewStore } from "./persistence";
 import type { ViewStore } from "./persistence";
@@ -310,7 +314,11 @@ function decideLocalStart(
     origin: "local",
   };
   // 新規開始した駆動スロットの直前結果（残滓）は解除する（要件13.7）。
-  return { ...view, timers: [...view.timers, provisional], lastResults: clearLastResults(view.lastResults, event.slotIds) };
+  return {
+    ...view,
+    timers: [...view.timers, provisional],
+    lastResults: clearLastResults(view.lastResults, event.slotIds),
+  };
 }
 
 /**
@@ -402,7 +410,11 @@ export function dueLocalTimers(view: ClientView, correctedNowMs: number): readon
  * receivedAt は受信時点のローカル時刻（エポックミリ秒）。offset 算出に用いるため引数で受け取り、
  * Date.now() を関数内に持ち込まない（純粋性を保ち、任意時刻で検証可能にする）。
  */
-function decideServerMessage(view: ClientView, message: ServerMessage, receivedAt: number): ClientView {
+function decideServerMessage(
+  view: ClientView,
+  message: ServerMessage,
+  receivedAt: number,
+): ClientView {
   // すべての server → client メッセージは serverTime を伴う。受信のたびに offset を最新化する（要件2.5）。
   const offset = clockOffset(message.serverTime, receivedAt);
 
@@ -433,7 +445,12 @@ function decideServerMessage(view: ClientView, message: ServerMessage, receivedA
       // 計算）にのみ効く事実で、client の表示・導出のどこからも参照されない。読み手の無い写しをビューへ
       // 置けば、サーバ設定の第二の真実を抱えるだけになる（online-cook-scheduling AC 3.4 の「表示・導出にのみ
       // 用い変更要求を送らない」を、最小の形——受け取っても持たない——で満たす）。
-      return { ...view, offset, unitCount: message.unitCount, noodlePresets: message.noodlePresets };
+      return {
+        ...view,
+        offset,
+        unitCount: message.unitCount,
+        noodlePresets: message.noodlePresets,
+      };
 
     case "error":
       // 拒否・失敗の通知（要件2.4）。次の snapshot 受信で解消する（error: null）。
@@ -495,11 +512,15 @@ function resolveSlotOccupancy(
   // 書き下しにしない（意味は slotDisplay の remainingMs(...) > 0 と boiledGroup の endTime <= correctedNow で
   // 既に定義済み）。補正は呼び出し元で済んでいるゆえ残りの offset は 0。境界（endTime === correctedNow）は
   // remainingMs が 0 を返すため boiled 側に属する。
-  const isRunning = (timer: ClientTimer): boolean => remainingMs(timer.endTime, 0, correctedNowMs) > 0;
+  const isRunning = (timer: ClientTimer): boolean =>
+    remainingMs(timer.endTime, 0, correctedNowMs) > 0;
 
   // スロットごとの主張を起源別に束ねる（キーは slotId 文字列。表示のためのスロット別束ね＝slotDisplay の
   // timersBySlot とは別概念で、あちらは担当射影を掛けた表示のため、こちらは全量に対する占有の解決）。
-  const claims = new Map<string, { readonly server: ClientTimer[]; readonly local: ClientTimer[] }>();
+  const claims = new Map<
+    string,
+    { readonly server: ClientTimer[]; readonly local: ClientTimer[] }
+  >();
   for (const timer of timers) {
     for (const slotId of timer.slotIds) {
       let claim = claims.get(slotId);
@@ -559,7 +580,10 @@ export function reconcileServerConfirmed(
   const prevServer = view.timers.filter((timer) => timer.origin === "server");
   const provisional = view.timers.filter((timer) => timer.origin === "local");
   // (a) server-confirmed は serverTimers で全置換する。すべて起源タグを "server" 化する（要件4.1）。
-  const confirmed: readonly ClientTimer[] = serverTimers.map((timer) => ({ ...timer, origin: "server" as const }));
+  const confirmed: readonly ClientTimer[] = serverTimers.map((timer) => ({
+    ...timer,
+    origin: "server" as const,
+  }));
 
   // 占有スロット = 新 serverTimers のスロット ∪ 保持 provisional のスロット。
   const occupied = new Set<string>();

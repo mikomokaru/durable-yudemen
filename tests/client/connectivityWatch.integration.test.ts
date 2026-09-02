@@ -20,7 +20,12 @@
 // 起きない。ゆえに faketime を使う（純粋層に課した faketime 不使用の規律はここには及ばない）。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Connectivity, Socket, SocketListeners, SocketOpener } from "../../src/client/connection";
+import type {
+  Connectivity,
+  Socket,
+  SocketListeners,
+  SocketOpener,
+} from "../../src/client/connection";
 import {
   PING_INTERVAL_MS,
   PING_REQUEST,

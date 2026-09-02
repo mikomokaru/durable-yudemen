@@ -105,7 +105,9 @@ function toWindow(timer: Timer, toleranceRatio: number): Windowed {
  */
 function formClusters(windows: readonly Windowed[]): Windowed[][] {
   // 左端昇順。同着は center・seq で決定的に。
-  const sorted = [...windows].sort((a, b) => a.left - b.left || a.center - b.center || a.seq - b.seq);
+  const sorted = [...windows].sort(
+    (a, b) => a.left - b.left || a.center - b.center || a.seq - b.seq,
+  );
   const clusters: Windowed[][] = [];
   let current: Windowed[] = [];
   let maxRight = Number.NEGATIVE_INFINITY;
@@ -140,7 +142,11 @@ function partitionProximityCluster(cluster: readonly Windowed[], armsLimit: numb
  * 一クラスタを Sync_Set へ分割し、同期可能なセット群へ maximin で Sync_Target を配置して Adjustment を割り当てる。
  * 同期見送りセット（Window_Intersection が空）・単独クラスタ・単独メンバーは Adjustment 0 に落ちる（要件1.7 / 3.6 / 7.4）。
  */
-function assignCluster(cluster: readonly Windowed[], armsLimit: number, out: Map<number, number>): void {
+function assignCluster(
+  cluster: readonly Windowed[],
+  armsLimit: number,
+  out: Map<number, number>,
+): void {
   const sets = partitionProximityCluster(cluster, armsLimit);
 
   // Window_Intersection [Lmax, Rmin] と同期可能判定（Lmax ≤ Rmin）。同期見送りセットは全メンバー 0（要件3.1 / 3.2 / 3.6）。
@@ -173,7 +179,9 @@ function assignCluster(cluster: readonly Windowed[], armsLimit: number, out: Map
  * 単独セット（m=1）は g\* を持たず中点＝自窓の中点に落ちる（単独メンバーなら中点＝オリジナル endTime → 0）。
  * 返すのはスケール整数（× 100）の Sync_Target 列。
  */
-function placeSyncTargets(sets: readonly { readonly lmax: number; readonly rmin: number }[]): number[] {
+function placeSyncTargets(
+  sets: readonly { readonly lmax: number; readonly rmin: number }[],
+): number[] {
   const m = sets.length;
   if (m === 0) return [];
 
@@ -200,7 +208,10 @@ function placeSyncTargets(sets: readonly { readonly lmax: number; readonly rmin:
  * 間隔下限 g に対する貪欲左詰めの実行可能性。t_1 = left_1、t_k = max(left_k, t_{k−1} + g)、
  * いずれかで t_k > right_k なら実行不能。セットは endTime 昇順ゆえ g=0 は常に実行可能（連結成分の性質）。
  */
-function feasibleGap(rel: readonly { readonly left: number; readonly right: number }[], gap: number): boolean {
+function feasibleGap(
+  rel: readonly { readonly left: number; readonly right: number }[],
+  gap: number,
+): boolean {
   let prev = Number.NEGATIVE_INFINITY;
   let first = true;
   for (const r of rel) {

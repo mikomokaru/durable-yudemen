@@ -1,7 +1,8 @@
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-// テストは三つのプロジェクトに分かれる。
+// テストはプロジェクトに分かれる（主なもの）。
 //   - workers : core の純粋関数・shell/DO 統合・client は workerd 上（Workers pool）で実行する。
 //               観測ハーネスの shell 計装統合テスト（tests/observe/**/*.integration.test.ts）も
 //               DO を要するためここに含める。
@@ -115,6 +116,17 @@ export default defineConfig({
         },
       },
       {
+        // React 実描画テスト。下の workers プロジェクトは workerd 上で走り DOM を持たないため、
+        // 実際に描画して DOM へ問う主張はここでしか立てられない（happy-dom を環境に据える）。
+        // 境界は拡張子 .tsx に置く：JSX を書くのは実描画テストだけであり、置き場と pool の境界が一致する。
+        plugins: [react()],
+        test: {
+          name: "render",
+          environment: "happy-dom",
+          include: ["tests/**/*.test.tsx"],
+        },
+      },
+      {
         // 既存のテスト群＋観測ハーネスの shell 計装統合テスト。workerd を要するため cloudflareTest を用いる。
         plugins: [
           cloudflareTest({
@@ -183,6 +195,10 @@ export default defineConfig({
             "tests/worker/**/*.example.test.ts",
             // デプロイ前検査 CLI の example テストは tools プロジェクト（node）が担当する（node 組み込み依存）。
             "tests/check-access-enablement.example.test.ts",
+            // React 実描画テストは render プロジェクト（happy-dom）が担当する。上の include（*.test.ts）は
+            // 既に .tsx を拾わないが、他の node プロジェクトと同じく include と exclude を対で置く
+            // ——include を広げたときに二重実行へ崩れないように。
+            "tests/**/*.test.tsx",
           ],
         },
       },
