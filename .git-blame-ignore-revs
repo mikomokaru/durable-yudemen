@@ -1,0 +1,11 @@
+# 整形だけのコミット。git blame の履歴から除外する。
+#
+# 使い方（この機械で一度だけ設定する）:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub の blame は設定不要でこのファイルを自動的に読む。
+#
+# ここに載せるのは「振る舞いを変えない整形だけ」のコミットに限る。整形と内容変更が混ざった
+# コミットを載せると、内容変更の責任者も blame から消える。
+
+# style: oxfmt で全体を整形し、CI に fmt:check を据える
+edb1a88a4c4ad65bb6f8fcf981da038012c9e701
