@@ -133,7 +133,7 @@ idle カード下部
   │ ● Suggested   │ ● Start      │   ← 丸ボタンは同形。塗りだけが違う（麺種の色）
   │ プレ塩 中盛    │ Start        │
   │ かため Table 12│              │
-  │ in 1:20       │              │
+  │ in 01:20      │              │
   └──────────────┴──────────────┘
 ```
 
@@ -308,7 +308,7 @@ readonly sizeName: string | null;
 | 表示 | 導出元 |
 | --- | --- |
 | 提案の有無・中身 | `recommendations` / `pendingOrders` / `noodlePresets` / `Corrected_Now` |
-| 時期（「今」/「あと m:ss」） | `startAt` と `Corrected_Now` の差 |
+| 時期（`now` / `in mm:ss`） | `startAt` と `Corrected_Now` の差 |
 | 表示名 | `itemName ?? noodleType` を NFKC 正規化 |
 
 いずれもビューに持たない（要件 1.6）。
@@ -335,7 +335,7 @@ timing(startAt, correctedNow) → "now" | { remainingMs }
   return startAt ≤ correctedNow ? "now" : { remainingMs: startAt - correctedNow }
 ```
 
-壁時計を作らない（要件 2.5）。`m:ss` の整形は既存 `formatRemaining` を使う——待ち時間と同じ形で読めることが、同じ軸の量であることを示す。
+壁時計を作らない（要件 2.5）。`mm:ss` の整形は既存 `formatRemaining` を使う（分も 2 桁ゼロ詰め）——待ち時間と同じ形で読めることが、同じ軸の量であることを示す。
 
 ## Error Handling
 
@@ -441,9 +441,9 @@ NFKC 正規化は表示のみに用い、比較・検索・鍵には用いない
 
 #24 は `tests/pending-order-list-left-rail.static.test.ts:706-712`（S15）で「`OrderRail.tsx` の文字列リテラルと JSX テキストに日本語が現れない」を固定し、合意済みの調理母語（バリカタ／かため／ふつう／やわめ）だけを `FIRMNESS_LABEL` 経由で通す形にした。カードの操作ラベルも `Start` / `Cancel` / `Complete` である。
 
-要件 2.4 は「`startAt ≤ Corrected_Now` なら『今』」と日本語の固定文言を指定しており、そのまま実装するとカードだけに日本語の固定文言が混ざる。**判断 5（requirements `:39`）も「今」「あと m:ss」で同じ改訂が要る**——2.4 だけを直すと判断と要件が食い違う。
+要件 2.4 は「`startAt ≤ Corrected_Now` なら『今』」と日本語の固定文言を指定しており、そのまま実装するとカードだけに日本語の固定文言が混ざる。**判断 5（requirements `:39`）も「今」「あと m:ss」で同じ改訂が要る**——2.4 だけを直すと判断と要件が食い違う。（この段の「今」「あと m:ss」は改訂前の要件文の引用である。改訂後の語は `now` / `in mm:ss`。）
 
-design は `Table 12` / `now` / `in 1:20` へ揃えた。卓は `Table {n}`（レールの語をそのまま使う）。
+design は `Table 12` / `now` / `in 01:20` へ揃えた。卓は `Table {n}`（レールの語をそのまま使う）。
 
 **時期に `in` の接頭辞を置く。** レールの待ち時間は行の役割から意味が決まるが、カードでは決まらない——提案の下に裸の `1:20` が出ると茹で時間と読める余地がある。`in` の一語で「これから先の時間」だと分かる。裸にするか `in` を置くかは表示の判断なので、要件 2.4 の改訂に含めてほしい。
 

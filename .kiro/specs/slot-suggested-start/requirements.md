@@ -36,7 +36,7 @@
 2. **開始できる場所と提案が見える場所を同じ集合にする。** 提案からの開始の口は idle カードにしか存在しないため、提案経由の同一釜への重畳（観測事実 3〜5）は client 側の防御ではなく構造で起きなくなる。engine の占有検査は導入しない（端末間の競合はスコープ外に記録する）。
 3. **配置は Start の左に同形の丸ボタン。幅が無ければ上。** 既存の「丸ボタン＋下のラベル」の語彙を保ち、区別は形ではなく塗り（麺種の色＝identity の既存規約）で付ける。左は押せば即開始（ラジアルを開かない）、右は従来どおりラジアル。丸が 2 つ並ぶ幅が無いカードでは提案が Start の上へ折り返す。提案の有無・折り返しの有無に関わらず、右の Start は位置を変えない。
 4. **釜ごとの提案は startAt 最小の 1 件。** 当該釜を `slotIds` に含む推奨のうち最早の `startAt` を持つものを「次」として導出する（観測事実 8）。複数釜にまたがる推奨は含まれる各釜のカードに現れ、どのカードから押しても推奨の `slotIds` 全体で開始する。
-5. **時期は相対で示し、固定文言は英語にする。** `startAt` と補正済み現在時刻の差から `now`（`startAt ≤ now`）または `in m:ss` を導出する。壁時計 `HH:MM` は用いない。`startAt` 到来前でも押せる（AC 8.2 / 8.3 を変えない）。卓は `Table {n}`。カードの固定文言を英語にするのは、#24（`pending-order-list-left-rail` 要件 3.9）がレールの固定文言を英語に固定し、カードの操作ラベルも `Start` / `Cancel` / `Complete` であるためで、日本語の固定文言はカードにも置かない。調理母語（硬さ）だけが `FIRMNESS_LABEL` 経由で入る。
+5. **時期は相対で示し、固定文言は英語にする。** `startAt` と補正済み現在時刻の差から `now`（`startAt ≤ now`）または `in mm:ss` を導出する。壁時計 `HH:MM` は用いない。`startAt` 到来前でも押せる（AC 8.2 / 8.3 を変えない）。卓は `Table {n}`。カードの固定文言を英語にするのは、#24（`pending-order-list-left-rail` 要件 3.9）がレールの固定文言を英語に固定し、カードの操作ラベルも `Start` / `Cancel` / `Complete` であるためで、日本語の固定文言はカードにも置かない。調理母語（硬さ）だけが `FIRMNESS_LABEL` 経由で入る。
 6. **開始は品目を指す。** 新しい ClientMessage 種別で `slotIds` と品目の鍵（`externalOrderId` / `itemIndex`）だけを送る。`noodleType` / `firmness` / `boilSeconds` は送らない。engine が `pendingOrders` の当該品目と `noodlePresets` から導く（観測事実 6・7）。既存 `start` からは optional の `externalOrderId` / `itemIndex` を撤去し、アドホック麺茹で専用に戻す。
 7. **品目が待ち行列に無ければ拒否する。** 指した品目が `pendingOrders` に無いとき engine は麺種を導けないため、新しい拒否 code で要求元へ返す。これは AC 8.3「推奨との不一致を理由に拒否しない」の例外ではなく別の事実である——同 AC が守るのは現場の選択であり、他端末が直前に開始した品目の二重調理ではない。`start.ts` の「開始済みの品目を再び開始する要求も拒否しない」はアドホック経路にのみ残る。
 8. **商品名は POS 申告値を事実として持つ。** `PendingOrder` に親品目の `item_name` と麺量 child の `item_name` を足す（観測事実 10）。設定（`MenuItem`）に名前表は設けない。伝票の文字列と釜の画面の文字列が同じ出所になり、投入漏れも改名のズレも起きない。
@@ -121,7 +121,7 @@ _出所: 判断 1・2・4・12・15, 観測事実 1・2・5・8_
 1. WHEN Idle_Slot に Next_Suggestion がある, THE Slot_Card SHALL 既存の Start ボタンの左に Suggested_Start の丸ボタンを配置する。丸が 2 つ並ぶ幅が無いときは Start の上へ折り返す
 2. THE Suggested_Start ボタン SHALL 既存の Start ボタンと同じ形（丸・同じアイコン）を持ち、塗りを当該品目の麺種の色とする
 3. THE Slot_Card SHALL Suggested_Start の下のラベルに商品名（Item_Name と Size_Name）・茹で加減・卓（`Table {n}`）・時期をこの順で表示し、行数を固定しない
-4. THE Slot_Card SHALL 時期を Corrected_Now と `startAt` の差から導出し、`startAt ≤ Corrected_Now` なら `now`、それ以外なら残りを `in m:ss` で表示する。固定文言は英語とし、日本語の固定文言を置かない（判断 5）
+4. THE Slot_Card SHALL 時期を Corrected_Now と `startAt` の差から導出し、`startAt ≤ Corrected_Now` なら `now`、それ以外なら残りを `in mm:ss` で表示する。固定文言は英語とし、日本語の固定文言を置かない（判断 5）
 5. THE Slot_Card SHALL 時期を壁時計（`HH:MM`）で表示しない
 6. WHEN ユーザーが Suggested_Start を押す, THE Timer_Connection SHALL Next_Suggestion の品目の鍵と、当該推奨の `slotIds` 全体で Order_Item_Start を要求する
 7. WHEN ユーザーが Suggested_Start を押す, THE Slot_Card SHALL ラジアルメニューを開かない

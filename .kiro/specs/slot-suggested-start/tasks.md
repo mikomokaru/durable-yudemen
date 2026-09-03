@@ -22,7 +22,7 @@
 ## Tasks
 
 - [x] 1. 公開シンボルの確認（実装前にユーザー確認）— **確定済み（2026-09-03）**
-  - **要件の改訂 3 件は適用済み**（requirements `18:13` 更新・実測確認）。判断 5 と AC 2.4 が `now` / `in m:ss` / `Table {n}` へ、AC 2.1 が「丸が 2 つ並ぶ幅が無いときは Start の上へ折り返す」へ、未決の判断節は削除された。design の申し送りは解消済みである。
+  - **要件の改訂 3 件は適用済み**（requirements `18:13` 更新・実測確認）。判断 5 と AC 2.4 が `now` / `in mm:ss` / `Table {n}` へ、AC 2.1 が「丸が 2 つ並ぶ幅が無いときは Start の上へ折り返す」へ、未決の判断節は削除された。design の申し送りは解消済みである。
   - コードを書く前に**公開シンボル 9 件**を確定する（`naming.md`）。`itemName` / `sizeName` は `PendingOrder` の 2 項目を 1 件として数える（同じ概念の対であり、片方だけ承認する意味がない）。承認が得られるまで後続へ進まない。一覧の正本は requirements の naming ゲート表と design の確認ゲート節。
     - `startOrderItem`（`ClientMessage` の `type`）/ `startOrderItem(slotIds, orderItem)`（`TimerConnection`）/ `StartOrderItem`（engine の `Event`）/ `OrderItemNotFound`（`Rejection.code`）
     - `itemName` / `sizeName`（`PendingOrder`）/ `next`（`SlotDisplay` の idle）
@@ -112,7 +112,7 @@
   - [x] 6.2 `SlotCard.tsx` の idle に提案の丸ボタンを足す
     - `actionStack` は `flex-col`（丸＋下のラベルの縦積み）である。提案と Start を並べる親は**その外側**に 1 枚置き（`flex-wrap` / `justify-end`）、`actionStack` 2 つをその子にする。DOM 順は `[提案, Start]`。提案は既存 `actionSlot` と同形の丸で、塗りは麺種の色。
     - **要件 2.9 が成り立つ根拠は `absolute right/bottom` の下端固定である。** 現在それを持つのは `actionStack`（`:59-62`）だが、**新しい親へ移す**（`actionStack` 側からは外す）。背が伸びるときは上へ伸びるため、折り返しても Start は右下に留まる。この配置を相対配置や上端基準へ変えると崩れる。
-    - ラベルは商品名（`itemName ?? noodleType` を NFKC）・麺量・茹で加減・卓（`Table {n}`）・時期（`now` / `in m:ss`）をこの順で、行数を固定せず折り返す。
+    - ラベルは商品名（`itemName ?? noodleType` を NFKC）・麺量・茹で加減・卓（`Table {n}`）・時期（`now` / `in mm:ss`）をこの順で、行数を固定せず折り返す。
     - `aria-label` を明示する（丸ボタンはラベルが兄弟要素ゆえ、名前を明示しなければ AT に何も渡らない）。命令形を用いない。
     - 直前結果のバッジは上部、提案は下部で場所を取り合わないため両方残す。
     - `next` が `null` のとき提案側を描かない。ラジアルは開かない。押下で既存 Start と同じ Touch_Cue を鳴らす。
