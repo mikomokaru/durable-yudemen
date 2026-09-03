@@ -39,8 +39,8 @@ function idle(next: QueueSuggestion | null): SlotDisplay {
 
 /** 提案の見え方。SlotBoard が組む形（ラベル・aria-label・塗り）をテストから直接与える。 */
 const SUGGESTION_OF = {
-  label: "プレ塩 中盛 · かため · Table 12 · in 1:20",
-  ariaLabel: "Suggested — プレ塩 · Slot 0 · in 1:20",
+  label: "プレ塩 中盛 · かため · Table 12 · in 01:20",
+  ariaLabel: "Suggested — プレ塩 · Slot 0 · in 01:20",
   tint: "oklch(0.7 0.1 40)",
 } as const;
 
@@ -100,7 +100,7 @@ describe("提案の操作が idle カードに現れる（R2.1・R2.10）", () =
     // 品目・釜・時期を含む（要件 2.10）。
     expect(name).toContain("プレ塩");
     expect(name).toContain("Slot 0");
-    expect(name).toContain("in 1:20");
+    expect(name).toContain("in 01:20");
   });
 
   it("ラベルは渡された文字列をそのまま描く（表示語彙をカードで組み直さない）", () => {

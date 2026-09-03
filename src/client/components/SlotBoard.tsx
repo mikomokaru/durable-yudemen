@@ -18,7 +18,12 @@ import { formatRemaining } from "../format";
 import { FIRMNESS_LABEL } from "./firmness";
 import { isNonEmpty } from "../../domain/timer";
 import { assignedSlotDisplays } from "./slotDisplay";
-import { orderQueueEntries, type QueueEntry, type QueueSuggestion } from "./queueDisplay";
+import {
+  orderQueueEntries,
+  suggestionTiming,
+  type QueueEntry,
+  type QueueSuggestion,
+} from "./queueDisplay";
 import { SlotCard } from "./SlotCard";
 import { OrderRail } from "./OrderRail";
 import { RadialMenu } from "./RadialMenu";
@@ -71,6 +76,13 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   // ——同じものを二度導出すれば、担当範囲の絞り込みと茹で秒の引き当てが二箇所で語られる。
   // 件数は絞らない——計画対象の上限を超える分も並び、提案が付かないだけである。
   const queue = orderQueueEntries(view, units, now);
+  // 計画の錨。受信した推奨の全量から取る——担当範囲で絞った後に取ると端末ごとに錨が変わり、同じ計画が
+  // 2 台で違う間隔に見える（提供時刻を揃える単位は卓であり、卓の品目は別ユニットの釜へ置かれうる）。
+  // 推奨が無ければ錨も要らない。
+  const planAnchor =
+    view.recommendations.length === 0
+      ? null
+      : Math.min(...view.recommendations.map((recommendation) => recommendation.startAt));
   // 保持は全量・表示は導出。担当外スロットはここで構造的に除外される（要件12.2）。
   const displays = assignedSlotDisplays(view, units, now, queue);
   // レールを描くかは 1 箇所でだけ判定する。非空なら型が NonEmptyArray<QueueEntry> へ絞られ、
@@ -133,8 +145,16 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
                         key={display.slot}
                         display={display}
                         suggestionOf={
-                          display.kind === "idle" && display.next !== null
-                            ? suggestionOf(display.next, display.slot, queue, colorOf, now, view)
+                          display.kind === "idle" && display.next !== null && planAnchor !== null
+                            ? suggestionOf(
+                                display.next,
+                                display.slot,
+                                queue,
+                                colorOf,
+                                now,
+                                view,
+                                planAnchor,
+                              )
                             : undefined
                         }
                         onStartSuggested={(suggestion) => {
@@ -227,6 +247,7 @@ function suggestionOf(
   colorOf: (noodleType: string) => string,
   now: number,
   view: ClientView,
+  planAnchor: number,
 ): { readonly label: string; readonly ariaLabel: string; readonly tint: string } | undefined {
   const entry = queue.find((candidate) => candidate.suggestion === suggestion);
   if (entry === undefined) return undefined;
@@ -235,9 +256,20 @@ function suggestionOf(
   const size = order.sizeName?.normalize("NFKC");
   const firmness = FIRMNESS_LABEL[order.firmness];
   const table = order.tableId === null ? undefined : `Table ${order.tableId}`;
-  // 時期は startAt（事実）と補正後現在時刻からの導出。壁時計は用いない（要件 2.5）。
-  const remaining = suggestion.startAt - correctedNow(view.offset, now);
-  const timing = remaining <= 0 ? "now" : `in ${formatRemaining(remaining)}`;
+  // 時期は計画の間隔（サーバの事実）と補正後現在時刻からの導出。壁時計は用いない（要件 2.5）。
+  // 秒読みが尽きたら `in` を使わない——1 本目を始めない限り錨は現在へ張り付き間隔は不変ゆえ、
+  // 同じ語で描き続ければ減らない秒読みになる（lapsed-suggestion-timing 要件 3.1）。
+  const planTiming = suggestionTiming(
+    suggestion.startAt,
+    planAnchor,
+    correctedNow(view.offset, now),
+  );
+  const timing =
+    planTiming.kind === "countdown"
+      ? `in ${formatRemaining(planTiming.ms)}`
+      : planTiming.kind === "now"
+        ? "now"
+        : `+${formatRemaining(planTiming.ms)}`;
   const parts = [size === undefined ? name : `${name} ${size}`, firmness, table, timing];
   return {
     label: parts.filter((part) => part !== undefined).join(" · "),

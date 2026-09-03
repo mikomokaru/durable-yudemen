@@ -29,6 +29,47 @@ export interface QueueSuggestion {
 }
 
 /**
+ * SuggestionTiming — 提案の時期の 3 相。
+ *
+ * `now` は `ms` を持たない。常に 0 である項目は情報を持たない（`predicate.ts` の `toDeclaredName` が
+ * 常に true の `ok` を持たないのと同じ判断）。
+ *
+ * **`countdown` の `ms` は錨までの残りではない。** 錨までの残り（Start_Lead）に計画内オフセットを
+ * 足した値＝**この提案自身の開始までの残り**である。ゆえに `lead` と名付けない——語彙が食い違う。
+ */
+export type SuggestionTiming =
+  | { readonly kind: "countdown"; readonly ms: number }
+  | { readonly kind: "now" }
+  | { readonly kind: "offset"; readonly ms: number };
+
+/**
+ * suggestionTiming — 提案の時期を決める（lapsed-suggestion-timing 要件 1）。
+ *
+ * 時期は 2 つの導出値から成る。計画内オフセット（`startAt − 錨`＝1 本目からの間隔）はサーバの事実からの
+ * 導出で、錨までの秒読み（`max(0, 錨 − 現在)`）は問うた時点で決まる。**受け取った `startAt` は書き換えない。**
+ *
+ * 錨（`planAnchor`）は受信した推奨の全量から取った最小 `startAt` である。担当範囲で絞った後に取ると
+ * 端末ごとに錨が変わり、同じ計画が 2 台で違う間隔に見える（要件 2.2）。ゆえにこの関数は担当範囲を
+ * 知らず、錨を引数で受ける。
+ *
+ * **秒読みが尽きたら別の相へ移る。** 1 本目を始めない限り錨は現在へ張り付き、オフセットは不変である。
+ * 同じ秒読みとして描き続ければ減らない秒読みになる——減らない秒読みは嘘である（要件 3.1）。
+ *
+ * **文字列を作らない。** `mm:ss` の整形と語（`in` / `+`）は表示側（`SlotBoard`）が持つ。表示語彙を
+ * 二箇所に置かない（`slot-suggested-start` の判断）。
+ */
+export function suggestionTiming(
+  startAt: number,
+  planAnchor: number,
+  corrected: number,
+): SuggestionTiming {
+  const offset = startAt - planAnchor;
+  const lead = Math.max(0, planAnchor - corrected);
+  if (lead > 0) return { kind: "countdown", ms: lead + offset };
+  return offset === 0 ? { kind: "now" } : { kind: "offset", ms: offset };
+}
+
+/**
  * 待ち行列 1 行の表示状態。
  *
  * suggestion が null な行は「この端末の担当範囲に提案が無い」ことだけを意味する。理由は問わない
