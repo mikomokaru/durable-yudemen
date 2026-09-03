@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { decideView, EMPTY_VIEW } from "../../src/client/connection";
 import type { ClientMessage, ServerMessage } from "../../src/domain/messages";
+import type { StoreConfig } from "../../src/domain/store";
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
@@ -15,28 +16,11 @@ type Assert<T extends true> = T;
 type AllKeys<T> = T extends unknown ? keyof T : never;
 type ConfigMessage = Extract<ServerMessage, { readonly type: "config" }>;
 
+// config は StoreConfig そのものを運ぶ（verified-wire-contract 判断 5）。項目名を列挙すると
+// StoreConfig の項目集合を写した第二の一覧がここに生まれ、設定が増えるたびに更新を求めてくる。
+// 構造で言えば、その一覧は要らない——`& StoreConfig` であることそのものを検査する。
 type ConfigShapeAssertions = [
-  Assert<
-    Equal<
-      keyof ConfigMessage,
-      | "type"
-      | "serverTime"
-      | "unitCount"
-      | "noodlePresets"
-      | "arms"
-      | "toleranceRatio"
-      | "orderSyncWeight"
-      | "tableSyncWeight"
-      | "affinityWeight"
-      | "orderSyncToleranceSeconds"
-      | "tableSyncToleranceSeconds"
-      | "affinityToleranceDistance"
-      | "unitOrigins"
-      | "slotOffsets"
-      | "firmnessCodes"
-      | "menuItems"
-    >
-  >,
+  Assert<Equal<keyof ConfigMessage, "type" | "serverTime" | keyof StoreConfig>>,
   Assert<Equal<Extract<AllKeys<ClientMessage>, "arms" | "toleranceRatio">, never>>,
 ];
 

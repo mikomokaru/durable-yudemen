@@ -9,13 +9,12 @@ import { EMPTY_STATE, isNewerSequence, type TimerState } from "../engine/state";
 import { toCookSchedule } from "../engine/schedule";
 import { toWireSnapshot, type SettleParams } from "../engine/settle";
 import type { ScheduleParams } from "../engine/objective";
-import type { Ordered } from "../engine/timer";
 import type { EpochMillis, TimerId } from "../engine/types";
 import { buildSeamEntry, type InstrumentationLogEntry } from "../observe/log";
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
 import { REJECTION_CLOSE_CODE } from "../transport/rejection";
-import type { ClientMessage, ServerMessage } from "../domain/messages";
-import { isFirmness } from "../domain/firmness";
+import type { ServerMessage } from "../domain/messages";
+import { toClientMessage, toDecodeFailureLine } from "../domain/wire";
 import { toPendingOrders, type PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { StoreConfig, NoodlePreset, FirmnessCode, MenuItem } from "../domain/store";
@@ -117,83 +116,6 @@ class InitError extends Error {
   constructor(readonly failure: ShellFailure) {
     super(`rehydrate failed: ${failure.code}`);
     this.name = "InitError";
-  }
-}
-
-/**
- * ワイヤの平坦な 2 フィールドから、engine が持つ注文品目の組（`Ordered["orderItem"]`）を成す（AC 8.4）。
- *
- * **両方が揃って妥当なときだけ組を成し、それ以外は null（アドホック麺茹で）とする。** ワイヤは未検証の
- * 生値ゆえ片方だけ届く形を型で禁じられず（domain/messages.ts の規律）、片方だけで組を作れば
- * 「どの品目か」を指せない組が待ち行列の消し込み（consumeOrder）へ流れる。妥当性の条件は
- * domain/order.ts の PendingOrder と同じ——非空の externalOrderId と 0 以上の整数 itemIndex。
- *
- * 検証と組み立てをこの一関数に閉じ、`parseClientMessage`（ワイヤ形の検証）と Start イベントの組み立てが
- * 同じ条件を二度書かないようにする。
- */
-function toOrderItem(raw: {
-  readonly externalOrderId?: unknown;
-  readonly itemIndex?: unknown;
-}): Ordered["orderItem"] {
-  const { externalOrderId, itemIndex } = raw;
-  if (typeof externalOrderId !== "string" || externalOrderId.length === 0) return null;
-  if (typeof itemIndex !== "number" || !Number.isInteger(itemIndex) || itemIndex < 0) return null;
-  return { externalOrderId, itemIndex };
-}
-
-/**
- * 受信した文字列を ClientMessage として防御的に解釈する。core を呼ぶ前段の検証はここに集約する。
- *
- * JSON parse 失敗・未知の type・必須フィールドの欠如や型不一致はすべて undefined を返し、
- * 呼び出し側で破棄させる（要件9.7。throw せず Working_Copy を一切変えない）。
- * 「不正な状態を表現可能にしない」規律の入口側で、検証済みの形だけが core へ進む。
- */
-function parseClientMessage(raw: string): ClientMessage | undefined {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return undefined;
-  }
-  if (typeof parsed !== "object" || parsed === null) return undefined;
-  const candidate = parsed as Record<string, unknown>;
-  switch (candidate.type) {
-    case "start":
-      if (
-        Array.isArray(candidate.slotIds) &&
-        candidate.slotIds.length > 0 &&
-        candidate.slotIds.every((slotId) => typeof slotId === "string") &&
-        typeof candidate.noodleType === "string" &&
-        typeof candidate.boilSeconds === "number"
-      ) {
-        return {
-          type: "start",
-          slotIds: candidate.slotIds as readonly string[],
-          noodleType: candidate.noodleType,
-          boilSeconds: candidate.boilSeconds,
-          // 注文品目は組を成せたときだけ平坦形へ載せ直す。欠落・不正は載せずアドホック麺茹でとして通す
-          // （start 自体は拒否しない——POS を経ない開始は正当な経路である）。
-          ...(toOrderItem(candidate) ?? {}),
-        };
-      }
-      return undefined;
-    case "cancel":
-      if (typeof candidate.timerId === "string") {
-        return { type: "cancel", timerId: candidate.timerId };
-      }
-      return undefined;
-    case "complete":
-      if (typeof candidate.timerId === "string") {
-        return { type: "complete", timerId: candidate.timerId };
-      }
-      return undefined;
-    case "adjust":
-      if (typeof candidate.timerId === "string" && isFirmness(candidate.firmness)) {
-        return { type: "adjust", timerId: candidate.timerId, firmness: candidate.firmness };
-      }
-      return undefined;
-    default:
-      return undefined;
   }
 }
 
@@ -443,7 +365,7 @@ export class StoreTimerDO extends DurableObject<Env> {
    * unitCount と同じ系統で投影 config から反映し、config として配信する。店舗ごとに異なりうる
    * （レジストリのイデアから合成された投影が正本）。既定は安全網。
    */
-  private noodlePresets: readonly NoodlePreset[] = DEFAULT_NOODLE_PRESETS;
+  private noodlePresets: NonEmptyArray<NoodlePreset> = DEFAULT_NOODLE_PRESETS;
 
   /**
    * 硬さの商品コード → Firmness の対応表（StoreConfig.firmnessCodes）。サーバ権威・クライアント不変の店舗設定。
@@ -1055,9 +977,12 @@ export class StoreTimerDO extends DurableObject<Env> {
 
     // 受理するのは文字列 JSON のみ。ArrayBuffer など非文字列は破棄して Working_Copy を一切変えない（要件9.7）。
     if (typeof message !== "string") return;
-    const command = parseClientMessage(message);
+    const command = toClientMessage(message);
     // 不正形式（JSON parse 失敗 / 未知 type / 必須フィールド欠如・型不一致）は破棄する（要件9.7）。
-    if (command === undefined) return;
+    if (command === null) {
+      console.error(toDecodeFailureLine("ClientMessage"));
+      return;
+    }
 
     // ClientMessage を core への Event へ写す。crypto.randomUUID() と Date.now() は shell の作用であり、
     // core は時計も乱数も持たない（core/event.ts 参照）。
@@ -1116,9 +1041,13 @@ export class StoreTimerDO extends DurableObject<Env> {
             noodleType: command.noodleType,
             boilSeconds: command.boilSeconds,
             newTimerId: crypto.randomUUID() as TimerId,
-            // 推奨からの開始はここで組を得て、engine 側で consumeOrder を踏む（AC 8.4）。組が無ければ
-            // アドホック麺茹でで、待ち行列には触れない。
-            orderItem: toOrderItem(command),
+            // 推奨からの開始は組を伴い、engine 側で consumeOrder を踏む（AC 8.4）。組が無ければ
+            // アドホック麺茹でで、待ち行列には触れない。組を成すか否かの判定は Decoder が済ませて
+            // おり、ここは平坦な 2 フィールドを組へ写すだけである（両方が在るか、どちらも無いか）。
+            orderItem:
+              command.externalOrderId !== undefined && command.itemIndex !== undefined
+                ? { externalOrderId: command.externalOrderId, itemIndex: command.itemIndex }
+                : null,
             now,
           }
         : command.type === "cancel"

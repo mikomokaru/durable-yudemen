@@ -51,6 +51,8 @@ describe("client/connection — 状態同期と切断継続", () => {
       type: "snapshot",
       serverTime: START_NOW,
       timers: [makeTimer("A", START_NOW - 1000), makeTimer("B")],
+      pendingOrders: [],
+      recommendations: [],
     });
     expect(connection.getView().sync).toBe("synced");
     expect(connection.getView().timers.map((t) => t.id)).toEqual(["A", "B"]);
@@ -65,6 +67,8 @@ describe("client/connection — 状態同期と切断継続", () => {
       type: "snapshot",
       serverTime: START_NOW + 20,
       timers: [makeTimer("B"), makeTimer("C")],
+      pendingOrders: [],
+      recommendations: [],
     });
     expect(connection.getView().timers.map((t) => t.id)).toEqual(["B", "C"]);
     expect(connection.getView().processedIds.has("A")).toBe(false);
@@ -81,6 +85,8 @@ describe("client/connection — 状態同期と切断継続", () => {
       type: "snapshot",
       serverTime: START_NOW,
       timers: [makeTimer("A")],
+      pendingOrders: [],
+      recommendations: [],
     });
     expect(connection.getView().sync).toBe("synced");
 
@@ -110,7 +116,18 @@ describe("client/connection — 状態同期と切断継続", () => {
     receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW + 5_000, // サーバはローカルより 5 秒進んでいる
-      timers: [{ id: "A", slotIds: ["slot-A"], noodleType: "ramen", endTime }],
+      timers: [
+        {
+          id: "A",
+          slotIds: ["slot-A"],
+          noodleType: "ramen",
+          firmness: "normal",
+          startTime: endTime - 60_000,
+          endTime,
+        },
+      ],
+      pendingOrders: [],
+      recommendations: [],
     });
     const fixedOffset = connection.getView().offset;
     expect(fixedOffset).toBe(5_000);

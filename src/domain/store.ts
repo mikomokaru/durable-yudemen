@@ -11,6 +11,7 @@
 
 import { isNonEmpty, type NonEmptyArray } from "./timer";
 import { FIRMNESS_ORDER, isFirmness, type Firmness } from "./firmness";
+import { isRecord } from "./predicate";
 
 /** 1 ユニット（釜の台）が担当する連続スロット数。unit u は slot 6u..6u+5。番号と slot の対応の正本。 */
 export const SLOTS_PER_UNIT = 6;
@@ -455,7 +456,7 @@ export function toUnitOrigins(raw: unknown, unitCount: number): readonly UnitOri
   const items = Array.isArray(source) ? source : [];
   const origins: UnitOrigin[] = [];
   for (let unit = 0; unit < count; unit++) {
-    origins.push(toGridPoint(items[unit], defaultUnitOrigin(unit)));
+    origins.push(toGridPoint(items[unit]) ?? defaultUnitOrigin(unit));
   }
   return origins;
 }
@@ -471,26 +472,29 @@ export function toSlotOffsets(raw: unknown): SlotOffsets {
   const items = Array.isArray(source) ? source : [];
   // 6 要素タプルを組み立てる（型が長さを保証するため、写像を map で書いて長さの主張を assertion に委ねない）。
   return [
-    toGridPoint(items[0], DEFAULT_SLOT_OFFSETS[0]),
-    toGridPoint(items[1], DEFAULT_SLOT_OFFSETS[1]),
-    toGridPoint(items[2], DEFAULT_SLOT_OFFSETS[2]),
-    toGridPoint(items[3], DEFAULT_SLOT_OFFSETS[3]),
-    toGridPoint(items[4], DEFAULT_SLOT_OFFSETS[4]),
-    toGridPoint(items[5], DEFAULT_SLOT_OFFSETS[5]),
+    toGridPoint(items[0]) ?? DEFAULT_SLOT_OFFSETS[0],
+    toGridPoint(items[1]) ?? DEFAULT_SLOT_OFFSETS[1],
+    toGridPoint(items[2]) ?? DEFAULT_SLOT_OFFSETS[2],
+    toGridPoint(items[3]) ?? DEFAULT_SLOT_OFFSETS[3],
+    toGridPoint(items[4]) ?? DEFAULT_SLOT_OFFSETS[4],
+    toGridPoint(items[5]) ?? DEFAULT_SLOT_OFFSETS[5],
   ];
 }
 
 /**
- * 生値を GridPoint へ畳む。x・y の双方が GRID_COORDINATE_MIN 以上の整数でなければ fallback を返す。
+ * 生値を GridPoint へ写す。x・y の双方が GRID_COORDINATE_MIN 以上の整数でなければ null。
  *
- * 座標に上限は置かない（台の増設を設定側で縛らない）ためクランプはせず、非有限・非整数・下限未満は既定へ畳む。
- * 畳む単位は座標の組（点）である——x だけを既定へ寄せると、どこにも指定されていない位置を新たに作ってしまう。
+ * 座標に上限は置かない（台の増設を設定側で縛らない）ためクランプはせず、非有限・非整数・下限未満は拒否する。
+ * 拒否の単位は座標の組（点）である——x だけを既定へ寄せると、どこにも指定されていない位置を新たに作ってしまう。
+ *
+ * 既定へ畳むのは呼び出し側の責務である（`?? fallback`）。単数の to* は null を返し、畳むのは複数形——
+ * toNoodlePreset / toFirmnessCode / toMenuItem と同じ規律に揃える。畳む位置を呼び出し側へ置くのは、
+ * fallback が index ごとに異なる（defaultUnitOrigin(unit) / DEFAULT_SLOT_OFFSETS[i]）ためでもある。
  */
-function toGridPoint(value: unknown, fallback: GridPoint): GridPoint {
-  if (typeof value !== "object" || value === null) return fallback;
-  const candidate = value as Record<string, unknown>;
-  const { x, y } = candidate;
-  if (!isGridCoordinate(x) || !isGridCoordinate(y)) return fallback;
+export function toGridPoint(value: unknown): GridPoint | null {
+  if (!isRecord(value)) return null;
+  const { x, y } = value;
+  if (!isGridCoordinate(x) || !isGridCoordinate(y)) return null;
   return { x, y };
 }
 
@@ -519,8 +523,13 @@ export function toNoodlePresets(raw: unknown): NonEmptyArray<NoodlePreset> {
   return isNonEmpty(presets) ? presets : DEFAULT_NOODLE_PRESETS;
 }
 
-/** 生値を NoodlePreset へ正規化する。構造（非空種別名・全 4 硬さの正の整数秒）を満たさなければ null。 */
-function toNoodlePreset(value: unknown): NoodlePreset | null {
+/**
+ * 生値を NoodlePreset へ正規化する。構造（非空種別名・全 4 硬さの正の整数秒）を満たさなければ null。
+ *
+ * ワイヤ復号（domain/wire.ts）も同じ条件で config の要素を確立するため公開する。畳む toNoodlePresets と
+ * 対になり、単数が null を返し複数が既定へ畳む。
+ */
+export function toNoodlePreset(value: unknown): NoodlePreset | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   if (typeof candidate.noodleType !== "string" || candidate.noodleType.length === 0) return null;
@@ -563,8 +572,12 @@ export function toFirmnessCodes(raw: unknown): readonly FirmnessCode[] {
   return codes;
 }
 
-/** 生値を FirmnessCode へ正規化する。正の整数コードと既知の Firmness を満たさなければ null。 */
-function toFirmnessCode(value: unknown): FirmnessCode | null {
+/**
+ * 生値を FirmnessCode へ正規化する。正の整数コードと既知の Firmness を満たさなければ null。
+ *
+ * ワイヤ復号（domain/wire.ts）も同じ条件で config の要素を確立するため公開する。
+ */
+export function toFirmnessCode(value: unknown): FirmnessCode | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   if (!isProductCode(candidate.code)) return null;
@@ -592,8 +605,13 @@ export function toMenuItems(raw: unknown): readonly MenuItem[] {
   return items;
 }
 
-/** 生値を MenuItem へ正規化する。正の整数コード・非空の noodleType・非空の麺量群を満たさなければ null。 */
-function toMenuItem(value: unknown): MenuItem | null {
+/**
+ * 生値を MenuItem へ正規化する。正の整数コード・非空の noodleType・非空の麺量群を満たさなければ null。
+ *
+ * ワイヤ復号（domain/wire.ts）も同じ条件で config の要素を確立するため公開する。入れ子の sizes の非空も
+ * ここで確立するため、受け手は改めて確立しなくてよい。
+ */
+export function toMenuItem(value: unknown): MenuItem | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   if (!isProductCode(candidate.productCode)) return null;

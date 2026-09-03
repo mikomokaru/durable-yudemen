@@ -89,7 +89,18 @@ describe("client/connection — 茹で上がりの明示完了", () => {
     receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW,
-      timers: [{ id: "T", slotIds: ["3"], noodleType: "Medium", endTime: START_NOW - 1000 }],
+      timers: [
+        {
+          id: "T",
+          slotIds: ["3"],
+          noodleType: "Medium",
+          firmness: "normal",
+          startTime: START_NOW - 91_000,
+          endTime: START_NOW - 1000,
+        },
+      ],
+      pendingOrders: [],
+      recommendations: [],
     });
 
     // boiled として在席し、表示導出も boiled（Complete 対象 timer を保持）になる。
@@ -106,7 +117,13 @@ describe("client/connection — 茹で上がりの明示完了", () => {
     expect(sent).toContainEqual({ type: "complete", timerId: "T" });
 
     // サーバが T の消えた snapshot をブロードキャスト → Timer 除去 → スロットは idle へ。直前結果が差分で記録される。
-    receiveFrame(latest(), { type: "snapshot", serverTime: START_NOW + 5, timers: [] });
+    receiveFrame(latest(), {
+      type: "snapshot",
+      serverTime: START_NOW + 5,
+      timers: [],
+      pendingOrders: [],
+      recommendations: [],
+    });
     const view2 = connection.getView();
     expect(view2.timers.some((t) => t.id === "T")).toBe(false);
     const displays2 = assignedSlotDisplays(view2, [0], START_NOW);
@@ -123,17 +140,45 @@ describe("client/connection — 茹で上がりの明示完了", () => {
     receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW,
-      timers: [{ id: "T", slotIds: ["3"], noodleType: "Medium", endTime: START_NOW - 1000 }],
+      timers: [
+        {
+          id: "T",
+          slotIds: ["3"],
+          noodleType: "Medium",
+          firmness: "normal",
+          startTime: START_NOW - 91_000,
+          endTime: START_NOW - 1000,
+        },
+      ],
+      pendingOrders: [],
+      recommendations: [],
     });
     connection.complete("T");
-    receiveFrame(latest(), { type: "snapshot", serverTime: START_NOW + 5, timers: [] });
+    receiveFrame(latest(), {
+      type: "snapshot",
+      serverTime: START_NOW + 5,
+      timers: [],
+      pendingOrders: [],
+      recommendations: [],
+    });
     expect(connection.getView().lastResults.has("3")).toBe(true);
 
     // スロット 3 で新規開始（当該スロットを占有する snapshot 受信）→ 残滓は差分で解除される。
     receiveFrame(latest(), {
       type: "snapshot",
       serverTime: START_NOW + 10,
-      timers: [{ id: "U", slotIds: ["3"], noodleType: "Thin", endTime: START_NOW + 70_000 }],
+      timers: [
+        {
+          id: "U",
+          slotIds: ["3"],
+          noodleType: "Thin",
+          firmness: "normal",
+          startTime: START_NOW + 10_000,
+          endTime: START_NOW + 70_000,
+        },
+      ],
+      pendingOrders: [],
+      recommendations: [],
     });
     expect(connection.getView().lastResults.has("3")).toBe(false);
 

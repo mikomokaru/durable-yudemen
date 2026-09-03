@@ -5,6 +5,7 @@
 // version を検査したうえで現行スキーマの StoreSnapshot へ写す。失敗は例外ではなく
 // 戻り値（ShellFailure）で表し、いずれの失敗時も入力 raw を一切変更しない（移行を確定しない）。
 
+import { isNonNegativeInteger } from "../domain/predicate";
 import { CURRENT_SCHEMA_VERSION } from "../engine/types";
 import type { EpochMillis, SlotId, NoodleType, TimerId } from "../engine/types";
 import { EMPTY_STATE } from "./state";
@@ -405,9 +406,4 @@ function reviveSlotIds(slotIds: unknown, legacySlotId: unknown): NonEmptyArray<s
     return [legacySlotId];
   }
   return null;
-}
-
-/** 0 以上の整数か。nextSeq は登録順の採番で、負や小数はありえない。 */
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }

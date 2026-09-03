@@ -12,6 +12,7 @@ import { orderQueueEntries } from "../../src/client/components/queueDisplay";
 import type { PendingOrder } from "../../src/domain/order";
 import type { CookRecommendation } from "../../src/domain/messages";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import type { NonEmptyArray } from "../../src/domain/timer";
 
 const T = 1_700_000_000_000;
 
@@ -38,7 +39,7 @@ function order(
 function recommendation(
   externalOrderId: string,
   itemIndex: number,
-  slotIds: readonly string[],
+  slotIds: NonEmptyArray<string>,
   startAt: number,
 ): CookRecommendation {
   return { externalOrderId, itemIndex, slotIds, startAt };
@@ -201,10 +202,10 @@ describe("待ち行列の表示導出（AC 8.1 / 8.2 / 8.5）", () => {
     expect(orderQueueEntries(view, [0], T + 60_000)[0]?.suggestion?.startAt).toBe(T - 60_000);
   });
 
-  it("空のスロット集合・現在のプリセットに無い麺種の推奨は提案として成立しない", () => {
-    const emptySlots = viewWith([order("o-1", 0, T)], [recommendation("o-1", 0, [], T)]);
-    expect(orderQueueEntries(emptySlots, [0], T)[0]?.suggestion).toBeNull();
-
+  // 空のスロット集合の場合は検査しない。CookRecommendation.slotIds が NonEmptyArray<string> になり
+  // （verified-wire-contract）、空の推奨は構築できなくなった——実行時に弾く対象ではなく、型で表現不能である。
+  // ワイヤ境界（domain/wire.ts）が非空を確立するため、空の推奨が届く経路も無い。
+  it("現在のプリセットに無い麺種の推奨は提案として成立しない", () => {
     const unknownNoodle = viewWith(
       [order("o-1", 0, T, { noodleType: "Retired" })],
       [recommendation("o-1", 0, ["0"], T)],

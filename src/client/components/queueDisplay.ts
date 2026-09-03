@@ -9,7 +9,6 @@
 import type { PendingOrder } from "../../domain/order";
 import type { NoodlePreset } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
-import { isNonEmpty } from "../../domain/timer";
 import type { ClientView } from "../connection";
 import { correctedNow } from "../clock";
 import { assignedBySlots } from "../assignment";
@@ -64,8 +63,7 @@ export function orderQueueEntries(
   // 担当範囲内の推奨を品目の鍵で引けるよう束ねる。表示は品目単位の事象である。
   const suggested = new Map<string, QueueSuggestion>();
   for (const recommendation of assignedBySlots(view.recommendations, units)) {
-    const slotIds = recommendation.slotIds;
-    if (!isNonEmpty(slotIds)) continue; // ワイヤは非空を型で保証できない。空の提案は提示しない
+    const slotIds = recommendation.slotIds; // 非空はワイヤ境界（domain/wire.ts）が確立済み
     const boilSeconds = boilSecondsOf(view.noodlePresets, recommendation, view.pendingOrders);
     if (boilSeconds === null) continue; // 茹で秒を引けない提案は開始できない＝提案として成立しない
     suggested.set(itemKey(recommendation.externalOrderId, recommendation.itemIndex), {
