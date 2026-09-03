@@ -16,8 +16,8 @@
 // レイアウトの寸法はここでは測れない。happy-dom はレイアウトを計算せず実寸を 0 として返すため、
 // 幅・可触領域の寸法は算術と静的検査、そして実機確認が受ける。
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { OrderRail } from "../../src/client/components/OrderRail";
 import type { QueueEntry, QueueSuggestion } from "../../src/client/components/queueDisplay";
 import { noodleColors } from "../../src/client/components/noodleColor";
@@ -48,6 +48,8 @@ function pendingOrder(overrides: Partial<PendingOrder> = {}): PendingOrder {
     tableId: "12",
     arrivalTime: T,
     slotSpan: 1,
+    itemName: null,
+    sizeName: null,
     ...overrides,
   };
 }
@@ -71,8 +73,8 @@ function nonEmpty(entries: readonly QueueEntry[]): NonEmptyArray<QueueEntry> {
 }
 
 /** 描画する要素。rerender へ同じ形で渡せるよう、要素の組み立てを 1 箇所に置く。 */
-function railElement(entries: readonly QueueEntry[], onStart = vi.fn()) {
-  return <OrderRail entries={nonEmpty(entries)} noodleColor={noodleColor} onStart={onStart} />;
+function railElement(entries: readonly QueueEntry[]) {
+  return <OrderRail entries={nonEmpty(entries)} noodleColor={noodleColor} />;
 }
 
 /** 見出しが示す件数（`Waiting orders (n)` の n）。 */
@@ -124,7 +126,6 @@ describe("レールの構造・DOM 順・件数（R1〜R3）", () => {
  * 実装の写し（getHours / padStart）をテストで再実装せずに済む。
  */
 const SUGGESTED_AT = new Date(2023, 10, 14, 9, 5).getTime();
-const SUGGESTED_WALL_CLOCK = "09:05";
 
 /**
  * 担当範囲内の提案。釜を複数据えるのが既定である——推奨が含む釜を 1 つも落とさないことが主張の要であり、
@@ -134,76 +135,11 @@ function queueSuggestion(overrides: Partial<QueueSuggestion> = {}): QueueSuggest
   return { slotIds: ["2", "4", "6"], startAt: SUGGESTED_AT, boilSeconds: 95, ...overrides };
 }
 
-/**
- * 提案の開始操作の accessible name（支援技術が読む名）。testing-library の name マッチャへ関数を渡し、
- * 計算済みの名をそのまま受け取る——名の計算をテスト側で再実装しない。
- */
-function suggestedStartName(): string {
-  const computed: string[] = [];
-  const buttons = screen.getAllByRole("button", {
-    name: (accessibleName) => {
-      computed.push(accessibleName);
-      return true;
-    },
-  });
-  const [name] = computed;
-  if (buttons.length !== 1 || name === undefined) {
-    throw new Error(`提案のボタンは 1 つだけのはず（実際: ${buttons.length}）`);
-  }
-  return name;
-}
-
-/** 空白を落とした文字列。空白の入り方は名の計算に委ね、語の並びだけを比べるため。 */
-function withoutSpaces(text: string): string {
-  return text.replaceAll(/\s+/g, "");
-}
-
-describe("提案の accessible name と押下時の引数（R4・R8）", () => {
-  it("accessible name が可視テキストそのもので、Suggested・釜の全て・HH:MM を含む", () => {
-    // **Validates: Requirements 5.4, 7.4**
-    const suggestion = queueSuggestion();
-    render(railElement([queueEntry({ suggestion })]));
-
-    const button = screen.getByRole("button");
-    const name = suggestedStartName();
-
-    // 名が可視テキストと同一の語であることを、同一のものであることで示す（aria-label を持たない担保）。
-    // 別に手書きされた名があれば、この等号がまず破れる。
-    expect(withoutSpaces(name)).toBe(withoutSpaces(button.textContent ?? ""));
-
-    expect(name).toContain("Suggested");
-    expect(name).toContain(`Slots ${suggestion.slotIds.join(", ")}`);
-    for (const slotId of suggestion.slotIds) expect(name).toContain(slotId);
-    expect(name).toContain(SUGGESTED_WALL_CLOCK);
-  });
-
-  it("accessible name に命令形の語と自動開始を示唆する語が現れない", () => {
-    // **Validates: Requirements 5.4, 7.4**
-    render(railElement([queueEntry({ suggestion: queueSuggestion() })]));
-
-    const name = suggestedStartName();
-
-    // 機械は開始を指示しない。名に命令形（Start / Go）も自動開始の示唆（Automatic）も置かない。
-    expect(name).not.toMatch(/\b(?:start|go)\b/i);
-    expect(name).not.toMatch(/automatic/i);
-  });
-
-  it("押下で onStart が 1 回呼ばれ、押した行の order と釜の全て・茹で秒を保った suggestion が渡る", () => {
-    // **Validates: Requirements 5.3**
-    const order = pendingOrder({ externalOrderId: "o-42", itemIndex: 2, noodleType: "Flat" });
-    const suggestion = queueSuggestion();
-    const onStart = vi.fn();
-    // 提案なしの行を先に混ぜる。押した行の事実が渡ることを、他の行が並んでいる状態で問う。
-    render(railElement([queueEntry(), queueEntry({ order, suggestion })], onStart));
-
-    fireEvent.click(screen.getByRole("button"));
-
-    // 深い等価で問う。麺種・externalOrderId / itemIndex・slotIds の全て・boilSeconds のいずれかが
-    // 落ちるか書き換わるかすれば、この 1 つの主張が破れる。
-    expect(onStart).toHaveBeenCalledTimes(1);
-    expect(onStart).toHaveBeenCalledWith(order, suggestion);
-  });
-});
+// 提案の accessible name と押下の検査は釜カードへ移った（slot-suggested-start）。守る不変は同じ
+// ——命令形を用いない・自動開始を示唆しない（AC 8.2 / 要件 2.10）——だが、カードの丸ボタンはラベルが
+// 兄弟要素ゆえ aria-label を明示する。「名が可視テキストそのもの」という担保はレールの DOM 構造
+// （可視テキストがボタンの子）に固有であり、カードでは成り立たない。検査は
+// `tests/client/slot-card.example.test.tsx` が担う。
 /**
  * 提案を持つ行と持たない行を混ぜた到着順の並び。麺種を行の見分けに使うため NOODLE_MENU を巡回させ、
  * externalOrderId は行の key を一意に保つために振り分ける（entriesOf と同じ規律）。
@@ -222,19 +158,18 @@ function mixedEntries(...hasSuggestion: readonly boolean[]): readonly QueueEntry
 }
 
 describe("提案なし・卓番なし・全件描画・茹で加減の語（R5〜R7・R9）", () => {
-  it("提案なしの行にボタンが無く、ボタンの総数が提案を持つ行数と一致する", () => {
+  it("レールにボタンが 1 つも無い（開始は釜カードへ移った）", () => {
     // **Validates: Requirements 5.9, 6.9**
     const hasSuggestion = [false, true, false, true, false] as const;
     render(railElement(mixedEntries(...hasSuggestion)));
 
-    // 提案の有無が行ごとにそのまま出る。理由別の表示は持たないため、問えるのは有無だけである。
+    // 提案の有無に関わらず、レールは操作を持たない。提案は釜カードの idle 相に現れる
+    // （slot-suggested-start 判断 1・2：開始できる場所と提案が見える場所を同じ集合にする）。
     const rows = screen.getAllByRole("listitem");
     expect(rows.map((row) => within(row).queryAllByRole("button").length)).toEqual(
-      hasSuggestion.map((withSuggestion) => (withSuggestion ? 1 : 0)),
+      hasSuggestion.map(() => 0),
     );
-    expect(screen.queryAllByRole("button")).toHaveLength(
-      hasSuggestion.filter((withSuggestion) => withSuggestion).length,
-    );
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
   it("提案なしの行も到着順の位置に残る（提案の有無を並びの判断に用いない）", () => {

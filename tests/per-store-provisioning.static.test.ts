@@ -284,10 +284,19 @@ describe("(b) ServerMessage に Roster を表現するフィールドが無い�
       const messageType = match[1];
       if (messageType !== undefined) found.add(messageType);
     }
-    // ClientMessage（start / cancel / complete / adjust）と ServerMessage（snapshot / config / error）の
-    // 全種別。Roster を運ぶ新種別が混入していないことを確認する。
+    // ClientMessage（start / startOrderItem / cancel / complete / adjust）と ServerMessage
+    // （snapshot / config / error）の全種別。Roster を運ぶ新種別が混入していないことを確認する。
     expect(found).toEqual(
-      new Set(["start", "cancel", "complete", "adjust", "snapshot", "config", "error"]),
+      new Set([
+        "start",
+        "startOrderItem",
+        "cancel",
+        "complete",
+        "adjust",
+        "snapshot",
+        "config",
+        "error",
+      ]),
     );
   });
 

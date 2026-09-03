@@ -39,4 +39,4 @@ export const EPSILON_MS = 500 as const;
  *  v8: PendingOrder に slotSpan（占有するスロット幅）、状態に lastSequenceByTerminal（取り込みの重複排除の
  *      判定材料）を追加（POS オーダー取り込み）。前者の欠如は 1、後者の欠如は空で埋める——v7 以前の待ち行列は
  *      現に 1 品目 1 スロットで計画され、取り込み経路が無いため判定材料を持つ端末も無い。 */
-export const CURRENT_SCHEMA_VERSION = 8 as const;
+export const CURRENT_SCHEMA_VERSION = 9 as const;

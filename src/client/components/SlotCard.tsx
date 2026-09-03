@@ -12,6 +12,7 @@ import { remainingParts } from "../format";
 import { cn } from "../cn";
 import type { TimerFact } from "../../domain/timer";
 import type { SlotDisplay } from "./slotDisplay";
+import type { QueueSuggestion } from "./queueDisplay";
 import type { NoodleColor } from "./noodleColor";
 import { PlayIcon, StopIcon, LiftIcon } from "./icons";
 import { FirmnessCornerControl } from "./FirmnessCornerControl";
@@ -39,6 +40,18 @@ interface SlotCardProps {
   readonly noodleColor: NoodleColor;
   /** 走行中の茹で加減変更（boiling のみ）。サーバが endTime を引き直す。 */
   readonly onAdjust: (timerId: string, firmness: Firmness) => void;
+  /**
+   * idle の提案の見え方（`display.next` があるときだけ渡される）。
+   *
+   * ラベルと aria-label は**呼び出し側が組む**。商品名の代替（`itemName ?? noodleType`）・NFKC 正規化・
+   * 時期の整形はいずれも待ち行列と同じ語で書く必要があり、その語を持つのは `SlotBoard` 側である。
+   * カードは受け取った文字列を描くだけにして、表示語彙を二箇所に散らさない。
+   */
+  readonly suggestionOf?:
+    | { readonly label: string; readonly ariaLabel: string; readonly tint: string }
+    | undefined;
+  /** 提案からの開始。押せば即開始する（ラジアルを開かない）。 */
+  readonly onStartSuggested?: ((suggestion: QueueSuggestion) => void) | undefined;
 }
 
 /** 要素の矩形中心（ビューポート座標）を返す。ラジアルの展開中心に使う。 */
@@ -56,9 +69,27 @@ const cardBase = cn(
 );
 
 /** 操作スタック: カード右下に固定。真円ボタン（＋リング）の下に小さなラベルを縦に並べる。 */
-const actionStack = cn(
+const actionStack = cn("flex flex-col items-center gap-[clamp(0.125rem,0.5vh,0.375rem)]");
+
+/**
+ * 操作の並び。カード右下に固定し、`actionStack` を 1 つ以上収める。
+ *
+ * **下端固定が「Start の位置が変わらない」の根拠である**（要件 2.9）。背が伸びるときは上へ伸びるため、
+ * 提案が増えて折り返しても Start は右下に留まる。`justify-end` で右端に寄せ、DOM 順を `[提案, Start]` に
+ * すると、折り返した 1 行目（上）が提案、2 行目（下）が Start になる。
+ *
+ * この配置を相対配置や上端基準へ変えると要件 2.9 が崩れる。丸 2 つが並ぶ幅が無いカード（iPhone 幅）では
+ * `flex-wrap` が折り返しを起こす——TSX に幅の分岐を書かないため、狭幅専用の経路が生まれない。
+ */
+const actionRow = cn(
   "absolute right-[clamp(0.625rem,1.6vw,1.125rem)] bottom-[clamp(0.625rem,1.6vh,1.125rem)]",
-  "flex flex-col items-center gap-[clamp(0.125rem,0.5vh,0.375rem)]",
+  "flex flex-wrap items-end justify-end gap-[clamp(0.25rem,0.8vw,0.5rem)]",
+);
+
+/** 提案のラベル。商品名は省略記号で切らず折り返す（行数を固定しない・要件 5.7）。 */
+const suggestionLabel = cn(
+  "max-w-[min(9rem,60cqi)] text-center text-[clamp(0.5625rem,1.2vh,0.6875rem)]",
+  "leading-tight font-bold break-words text-muted",
 );
 /** 操作エリア: ボタン＋インジケータを収める正方形。全状態で同形にし、帯を常に確保する（boiling か否かで不変）。
  *  寸法はカード幅基準（cqi）。vh 基準だと iPhone の狭いカードに対して過大になり他コントロールと被るため、
@@ -247,6 +278,8 @@ export function SlotCard({
   lastResultNoodle,
   noodleColor,
   onAdjust,
+  suggestionOf,
+  onStartSuggested,
 }: SlotCardProps) {
   const { slot } = display;
   // 茹で加減メニューの開閉（boiling のみ）。展開中は操作ボタンを隠す（衝突回避）。現在の硬さは Timer の事実から読む。
@@ -280,6 +313,8 @@ export function SlotCard({
 
   // 空きスロット。Play ピクトグラムの真円ボタン（他状態と同じ右下位置）でラジアルを開く。直前結果があれば併記。
   if (display.kind === "idle") {
+    // 判別後にローカルへ束ねる（non-null assertion を書かず、型で絞り込んだ値をそのまま使う）。
+    const next = display.next;
     return (
       <article
         aria-label={`Slot ${slot}`}
@@ -298,23 +333,46 @@ export function SlotCard({
             />
           </div>
         )}
-        <div className={actionStack}>
-          <div className={actionSlot}>
-            <button
-              type="button"
-              aria-label={`Slot ${slot} — Start`}
-              onClick={(e: MouseEvent<HTMLButtonElement>) =>
-                onStart(slot, centerOf(e.currentTarget))
-              }
-              className={cn(
-                actionBtn,
-                "bg-[oklch(0.78_0.006_80)] text-[#15120c] hover:brightness-95",
-              )}
-            >
-              <PlayIcon className={actionIcon} />
-            </button>
+        <div className={actionRow}>
+          {display.next !== null &&
+            suggestionOf !== undefined && (
+              // 提案からの開始。押せば即開始（ラジアルを開かない・要件 2.7）。区別は形ではなく塗り
+              // （麺種の色＝identity の既存規約）で付ける。
+              <div className={actionStack}>
+                <div className={actionSlot}>
+                  <button
+                    type="button"
+                    aria-label={suggestionOf.ariaLabel}
+                    onClick={() => {
+                      if (next !== null) onStartSuggested?.(next);
+                    }}
+                    className={cn(actionBtn, "text-[#15120c] hover:brightness-95")}
+                    style={{ backgroundColor: suggestionOf.tint }}
+                  >
+                    <PlayIcon className={actionIcon} />
+                  </button>
+                </div>
+                <span className={suggestionLabel}>{suggestionOf.label}</span>
+              </div>
+            )}
+          <div className={actionStack}>
+            <div className={actionSlot}>
+              <button
+                type="button"
+                aria-label={`Slot ${slot} — Start`}
+                onClick={(e: MouseEvent<HTMLButtonElement>) =>
+                  onStart(slot, centerOf(e.currentTarget))
+                }
+                className={cn(
+                  actionBtn,
+                  "bg-[oklch(0.78_0.006_80)] text-[#15120c] hover:brightness-95",
+                )}
+              >
+                <PlayIcon className={actionIcon} />
+              </button>
+            </div>
+            <span className={actionLabel}>Start</span>
           </div>
-          <span className={actionLabel}>Start</span>
         </div>
       </article>
     );
@@ -458,42 +516,44 @@ export function SlotCard({
 
       {/* 操作スタック：右下に固定。茹で加減メニュー展開中（running）は隠す（衝突回避）。 */}
       {(isBoiled || !firmnessMenuOpen) && (
-        <div className={actionStack}>
-          <div className={actionSlot}>
-            <ProgressRing fraction={ringFraction} stroke={ringStroke} />
-            {isBoiled ? (
-              <button
-                type="button"
-                aria-label="Complete"
-                onClick={() => onComplete(slot, display.timer)}
-                style={{ backgroundColor: tint }}
-                className={cn(actionBtn, "text-[#15120c] hover:brightness-105")}
-              >
-                <LiftIcon className={actionIcon} />
-              </button>
-            ) : (
-              <button
-                ref={cancelBtnRef}
-                type="button"
-                aria-label={cancelArmed ? "Tap again to cancel" : "Cancel"}
-                onClick={onCancelTap}
-                // 幾何（サイズ・位置・円形・進捗リング）は不変。armed のときだけ背景を danger・文字を白の警告表現にする。
-                style={{
-                  backgroundColor: cancelArmed ? "var(--color-danger)" : tint,
-                  color: cancelArmed ? "#fff" : "#15120c",
-                }}
-                className={cn(actionBtn, "hover:brightness-105")}
-              >
-                <StopIcon className={actionIcon} />
-              </button>
-            )}
+        <div className={actionRow}>
+          <div className={actionStack}>
+            <div className={actionSlot}>
+              <ProgressRing fraction={ringFraction} stroke={ringStroke} />
+              {isBoiled ? (
+                <button
+                  type="button"
+                  aria-label="Complete"
+                  onClick={() => onComplete(slot, display.timer)}
+                  style={{ backgroundColor: tint }}
+                  className={cn(actionBtn, "text-[#15120c] hover:brightness-105")}
+                >
+                  <LiftIcon className={actionIcon} />
+                </button>
+              ) : (
+                <button
+                  ref={cancelBtnRef}
+                  type="button"
+                  aria-label={cancelArmed ? "Tap again to cancel" : "Cancel"}
+                  onClick={onCancelTap}
+                  // 幾何（サイズ・位置・円形・進捗リング）は不変。armed のときだけ背景を danger・文字を白の警告表現にする。
+                  style={{
+                    backgroundColor: cancelArmed ? "var(--color-danger)" : tint,
+                    color: cancelArmed ? "#fff" : "#15120c",
+                  }}
+                  className={cn(actionBtn, "hover:brightness-105")}
+                >
+                  <StopIcon className={actionIcon} />
+                </button>
+              )}
+            </div>
+            <span
+              className={actionLabel}
+              style={cancelArmed ? { color: "var(--color-danger)" } : undefined}
+            >
+              {isBoiled ? "Up" : cancelArmed ? "Tap again" : "Cancel"}
+            </span>
           </div>
-          <span
-            className={actionLabel}
-            style={cancelArmed ? { color: "var(--color-danger)" } : undefined}
-          >
-            {isBoiled ? "Up" : cancelArmed ? "Tap again" : "Cancel"}
-          </span>
         </div>
       )}
 

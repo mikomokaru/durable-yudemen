@@ -169,8 +169,11 @@ describe("migrate — v7 → v8", () => {
       externalOrderId: "order-7",
       itemIndex: 1,
     });
-    // v7 の待ち行列は slotSpan を持たない。欠如は 1 スロット占有として読み戻る（当時の実際の挙動に一致する）。
-    expect(result.snapshot.pendingOrders).toEqual([{ ...v7Raw.pendingOrders[0], slotSpan: 1 }]);
+    // v7 の待ち行列は slotSpan / itemName / sizeName を持たない。欠如は 1 スロット占有と「名前なし」として
+    // 読み戻る（当時の実際の挙動に一致する——v7 に商品名の概念が無かったことと、名前が無い状態は同じである）。
+    expect(result.snapshot.pendingOrders).toEqual([
+      { ...v7Raw.pendingOrders[0], slotSpan: 1, itemName: null, sizeName: null },
+    ]);
     expect(result.snapshot.acceptedSlices).toEqual(v7Raw.acceptedSlices);
     expect(result.snapshot.requestedDigest).toBe(123_456);
     // v7 以前は取り込み経路が存在せず、判定材料を持つ端末が無い。空から始めれば最初の Record が必ず受理される。
@@ -230,6 +233,8 @@ describe("migrate — v8 の往復", () => {
     tableId: null,
     arrivalTime: 1_700_000_050_000,
     slotSpan: 2,
+    itemName: null,
+    sizeName: null,
   } as const;
 
   it("v8 で書いた slotSpan と判定材料を読み戻す", () => {

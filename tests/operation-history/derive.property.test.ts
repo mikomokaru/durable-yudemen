@@ -151,7 +151,8 @@ function scenarioFromBlueprint(blueprint: Blueprint): Scenario {
   });
 
   switch (blueprint.eventKind) {
-    case "Start": {
+    case "Start":
+    case "StartOrderItem": {
       const resynchronized = shared.map((seed) =>
         timer(seed, { adjustmentDelta: seed.changeAmount }),
       );

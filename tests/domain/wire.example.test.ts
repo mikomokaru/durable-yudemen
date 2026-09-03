@@ -63,25 +63,39 @@ describe("Feature: verified-wire-contract — ClientMessage は形だけを見�
   });
 });
 
-describe("Feature: verified-wire-contract — 注文品目参照は現行規則を保つ（Order_Item_Rule）", () => {
-  it("両方が揃えば組を成す", () => {
-    const message = toClientMessage(
-      JSON.stringify({ ...START, externalOrderId: "o-1", itemIndex: 2 }),
-    );
-    expect(message).toEqual({ ...START, externalOrderId: "o-1", itemIndex: 2 });
+describe("Feature: slot-suggested-start — 品目を指す開始（startOrderItem）", () => {
+  const ORDER_ITEM = {
+    type: "startOrderItem",
+    slotIds: ["0"],
+    externalOrderId: "o-1",
+    itemIndex: 2,
+  } as const;
+
+  it("3 項目が揃えば通る（麺種・茹で加減・茹で秒は運ばない）", () => {
+    expect(toClientMessage(JSON.stringify(ORDER_ITEM))).toEqual(ORDER_ITEM);
   });
 
-  it("片方だけ・不正な値は組を成さず、start 自体は通る（拒否しない）", () => {
-    // POS を経ないアドホック麺茹では正当な経路である。POS 連携の不具合で片方が欠けても麺は茹でられる。
-    for (const partial of [
-      { externalOrderId: "o-1" },
-      { itemIndex: 2 },
-      { externalOrderId: "", itemIndex: 2 },
-      { externalOrderId: "o-1", itemIndex: -1 },
-      { externalOrderId: "o-1", itemIndex: 1.5 },
+  it("余剰の麺種・茹で秒は落とす（運ばないものを受け取らない）", () => {
+    const withExtra = { ...ORDER_ITEM, noodleType: "Thin", boilSeconds: 60 };
+    expect(toClientMessage(JSON.stringify(withExtra))).toEqual(ORDER_ITEM);
+  });
+
+  it("品目の鍵が欠ける・不正なら Decode_Failure（この種別は品目を指すことが存在理由である）", () => {
+    // start と違い「組を成さずアドホックとして通す」余地が無い——指せない要求は要求として成立しない。
+    for (const broken of [
+      { externalOrderId: undefined },
+      { itemIndex: undefined },
+      { externalOrderId: "" },
+      { itemIndex: -1 },
+      { itemIndex: 1.5 },
     ]) {
-      expect(toClientMessage(JSON.stringify({ ...START, ...partial }))).toEqual(START);
+      expect(toClientMessage(JSON.stringify({ ...ORDER_ITEM, ...broken }))).toBeNull();
     }
+  });
+
+  it("start は品目を指さない（余剰の品目参照は落ちる）", () => {
+    const withItem = { ...START, externalOrderId: "o-1", itemIndex: 2 };
+    expect(toClientMessage(JSON.stringify(withItem))).toEqual(START);
   });
 });
 

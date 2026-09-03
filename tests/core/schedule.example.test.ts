@@ -131,6 +131,8 @@ function pendingItem(input: {
     tableId: input.tableId ?? null,
     arrivalTime: input.arrivalTime ?? NOW,
     slotSpan: input.slotSpan ?? 1,
+    itemName: null,
+    sizeName: null,
   };
 }
 

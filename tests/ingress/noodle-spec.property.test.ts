@@ -184,3 +184,99 @@ function childProductCodes(orderItem: Record<string, unknown>): readonly number[
   }
   return codes;
 }
+
+describe("Feature: slot-suggested-start, Property 8: 名前は判定に用いられない", () => {
+  /** child の商品名だけを差し替える（コードと構造は変えない）。 */
+  function withNames(orderItem: Record<string, unknown>, name: unknown): Record<string, unknown> {
+    const children = orderItem.child_items;
+    if (!Array.isArray(children)) return orderItem;
+    return {
+      ...orderItem,
+      child_items: children.map((child) =>
+        typeof child === "object" && child !== null ? { ...child, item_name: name } : child,
+      ),
+    };
+  }
+
+  it("child の item_name を任意に変えても noodleType / firmness / slotSpan は変わらない", () => {
+    fc.assert(
+      fc.property(
+        genOrderItem,
+        genLookup,
+        fc.oneof(fc.string(), fc.constant(null), fc.constant(undefined), fc.integer()),
+        fc.oneof(fc.string(), fc.constant(null), fc.constant(undefined), fc.integer()),
+        (orderItem, lookup, nameA, nameB) => {
+          const a = toNoodleSpec(withNames(orderItem, nameA), lookup);
+          const b = toNoodleSpec(withNames(orderItem, nameB), lookup);
+          // 判定（茹でるか否か）も翻訳（3 事実）も名前に依らない。名前を意味の判定へ持ち込めば、
+          // 改名がそのまま解釈の変化になる。
+          if (a === null || b === null) {
+            expect(a === null).toBe(b === null);
+            return;
+          }
+          expect({ ...a, sizeName: null }).toEqual({ ...b, sizeName: null });
+        },
+      ),
+      { numRuns: 300 },
+    );
+  });
+
+  it("同一コードで名前が食い違えば sizeName は null（同名の重複は保つ）", () => {
+    const lookup: NoodleLookup = {
+      menuItems: [
+        { productCode: 11_001, noodleType: "Thin", sizes: [{ code: 19_001, slotSpan: 1 }] },
+      ],
+      firmnessCodes: [],
+    };
+    const base = { plu_no: 11_001, item_type: 1, qty: 1 };
+
+    // 同じコード・同じ名前が 2 度：曖昧でないため保つ。
+    const same = toNoodleSpec(
+      {
+        ...base,
+        child_items: [
+          { plu_no: 19_001, item_name: "中盛" },
+          { plu_no: 19_001, item_name: "中盛" },
+        ],
+      },
+      lookup,
+    );
+    expect(same?.sizeName).toBe("中盛");
+
+    // 同じコード・違う名前：位置に依らない結果は「名前を持たない」ただ一つである。
+    const conflicting = [
+      { plu_no: 19_001, item_name: "中盛" },
+      { plu_no: 19_001, item_name: "大盛" },
+    ];
+    expect(toNoodleSpec({ ...base, child_items: conflicting }, lookup)?.sizeName).toBeNull();
+    // 並びを入れ替えても同じ（先勝ち・後勝ちのいずれでもない）。
+    expect(
+      toNoodleSpec({ ...base, child_items: [...conflicting].reverse() }, lookup)?.sizeName,
+    ).toBeNull();
+    // slotSpan の同定は影響を受けない（キー集合は変わらない）。
+    expect(toNoodleSpec({ ...base, child_items: conflicting }, lookup)?.slotSpan).toBe(1);
+  });
+
+  it("欠落・空文字・型違いの item_name は null へ畳む（Pass_Through）", () => {
+    const lookup: NoodleLookup = {
+      menuItems: [
+        { productCode: 11_001, noodleType: "Thin", sizes: [{ code: 19_001, slotSpan: 1 }] },
+      ],
+      firmnessCodes: [],
+    };
+    for (const itemName of [undefined, null, "", 42, {}]) {
+      const spec = toNoodleSpec(
+        {
+          plu_no: 11_001,
+          item_type: 1,
+          qty: 1,
+          child_items: [{ plu_no: 19_001, item_name: itemName }],
+        },
+        lookup,
+      );
+      expect(spec?.sizeName).toBeNull();
+      // 名前が読めないことは茹でない理由にならない。
+      expect(spec?.slotSpan).toBe(1);
+    }
+  });
+});

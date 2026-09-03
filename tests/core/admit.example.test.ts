@@ -63,6 +63,8 @@ function order(externalOrderId: string, noodleType: string, tableId: string): Pe
     tableId,
     arrivalTime: NOW,
     slotSpan: 1,
+    itemName: null,
+    sizeName: null,
   };
 }
 

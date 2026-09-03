@@ -166,6 +166,8 @@ const genPlan: fc.Arbitrary<PlanSeed> = fc
               tableId: tableKey,
               arrivalTime: serveAt - item.waitMillis,
               slotSpan: 1,
+              itemName: null,
+              sizeName: null,
             });
           }
           return {

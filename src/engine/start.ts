@@ -88,8 +88,10 @@ export function validateStart(input: {
  * **注文品目から始まったときは、その品目を待ち行列から除く**（AC 8.4）。`orderItem` は Timer にも写して
  * 「どの品目から始まったか」を残す——生きた Timer を持つ品目が modification の再送で待ち行列へ復活するのを
  * upsertOrder が防ぐための唯一の手掛かりである（engine/timer.ts の Ordered）。
- * **拒否事由は増やさない**（AC 8.3）。推奨と異なる品目・釜・タイミングで開始しても通す。開始済みの品目を
- * 再び開始する要求も拒否しない——推奨の一致を検査しないことと同じ立場で、現場の判断に委ねる。
+ * **アドホック経路（`start`）では拒否事由を増やさない**（AC 8.3）。推奨と異なる釜・タイミングで開始しても通す。
+ * この経路は品目を指さないため「開始済みの品目を再び開始する」という事象自体が起きない。品目を指す開始
+ * （`startOrderItemTimer`）は品目不在を拒否するが、それは推奨との一致を検査するからではなく、麺種を導けない
+ * ——Timer を作る材料が無い——からである。
  */
 export function startTimer(state: TimerState, args: StartEvent, params: SettleParams): Outcome {
   const validated = validateStart(args);
@@ -109,8 +111,6 @@ export function startTimer(state: TimerState, args: StartEvent, params: SettlePa
   // endTime は「操作受信時刻 + 茹で時間」の絶対エポックミリ秒（要件1.2）。startTime は操作受信時刻（事実）。
   // 残り秒・進捗・総時間は持たず、この2つの時刻事実から導出する。
   const endTime = (args.now + validated.boilSeconds * 1000) as EpochMillis;
-  // 省略時はアドホック麺茹で（POS を経ない開始）。null か組かの二値へ先に畳み、以降の分岐を一つに保つ。
-  const orderItem = args.orderItem ?? null;
   const timer = createTimer({
     id: args.newTimerId,
     slotIds: validated.slotIds,
@@ -119,18 +119,95 @@ export function startTimer(state: TimerState, args: StartEvent, params: SettlePa
     startTime: args.now,
     endTime,
     seq: state.nextSeq,
-    orderItem,
+    orderItem: null,
   });
-  // 基底の集合変更（Timer を adjustment=0 で追加し、由来した品目を待ち行列から除く）。
+  // 基底の集合変更（Timer を adjustment=0 で追加する）。待ち行列には触れない——この経路は品目を指さない。
   // 同期・no-op 検出・Effect 列組み立ては settle に委ねる。
   const moved: TimerState = {
     ...state,
     timers: [...state.timers, timer],
     nextSeq: state.nextSeq + 1,
-    pendingOrders:
-      orderItem === null
-        ? state.pendingOrders
-        : consumeOrder(state.pendingOrders, orderItem.externalOrderId, orderItem.itemIndex),
+  };
+  return settle(state, moved, params, args.now, true);
+}
+
+/** 品目を指す開始のイベント（Event の判別共用体から絞り込む・Start と同じ形の取り出し）。 */
+type StartOrderItemEvent = Extract<Event, { type: "StartOrderItem" }>;
+
+/**
+ * 注文品目を指して Timer を作る（slot-suggested-start）。
+ *
+ * `startTimer` と一つに畳まない。あちらは client が主張した麺種と茹で秒を**検証して使う**、こちらは
+ * server が持つ事実から**導く**。畳めば引数で「導くか使うか」を切り替える分岐が生まれ、どちらの義務なのか
+ * 読めなくなる。共有するのは末尾——`validateStart` / MAX_TIMERS の検査 / `createTimer` / `consumeOrder` /
+ * `settle` はいずれも既存のまま呼ぶ。Effect 列が既存 `start` と同一になるのはこの共有の帰結である。
+ *
+ * 釜の占有・推奨との一致・`slotIds` の数と `slotSpan` の一致は検査しない（AC 8.3）。提案からの重畳は
+ * 「押す場所が idle にしかない」ことで client 側の構造が防ぐ。
+ */
+export function startOrderItemTimer(
+  state: TimerState,
+  args: StartOrderItemEvent,
+  params: SettleParams,
+): Outcome {
+  // 品目が待ち行列に無ければ麺種を導けない。他端末が直前に開始した場合に起こりうる正常な競合である。
+  const item = state.pendingOrders.find(
+    (order) => order.externalOrderId === args.externalOrderId && order.itemIndex === args.itemIndex,
+  );
+  if (item === undefined) {
+    return {
+      ok: false,
+      rejection: {
+        code: "OrderItemNotFound",
+        message: `指定された品目は待ち行列に無い: ${args.externalOrderId}#${args.itemIndex}`,
+      },
+    };
+  }
+  // 茹で秒は noodleType × firmness からの導出値。client は送らない（送れば二つの真実になる）。
+  const preset = params.noodlePresets.find((p) => p.noodleType === item.noodleType);
+  if (preset === undefined) {
+    return {
+      ok: false,
+      rejection: {
+        code: "InvalidSlotOrNoodle",
+        message: `店舗設定に該当する麺種がない: ${item.noodleType}`,
+      },
+    };
+  }
+  const validated = validateStart({
+    slotIds: args.slotIds,
+    noodleType: item.noodleType,
+    boilSeconds: preset.boilSeconds[item.firmness],
+  });
+  if (!validated.ok) {
+    return { ok: false, rejection: validated.rejection };
+  }
+  if (state.timers.length >= MAX_TIMERS) {
+    return {
+      ok: false,
+      rejection: {
+        code: "CapacityExceeded",
+        message: `走行中の Timer は最大 ${MAX_TIMERS} 件`,
+      },
+    };
+  }
+  const endTime = (args.now + validated.boilSeconds * 1000) as EpochMillis;
+  const timer = createTimer({
+    id: args.newTimerId,
+    slotIds: validated.slotIds,
+    noodleType: validated.noodleType,
+    // 茹で加減は品目の事実をそのまま写す（既定へ畳まない——畳めば伝票の指定が消える）。
+    firmness: item.firmness,
+    startTime: args.now,
+    endTime,
+    seq: state.nextSeq,
+    orderItem: { externalOrderId: args.externalOrderId, itemIndex: args.itemIndex },
+  });
+  const moved: TimerState = {
+    ...state,
+    timers: [...state.timers, timer],
+    nextSeq: state.nextSeq + 1,
+    pendingOrders: consumeOrder(state.pendingOrders, args.externalOrderId, args.itemIndex),
   };
   return settle(state, moved, params, args.now, true);
 }

@@ -9,7 +9,11 @@ export type Rejection =
   | { readonly code: "InvalidBoilSeconds"; readonly message: string } // 要件1.5
   | { readonly code: "InvalidSlotOrNoodle"; readonly message: string } // 要件1.5
   | { readonly code: "CapacityExceeded"; readonly message: string } // 要件3.8
-  | { readonly code: "TimerNotFound"; readonly message: string }; // 要件6.6
+  | { readonly code: "TimerNotFound"; readonly message: string } // 要件6.6
+  // 指した品目が待ち行列に無い（slot-suggested-start）。麺種を導けないため Timer を作れない。
+  // AC 8.3「推奨との不一致を理由に拒否しない」の例外ではなく別の事実である——同 AC が守るのは現場の
+  // 選択であり、他端末が直前に開始した品目の二重調理ではない。
+  | { readonly code: "OrderItemNotFound"; readonly message: string };
 
 /** shell 側で扱う、core の外側の失敗（永続・スキーマに由来する）。 */
 export type ShellFailure =

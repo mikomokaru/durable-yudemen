@@ -39,3 +39,31 @@ export function isNonEmptyString(value: unknown): value is string {
 export function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
+
+/**
+ * 申告された名前 1 つを確立する。通れば `{ name }`、通らなければ `null`。
+ *
+ * 欠落・`null` は「名前が無い」（`{ name: null }`）。非空文字列はその値。空文字と文字列以外は関門を通さない
+ * ——空文字は「名前がある」と「無い」を区別できなくし、文字列以外は申告の形をしていない。
+ *
+ * **戻り値に `ok` を置かない。** `null` でないことが「通った」の全てであり、常に `true` の項目は情報を持たない。
+ * 呼び出し側は受けてから書く——キー名（`tableId` / `itemName` / `sizeName`）が項目ごとに違うため、スプレッドで
+ * 載せる形は使えない。
+ *
+ * ```
+ * const item = toDeclaredName(record.itemName);
+ * if (item === null) return null;
+ * // … itemName: item.name
+ * ```
+ *
+ * 処置は呼び出し側の義務に従って分かれる。取り込み（POS_Ingress）は Pass_Through ゆえ `?? null` で畳み、
+ * ワイヤ復号は Decode_Failure として `null` を伝播させる。同じ述語が両方に使えるのは、判定と処置を
+ * 分けているからである。
+ *
+ * `readDeclaredText`（`src/ingress/declared-text.ts`）とは別物である。あちらは Unique_Key の 4 要素専用の
+ * 「読めなければ毒」の境界で、こちらは「読めなければ名前なし」である。
+ */
+export function toDeclaredName(value: unknown): { readonly name: string | null } | null {
+  if (value === undefined || value === null) return { name: null };
+  return isNonEmptyString(value) ? { name: value } : null;
+}

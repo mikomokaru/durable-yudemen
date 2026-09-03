@@ -66,6 +66,8 @@ function toArrival(spec: OrderSpec, externalOrderId: string): NonEmptyArray<Pend
       arrivalTime: spec.arrivalTime,
       // 本 spec は割り当ての算術を変えず 1 品目 1 スロットで計画する。ゆえに場面も占有幅 1 で組む。
       slotSpan: 1,
+      itemName: null,
+      sizeName: null,
     })),
   );
 }
@@ -111,7 +113,6 @@ function genEventFor(
             noodleType: KNOWN_NOODLE_TYPES[0]!,
             boilSeconds: start.boilSeconds,
             newTimerId: `nid-${start.newTimerId}` as TimerId,
-            orderItem: start.orderItem,
             now,
           }) satisfies Event,
       ),

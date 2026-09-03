@@ -14,7 +14,7 @@
 //      Ordered.orderItem（{ externalOrderId; itemIndex }）で、その紐づけは domain へは露出しない。
 
 import { isFirmness, type Firmness } from "./firmness";
-import { isNonEmptyString, isNonNegativeInteger, isRecord } from "./predicate";
+import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";
 import { isNonEmpty, type NonEmptyArray } from "./timer";
 import { SLOT_SPAN_MAX, SLOT_SPAN_MIN, type NoodlePreset } from "./store";
 
@@ -46,6 +46,19 @@ export interface PendingOrder {
    * 「要求」と「割当」の関係で別概念ゆえ、被せず別の名で立てる。
    */
   readonly slotSpan: number;
+  /**
+   * POS が申告した親品目の商品名。伝票に印字される文字列そのもの。
+   *
+   * 設定（StoreConfig.menuItems）に名前表を設けず申告値を持つのは、伝票の文字列と釜の画面の文字列を同じ
+   * 出所にするためである。表を別に持てば投入漏れと改名のズレが起きる。**正規化しない**——半角カナ等の
+   * 整形は表示時の導出であり、保存は事実のままとする。
+   *
+   * 欠落・空文字・型違いは null（Pass_Through）。null は「POS が名前を送っていない」という正常な入力で、
+   * 表示は noodleType で代替する。
+   */
+  readonly itemName: string | null;
+  /** POS が申告した麺量 child の商品名。slotSpan を決めた child と同じ同定結果から取る。欠落は null。 */
+  readonly sizeName: string | null;
 }
 /**
  * Order_Ingress が受けた到着の生値（品目の配列）を PendingOrder 列へ写す純粋関数。
@@ -101,13 +114,9 @@ function toPendingOrder(
   if (!isFirmness(candidate.firmness)) return null;
   // tableId は「無い」ことに意味がある（卓に紐づかない持ち帰りは単独グループ）。欠落・null は null へ正規化し、
   // 文字列以外と空文字は型違反として拒否する——空の卓 id を通すと、卓なしの品目が一つの卓へ黙って束ねられる。
-  if (
-    candidate.tableId !== undefined &&
-    candidate.tableId !== null &&
-    (typeof candidate.tableId !== "string" || candidate.tableId.length === 0)
-  ) {
-    return null;
-  }
+  // 判定は toDeclaredName ただ一つに閉じる（同じ形の関門を項目ごとに書かない）。
+  const tableId = toDeclaredName(candidate.tableId);
+  if (tableId === null) return null;
   const slotSpan = toSlotSpan(candidate.slotSpan);
   if (slotSpan === null) return null;
   // 余剰フィールドを落として正規化する（外部の混ぜ物を待ち行列の正本へ持ち込まない）。
@@ -116,7 +125,11 @@ function toPendingOrder(
     itemIndex: candidate.itemIndex,
     noodleType: candidate.noodleType,
     firmness: candidate.firmness,
-    tableId: typeof candidate.tableId === "string" ? candidate.tableId : null,
+    tableId: tableId.name,
+    // 商品名は素通しする（AC 4.3）。欠落・空文字・型違いは null へ畳み、Record も品目も拒否しない
+    // ——名前は麺を茹でる判断に要らず、読めないことを拒否事由にすれば伝票が現場へ届かなくなる。
+    itemName: toDeclaredName(candidate.itemName)?.name ?? null,
+    sizeName: toDeclaredName(candidate.sizeName)?.name ?? null,
     arrivalTime,
     slotSpan,
   };

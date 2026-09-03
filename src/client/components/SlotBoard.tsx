@@ -12,10 +12,13 @@
 // 記録ロジックを decideView 側へ寄せたことで、自端末完了・リモート完了の双方で残滓が出る（表示は導出のみ）。
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import type { TimerConnection } from "../connection";
+import type { ClientView, TimerConnection } from "../connection";
+import { correctedNow } from "../clock";
+import { formatRemaining } from "../format";
+import { FIRMNESS_LABEL } from "./firmness";
 import { isNonEmpty } from "../../domain/timer";
 import { assignedSlotDisplays } from "./slotDisplay";
-import { orderQueueEntries } from "./queueDisplay";
+import { orderQueueEntries, type QueueEntry, type QueueSuggestion } from "./queueDisplay";
 import { SlotCard } from "./SlotCard";
 import { OrderRail } from "./OrderRail";
 import { RadialMenu } from "./RadialMenu";
@@ -64,11 +67,12 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   }, []);
   // 現在時刻は端のここで一度だけ読み、純粋導出（slotDisplay）へ引数で渡す。
   const now = Date.now();
-  // 保持は全量・表示は導出。担当外スロットはここで構造的に除外される（要件12.2）。
-  const displays = assignedSlotDisplays(view, units, now);
-  // 待ち行列も同じ規律で毎描画導出する（到着順の並び・待ち時間・担当範囲内の提案）。
+  // 待ち行列を先に導出する。釜カードの提案（idle の next）はこの結果から選ぶため、1 描画で一度だけ導く
+  // ——同じものを二度導出すれば、担当範囲の絞り込みと茹で秒の引き当てが二箇所で語られる。
   // 件数は絞らない——計画対象の上限を超える分も並び、提案が付かないだけである。
   const queue = orderQueueEntries(view, units, now);
+  // 保持は全量・表示は導出。担当外スロットはここで構造的に除外される（要件12.2）。
+  const displays = assignedSlotDisplays(view, units, now, queue);
   // レールを描くかは 1 箇所でだけ判定する。非空なら型が NonEmptyArray<QueueEntry> へ絞られ、
   // そのまま OrderRail の props を満たす（0 件のレールは構築不能）。
   const waiting = isNonEmpty(queue) ? queue : null;
@@ -100,21 +104,7 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
           gap は置かない——区切りはレール側の pr と border-r が作り、釜カードの幅を 1px も削らない。 */}
       <div className="flex min-h-0 flex-1">
         {/* 待ち行列と提案のレール。未着手オーダーが無い店（POS 連携前）では描かれず、盤面は従来のままになる。 */}
-        {waiting !== null && (
-          <OrderRail
-            entries={waiting}
-            noodleColor={colorOf}
-            onStart={(order, suggestion) => {
-              // 提案から開始する経路。注文品目を添えてサーバに待ち行列から除く手がかりを渡す（AC 8.3 / 8.4）。
-              // 提案と異なる開始（スロットのラジアル）は従来どおり注文品目を持たずに通る。
-              connection.start(suggestion.slotIds, order.noodleType, suggestion.boilSeconds, {
-                externalOrderId: order.externalOrderId,
-                itemIndex: order.itemIndex,
-              });
-              playTouchCue();
-            }}
-          />
-        )}
+        {waiting !== null && <OrderRail entries={waiting} noodleColor={colorOf} />}
         {/* ユニットごとに 2col×3row のブロックを作り、ユニットを横並び（縦画面=1ユニットは単独ブロック、
             横画面=2ユニットは左右に並ぶ）。外枠 grid-flow-col + auto-cols-fr が各ユニットを等幅の列にする。
             左 padding を持たない。Board_Area の幅の変化はこの flex-1 が吸収する（JS で寸法を測らない）。 */}
@@ -142,6 +132,19 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
                       <SlotCard
                         key={display.slot}
                         display={display}
+                        suggestionOf={
+                          display.kind === "idle" && display.next !== null
+                            ? suggestionOf(display.next, display.slot, queue, colorOf, now, view)
+                            : undefined
+                        }
+                        onStartSuggested={(suggestion) => {
+                          // 品目を指して開始する。麺種・茹で加減・茹で秒は送らない——サーバが待ち行列の
+                          // 当該品目と noodlePresets から導く（slot-suggested-start 判断 6）。
+                          const item = itemOf(suggestion, queue);
+                          if (item === undefined) return;
+                          connection.startOrderItem(suggestion.slotIds, item);
+                          playTouchCue();
+                        }}
                         onStart={(slot, center) => {
                           // Start ボタン押下（ラジアルを開く操作）にも Touch_Cue を相乗りさせる。開く動作は変えない
                           // （best-effort・no-op しうる・要件1.1/1.4/1.5）。麺選択確定時にも別途鳴る（タップごとの反応）。
@@ -189,4 +192,57 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
       />
     </>
   );
+}
+
+/**
+ * 提案が指す品目を待ち行列から引く。
+ *
+ * 提案（`QueueSuggestion`）は釜と時刻と茹で秒だけを持ち、品目の鍵を持たない——鍵で引ける形にすると
+ * 同じ鍵が提案と行の二箇所に現れる。ここでは同一性を「同じ提案オブジェクトである」ことで判定し、
+ * 行から鍵を取る。導出の向きは常に「行 → 提案」であり、逆流させない。
+ */
+function itemOf(
+  suggestion: QueueSuggestion,
+  queue: readonly QueueEntry[],
+): { readonly externalOrderId: string; readonly itemIndex: number } | undefined {
+  const entry = queue.find((candidate) => candidate.suggestion === suggestion);
+  return entry === undefined
+    ? undefined
+    : { externalOrderId: entry.order.externalOrderId, itemIndex: entry.order.itemIndex };
+}
+
+/**
+ * 提案の見え方（ラベル・aria-label・塗り）を組む。
+ *
+ * 表示語彙をここに集める。商品名の代替（`itemName ?? noodleType`）・NFKC 正規化・時期の整形はレールと
+ * 同じ語で書く必要があり、カードへ散らすと二つの真実になる。カードは受け取った文字列を描くだけである。
+ *
+ * 固定文言は英語（`now` / `in m:ss` / `Table {n}`）。#24 がレールの固定文言を英語に固定し、カードの操作
+ * ラベルも `Start` / `Cancel` / `Complete` である——調理母語は硬さだけが `FIRMNESS_LABEL` 経由で入る。
+ */
+function suggestionOf(
+  suggestion: QueueSuggestion,
+  slot: number,
+  queue: readonly QueueEntry[],
+  colorOf: (noodleType: string) => string,
+  now: number,
+  view: ClientView,
+): { readonly label: string; readonly ariaLabel: string; readonly tint: string } | undefined {
+  const entry = queue.find((candidate) => candidate.suggestion === suggestion);
+  if (entry === undefined) return undefined;
+  const { order } = entry;
+  const name = (order.itemName ?? order.noodleType).normalize("NFKC");
+  const size = order.sizeName?.normalize("NFKC");
+  const firmness = FIRMNESS_LABEL[order.firmness];
+  const table = order.tableId === null ? undefined : `Table ${order.tableId}`;
+  // 時期は startAt（事実）と補正後現在時刻からの導出。壁時計は用いない（要件 2.5）。
+  const remaining = suggestion.startAt - correctedNow(view.offset, now);
+  const timing = remaining <= 0 ? "now" : `in ${formatRemaining(remaining)}`;
+  const parts = [size === undefined ? name : `${name} ${size}`, firmness, table, timing];
+  return {
+    label: parts.filter((part) => part !== undefined).join(" · "),
+    // 命令形を用いない（AC 8.2）。提案であること・品目・釜・時期をこの順で語る。
+    ariaLabel: `Suggested — ${name} · Slot ${slot} · ${timing}`,
+    tint: colorOf(order.noodleType),
+  };
 }

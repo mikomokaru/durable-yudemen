@@ -172,6 +172,8 @@ function stale(
       tableId,
       arrivalTime: NOW,
       slotSpan: 1,
+      itemName: null,
+      sizeName: null,
     },
   ];
 }
