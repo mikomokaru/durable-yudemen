@@ -7,7 +7,21 @@ import type { OperationRecord } from "./record";
 export interface OperationObservation {
   readonly storeId: string;
   readonly eventTime: number;
-  readonly eventKind: "Start" | "Adjust" | "Complete" | "Cancel" | "AlarmFired" | "Reconcile";
+  /**
+   * 観測した遷移の種別。
+   *
+   * `StartOrderItem`（品目からの開始）は `Start` と同じ「新しい Timer が立つ」事象であり、導出も同じ
+   * （`boil-started`）。記録の側で二つを分けない——操作履歴が見るのは Timer が立った事実で、その要求が
+   * 麺種を主張したか品目を指したかは開始の経路の違いにすぎない。
+   */
+  readonly eventKind:
+    | "Start"
+    | "StartOrderItem"
+    | "Adjust"
+    | "Complete"
+    | "Cancel"
+    | "AlarmFired"
+    | "Reconcile";
   readonly before: TimerState;
   readonly after: TimerState;
 }
@@ -62,6 +76,7 @@ export function recordsFromCommittedDiff(
 
   switch (eventKind) {
     case "Start":
+    case "StartOrderItem":
       return afterTimers
         .filter(({ fact }) => !beforeById.has(fact.id))
         .map(({ fact }): OperationRecord => ({

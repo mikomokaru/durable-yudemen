@@ -9,7 +9,7 @@ import type { TimerState } from "./state";
 import type { Event } from "./event";
 import type { Outcome } from "./effect";
 import type { SettleParams } from "./settle";
-import { startTimer } from "./start";
+import { startOrderItemTimer, startTimer } from "./start";
 import { cancelTimer } from "./cancel";
 import { completeTimer } from "./complete";
 import { adjustTimer } from "./adjust";
@@ -35,6 +35,8 @@ export function decide(state: TimerState, event: Event, params: SettleParams): O
   switch (event.type) {
     case "Start":
       return startTimer(state, event, params);
+    case "StartOrderItem":
+      return startOrderItemTimer(state, event, params);
     case "Cancel":
       return cancelTimer(state, event.timerId, event.now, params);
     case "Complete":

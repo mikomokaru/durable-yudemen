@@ -69,8 +69,8 @@ describe("ingress/noodle-spec — 麺量の有無が茹で対象を決める", (
     const specs = orderItems.map((orderItem) => toNoodleSpec(orderItem, lookup));
 
     expect(specs).toEqual([
-      { noodleType: "Medium", firmness: "hard", slotSpan: 1 },
-      { noodleType: "Thin", firmness: "normal", slotSpan: 1 },
+      { noodleType: "Medium", firmness: "hard", slotSpan: 1, sizeName: null },
+      { noodleType: "Thin", firmness: "normal", slotSpan: 1, sizeName: null },
       null,
       null,
       null,
@@ -83,7 +83,7 @@ describe("ingress/noodle-spec — 麺量の有無が茹で対象を決める", (
       { plu_no: 11_421, child_items: [{ plu_no: 19_603 }, { plu_no: 10_011 }] },
       lookup,
     );
-    expect(spec).toEqual({ noodleType: "Medium", firmness: "normal", slotSpan: 2 });
+    expect(spec).toEqual({ noodleType: "Medium", firmness: "normal", slotSpan: 2, sizeName: null });
   });
 });
 
@@ -98,7 +98,12 @@ describe("ingress/noodle-spec — 判定が依らないもの", () => {
       lookup,
     );
     expect(reversed).toEqual(forward);
-    expect(forward).toEqual({ noodleType: "Medium", firmness: "hard", slotSpan: 2 });
+    expect(forward).toEqual({
+      noodleType: "Medium",
+      firmness: "hard",
+      slotSpan: 2,
+      sizeName: null,
+    });
   });
 
   it("s_class_code の値に依らない（軸の識別は商品コードで行う・AC 6.20）", () => {
@@ -120,7 +125,7 @@ describe("ingress/noodle-spec — 判定が依らないもの", () => {
 
   it("item_type を変えても結果が変わらない（AC 6.23）", () => {
     const child_items = [{ plu_no: 19_401 }, { plu_no: 10_010 }];
-    const expected = { noodleType: "Medium", firmness: "hard", slotSpan: 1 };
+    const expected = { noodleType: "Medium", firmness: "hard", slotSpan: 1, sizeName: null };
     for (const item_type of [0, 1, 2, 9]) {
       expect(toNoodleSpec({ plu_no: 11_421, item_type, child_items }, lookup)).toEqual(expected);
     }
@@ -176,7 +181,7 @@ describe("ingress/noodle-spec — 硬さの既定と空の対応表", () => {
       { plu_no: 11_421, child_items: [{ plu_no: 19_401 }, { plu_no: 10_010 }] },
       withoutFirmnessTable,
     );
-    expect(spec).toEqual({ noodleType: "Medium", firmness: "normal", slotSpan: 1 });
+    expect(spec).toEqual({ noodleType: "Medium", firmness: "normal", slotSpan: 1, sizeName: null });
   });
 });
 

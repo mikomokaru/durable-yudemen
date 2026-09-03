@@ -18,7 +18,7 @@
 
 import type { PendingOrder } from "../../domain/order";
 import type { NonEmptyArray } from "../../domain/timer";
-import type { QueueEntry, QueueSuggestion } from "./queueDisplay";
+import type { QueueEntry } from "./queueDisplay";
 import type { NoodleColor } from "./noodleColor";
 import { FIRMNESS_LABEL } from "./firmness";
 import { formatRemaining } from "../format";
@@ -30,17 +30,10 @@ interface OrderRailProps {
   /** noodleType → 前景色の resolver（スロットカードと同一の割り当てを共有する）。 */
   readonly noodleColor: NoodleColor;
   /** 提案から開始する（提案が揃った行だけがこの口を持つ）。 */
-  readonly onStart: (order: PendingOrder, suggestion: QueueSuggestion) => void;
-}
-
-/** 絶対時刻を端末のローカル壁時計 HH:MM へ写す。提案開始時刻の提示専用（過去時刻もそのまま出す）。 */
-function wallClock(epochMillis: number): string {
-  const at = new Date(epochMillis);
-  return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
 }
 
 /** 待ち行列と提案の縦レール。盤面の左端に立ち、区切りは自身の右 padding と border が作る。 */
-export function OrderRail({ entries, noodleColor, onStart }: OrderRailProps) {
+export function OrderRail({ entries, noodleColor }: OrderRailProps) {
   return (
     <section
       aria-label="Waiting orders"
@@ -64,7 +57,6 @@ export function OrderRail({ entries, noodleColor, onStart }: OrderRailProps) {
             key={`${entry.order.externalOrderId}-${entry.order.itemIndex}`}
             entry={entry}
             noodleColor={noodleColor}
-            onStart={onStart}
           />
         ))}
       </ul>
@@ -73,16 +65,26 @@ export function OrderRail({ entries, noodleColor, onStart }: OrderRailProps) {
 }
 
 /** 待ち行列 1 行。麺種・卓・待ち時間の事実を示し、提案がある行にだけ開始の口を添える。 */
+/**
+ * 行に出す名前。POS 申告の商品名を優先し、無ければ麺種名で代替する（要件 5.3）。
+ *
+ * 表示のたびに NFKC 正規化する——半角カナ（`"ﾈｷﾞ丼"`）を全角へ寄せるのは表示の関心事であり、永続値は
+ * 申告のままである（要件 4.5 / 5.5）。麺量名があれば添える（無ければ省く・要件 5.4）。
+ */
+function displayName(order: PendingOrder): string {
+  const name = (order.itemName ?? order.noodleType).normalize("NFKC");
+  const size = order.sizeName?.normalize("NFKC");
+  return size === undefined ? name : `${name} ${size}`;
+}
+
 function OrderRow({
   entry,
   noodleColor,
-  onStart,
 }: {
   readonly entry: QueueEntry;
   readonly noodleColor: NoodleColor;
-  readonly onStart: (order: PendingOrder, suggestion: QueueSuggestion) => void;
 }) {
-  const { order, suggestion } = entry;
+  const { order } = entry;
   return (
     <li
       className={cn(
@@ -96,7 +98,7 @@ function OrderRow({
         className="truncate text-sm leading-tight font-bold"
         style={{ color: noodleColor(order.noodleType) }}
       >
-        {order.noodleType}
+        {displayName(order)}
       </span>
       {/* 左群（茹で加減 + 卓番）と待ち時間を justify-between で両端へ固定する。左寄せの連結では
           卓番が消えたときに待ち時間が左へずれる——両端固定なら動くのは左群の内側だけで、
@@ -110,28 +112,6 @@ function OrderRow({
         </span>
         <span className="flex-none tabular-nums">{formatRemaining(entry.waitingMs)}</span>
       </span>
-      {/* 提案の開始操作。aria-label を持たない——支援技術へ渡す名前は 3 行の可視テキストから
-          計算される。可視表示と AT 名が同一の語であることを、同一のものであることで保証する。
-          横並び（アイコン + 1 行）は幅 73px の欄に収まらないため、3 行に積む。釜の行に truncate を
-          置かないのは、推奨が含む釜番号を 1 つも落とさないためで、区切りの ", " の空白が折り返し
-          機会になる。 */}
-      {suggestion !== null && (
-        <button
-          type="button"
-          onClick={() => onStart(order, suggestion)}
-          className={cn(
-            "mt-[0.25rem] flex min-h-[2.75rem] w-full cursor-pointer flex-col items-start",
-            "rounded-[0.5rem] border border-line bg-panel px-1.5 py-1 text-left leading-tight text-ink",
-            "hover:border-muted active:scale-95",
-          )}
-        >
-          <span className="text-[0.6875rem] font-bold text-muted">Suggested</span>
-          <span className="text-[0.6875rem] font-bold tabular-nums">
-            {`${suggestion.slotIds.length === 1 ? "Slot" : "Slots"} ${suggestion.slotIds.join(", ")}`}
-          </span>
-          <span className="text-xs font-bold tabular-nums">{wallClock(suggestion.startAt)}</span>
-        </button>
-      )}
     </li>
   );
 }

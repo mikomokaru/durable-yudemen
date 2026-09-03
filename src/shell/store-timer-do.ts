@@ -15,6 +15,7 @@ import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
 import { REJECTION_CLOSE_CODE } from "../transport/rejection";
 import type { ServerMessage } from "../domain/messages";
 import { toClientMessage, toDecodeFailureLine } from "../domain/wire";
+import { toDeclaredName } from "../domain/predicate";
 import { toPendingOrders, type PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { StoreConfig, NoodlePreset, FirmnessCode, MenuItem } from "../domain/store";
@@ -252,6 +253,10 @@ function toReceivedOrders(
           // 券売機の時計に依存する申告値である（AC 8.1〜8.4）。
           arrivalTime: record.arrivalTimestampMs,
           slotSpan: spec.slotSpan,
+          // 商品名は POS 申告値をそのまま持つ（正規化は表示時の導出）。親は素通しで読み、麺量は
+          // slotSpan を決めた同定結果から取る（noodle-spec が同じ 1 度の同定から返す）。
+          itemName: toDeclaredName((rawItem as Record<string, unknown>).item_name)?.name ?? null,
+          sizeName: spec.sizeName,
         });
       }
     }
@@ -1041,18 +1046,22 @@ export class StoreTimerDO extends DurableObject<Env> {
             noodleType: command.noodleType,
             boilSeconds: command.boilSeconds,
             newTimerId: crypto.randomUUID() as TimerId,
-            // 推奨からの開始は組を伴い、engine 側で consumeOrder を踏む（AC 8.4）。組が無ければ
-            // アドホック麺茹でで、待ち行列には触れない。組を成すか否かの判定は Decoder が済ませて
-            // おり、ここは平坦な 2 フィールドを組へ写すだけである（両方が在るか、どちらも無いか）。
-            orderItem:
-              command.externalOrderId !== undefined && command.itemIndex !== undefined
-                ? { externalOrderId: command.externalOrderId, itemIndex: command.itemIndex }
-                : null,
             now,
           }
-        : command.type === "cancel"
-          ? { type: "Cancel" as const, timerId: command.timerId, now }
-          : { type: "Complete" as const, timerId: command.timerId, now };
+        : command.type === "startOrderItem"
+          ? {
+              // 品目を指す開始。麺種・茹で加減・茹で秒は運ばれず、engine が pendingOrders と
+              // noodlePresets から導く（slot-suggested-start 判断 6）。
+              type: "StartOrderItem" as const,
+              slotIds: command.slotIds,
+              externalOrderId: command.externalOrderId,
+              itemIndex: command.itemIndex,
+              newTimerId: crypto.randomUUID() as TimerId,
+              now,
+            }
+          : command.type === "cancel"
+            ? { type: "Cancel" as const, timerId: command.timerId, now }
+            : { type: "Complete" as const, timerId: command.timerId, now };
 
     // 同期・採点のパラメータは settleParams が一箇所で組む（投影 config から確立した確定値を注入する）。
     const before = this.workingCopy;

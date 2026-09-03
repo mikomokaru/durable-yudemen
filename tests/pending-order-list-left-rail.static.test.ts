@@ -471,14 +471,19 @@ describe("S8 アニメーションを足さない（要件7.5）", () => {
 // ── S9: 提案の可触寸法に下限がある（要件5.1） ─────────────────────────────────
 
 describe("S9 提案の可触領域に下限がある（要件5.1）", () => {
-  it("OrderRail.tsx に min-h-[2.75rem] が現れる", () => {
-    // 濡れた手・急ぎの手で狙いを外せば、間違った釜が動く。3 行に積んだ実高は 50.5px で 44px を上回るが、
-    // それは字寸と行間の積に過ぎない——下限そのものを 1 つのクラスで表明しておけば、行数や字寸を触った
-    // ときに高さが 44px を割らない。幅は w-full が行の内容幅（87〜92px）を占めるため、算術で足りる。
+  it("提案の操作は SlotCard の actionSlot（正方・下限 3.5rem）を用いる", () => {
+    // 提案の開始操作は釜カードへ移った（slot-suggested-start）。守る不変は同じ——濡れた手・急ぎの手で
+    // 狙いを外せば間違った釜が動くため、可触領域に下限が要る。見る場所を操作の現住所へ合わせる。
+    //
+    // カードでは `actionSlot`（`aspect-square` かつ `h-[clamp(3.5rem,39cqi,7.875rem)]`）が下限 3.5rem＝56px
+    // を保証し、44px を上回る。Start と同じ枠を使うことが下限の表明そのものである——寸法を別に書けば
+    // 二つの真実になり、片方だけ縮む余地が生まれる。
+    const card = readCodeWithStrings("src/client/components/SlotCard.tsx");
+    expect(card, "actionSlot の下限が 3.5rem でない").toContain("h-[clamp(3.5rem,39cqi,7.875rem)]");
     expect(
       readCodeWithStrings(ORDER_RAIL_FILE),
-      "min-h-[2.75rem] が無い（提案の可触高さの下限が表明されていない）",
-    ).toContain("min-h-[2.75rem]");
+      "レールに提案の操作が残っている（開始はカードへ移った）",
+    ).not.toContain("min-h-[2.75rem]");
   });
 });
 

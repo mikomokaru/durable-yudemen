@@ -19,11 +19,12 @@ type Assert<T extends true> = T;
 type RecordsReceivedEvent = Extract<Event, { readonly type: "RecordsReceived" }>;
 
 type ReceivedShapeAssertions = [
-  // 足したのはイベント 1 種のみ（既存の 9 種は動かさない）。網羅が破れれば decide の switch も型で落ちる。
+  // イベント種別の網羅。slot-suggested-start が StartOrderItem を足した（既存は動かさない）。
   Assert<
     Equal<
       Event["type"],
       | "Start"
+      | "StartOrderItem"
       | "Cancel"
       | "Complete"
       | "Adjust"

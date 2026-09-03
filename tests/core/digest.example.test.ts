@@ -59,6 +59,8 @@ function order(externalOrderId: string, itemIndex: number, arrivalTime: number):
     tableId: "t-1",
     arrivalTime,
     slotSpan: 1,
+    itemName: null,
+    sizeName: null,
   };
 }
 

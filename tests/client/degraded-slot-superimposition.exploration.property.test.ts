@@ -530,7 +530,7 @@ describe("client degraded 経路 A — 発火済みスロットへの start が�
     // slot "0" は unit 0 の担当範囲。offset は 0（serverTime === receivedAt）ゆえ now をそのまま渡せる。
     expect(view.offset).toBe(0);
 
-    const displays = assignedSlotDisplays(view, [0], stages.startAt);
+    const displays = assignedSlotDisplays(view, [0], stages.startAt, []);
     const forSlotZero = displays.filter((display) => display.slot === 0);
 
     // 在席 1 本・表示 1 件。数が一致していること自体が「隠れが無い」ことの表明である。

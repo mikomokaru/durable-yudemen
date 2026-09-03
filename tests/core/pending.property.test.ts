@@ -103,6 +103,8 @@ function toPendingOrder(
     tableId: item.tableId,
     arrivalTime,
     slotSpan: 1,
+    itemName: null,
+    sizeName: null,
   };
 }
 

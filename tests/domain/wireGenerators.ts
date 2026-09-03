@@ -65,6 +65,9 @@ const genPendingOrder: fc.Arbitrary<PendingOrder> = fc.record({
   tableId: fc.oneof(fc.constant(null), fc.string({ minLength: 1, maxLength: 6 })),
   arrivalTime: genEpoch,
   slotSpan: fc.integer({ min: 1, max: 6 }),
+  // POS 申告の商品名。null と非空文字列の双方を分布する（要件 6.5）。
+  itemName: fc.option(fc.string({ minLength: 1, maxLength: 8 }), { nil: null }),
+  sizeName: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
 });
 
 const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
@@ -123,23 +126,22 @@ export const genValidServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
 );
 
 /**
- * 妥当な ClientMessage — 4 種すべてを分布し、start は注文品目参照を持つ形と持たない形の双方を出す。
+ * 妥当な ClientMessage — 5 種すべてを分布する。
  *
- * 片方だけの形はここに入れない。Order_Item_Rule により組が消えて往復が成り立たないため、例示テスト
- * （wire.example.test.ts）で押さえる。
+ * start は品目参照を持たない 1 形だけである（slot-suggested-start が品目参照を startOrderItem へ移した）。
  */
 export const genValidClientMessage: fc.Arbitrary<ClientMessage> = fc.oneof(
+  // start はアドホック麺茹で専用に戻った（品目参照は startOrderItem が持つ）。ゆえに 1 形だけである。
   fc.record({
     type: fc.constant("start" as const),
     slotIds: genSlotIds,
     noodleType: fc.constantFrom(...NOODLE_POOL),
     boilSeconds: fc.integer({ min: 1, max: 1800 }),
   }),
+  // 品目を指す開始。運ぶのは 3 項目だけで、麺種・茹で加減・茹で秒を持たない。
   fc.record({
-    type: fc.constant("start" as const),
+    type: fc.constant("startOrderItem" as const),
     slotIds: genSlotIds,
-    noodleType: fc.constantFrom(...NOODLE_POOL),
-    boilSeconds: fc.integer({ min: 1, max: 1800 }),
     externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
     itemIndex: fc.integer({ min: 0, max: 8 }),
   }),

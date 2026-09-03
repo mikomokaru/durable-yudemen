@@ -21,6 +21,8 @@ const validItem = {
   tableId: "table-3",
   // 既定（1）と異なる幅を据える——既定と同値では「持たせている」ことと「畳んでいる」ことが見分けられない。
   slotSpan: 2,
+  itemName: null,
+  sizeName: null,
 } as const;
 
 describe("toPendingOrders — 正常値の正規化", () => {
@@ -34,6 +36,8 @@ describe("toPendingOrders — 正常値の正規化", () => {
         tableId: "table-3",
         arrivalTime,
         slotSpan: 2,
+        itemName: null,
+        sizeName: null,
       },
     ]);
   });

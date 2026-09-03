@@ -662,15 +662,20 @@ export interface TimerConnection {
   /**
    * タイマー開始操作を送る（担当スコープの制限は UI の責務）。1 Timer は 1 つ以上のスロットを駆動する（非空）。
    *
-   * orderItem は「どの Pending_Order の品目から始めたか」。推奨から開始する経路だけが添え、サーバが
-   * 待ち行列から当該品目を除く手がかりにする（online-cook-scheduling AC 8.3 / 8.4）。省略時はアドホック
-   * 麺茹で（POS を経ない開始）で、推奨と異なる操作も従来どおりこの経路を通る。
+   * この経路はアドホック麺茹で（POS を経ない開始）専用である。注文品目からの開始は startOrderItem が担う
+   * （slot-suggested-start）——麺種・茹で加減・茹で秒を client が言い直さないため、引数も持たない。
    */
-  start(
+  start(slotIds: NonEmptyArray<string>, noodleType: string, boilSeconds: number): void;
+  /**
+   * 注文品目を指して開始する（提案からの開始）。
+   *
+   * 運ぶのは品目の鍵と釜だけで、麺種・茹で加減・茹で秒は送らない——サーバが待ち行列の当該品目と
+   * noodlePresets から導く。degraded では送らず、ローカルにも Timer を立てない（サーバが知らない品目の
+   * 消費を見せない・既存 start の degraded 分岐と同じ立場）。
+   */
+  startOrderItem(
     slotIds: NonEmptyArray<string>,
-    noodleType: string,
-    boilSeconds: number,
-    orderItem?: { readonly externalOrderId: string; readonly itemIndex: number },
+    orderItem: { readonly externalOrderId: string; readonly itemIndex: number },
   ): void;
   /** タイマーキャンセル操作を送る。 */
   cancel(timerId: string): void;
@@ -998,22 +1003,22 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    start: (slotIds, noodleType, boilSeconds, orderItem) => {
+    startOrderItem: (slotIds, orderItem) => {
+      // live のときだけ送る。degraded では何もしない——サーバが持つ品目の事実（麺種・茹で加減）を
+      // client は持たないため、ローカルに Timer を立てれば存在しない状態を映すことになる。UI 側も
+      // degraded では提案を出さない（要件 1.3 / 2.12）ので、ここは二重の防御である。
+      if (mode(view) !== "live") return;
+      watch.send({
+        type: "startOrderItem",
+        slotIds,
+        externalOrderId: orderItem.externalOrderId,
+        itemIndex: orderItem.itemIndex,
+      });
+    },
+    start: (slotIds, noodleType, boilSeconds) => {
       if (mode(view) === "live") {
-        // live: 既存どおり ClientMessage を WS へ送る。推奨から開始したときだけ注文品目を添える
-        // （ワイヤは平坦な兄弟フィールドで運ぶ・domain/messages.ts の規律）。
-        watch.send(
-          orderItem === undefined
-            ? { type: "start", slotIds, noodleType, boilSeconds }
-            : {
-                type: "start",
-                slotIds,
-                noodleType,
-                boilSeconds,
-                externalOrderId: orderItem.externalOrderId,
-                itemIndex: orderItem.itemIndex,
-              },
-        );
+        // live: ClientMessage を WS へ送る。アドホック麺茹でゆえ品目は指さない。
+        watch.send({ type: "start", slotIds, noodleType, boilSeconds });
         return;
       }
       // degraded: 補正後現在時刻と生成 id を端で採取し、LocalStart を畳む。WS へは送らない（要件6.3）。

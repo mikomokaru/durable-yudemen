@@ -5,7 +5,7 @@
 // version を検査したうえで現行スキーマの StoreSnapshot へ写す。失敗は例外ではなく
 // 戻り値（ShellFailure）で表し、いずれの失敗時も入力 raw を一切変更しない（移行を確定しない）。
 
-import { isNonNegativeInteger } from "../domain/predicate";
+import { isNonNegativeInteger, toDeclaredName } from "../domain/predicate";
 import { CURRENT_SCHEMA_VERSION } from "../engine/types";
 import type { EpochMillis, SlotId, NoodleType, TimerId } from "../engine/types";
 import { EMPTY_STATE } from "./state";
@@ -155,13 +155,15 @@ function revivePendingOrder(value: unknown): PendingOrder | null {
   if (typeof o.noodleType !== "string" || o.noodleType.length === 0) return null;
   if (!isFirmness(o.firmness)) return null;
   // tableId は「無い」ことに意味がある（単独グループ）。欠如／null は null、空文字と非文字列は壊れたデータ。
-  if (
-    o.tableId !== undefined &&
-    o.tableId !== null &&
-    (typeof o.tableId !== "string" || o.tableId.length === 0)
-  ) {
-    return null;
-  }
+  // 判定は toDeclaredName ただ一つに閉じる（取り込み・ワイヤ・移行の 3 経路で同じ形の関門を書かない）。
+  const tableId = toDeclaredName(o.tableId);
+  if (tableId === null) return null;
+  // itemName / sizeName は v9 で追加。欠如は null（v8 以前の永続値はこの経路を通る）。空文字と非文字列は
+  // 壊れたデータ——取り込みが null へ畳んでいる以上、永続に空文字が在ることは自分の不具合である。
+  const itemName = toDeclaredName(o.itemName);
+  if (itemName === null) return null;
+  const sizeName = toDeclaredName(o.sizeName);
+  if (sizeName === null) return null;
   if (typeof o.arrivalTime !== "number" || !Number.isFinite(o.arrivalTime)) return null;
   // slotSpan は v8 で追加。欠如は 1、値域外・非整数は壊れたデータ（呼び出し側が全体を移行失敗にする）。
   const slotSpan = reviveSlotSpan(o.slotSpan);
@@ -171,9 +173,11 @@ function revivePendingOrder(value: unknown): PendingOrder | null {
     itemIndex: o.itemIndex,
     noodleType: o.noodleType,
     firmness: o.firmness,
-    tableId: typeof o.tableId === "string" ? o.tableId : null,
+    tableId: tableId.name,
     arrivalTime: o.arrivalTime,
     slotSpan,
+    itemName: itemName.name,
+    sizeName: sizeName.name,
   };
 }
 

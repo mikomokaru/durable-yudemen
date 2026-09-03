@@ -25,6 +25,8 @@ function item(itemIndex: number, noodleType: string, arrivalTime: number): Pendi
     tableId: "t-7",
     arrivalTime,
     slotSpan: 1,
+    itemName: null,
+    sizeName: null,
   };
 }
 

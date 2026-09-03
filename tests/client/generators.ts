@@ -173,6 +173,9 @@ const genPendingOrder: fc.Arbitrary<PendingOrder> = fc.record({
   tableId: fc.oneof(fc.constant<string | null>(null), fc.constantFrom(...TABLE_ID_POOL)),
   arrivalTime: genReceivedAt,
   slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }),
+  // POS 申告の商品名。null と非空文字列の双方を分布する（要件 6.5）。
+  itemName: fc.option(fc.string({ minLength: 1, maxLength: 8 }), { nil: null }),
+  sizeName: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
 });
 
 /** 未着手オーダーの全量（空・複数の双方）。(externalOrderId, itemIndex) の組で一意化する。 */

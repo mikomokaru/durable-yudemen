@@ -6,7 +6,6 @@
 // `newTimerId` も shell が採取して渡し、crypto.randomUUID() という副作用を core から閉め出す。
 
 import type { EpochMillis, TimerId } from "../engine/types";
-import type { Ordered } from "./timer";
 import type { CookSchedule } from "./schedule";
 import type { Firmness } from "../domain/firmness";
 import type { PendingOrder } from "../domain/order";
@@ -20,9 +19,17 @@ export type Event =
       readonly noodleType: string;
       readonly boilSeconds: number;
       readonly newTimerId: TimerId;
-      // 由来する注文品目。省略時はアドホック麺茹で（POS を経ない開始）＝createTimer の orderItem? と同形。
-      // 形の正本は engine/timer.ts の Ordered ひとつ（同じ概念を三度書かない）。
-      readonly orderItem?: Ordered["orderItem"];
+      readonly now: EpochMillis;
+    }
+  // 注文品目を指す開始（slot-suggested-start）。運ぶのは鍵と釜だけで、麺種・茹で加減・茹で秒は運ばない
+  // ——engine が pendingOrders の当該品目と params.noodlePresets から導く。Start と一つに畳まないのは、
+  // 「主張を検証して使う」と「事実から導く」で義務が違うためである（畳めば引数で切り替える分岐が生まれる）。
+  | {
+      readonly type: "StartOrderItem";
+      readonly slotIds: readonly string[];
+      readonly externalOrderId: string;
+      readonly itemIndex: number;
+      readonly newTimerId: TimerId;
       readonly now: EpochMillis;
     }
   | { readonly type: "Cancel"; readonly timerId: string; readonly now: EpochMillis }

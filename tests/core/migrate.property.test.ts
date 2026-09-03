@@ -65,7 +65,7 @@ describe("core/migrate", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Property 12（pos-order-ingress）— 移行は既存の挙動を保つ。
+// Property 12（pos-order-ingress / slot-suggested-start）— 移行は既存の挙動を保つ。
 //
 // migrate.example.test.ts が v7 → v8 を点で固定するのに対し、ここは**任意の** v7 スナップショットに対して
 // 成り立つことを面で押さえる。置き場は `migrate` が `src/engine/` にあることに従い `tests/core/` とする
@@ -148,6 +148,7 @@ describe("core/migrate — v7 → v8 の面", () => {
         // 生成器が v8 の語彙を混ぜていないことを先に確かめる（混ざれば以降の主張が意味を失う）。
         expect("lastSequenceByTerminal" in v7).toBe(false);
         expect(v7.pendingOrders.some((order) => "slotSpan" in order)).toBe(false);
+        expect(v7.pendingOrders.some((order) => "itemName" in order)).toBe(false);
 
         const raw = structuredClone(v7) as unknown;
         const result = migrate(raw);
@@ -178,9 +179,12 @@ describe("core/migrate — v7 → v8 の面", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         // slotSpan を除いた待ち行列は v7 の値そのままである。
-        expect(result.snapshot.pendingOrders.map(({ slotSpan: _unused, ...rest }) => rest)).toEqual(
-          v7.pendingOrders,
-        );
+        // v9 が埋めるのは 3 つ（slotSpan・itemName・sizeName）。埋めた分を除いた残りが写しであることを問う。
+        expect(
+          result.snapshot.pendingOrders.map(
+            ({ slotSpan: _span, itemName: _item, sizeName: _size, ...rest }) => rest,
+          ),
+        ).toEqual(v7.pendingOrders);
         expect(result.snapshot.acceptedSlices).toEqual(v7.acceptedSlices);
         expect(result.snapshot.requestedDigest).toBe(v7.requestedDigest);
         expect(result.snapshot.nextSeq).toBe(v7.nextSeq);
@@ -252,5 +256,71 @@ describe("core/migrate — Adjustment snapshot round-trip", () => {
       }),
       { numRuns: 200 },
     );
+  });
+});
+
+describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさない", () => {
+  /** v8 の待ち行列 1 件（商品名を持たない）。 */
+  const genV8Order = fc.record({
+    externalOrderId: fc.string({ minLength: 1, maxLength: 6 }),
+    itemIndex: fc.nat({ max: 3 }),
+    noodleType: fc.constantFrom("Thin", "Medium", "Thick"),
+    firmness: fc.constantFrom(...FIRMNESS_ORDER),
+    tableId: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
+    arrivalTime: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+    slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: 6 }),
+  });
+
+  it("版 8 の永続値は 2 項目が null になり、件数と他の事実は保たれる", () => {
+    fc.assert(
+      fc.property(fc.array(genV8Order, { maxLength: 5 }), (pendingOrders) => {
+        const v8 = {
+          version: 8,
+          timers: [],
+          nextSeq: 0,
+          pendingOrders,
+          lastSequenceByTerminal: {},
+        };
+        const result = migrate(structuredClone(v8));
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        // 件数は変わらない——名前が読めないことは品目を落とす理由にならない。
+        expect(result.snapshot.pendingOrders).toHaveLength(pendingOrders.length);
+        for (const [index, order] of result.snapshot.pendingOrders.entries()) {
+          expect(order.itemName).toBeNull();
+          expect(order.sizeName).toBeNull();
+          // 埋めた 2 つ以外は写しである。
+          const { itemName: _item, sizeName: _size, ...rest } = order;
+          expect(rest).toEqual(pendingOrders[index]);
+        }
+        expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  it("空文字の商品名を持つ永続値は移行失敗にする（自分が書いた値の形が違う）", () => {
+    // 取り込みが null へ畳む以上、永続に空文字は在りえない。在れば自分の不具合であり、黙って
+    // 読み替えれば壊れた値が正本へ入る。
+    const broken = {
+      version: 9,
+      timers: [],
+      nextSeq: 0,
+      pendingOrders: [
+        {
+          externalOrderId: "o-1",
+          itemIndex: 0,
+          noodleType: "Thin",
+          firmness: "normal",
+          tableId: null,
+          arrivalTime: 1_700_000_000_000,
+          slotSpan: 1,
+          itemName: "",
+          sizeName: null,
+        },
+      ],
+      lastSequenceByTerminal: {},
+    };
+    expect(migrate(broken).ok).toBe(false);
   });
 });

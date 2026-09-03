@@ -32,17 +32,25 @@ export interface CookRecommendation {
 
 /** client → server のメッセージ。 */
 export type ClientMessage =
+  // アドホック麺茹で（POS を経ない開始）。麺種を人が選び、茹で秒を client が持つ選択肢から送る。
+  // 注文品目は指さない——品目からの開始は startOrderItem が担う（slot-suggested-start）。
   | {
       readonly type: "start";
       readonly slotIds: NonEmptyArray<string>;
       readonly noodleType: string;
       readonly boilSeconds: number;
-      // 由来する注文品目（省略時はアドホック麺茹で＝POS を経ない開始）。engine の Event.Start は
-      // 組（Ordered["orderItem"]）で持つが、ワイヤは既存の start と同じ平坦な兄弟フィールドで運ぶ。
-      // 「両方揃うか、どちらも無いか」を組で強制しない理由は slot-suggested-start が品目参照を別種別へ
-      // 移すことにあり、ここで組を型にすれば作ってすぐ消すことになる。組を成す判定は wire.ts が担う。
-      readonly externalOrderId?: string;
-      readonly itemIndex?: number;
+    }
+  // 注文品目を指す開始。運ぶのは「どの品目を、どの釜で」だけで、麺種・茹で加減・茹で秒は運ばない
+  // ——それらは server が pendingOrders と noodlePresets から導く事実であり、client が言い直せば
+  // 二つの真実になる（現に茹で加減は届かず、Timer は常に既定で作られていた）。
+  //
+  // 品目の鍵を組にせず平坦な 2 項目で持つ。両方が必須ゆえ「片方だけ在る形」が型に現れず、組で
+  // 強制する必要がない（start が optional を持っていた頃の問題がここでは起きない）。
+  | {
+      readonly type: "startOrderItem";
+      readonly slotIds: NonEmptyArray<string>;
+      readonly externalOrderId: string;
+      readonly itemIndex: number;
     }
   | { readonly type: "cancel"; readonly timerId: string } // 走行中の中断（要件6）
   | { readonly type: "complete"; readonly timerId: string } // 茹で上がりの明示消し込み（boiled → 除去）

@@ -64,6 +64,8 @@ const LONG: PendingOrder = {
   tableId: "t-a",
   arrivalTime: NOW,
   slotSpan: 1,
+  itemName: null,
+  sizeName: null,
 };
 const SHORT: PendingOrder = {
   ...LONG,

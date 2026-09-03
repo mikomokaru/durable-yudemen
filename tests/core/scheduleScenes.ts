@@ -157,6 +157,8 @@ export function toPending(orders: readonly OrderSpec[]): readonly PendingOrder[]
       arrivalTime: order.arrivalTime,
       // 本 spec は割り当ての算術を変えず 1 品目 1 スロットで計画する。ゆえに場面も占有幅 1 で組む。
       slotSpan: 1,
+      itemName: null,
+      sizeName: null,
     })),
   );
 }
@@ -226,6 +228,8 @@ export function shortestFirstPlan(
     tableId: order.tableId,
     arrivalTime: NOW - byBoil.length + index,
     slotSpan: order.slotSpan,
+    itemName: null,
+    sizeName: null,
   }));
   return baselineSchedule(
     resequenced,

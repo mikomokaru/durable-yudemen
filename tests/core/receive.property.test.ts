@@ -37,6 +37,8 @@ function item(externalOrderId: string, itemIndex: number): PendingOrder {
     tableId: null,
     arrivalTime: ARRIVAL,
     slotSpan: 1,
+    itemName: null,
+    sizeName: null,
   };
 }
 

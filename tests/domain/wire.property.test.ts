@@ -81,3 +81,64 @@ describe("Feature: verified-wire-contract, Property 3: 全域性", () => {
     );
   });
 });
+
+describe("Feature: slot-suggested-start, Property 3: 開始で送る項目は 3 つ", () => {
+  it("startOrderItem は麺種・茹で加減・茹で秒を持たない（型と往復の双方で）", () => {
+    fc.assert(
+      fc.property(genValidClientMessage, (message) => {
+        if (message.type !== "startOrderItem") return;
+        // 運ぶのは「どの品目を、どの釜で」だけ。導ける値を送れば二つの真実になる。
+        expect(Object.keys(message).sort()).toEqual([
+          "externalOrderId",
+          "itemIndex",
+          "slotIds",
+          "type",
+        ]);
+        expect(toClientMessage(JSON.stringify(message))).toEqual(message);
+      }),
+      { numRuns: 300 },
+    );
+  });
+});
+
+describe("Feature: slot-suggested-start, Property 7: 商品名の往復", () => {
+  it("itemName / sizeName は null と非空文字列の双方で往復する", () => {
+    fc.assert(
+      fc.property(genValidServerMessage, (message) => {
+        if (message.type !== "snapshot") return;
+        const decoded = toServerMessage(JSON.stringify(message));
+        expect(decoded).toEqual(message);
+        // 2 項目が実際に往復の対象になっていることを、値の形で確かめる（型だけでは分布を保証しない）。
+        if (decoded === null || decoded.type !== "snapshot") return;
+        for (const order of decoded.pendingOrders) {
+          expect(order.itemName === null || order.itemName.length > 0).toBe(true);
+          expect(order.sizeName === null || order.sizeName.length > 0).toBe(true);
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("空文字の商品名は Decode_Failure（取り込みが null へ畳む以上、ワイヤに空文字は来ない）", () => {
+    const snapshot = {
+      type: "snapshot",
+      serverTime: 1,
+      timers: [],
+      recommendations: [],
+      pendingOrders: [
+        {
+          externalOrderId: "o-1",
+          itemIndex: 0,
+          noodleType: "Thin",
+          firmness: "normal",
+          tableId: null,
+          arrivalTime: 1,
+          slotSpan: 1,
+          itemName: "",
+          sizeName: null,
+        },
+      ],
+    };
+    expect(toServerMessage(JSON.stringify(snapshot))).toBeNull();
+  });
+});

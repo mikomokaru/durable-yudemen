@@ -31,6 +31,8 @@ function order(
     tableId: null,
     arrivalTime,
     slotSpan: 1,
+    itemName: null,
+    sizeName: null,
     ...overrides,
   };
 }

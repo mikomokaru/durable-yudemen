@@ -316,7 +316,7 @@ describe("Operation History O2 — 観測に由来する起動原因ゼロ", () 
       if (ts.isCaseClause(node) && ts.isStringLiteralLike(node.expression))
         frames.add(node.expression.text);
     });
-    expect(frames).toEqual(new Set(["start", "cancel", "complete", "adjust"]));
+    expect(frames).toEqual(new Set(["start", "startOrderItem", "cancel", "complete", "adjust"]));
   });
 
   it("生成 Env の観測能力を同期 ON/OFF flag だけに限定する", () => {

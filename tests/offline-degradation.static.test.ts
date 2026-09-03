@@ -100,6 +100,7 @@ const EXPECTED_CORE_FILES = [
  * ClientMessage（start / cancel / complete / adjust）は不変。 */
 const WIRE_MESSAGE_TYPES = new Set([
   "start",
+  "startOrderItem",
   "cancel",
   "complete",
   "adjust",

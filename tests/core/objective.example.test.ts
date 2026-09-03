@@ -85,6 +85,8 @@ function pendingItem(orderId: string, itemIndex: number, arrivalTime: number): P
     tableId: "table-1",
     arrivalTime,
     slotSpan: 1,
+    itemName: null,
+    sizeName: null,
   };
 }
 

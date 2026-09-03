@@ -83,6 +83,7 @@ const TIMER_FACT_FIELDS = new Set([
  */
 const WIRE_MESSAGE_TYPES = new Set([
   "start",
+  "startOrderItem",
   "cancel",
   "complete",
   "adjust",
@@ -553,8 +554,10 @@ describe("(c) UI が群を知らず一括専用の操作要素を持たない（
     // 操作口の起点は担当ユニット内の boiled スロットに限る。群が担当外へ及ぶことと、操作口が担当内に
     // 限られることは別の関心事であり、後者は「描画元が担当射影の結果だけである」構造で守られる。
     const code = readCodeWithStrings(SLOT_BOARD_FILE);
+    // 第 4 引数は提案の導出元（slot-suggested-start が足した queue）。担当射影を経ていることを問うのが
+    // この検査の主張であり、引数の本数はその主張の一部ではない——view / units / now が渡ることを見る。
     expect(code, "SlotBoard が担当射影（assignedSlotDisplays）を経ていない").toMatch(
-      /assignedSlotDisplays\(\s*view\s*,\s*units\s*,\s*now\s*\)/,
+      /assignedSlotDisplays\(\s*view\s*,\s*units\s*,\s*now\s*,/,
     );
     expect(countMatches(code, /<SlotCard\b/g), "SlotCard の描画点が 1 つでない").toBe(1);
     expect(

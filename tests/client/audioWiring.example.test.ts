@@ -138,6 +138,7 @@ function renderBoard(playTouchCue: () => void) {
   capture.radials.length = 0;
   capture.firmnesses.length = 0;
 
+  const startOrderItem = vi.fn<TimerConnection["startOrderItem"]>();
   const cancel = vi.fn<TimerConnection["cancel"]>();
   const complete = vi.fn<TimerConnection["complete"]>();
   const adjust = vi.fn<TimerConnection["adjust"]>();
@@ -149,6 +150,7 @@ function renderBoard(playTouchCue: () => void) {
     // 開始の送信は観測に使わない。ラジアルの開閉はボード内のローカル状態で、一回描画では Start 押下の
     // 状態更新（picker）が反映されないため、麺選択確定の分岐（`if (picker)`）へは到達しない。
     start: vi.fn<TimerConnection["start"]>(),
+    startOrderItem,
     cancel,
     complete,
     adjust,

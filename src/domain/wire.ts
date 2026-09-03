@@ -21,7 +21,7 @@
 import type { ClientMessage, CookRecommendation, ServerMessage } from "./messages";
 import { isNonEmpty, type NonEmptyArray, type TimerFact } from "./timer";
 import { isFirmness } from "./firmness";
-import { isNonEmptyString, isNonNegativeInteger, isRecord } from "./predicate";
+import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";
 import type { PendingOrder } from "./order";
 import {
   SLOTS_PER_UNIT,
@@ -60,12 +60,6 @@ function toSlotIds(value: unknown): NonEmptyArray<string> | null {
   return slotIds;
 }
 
-/** 生値を文字列 | null の tableId へ。欠落と null は「卓に紐づかない」ゆえ null へ正規化する。 */
-function toTableId(value: unknown): { readonly tableId: string | null } | null {
-  if (value === undefined || value === null) return { tableId: null };
-  return isNonEmptyString(value) ? { tableId: value } : null;
-}
-
 // ── client → server ──────────────────────────────────────────────────────────
 
 /**
@@ -80,6 +74,8 @@ export function toClientMessage(text: string): ClientMessage | null {
   switch (parsed.type) {
     case "start":
       return toStartMessage(parsed);
+    case "startOrderItem":
+      return toStartOrderItemMessage(parsed);
     case "cancel":
       return toTimerIdMessage(parsed, "cancel");
     case "complete":
@@ -101,14 +97,25 @@ export function toClientMessage(text: string): ClientMessage | null {
 function toStartMessage(record: Record<string, unknown>): ClientMessage | null {
   const slotIds = toSlotIds(record.slotIds);
   if (slotIds === null) return null;
-  const { noodleType, boilSeconds, externalOrderId, itemIndex } = record;
+  const { noodleType, boilSeconds } = record;
   if (typeof noodleType !== "string") return null;
   if (typeof boilSeconds !== "number") return null;
-  const orderItem =
-    isNonEmptyString(externalOrderId) && isNonNegativeInteger(itemIndex)
-      ? { externalOrderId, itemIndex }
-      : {};
-  return { type: "start", slotIds, noodleType, boilSeconds, ...orderItem };
+  return { type: "start", slotIds, noodleType, boilSeconds };
+}
+
+/**
+ * startOrderItem を確立する。運ぶのは 3 項目だけで、麺種・茹で加減・茹で秒は見ない（送られてこない）。
+ *
+ * 品目の鍵は両方が必須である。片方だけの入力は Decode_Failure——start の頃と違い「組を成さずアドホックとして
+ * 通す」余地が無い。この種別は品目を指すことが存在理由であり、指せない要求は要求として成立しない。
+ */
+function toStartOrderItemMessage(record: Record<string, unknown>): ClientMessage | null {
+  const slotIds = toSlotIds(record.slotIds);
+  if (slotIds === null) return null;
+  const { externalOrderId, itemIndex } = record;
+  if (!isNonEmptyString(externalOrderId)) return null;
+  if (!isNonNegativeInteger(itemIndex)) return null;
+  return { type: "startOrderItem", slotIds, externalOrderId, itemIndex };
 }
 
 /** cancel / complete を確立する。どちらも timerId 一つだけを運ぶ同形の要求である。 */
@@ -194,8 +201,13 @@ function toPendingOrderFromWire(value: unknown): PendingOrder | null {
   if (!isNonNegativeInteger(itemIndex)) return null;
   if (!isNonEmptyString(noodleType)) return null;
   if (!isFirmness(firmness)) return null;
-  const tableId = toTableId(value.tableId);
+  // 申告された名前 3 つは同じ関門を通る。受けてから書くのは、キー名が項目ごとに違うためである。
+  const tableId = toDeclaredName(value.tableId);
   if (tableId === null) return null;
+  const itemName = toDeclaredName(value.itemName);
+  if (itemName === null) return null;
+  const sizeName = toDeclaredName(value.sizeName);
+  if (sizeName === null) return null;
   if (!isNonNegativeInteger(arrivalTime)) return null;
   if (!isNonNegativeInteger(slotSpan)) return null;
   return {
@@ -203,9 +215,11 @@ function toPendingOrderFromWire(value: unknown): PendingOrder | null {
     itemIndex,
     noodleType,
     firmness,
-    ...tableId,
+    tableId: tableId.name,
     arrivalTime,
     slotSpan,
+    itemName: itemName.name,
+    sizeName: sizeName.name,
   };
 }
 
