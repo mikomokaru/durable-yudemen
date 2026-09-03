@@ -149,14 +149,14 @@ export const genBoilSeconds: fc.Arbitrary<number> = fc.oneof(
 // ── サーバ権威の店舗設定（ビューが写して持つ事実） ────────────────────────────────────────────────
 
 /** 既定と異なる麺種プリセット（config 受信で確定が置き換わることを見分けられるようにする）。 */
-const ALT_NOODLE_PRESETS: readonly NoodlePreset[] = [
+const ALT_NOODLE_PRESETS: NonEmptyArray<NoodlePreset> = [
   { noodleType: "thin", boilSeconds: { extraHard: 40, hard: 50, normal: 60, soft: 70 } },
   { noodleType: "thick", boilSeconds: { extraHard: 100, hard: 110, normal: 120, soft: 140 } },
 ];
 
 /** 麺種プリセット。既定と別値の二択（開始 UI の選択肢の元。畳み込みの主張には関与しない）。 */
-const genNoodlePresets: fc.Arbitrary<readonly NoodlePreset[]> = fc.constantFrom<
-  readonly NoodlePreset[]
+const genNoodlePresets: fc.Arbitrary<NonEmptyArray<NoodlePreset>> = fc.constantFrom<
+  NonEmptyArray<NoodlePreset>
 >(DEFAULT_NOODLE_PRESETS, ALT_NOODLE_PRESETS);
 
 /** ユニット総数（担当範囲のクランプ元）。 */
@@ -181,11 +181,11 @@ const genPendingOrders: fc.Arbitrary<readonly PendingOrder[]> = fc.uniqueArray(g
   maxLength: 4,
 });
 
-/** 開始推奨 1 件（Committed_Plan からの導出値の写し）。ワイヤ表現ゆえ slotIds は素の配列。 */
+/** 開始推奨 1 件（Committed_Plan からの導出値の写し）。slotIds はワイヤでも非空（型で強制）。 */
 const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
   externalOrderId: fc.constantFrom(...EXTERNAL_ORDER_ID_POOL),
   itemIndex: fc.integer({ min: 0, max: 2 }),
-  slotIds: fc.subarray([...SLOT_ID_POOL], { minLength: 1 }),
+  slotIds: genSlotIds,
   startAt: genReceivedAt,
 });
 

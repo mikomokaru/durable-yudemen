@@ -307,8 +307,10 @@ describe("Operation History O2 — 観測に由来する起動原因ゼロ", () 
       ).toBe(false);
     }
 
-    const shell = parse(shellPath);
-    const parser = functionDeclaration(shell, "parseClientMessage");
+    // ワイヤ復号は domain/wire.ts へ移った（verified-wire-contract）。守る不変は同じ——観測のために
+    // WebSocket frame を増やさないこと——であり、見る場所だけを関門の現住所へ合わせる。
+    const wire = parse("src/domain/wire.ts");
+    const parser = functionDeclaration(wire, "toClientMessage");
     const frames = new Set<string>();
     walk(parser, (node) => {
       if (ts.isCaseClause(node) && ts.isStringLiteralLike(node.expression))

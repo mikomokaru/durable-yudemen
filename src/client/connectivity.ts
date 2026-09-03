@@ -16,6 +16,7 @@
 // いずれか一方の成立で down を確定する。
 
 import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
+import { toDecodeFailureLine, toServerMessage } from "../domain/wire";
 import { REJECTION_CLOSE_CODE } from "../transport/rejection";
 import type { ClientMessage, ServerMessage } from "../domain/messages";
 import { parseStoreChoices } from "./connection";
@@ -75,37 +76,6 @@ export type ConnectivityWatchFactory = (
   openSocket: SocketOpener,
   now: () => number,
 ) => ConnectivityWatch;
-
-/**
- * 受信文字列を ServerMessage へ。不正形式・未知 type は null（無視させる）。
- *
- * pong は素の文字列フレームとして別経路で扱うため、ここへは到達しない（呼び出し側で先に判定する）。
- * type と serverTime を検証した上で信頼境界として確定する。形は messages.ts の定義に従う。
- */
-function parseServerMessage(data: string): ServerMessage | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(data);
-  } catch {
-    return null;
-  }
-  if (typeof parsed !== "object" || parsed === null) return null;
-  const candidate = parsed as { type?: unknown; serverTime?: unknown };
-  if (typeof candidate.serverTime !== "number") return null;
-  switch (candidate.type) {
-    case "snapshot":
-    case "started":
-    case "cancelled":
-    case "boiled":
-    case "completed":
-    case "adjusted":
-    case "config":
-    case "error":
-      return parsed as ServerMessage;
-    default:
-      return null;
-  }
-}
 
 /**
  * 既定の生存検出。WebSocket を開き、ping/pong と close/error から Connectivity を導く（タスク6.1 / 6.2）。
@@ -225,8 +195,13 @@ export function watchConnectivity(
           confirmUp();
           return;
         }
-        const message = parseServerMessage(data);
-        if (message === null) return; // 不正形式は破棄する
+        const message = toServerMessage(data);
+        if (message === null) {
+          // 破棄を無音にしない。pong は auto-response で必ず返るため、ここで黙れば「接続中のまま盤面が
+          // 凍る」状態に気づく経路が無くなる（Connectivity の判定は変えない——到達性の問題ではない）。
+          console.error(toDecodeFailureLine("ServerMessage"));
+          return;
+        }
         const receivedAt = now();
         // 全量 snapshot の受信は接続確立の確証 → up を確定する（要件2.2）。
         if (message.type === "snapshot") {

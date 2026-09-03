@@ -25,6 +25,8 @@ export default defineConfig({
           environment: "node",
           include: [
             "tests/static-analysis.example.test.ts",
+            // ワイヤ境界の cast 不在（verified-wire-contract Property 1）。TypeScript AST でソースを読む。
+            // domain の import 境界（verified-wire-contract 要件 3.5）。node:fs で domain 全ファイルを読む。
             "tests/offline-degradation.static.test.ts",
             // 撤去・不変・漏洩不能の静的検査（タスク7.3）。node:fs でソースを読むため node 環境で実行する。
             "tests/per-store-provisioning.static.test.ts",
@@ -57,6 +59,10 @@ export default defineConfig({
             "tests/sync-set-batch-complete.static.test.ts",
             // Boil_Sync の純粋性検査（synchronized-boil-adjustment タスク12.1）。TypeScript AST でソースを読む。
             "tests/static/boil-sync-purity.test.ts",
+            // ワイヤ境界の cast 不在と domain の import 境界（verified-wire-contract）。
+            // node:fs と TypeScript AST でソースを読むため node 環境で実行する。
+            "tests/static/wire-no-cast.test.ts",
+            "tests/static/domain-imports.test.ts",
             // 占有ゲート・解決規則が src/client に閉じていることの検査（degraded-slot-superimposition
             // タスク5.2）。node:fs で src/engine / src/domain のソースを読むため node 環境で実行する。
             "tests/degraded-slot-superimposition.static.test.ts",
@@ -183,6 +189,10 @@ export default defineConfig({
             "tests/ping-blackhole.static.test.ts",
             "tests/sync-set-batch-complete.static.test.ts",
             "tests/static/boil-sync-purity.test.ts",
+            // ワイヤ境界の cast 不在と domain の import 境界（verified-wire-contract）。
+            // node:fs と TypeScript AST でソースを読むため node 環境で実行する。
+            "tests/static/wire-no-cast.test.ts",
+            "tests/static/domain-imports.test.ts",
             "tests/degraded-slot-superimposition.static.test.ts",
             "tests/pending-order-list-left-rail.static.test.ts",
             "tests/observe/**/*.property.test.ts",

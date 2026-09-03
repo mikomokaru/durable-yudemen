@@ -14,6 +14,7 @@
 //      Ordered.orderItem（{ externalOrderId; itemIndex }）で、その紐づけは domain へは露出しない。
 
 import { isFirmness, type Firmness } from "./firmness";
+import { isNonEmptyString, isNonNegativeInteger, isRecord } from "./predicate";
 import { isNonEmpty, type NonEmptyArray } from "./timer";
 import { SLOT_SPAN_MAX, SLOT_SPAN_MIN, type NoodlePreset } from "./store";
 
@@ -85,18 +86,11 @@ function toPendingOrder(
   presets: readonly NoodlePreset[],
   arrivalTime: number,
 ): PendingOrder | null {
-  if (typeof value !== "object" || value === null) return null;
-  const candidate = value as Record<string, unknown>;
-  if (typeof candidate.externalOrderId !== "string" || candidate.externalOrderId.length === 0)
-    return null;
-  // 品目連番は 0 以上の整数。NaN / Infinity は比較をすり抜けるため整数性を先に要求する。
-  if (
-    typeof candidate.itemIndex !== "number" ||
-    !Number.isInteger(candidate.itemIndex) ||
-    candidate.itemIndex < 0
-  ) {
-    return null;
-  }
+  if (!isRecord(value)) return null;
+  const candidate = value;
+  if (!isNonEmptyString(candidate.externalOrderId)) return null;
+  // 品目連番は 0 以上の整数（NaN / Infinity は整数性の判定で落ちる・domain/predicate）。
+  if (!isNonNegativeInteger(candidate.itemIndex)) return null;
   // 未知の品目種別を弾く（AC 1.4）。空文字はどのプリセットにも一致しないため、この一手で型違反も覆う。
   if (
     typeof candidate.noodleType !== "string" ||

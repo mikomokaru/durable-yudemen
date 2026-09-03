@@ -7,12 +7,10 @@
 //  2. Instrumentation_Log（Shell_Instrumentation が console.log で出力）— 後段。
 // いずれも「1 行 1 JSON オブジェクト」で、Correlator が共通の epoch ms 軸で突き合わせる。
 
-// ── 共有の検証ヘルパー（Operation / Instrumentation 双方が用いる） ───────────────
+// 共有の検証述語は domain/predicate が持ち主である（同じ検査を二度書かない）。エポックミリ秒・seq・
+// 件数はいずれも負や小数を取らない事実で、その判定は Operation / Instrumentation 双方が用いる。
 
-/** 0 以上の整数か。エポックミリ秒・seq・件数はいずれも負や小数を取らない事実。 */
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
+import { isNonNegativeInteger } from "../domain/predicate";
 
 // ── Operation_Log entry（Probe_Client が出力・JSON Lines） ────────────────────
 

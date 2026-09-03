@@ -7,8 +7,8 @@
 // ワイヤ上の Timer 表現は TimerFact（既定の型パラメータ＝生プリミティブ）そのもの。別名は設けない。
 // engine 専用の seq やブランド型はワイヤに出さない（既定の生表現に縮退する）。
 
-import type { TimerFact } from "./timer";
-import type { FirmnessCode, GridPoint, MenuItem, NoodlePreset, UnitOrigin } from "./store";
+import type { TimerFact, NonEmptyArray } from "./timer";
+import type { StoreConfig } from "./store";
 import type { PendingOrder } from "./order";
 import type { Firmness } from "./firmness";
 
@@ -16,16 +16,16 @@ import type { Firmness } from "./firmness";
  * CookRecommendation — 推奨の 1 件（次に開始すべき品目・slot・開始タイミング）。
  *
  * Committed_Plan からの導出値ゆえ永続しない（状態に昇格させれば計画と推奨の二つの真実が生まれる）。
- * ワイヤ表現ゆえブランド型を使わず生プリミティブで運ぶ。slotIds が NonEmptyArray でないのも同じ規律で、
- * 型で保証される非空は JSON を跨げない——受け手は境界で改めて確立する。
+ * ワイヤ表現ゆえブランド型を使わず生プリミティブで運ぶ。基数は保つ——slotIds の非空は wire.ts の関門が
+ * 確立するため、受け手が読み飛ばしで再確立する必要はない。
  */
 export interface CookRecommendation {
   /** 対象品目の POS 側識別子。itemIndex との組で 1 品目を指す（Pending_Order と同じ鍵）。 */
   readonly externalOrderId: string;
   /** 同一オーダー内の品目連番。 */
   readonly itemIndex: number;
-  /** 推奨する slot（釜）の集合。 */
-  readonly slotIds: readonly string[];
+  /** 推奨する slot（釜）の集合（型で非空を強制）。 */
+  readonly slotIds: NonEmptyArray<string>;
   /** 推奨する開始の絶対時刻。到来しても自動開始はしない（指示ではなく提案）。 */
   readonly startAt: number;
 }
@@ -34,14 +34,13 @@ export interface CookRecommendation {
 export type ClientMessage =
   | {
       readonly type: "start";
-      readonly slotIds: readonly string[];
+      readonly slotIds: NonEmptyArray<string>;
       readonly noodleType: string;
       readonly boilSeconds: number;
       // 由来する注文品目（省略時はアドホック麺茹で＝POS を経ない開始）。engine の Event.Start は
       // 組（Ordered["orderItem"]）で持つが、ワイヤは既存の start と同じ平坦な兄弟フィールドで運ぶ。
-      // 「両方揃うか、どちらも無いか」を組で強制しないのは、ワイヤが未検証の生値であり片方だけ届く形を
-      // 型で禁じても実際には届くためで、slotIds を NonEmptyArray にしないのと同じ規律。組への写しは
-      // shell の受け口が担う（両方揃ったときだけ組を成し、それ以外は null＝アドホック）。
+      // 「両方揃うか、どちらも無いか」を組で強制しない理由は slot-suggested-start が品目参照を別種別へ
+      // 移すことにあり、ここで組を型にすれば作ってすぐ消すことになる。組を成す判定は wire.ts が担う。
       readonly externalOrderId?: string;
       readonly itemIndex?: number;
     }
@@ -65,37 +64,14 @@ export type ServerMessage =
       /** Committed_Plan からの導出値。永続しない（要件8.1 / 8.5）。 */
       readonly recommendations: readonly CookRecommendation[];
     }
-  // 店舗設定の一方向配信（サーバ権威・クライアント不変）。StoreConfig 全項目を運ぶ（要件3.4）。
+  // 店舗設定の一方向配信（サーバ権威・クライアント不変）。StoreConfig をそのまま運ぶ（要件3.4）。
   //
-  // StoreConfig をそのまま埋め込まずフィールドを列挙するのは、ワイヤが未検証の生表現だからである。
-  // StoreConfig は noodlePresets を NonEmptyArray、slotOffsets を 6 要素タプルとして型で基数を保証するが、
-  // その保証は JSON を跨げない。受け手は toNoodlePresets / toSlotOffsets で改めて確立する（既存の
-  // noodlePresets が readonly NoodlePreset[] で運ばれているのと同じ扱い）。ゆえに列挙は StoreConfig の
-  // 重複ではなく、生表現へ縮退させるという表現境界の表明である。項目が増えたらここへも足す。
-  | {
-      readonly type: "config";
-      readonly serverTime: number;
-      readonly unitCount: number;
-      readonly noodlePresets: readonly NoodlePreset[];
-      readonly arms: number;
-      readonly toleranceRatio: number;
-      readonly orderSyncWeight: number;
-      readonly tableSyncWeight: number;
-      readonly affinityWeight: number;
-      readonly orderSyncToleranceSeconds: number;
-      readonly tableSyncToleranceSeconds: number;
-      readonly affinityToleranceDistance: number;
-      readonly unitOrigins: readonly UnitOrigin[];
-      readonly slotOffsets: readonly GridPoint[];
-      readonly firmnessCodes: readonly FirmnessCode[];
-      // MenuItem をワイヤ専用の形へ写し替えず StoreConfig の型のまま運ぶ。sizes の NonEmptyArray は JSON を
-      // 跨げないが、縮退のために MenuItem を二度定義すれば同じ概念が二つの型で語られる——MenuItem は店舗設定の
-      // 概念であり、CookRecommendation のようにワイヤだけに在る概念ではない。列挙が縮退させるのは列挙した項目
-      // 自身の基数であって（noodlePresets の NonEmptyArray・slotOffsets の 6 要素タプルがそれ）、この 2 項目は
-      // StoreConfig 側も readonly T[] ゆえ縮退させる基数を持たない。入れ子の非空は受け手が toMenuItems で
-      // 改めて確立する（snapshot の TimerFact.slotIds が NonEmptyArray のまま運ばれるのと同じ扱い）。
-      readonly menuItems: readonly MenuItem[];
-    }
+  // 項目を列挙しない。列挙すれば StoreConfig の項目集合を写した第二の一覧が生まれ、設定が増えたときに
+  // 両方を直す規律が要る。intersection にすれば第二の一覧そのものが存在せず、取りこぼす場所が無い。
+  // 基数（noodlePresets の NonEmptyArray・slotOffsets の 6 要素タプル）も弱めない——wire.ts の関門が
+  // 境界で確立するため、弱めて運ぶ理由が消えた。ワイヤ上の JSON は平坦なままである（intersection は
+  // 構造を入れ子にしない）。StoreConfig 側に type / serverTime という名の項目を置くと黙って重なる。
+  | ({ readonly type: "config"; readonly serverTime: number } & StoreConfig)
   | {
       readonly type: "error";
       readonly serverTime: number;
