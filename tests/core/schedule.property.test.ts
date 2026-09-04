@@ -99,7 +99,7 @@ describe("engine/schedule — baselineSchedule", () => {
         const schedule = baselineSchedule(
           pending,
           release,
-          new Map(),
+          members,
           DEFAULT_NOODLE_PRESETS,
           params,
         );
@@ -172,7 +172,7 @@ describe("engine/schedule — baselineSchedule", () => {
         const schedule = baselineSchedule(
           pending,
           release,
-          new Map(),
+          members,
           DEFAULT_NOODLE_PRESETS,
           params,
         );

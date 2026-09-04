@@ -232,13 +232,14 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 「群の 1 本目を入れた後も残りが 1 本目に揃う」を DO 越しに 1 本。同じ卓の 3 品目を入れ、1 本目の開始後に broadcast された推奨の `startAt + 茹で秒` が一致することを見る。
     - _Validates: Requirements 3.2, 3.4, 7.4_
 
-- [ ] 13. 文書の整合（本体と同じコミット・AC 8.1 の要求）
-  - [ ] 13.1 `online-cook-scheduling` の requirements と design
+- [x] 13. 文書の整合
+  - 実測・2026-09-04: online-cook-scheduling の requirements（AC 3.3 に (d) slotSpan、AC 3.4 に (d) Arms_Overflow、確定注記へ判断 5 の改訂を追記）と design（`baselineSchedule` / `scoreSchedule` の署名とアルゴリズムを現行へ、撤去候補を記録）、pos-order-ingress AC 6.36 に解消の旨を追記。あわせて本 spec の design / requirements 7.2 / ADR-0006 の「常に損」を「損か同値（同値は棄却）」へ改めた（task 12 の実測）。（本体と同じコミット・AC 8.1 の要求）
+  - [x] 13.1 `online-cook-scheduling` の requirements と design
     - requirements：Requirement 3 のハード制約に `(d) slotSpan`（相異なる `slotSpan` 個の釜）、Requirement 4 のソフト制約に Arms_Overflow、確定注記の目的関数を判断 5 の形へ。
     - design：`scoreSchedule` の節（`:245-267`）と `baselineSchedule` の節（`:208-244`）を新しい署名へ。`tableSyncToleranceSeconds` / `orderSync*` を撤去候補として記録し、前者は「`ScheduleParams` に在るが読む計算が無い」ことを書く。
     - _Requirements: 8.1, 8.4_
 
-  - [ ] 13.2 `pos-order-ingress` AC 6.36 の繰り延べを解消
+  - [x] 13.2 `pos-order-ingress` AC 6.36 の繰り延べを解消
     - 「engine が `slotSpan` を見て複数スロットを割り当てる変更は別 spec で扱う」に、本 spec が解消した旨を追記する。
     - _Requirements: 8.2_
 
