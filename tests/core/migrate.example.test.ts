@@ -176,7 +176,10 @@ describe("migrate — v7 → v8", () => {
     expect(result.snapshot.pendingOrders).toEqual([
       { ...v7Raw.pendingOrders[0], slotSpan: 1, itemName: null, sizeName: null },
     ]);
-    expect(result.snapshot.acceptedSlices).toEqual(v7Raw.acceptedSlices);
+    // v10 で一片は点数を持たない。v7 の score（140）は余剰として捨てられ、鍵と配置は写しである。
+    expect(result.snapshot.acceptedSlices).toEqual(
+      v7Raw.acceptedSlices.map(({ score: _score, ...rest }) => rest),
+    );
     expect(result.snapshot.requestedDigest).toBe(123_456);
     // v7 以前は取り込み経路が存在せず、判定材料を持つ端末が無い。空から始めれば最初の Record が必ず受理される。
     expect(result.snapshot.lastSequenceByTerminal).toEqual({});
@@ -214,8 +217,17 @@ describe("migrate — v7 → v8", () => {
       version: 7,
       timers: [],
       nextSeq: 0,
+      // 配置の形が満たされない（品目の鍵が空）。score は読まないので、不正の根拠にはならない。
+      acceptedSlices: [{ tableKey: "t", placements: [{ externalOrderId: "" }] }],
+    });
+    // 小数の score だけでは落ちない——v10 は score を読まない（外し忘れれば v10 の永続が全滅する）。
+    const fractionalScore = migrate({
+      version: 7,
+      timers: [],
+      nextSeq: 0,
       acceptedSlices: [{ tableKey: "t", placements: [], score: 1.5 }],
     });
+    expect(fractionalScore.ok).toBe(true);
 
     expect(badPending.ok).toBe(false);
     expect(badAccepted.ok).toBe(false);

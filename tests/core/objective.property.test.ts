@@ -11,6 +11,8 @@ import type { PlanSlice } from "../../src/engine/schedule";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
 import {
+  ARMS_MAX,
+  ARMS_MIN,
   AFFINITY_TOLERANCE_DISTANCE_MIN,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_SLOT_OFFSETS,
@@ -93,6 +95,7 @@ function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     orderSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     tableSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     affinityWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
+    arms: fc.integer({ min: ARMS_MIN, max: ARMS_MAX }),
     orderSyncToleranceSeconds: fc.integer({
       min: SYNC_TOLERANCE_SECONDS_MIN,
       max: SYNC_TOLERANCE_SECONDS_MAX,
@@ -198,13 +201,15 @@ describe("engine/objective — 目的関数", () => {
   it("Property 3: 部分和の総和が全体値に等しく、各部分和は単独採点と一致する", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const score = scoreSchedule(slices, pending, params);
+        const score = scoreSchedule(slices, pending, new Map(), params);
 
         expect(score.bySlice).toHaveLength(slices.length);
         expect(score.bySlice.reduce((sum, value) => sum + value, 0)).toBe(score.total);
 
         slices.forEach((slice, index) => {
-          expect(scoreSchedule([slice], pending, params).total).toBe(score.bySlice[index]);
+          expect(scoreSchedule([slice], pending, new Map(), params).total).toBe(
+            score.bySlice[index],
+          );
         });
       }),
       { numRuns: 300 },
@@ -220,7 +225,7 @@ describe("engine/objective — 目的関数", () => {
   it("Property 16: 全体値と各部分和が整数である", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const score = scoreSchedule(slices, pending, params);
+        const score = scoreSchedule(slices, pending, new Map(), params);
 
         expect(Number.isInteger(score.total)).toBe(true);
         for (const partial of score.bySlice) {
@@ -359,8 +364,8 @@ describe("engine/objective — 距離尺度", () => {
           const within = { ...params, affinityToleranceDistance: tolerance };
           const withoutAffinity = { ...within, affinityWeight: 0 };
 
-          expect(scoreSchedule(slices, pending, within)).toEqual(
-            scoreSchedule(slices, pending, withoutAffinity),
+          expect(scoreSchedule(slices, pending, new Map(), within)).toEqual(
+            scoreSchedule(slices, pending, new Map(), withoutAffinity),
           );
         },
       ),

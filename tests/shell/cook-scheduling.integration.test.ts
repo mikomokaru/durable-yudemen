@@ -259,7 +259,6 @@ function acceptedSliceFor(order: PendingOrder, slotId: string, boilMillis: numbe
         serveAt: (order.arrivalTime + boilMillis) as EpochMillis,
       },
     ],
-    score: 0,
   };
 }
 
@@ -912,8 +911,8 @@ describe("20.6 採用経路の end-to-end（Requirements 2.4, 6.5, 7.1, 7.5）",
     expect(persisted?.acceptedSlices).toHaveLength(1);
     expect(persisted?.acceptedSlices[0]?.tableKey).toBe(TABLE_SHORT);
     expect(persisted?.acceptedSlices[0]?.placements).toEqual(plan.slices[0]?.placements);
-    // 部分和は engine が算出した値に差し替わっている（外部が主張した 0 ではない）。
-    expect(persisted?.acceptedSlices[0]?.score).toBeGreaterThan(0);
+    // 採用済みの一片は点数を持たない（採点は比較の時点の導出・永続しない）。
+    expect(persisted?.acceptedSlices[0]).not.toHaveProperty("score");
 
     // 再接続 hydration に採用結果が残る（AC 2.4）。broadcast と同一の射影から組まれる。
     const reconnected = await connect(stage.stub);

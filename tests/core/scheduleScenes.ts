@@ -20,6 +20,8 @@ import {
   type SlotRelease,
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
+import { tableMembers } from "../../src/engine/project";
+import { ARMS_MAX, ARMS_MIN } from "../../src/domain/store";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
@@ -103,6 +105,7 @@ export function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     orderSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     tableSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     affinityWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
+    arms: fc.integer({ min: ARMS_MIN, max: ARMS_MAX }),
     orderSyncToleranceSeconds: fc.integer({
       min: SYNC_TOLERANCE_SECONDS_MIN,
       max: SYNC_TOLERANCE_SECONDS_MAX,
@@ -186,7 +189,8 @@ export function externalPlan(
   dropPick: number,
 ): CookSchedule {
   const release = initialRelease(running, NOW, slotCount);
-  const full = baselineSchedule(pending, release, DEFAULT_NOODLE_PRESETS, params);
+  const members = tableMembers(running);
+  const full = baselineSchedule(pending, release, members, DEFAULT_NOODLE_PRESETS, params);
   const victim = full.slices[dropPick % (full.slices.length + 1)];
   const planned =
     victim === undefined
@@ -194,7 +198,7 @@ export function externalPlan(
       : pending.filter(
           (order) => !victim.placements.some((placement) => refersTo(placement, order)),
         );
-  return baselineSchedule(planned, release, DEFAULT_NOODLE_PRESETS, params);
+  return baselineSchedule(planned, release, members, DEFAULT_NOODLE_PRESETS, params);
 }
 
 /**
@@ -234,6 +238,7 @@ export function shortestFirstPlan(
   return baselineSchedule(
     resequenced,
     initialRelease(running, NOW, slotCount),
+    tableMembers(running),
     DEFAULT_NOODLE_PRESETS,
     params,
   );

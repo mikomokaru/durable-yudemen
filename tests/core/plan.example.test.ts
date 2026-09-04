@@ -36,10 +36,10 @@ const PRESETS: readonly NoodlePreset[] = [
 
 /** 1 ユニット（6 釜）・重みと許容幅は既定。Boil_Sync は arms 1・許容 1%（塞ぐ Timer を動かさない値）。 */
 const PARAMS: SettleParams = {
-  arms: 1,
   toleranceRatio: 1,
   noodlePresets: PRESETS,
   ...schedulingDefaults(1),
+  arms: 1,
 };
 
 /** 釜 1〜5 を遠い未来まで塞ぐ Timer。茹で上がりを 2000 秒ずつ離し、同期の対象にならないようにする。 */
@@ -96,11 +96,8 @@ const IMPROVING: CookSchedule = {
           serveAt: (NOW + 60 * SECOND) as EpochMillis,
         },
       ],
-      // 外部が主張する部分和は嘘（0）。採点は engine の scoreSchedule ただ一つ。
-      score: 0,
     },
   ],
-  score: 0,
 };
 
 /** 受領遷移へ通す。 */
@@ -115,7 +112,7 @@ describe("receivePlan — 採用（AC 6.5）", () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     // score は engine が算出した値（60 秒待ち）に差し替わる。
-    expect(outcome.state.acceptedSlices).toEqual([{ ...IMPROVING.slices[0]!, score: 60 }]);
+    expect(outcome.state.acceptedSlices).toEqual([IMPROVING.slices[0]!]);
     expect(outcome.effects.map((effect) => effect.type)).toEqual([
       "Persist",
       "SetAlarm",
@@ -170,7 +167,7 @@ describe("receivePlan — 全棄却（AC 6.6）", () => {
   }
 
   it("空の計画は状態を変えず Persist も Broadcast も出さない", () => {
-    expectUntouched({ slices: [], score: 0 });
+    expectUntouched({ slices: [] });
   });
 
   it("現行 Committed_Plan と同値の計画を棄却する（同値は改善ではない）", () => {
@@ -192,10 +189,8 @@ describe("receivePlan — 全棄却（AC 6.6）", () => {
               serveAt: (NOW + 560 * SECOND) as EpochMillis,
             },
           ],
-          score: 0,
         },
       ],
-      score: 0,
     };
 
     expectUntouched(worse);
@@ -217,15 +212,11 @@ describe("decide — PlanArrived の配線", () => {
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
-    expect(outcome.state.acceptedSlices).toEqual([{ ...IMPROVING.slices[0]!, score: 60 }]);
+    expect(outcome.state.acceptedSlices).toEqual([IMPROVING.slices[0]!]);
   });
 
   it("棄却された受領は decide 経由でも状態を変えない", () => {
-    const outcome = decide(
-      STATE,
-      { type: "PlanArrived", plan: { slices: [], score: 0 }, now: NOW },
-      PARAMS,
-    );
+    const outcome = decide(STATE, { type: "PlanArrived", plan: { slices: [] }, now: NOW }, PARAMS);
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;

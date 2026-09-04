@@ -1,15 +1,17 @@
 // engine/commit.ts — 確定計画（Committed_Plan）の合成。
 // cloudflare:workers にも storage にも触れない純粋モジュール。
 //
-// ここに置くのは「採用済みの計画と自前解をどう繋ぐか」だけである。計画の型と算出は schedule.ts、
-// 採点は objective.ts の関心事であり、この関数はそれらを一度ずつ呼ぶ。
+// ここに置くのは「採用済みの計画と自前解をどう繋ぐか」だけである。計画の型と算出は schedule.ts の
+// 関心事であり、この関数はそれを一度呼ぶ。採点は呼ばない——採点は比較の時点（admit.ts）の導出であって
+// 合成の一部ではない（lift-group-planning 判断 7）。
 //
 // 確定計画は**導出値**であって状態ではない。正本は採用済み PlanSlice 列（TimerState.acceptedSlices）と
 // 現在の Pending_Order / Timer 集合である。ゆえにここに永続する形は現れない。
 
 import { SLOTS_PER_UNIT, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
-import { scoreSchedule, type ScheduleParams } from "./objective";
+import type { ScheduleParams } from "./objective";
+import { tableMembers } from "./project";
 import {
   advanceRelease,
   baselineSchedule,
@@ -19,7 +21,6 @@ import {
   refersTo,
   type AcceptedSlice,
   type CookSchedule,
-  type PlanSlice,
 } from "./schedule";
 import type { Timer } from "./timer";
 import type { EpochMillis } from "./types";
@@ -60,31 +61,17 @@ export function committedSchedule(
   const prefix = livePrefix(accepted, targets, now);
 
   // 解放表は開始済み Timer の占有から始め、接頭辞の配置で順に進める（design の合成手順 2）。
+  // 卓の成員表も同じ走行中から引く（「その釜がいつ空くか」と「その卓がいつ上がるか」の二つの表）。
   let release = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
   for (const slice of prefix) release = advanceRelease(release, slice.placements);
+  const members = tableMembers(running);
 
   // 尾部の対象は「接頭辞が使わなかった計画対象」。全 Pending_Order から除くのではない——それでは
   // 65 件目以降が繰り上がって計画に現れ、計画対象を 64 件に限る AC 11.2 が破れる。
   const remaining = targets.filter((order) => !isPlaced(order, prefix));
-  const tail = baselineSchedule(remaining, release, presets, params);
+  const tail = baselineSchedule(remaining, release, members, presets, params);
 
-  // **採点は接頭辞を含めてやり直す。** AcceptedSlice が持つ部分和は外部が主張した値であり、こちらが
-  // 検証した事実ではない。確定計画の総和は Acceptance_Gate の段 2 が比較の基準に用いるため、
-  // 外部の主張をそのまま総和へ流せば、嘘の値で単調改善を判定することになる。
-  const slices: readonly Omit<PlanSlice, "score">[] = [
-    ...prefix.map((slice) => ({ tableKey: slice.tableKey, placements: slice.placements })),
-    ...tail.slices,
-  ];
-  const score = scoreSchedule(slices, pending, params);
-
-  return {
-    slices: slices.map((slice, index) => ({
-      tableKey: slice.tableKey,
-      placements: slice.placements,
-      score: score.bySlice[index]!,
-    })),
-    score: score.total,
-  };
+  return { slices: [...prefix, ...tail.slices] };
 }
 
 /**

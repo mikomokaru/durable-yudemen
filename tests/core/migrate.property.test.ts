@@ -185,7 +185,10 @@ describe("core/migrate — v7 → v8 の面", () => {
             ({ slotSpan: _span, itemName: _item, sizeName: _size, ...rest }) => rest,
           ),
         ).toEqual(v7.pendingOrders);
-        expect(result.snapshot.acceptedSlices).toEqual(v7.acceptedSlices);
+        // v10 で一片は点数を持たない。v7 の score は余剰として捨てられ、それ以外は写しである。
+        expect(result.snapshot.acceptedSlices).toEqual(
+          v7.acceptedSlices.map(({ score: _score, ...rest }) => rest),
+        );
         expect(result.snapshot.requestedDigest).toBe(v7.requestedDigest);
         expect(result.snapshot.nextSeq).toBe(v7.nextSeq);
         // 計時の事実（endTime / adjustment / boiledAt）に一切触れない。

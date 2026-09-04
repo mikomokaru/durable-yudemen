@@ -20,7 +20,8 @@ import { describe, expect, it } from "vitest";
 import { admit } from "../../src/engine/admit";
 import { committedSchedule } from "../../src/engine/commit";
 import { baselineSchedule, initialRelease, type CookSchedule } from "../../src/engine/schedule";
-import type { ScheduleParams } from "../../src/engine/objective";
+import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
+import { tableMembers } from "../../src/engine/project";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
@@ -74,10 +75,8 @@ const SHORT = order("o-short", "Short", "t-b");
 const PENDING: readonly PendingOrder[] = [LONG, SHORT];
 
 /**
- * 外部計画の一片を組む。**score は嘘（0）を載せる。**
- *
- * 外部が主張した部分和は判定に用いられない（engine 自身の採点が唯一の権威）。嘘を載せておけば、
- * 誤って主張を信じる実装に変えたときこのファイルが落ちる。
+ * 外部計画の一片を組む。点数は載せない——計画は点数を持たず、採点は比較の時点で engine が行う
+ * （lift-group-planning 判断 7）。
  */
 function slice(
   tableKey: string,
@@ -92,13 +91,17 @@ function slice(
       startAt: item.startAt as EpochMillis,
       serveAt: item.serveAt as EpochMillis,
     })),
-    score: 0,
   };
 }
 
-/** 外部から届いた計画（総和の主張も 0＝嘘のまま）。 */
+/** 外部から届いた計画。 */
 function plan(...slices: readonly ReturnType<typeof slice>[]): CookSchedule {
-  return { slices, score: 0 };
+  return { slices };
+}
+
+/** 比較の時点の採点（走行中の卓なし Timer は成員にならない）。 */
+function scoreOf(schedule: CookSchedule) {
+  return scoreSchedule(schedule.slices, PENDING, tableMembers(BLOCKED), PARAMS);
 }
 
 /** 現行 Committed_Plan（採用済みが無い＝自前解そのもの）。 */
@@ -112,11 +115,8 @@ function gate(arrived: CookSchedule) {
 describe("admit — 場面の前提", () => {
   it("自前解は A（600 秒）を先に置き、B（60 秒）を釜が空くまで待たせる", () => {
     // 卓 id 順に A → B。使える釜は 0 番だけゆえ B は A が上がってから始まる。
-    expect(COMMITTED.slices.map((each) => [each.tableKey, each.score])).toEqual([
-      ["t-a", 600],
-      ["t-b", 660],
-    ]);
-    expect(COMMITTED.score).toBe(1260);
+    expect(COMMITTED.slices.map((each) => each.tableKey)).toEqual(["t-a", "t-b"]);
+    expect(scoreOf(COMMITTED)).toEqual({ total: 1260, bySlice: [600, 660] });
   });
 });
 
@@ -133,8 +133,7 @@ describe("admit — 段 1（接頭辞の枝刈り）", () => {
     const admitted = gate(arrived);
 
     // 1 番目だけが採用される（2 番目が陳腐化A で落ち、3 番目は接頭辞ゆえ道連れになる）。
-    // score は engine が算出した値に差し替わる（外部の主張 0 ではない）。
-    expect(admitted).toEqual([{ ...arrived.slices[0]!, score: 60 }]);
+    expect(admitted).toEqual([arrived.slices[0]!]);
 
     // 尾部は**再実行**される。外部が A に与えた開始時刻（+120 秒）ではなく、採用した接頭辞の解放表から
     // 引き直した +60 秒に入る——切り貼りではないことがここに現れる。
@@ -143,7 +142,7 @@ describe("admit — 段 1（接頭辞の枝刈り）", () => {
       ["t-b", NOW],
       ["t-a", NOW + 60 * SECOND],
     ]);
-    expect(composed.score).toBe(720);
+    expect(scoreOf(composed).total).toBe(720);
   });
 });
 
@@ -160,16 +159,9 @@ describe("admit — 段 2（合成後の総和による全体判定）", () => {
     expect(gate(arrived)).toEqual([]);
 
     // 悪化の事実を固定する（棄却の理由が「悪化」であって陳腐化や制約違反ではないこと）。
-    const wouldBe = committedSchedule(
-      [{ ...arrived.slices[0]!, score: 560 }],
-      PENDING,
-      BLOCKED,
-      NOW,
-      PRESETS,
-      PARAMS,
-    );
-    expect(wouldBe.score).toBe(1720);
-    expect(wouldBe.score).toBeGreaterThan(COMMITTED.score);
+    const wouldBe = committedSchedule([arrived.slices[0]!], PENDING, BLOCKED, NOW, PRESETS, PARAMS);
+    expect(scoreOf(wouldBe).total).toBe(1720);
+    expect(scoreOf(wouldBe).total).toBeGreaterThan(scoreOf(COMMITTED).total);
   });
 
   it("遊ばせずに同じ順序へ入れ替える計画は採用される（棄却が順序の変更そのものに掛かっていない）", () => {
@@ -178,13 +170,13 @@ describe("admit — 段 2（合成後の総和による全体判定）", () => {
       slice("t-b", [{ order: SHORT, startAt: NOW, serveAt: NOW + 60 * SECOND }]),
     );
 
-    expect(gate(arrived)).toEqual([{ ...arrived.slices[0]!, score: 60 }]);
+    expect(gate(arrived)).toEqual([arrived.slices[0]!]);
   });
 });
 
 describe("admit — 外部の申告を検証する", () => {
-  it("主張された score は判定に用いない（engine の採点が悪化と見れば棄却する）", () => {
-    // score は 0 と主張しているが、engine の採点では 760 秒待ち＝現行の 660 より悪い。
+  it("採点は engine が比較の時点で行う（悪化と見れば棄却する）", () => {
+    // engine の採点では 760 秒待ち＝現行の 660 より悪い。外部が何を主張していても計画は点数を運ばない。
     const arrived = plan(
       slice("t-b", [{ order: SHORT, startAt: NOW + 700 * SECOND, serveAt: NOW + 760 * SECOND }]),
     );
@@ -214,10 +206,8 @@ describe("admit — 外部の申告を検証する", () => {
               serveAt: (NOW + 60 * SECOND) as EpochMillis,
             },
           ],
-          score: 0,
         },
       ],
-      score: 0,
     };
 
     expect(gate(intruder)).toEqual([]);
@@ -230,11 +220,17 @@ describe("admit — 同値と空", () => {
   });
 
   it("空の計画は空の採用列を返す", () => {
-    expect(gate({ slices: [], score: 0 })).toEqual([]);
+    expect(gate({ slices: [] })).toEqual([]);
   });
 
   it("自前解と同値の計画（Solver_Worker の骨格が返す形）も棄却される", () => {
-    const same = baselineSchedule(PENDING, initialRelease(BLOCKED, NOW, 6), PRESETS, PARAMS);
+    const same = baselineSchedule(
+      PENDING,
+      initialRelease(BLOCKED, NOW, 6),
+      tableMembers(BLOCKED),
+      PRESETS,
+      PARAMS,
+    );
 
     expect(gate(same)).toEqual([]);
   });

@@ -16,6 +16,7 @@ import type { ScheduleParams } from "../src/engine/objective";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_AFFINITY_WEIGHT,
+  DEFAULT_ARMS,
   DEFAULT_FIRMNESS_CODES,
   DEFAULT_MENU_ITEMS,
   DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
@@ -27,12 +28,13 @@ import {
   type StoreConfig,
 } from "../src/domain/store";
 
-/** 採点パラメータ（重み 3・許容幅 3・レイアウト 2）の既定。unitOrigins は unitCount に依存する。 */
+/** 採点パラメータ（重み 3・arms・許容幅 2・距離 1・レイアウト 2）の既定。unitOrigins は unitCount に依存する。 */
 export function schedulingDefaults(unitCount: number): ScheduleParams {
   return {
     orderSyncWeight: DEFAULT_ORDER_SYNC_WEIGHT,
     tableSyncWeight: DEFAULT_TABLE_SYNC_WEIGHT,
     affinityWeight: DEFAULT_AFFINITY_WEIGHT,
+    arms: DEFAULT_ARMS,
     orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
     tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
     affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
@@ -42,7 +44,7 @@ export function schedulingDefaults(unitCount: number): ScheduleParams {
 }
 
 /**
- * StoreConfig の残余（採点パラメータ 8 値 ＋ POS の対応表 2 枚）を既定値で満たした部分。
+ * StoreConfig の残余（arms を除く採点パラメータ 8 値 ＋ POS の対応表 2 枚）を既定値で満たした部分。
  *
  * 戻り型を Omit<StoreConfig, …> に据えるのは、StoreConfig が項目を増やしたときにここで型が破れ、
  * フィクスチャの供給漏れが型検査で露わになるためである（黙って欠けたまま通らせない）。
@@ -50,8 +52,10 @@ export function schedulingDefaults(unitCount: number): ScheduleParams {
 export function configResidualDefaults(
   unitCount: number,
 ): Omit<StoreConfig, "unitCount" | "arms" | "toleranceRatio" | "noodlePresets"> {
+  // arms は Override の主張対象（StoreConfig 側）であり残余ではない。採点パラメータの束からは外して返す。
+  const { arms: _arms, ...scheduling } = schedulingDefaults(unitCount);
   return {
-    ...schedulingDefaults(unitCount),
+    ...scheduling,
     firmnessCodes: DEFAULT_FIRMNESS_CODES,
     menuItems: DEFAULT_MENU_ITEMS,
   };

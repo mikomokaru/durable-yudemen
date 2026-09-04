@@ -216,12 +216,17 @@ function reviveAcceptedSlices(value: unknown): readonly AcceptedSlice[] | null {
   return slices;
 }
 
-/** 一件の raw を AcceptedSlice へ写す。score は整数（目的関数値は整数で閉じる）。 */
+/**
+ * 一件の raw を AcceptedSlice へ写す。
+ *
+ * v9 以前の一片は score を持つが、v10 で一片は点数を持たなくなった（採点は比較の時点の導出・lift-group-planning
+ * 判断 7）。余剰として読まずに捨てる。ここで整数性を検査し続ければ、score を書かない v10 の永続データが
+ * 全滅して移行失敗＝店舗が起動しない。
+ */
 function reviveAcceptedSlice(value: unknown): AcceptedSlice | null {
   if (typeof value !== "object" || value === null) return null;
   const s = value as Record<string, unknown>;
   if (typeof s.tableKey !== "string" || s.tableKey.length === 0) return null;
-  if (typeof s.score !== "number" || !Number.isInteger(s.score)) return null;
   if (!Array.isArray(s.placements)) return null;
   const placements: Placement[] = [];
   for (const element of s.placements) {
@@ -229,7 +234,7 @@ function reviveAcceptedSlice(value: unknown): AcceptedSlice | null {
     if (placement === null) return null;
     placements.push(placement);
   }
-  return { tableKey: s.tableKey, placements, score: s.score };
+  return { tableKey: s.tableKey, placements };
 }
 
 /** 一件の raw を Placement へ写す。slotIds は Timer と同じ非空配列の規律に従う。 */

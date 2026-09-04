@@ -3,13 +3,16 @@
 //
 // ここに置くのは「外部計画を信じてよいか」の判定だけである。計画の型と自前解は schedule.ts、採点は
 // objective.ts、合成は commit.ts の関心事であり、この関数はそれらを呼ぶだけで一つも作り直さない。
-// とくに**採点は engine 自身の scoreSchedule ただ一つ**を用いる——外部計画が載せてきた score は
-// 外部が主張した値にすぎず、判定の根拠にすれば嘘の値で単調改善を判定することになる。
+// **採点は比較の時点でここが行う。** 計画は点数を持たず（PlanSlice に score は無い）、外部計画が score を
+// 添えてきても読まない。永続した点数を比較に使えば、重みや走行中の変化とずれた値で単調改善を判定する
+// ことになる（lift-group-planning 判断 7）。
 //
 // 判定は 2 段である。役割が違う（design.md「単調改善は全体判定が担保する」）。
 //   段 1 — (a)〜(d) を PlanSlice ごとに、計画順の接頭辞として。**枝刈り**。
 //   段 2 — 接頭辞を採用した場合の合成後の総和 vs 現行 Committed_Plan の総和。**単調性の担保**。
-// 段 1 の (d) は Committed_Plan の**対応部分和**と比べ、段 2 は**合成後総和**と現行総和を比べる。
+// 段 1 の (d) は Committed_Plan の**対応部分和**、段 2 は**合成後総和**と現行総和を、いずれも比較の時点の
+// 走行中（卓の成員表）で採点し直して比べる。基準は Committed_Plan のままで自前解へ移さない——基準を
+// 自前解に取れば、採用済みのより良い計画を後着の劣る計画が上書きできる。
 // どちらも比較基準は Baseline_Plan ではない——基準を自前解に取れば、採用済みのより良い計画を後着の
 // 劣る計画が上書きできてしまう（AC 6.2(d) が Committed_Plan 基準を要求する理由そのもの）。
 
@@ -17,6 +20,7 @@ import { SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import { committedSchedule } from "./commit";
 import { scoreSchedule, type ScheduleParams } from "./objective";
+import { tableMembers, type TableMembers } from "./project";
 import {
   advanceRelease,
   initialRelease,
@@ -56,8 +60,7 @@ import type { EpochMillis } from "./types";
  * (1) 段 2 が `committedSchedule` を走らせ、それが尾部の再実行に茹で時間を要する（タスク 9.1 / 11.1 の判断）。
  * (2) 段 1 の (c) が「serveAt = startAt ＋ 茹で時間」を検査する（下記 `feasibleRelease` の注記）。
  *
- * 返す一片の score は**engine が算出した値**に差し替える。外部が主張した score をそのまま状態へ載せれば、
- * 永続する事実が嘘の値を含むことになる（「コードは真実を語る」）。
+ * 返す一片は点数を持たない。採用は「この店が採用した」という事実であり、点数はその時点の導出にすぎない。
  */
 export function admit(
   arrived: CookSchedule,
@@ -68,13 +71,27 @@ export function admit(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
-  const prefix = prune(arrived, committed, pending, running, now, presets, params);
+  // 卓の成員表は 1 回だけ引き、段 1・段 2 の採点 3 回で共有する。
+  const members = tableMembers(running);
+  const committedScore = scoreSchedule(committed.slices, pending, members, params);
+  const prefix = prune(
+    arrived,
+    committed,
+    committedScore.bySlice,
+    pending,
+    running,
+    now,
+    members,
+    presets,
+    params,
+  );
   if (prefix.length === 0) return [];
 
   // 段 2。候補接頭辞で合成を 1 回走らせ、総和を現行 Committed_Plan と比べる。合成は接頭辞の占有から
   // 尾部を再実行するため、ここで得る総和は「採用した後に実際に確定する計画」の値そのものである。
   const composed = committedSchedule(prefix, pending, running, now, presets, params);
-  return composed.score < committed.score ? prefix : [];
+  const composedScore = scoreSchedule(composed.slices, pending, members, params);
+  return composedScore.total < committedScore.total ? prefix : [];
 }
 
 /**
@@ -86,9 +103,11 @@ export function admit(
 function prune(
   arrived: CookSchedule,
   committed: CookSchedule,
+  committedBySlice: readonly number[],
   pending: readonly PendingOrder[],
   running: readonly Timer[],
   now: EpochMillis,
+  members: TableMembers,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
@@ -98,9 +117,11 @@ function prune(
   // 意味のある判定にならない）。Committed_Plan の側は tableKey が一意である：自前解は Table_Group を
   // Map で束ねるので重複を作らず、合成の接頭辞は当該 group の全品目を覆う（さもなくば isStale が落とす）ため
   // 尾部に同じ key が再び現れることもない。**外部計画の側の重複は下で明示的に落とす。**
-  const corresponding = new Map(committed.slices.map((slice) => [slice.tableKey, slice.score]));
-  // 採点は一度で済む（全項が Table_Group の内側に閉じるため部分和は一片ごとに独立・Property 3）。
-  const scores = scoreSchedule(arrived.slices, pending, params).bySlice;
+  const corresponding = new Map(
+    committed.slices.map((slice, index) => [slice.tableKey, committedBySlice[index]!]),
+  );
+  // 採点は一度で済む（全項が卓の内側に閉じるため部分和は一片ごとに独立・Property 3）。
+  const scores = scoreSchedule(arrived.slices, pending, members, params).bySlice;
 
   const prefix: AcceptedSlice[] = [];
   const claimed = new Set<string>();
@@ -124,7 +145,7 @@ function prune(
     const score = scores[index]!;
     if (current === undefined || score >= current) break;
 
-    prefix.push({ tableKey: slice.tableKey, placements: slice.placements, score });
+    prefix.push({ tableKey: slice.tableKey, placements: slice.placements });
     claimed.add(slice.tableKey);
     release = advanced;
   }
@@ -143,6 +164,10 @@ function prune(
  *   ある瞬間に走れる本数は表の長さ＝釜の数を超えられない。独立の検査を置かない（同じ事実を二度書かない）。
  * - (c) 開始済み Timer の割当と実効 endTime を変えない — `initialRelease` が請け負う。表の初期値が開始済み
  *   Timer の実効 endTime であり、下限が now ゆえ過去に始まる配置もここで落ちる。
+ *
+ * **(d) slotSpan を検査する。** 配置の釜は当該品目の slotSpan 個で、かつ相異なること。本数だけを見ると
+ * `["3","3"]` が本数 2 を満たしながら 1 釜しか占めず、advanceRelease が重複を吸収するので解放表にも現れない。
+ * 本数で容量を数える設計（lift-group-planning AC 4.5）が開けた穴を、同じ場所で閉じる。
  *
  * **serveAt = startAt ＋ 当該品目の茹で時間 を検査する（design の (a)(b)(c) への追加）。** 外部計画は
  * startAt と serveAt の両方を主張してくるが、両者を結ぶのは品目の茹で時間ただ一つである。検査しないと
@@ -165,9 +190,13 @@ function feasibleRelease(
 
   let free = release;
   for (const placement of ordered) {
-    const boilMillis = boilMillisOf(placement, targets, presets);
+    const order = targets.find((candidate) => refersTo(placement, candidate));
+    if (order === undefined) return null;
+    const boilMillis = boilMillisOf(order, presets);
     if (boilMillis === null) return null;
     if (placement.serveAt - placement.startAt !== boilMillis) return null;
+    if (placement.slotIds.length !== order.slotSpan) return null;
+    if (new Set(placement.slotIds).size !== placement.slotIds.length) return null;
     for (const slotId of placement.slotIds) {
       const at = free[slotOf(slotId)];
       // 表の外を指す slot は存在しない釜であり、置き場所ではない。
@@ -180,18 +209,12 @@ function feasibleRelease(
 }
 
 /**
- * 配置が指す品目の茹で時間（ミリ秒）。品目が計画対象に無いか、麺種がプリセットに無ければ null。
+ * 品目の茹で時間（ミリ秒）。麺種がプリセットに無ければ null。
  *
- * 品目の同一性は schedule.ts の refersTo ただ一つ。茹で時間は PendingOrder が持たない導出値ゆえ
- * （noodleType × firmness）、判定の直前に引く。
+ * 茹で時間は PendingOrder が持たない導出値ゆえ（noodleType × firmness）、判定の直前に引く。品目の同定
+ * （schedule.ts の refersTo）は呼び出し側が一度だけ行い、茹で時間と slotSpan の両方をその品目から読む。
  */
-function boilMillisOf(
-  placement: Placement,
-  targets: readonly PendingOrder[],
-  presets: readonly NoodlePreset[],
-): number | null {
-  const order = targets.find((candidate) => refersTo(placement, candidate));
-  if (order === undefined) return null;
+function boilMillisOf(order: PendingOrder, presets: readonly NoodlePreset[]): number | null {
   const preset = presets.find((candidate) => candidate.noodleType === order.noodleType);
   if (preset === undefined) return null;
   return preset.boilSeconds[order.firmness] * 1000;

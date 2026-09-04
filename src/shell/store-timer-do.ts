@@ -390,14 +390,6 @@ export class StoreTimerDO extends DurableObject<Env> {
   private menuItems: readonly MenuItem[] = DEFAULT_MENU_ITEMS;
 
   /**
-   * 腕の本数（StoreConfig.arms）。同時に上げられる本数の上限＝1 Sync_Set の最大本数。サーバ権威設定。
-   *
-   * unitCount と同じ系統で投影 config から反映し、decide 呼び出し時に synchronize へ値として注入する。
-   * client へは配信しない（要件6.5）。既定は安全網。
-   */
-  private arms: number = DEFAULT_ARMS;
-
-  /**
    * 許容調整割合（StoreConfig.toleranceRatio・整数パーセント）。各 Timer が茹で時間に対し前後に調整してよい割合。
    *
    * arms と同じ系統で投影 config から反映し、decide 呼び出し時に synchronize へ値として注入する。
@@ -406,18 +398,20 @@ export class StoreTimerDO extends DurableObject<Env> {
   private toleranceRatio: number = DEFAULT_TOLERANCE_RATIO;
 
   /**
-   * 計画の採点パラメータ（StoreConfig の重み 3・許容幅 3・レイアウト 2）。サーバ権威設定。
+   * 計画の採点パラメータ（StoreConfig の重み 3・arms・許容幅 2・距離 1・レイアウト 2）。サーバ権威設定。
    *
    * unitCount と同じ系統で投影 config から反映し、decide 呼び出し時に settleParams へ載せ、config として
-   * 配信する（全項目配信へ方針転換した・design の中心的判断 10）。8 値を個別フィールドに散らさず 1 つの
+   * 配信する（全項目配信へ方針転換した・design の中心的判断 10）。9 値を個別フィールドに散らさず 1 つの
    * 束で持つのは、これが engine の採点関数がちょうど要する入力の全体（ScheduleParams）であり、
-   * 意味を定めているのが目的関数の側だからである（`arms` のように shell が単独で読む値ではない）。
+   * 意味を定めているのが目的関数の側だからである。arms（腕の本数）もここに一つだけ持つ——同期
+   * （SyncParams）と採点（ScheduleParams）の両方が読むが、SettleParams が両者を継承するので実体は一つで足りる。
    * 既定は投影未受領（未プロビジョニング）時の安全網。
    */
   private scheduleParams: ScheduleParams = {
     orderSyncWeight: DEFAULT_ORDER_SYNC_WEIGHT,
     tableSyncWeight: DEFAULT_TABLE_SYNC_WEIGHT,
     affinityWeight: DEFAULT_AFFINITY_WEIGHT,
+    arms: DEFAULT_ARMS,
     orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
     tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
     affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
@@ -632,7 +626,6 @@ export class StoreTimerDO extends DurableObject<Env> {
    */
   private adoptProjectionConfig(config: StoreConfig): void {
     this.unitCount = config.unitCount;
-    this.arms = config.arms;
     this.toleranceRatio = config.toleranceRatio;
     this.noodlePresets = config.noodlePresets;
     this.firmnessCodes = config.firmnessCodes;
@@ -643,6 +636,7 @@ export class StoreTimerDO extends DurableObject<Env> {
       orderSyncWeight: config.orderSyncWeight,
       tableSyncWeight: config.tableSyncWeight,
       affinityWeight: config.affinityWeight,
+      arms: config.arms,
       orderSyncToleranceSeconds: config.orderSyncToleranceSeconds,
       tableSyncToleranceSeconds: config.tableSyncToleranceSeconds,
       affinityToleranceDistance: config.affinityToleranceDistance,
@@ -664,8 +658,8 @@ export class StoreTimerDO extends DurableObject<Env> {
       serverTime: Date.now(),
       unitCount: this.unitCount,
       noodlePresets: this.noodlePresets,
-      arms: this.arms,
       toleranceRatio: this.toleranceRatio,
+      // arms は scheduleParams の内側に一つだけ在る（config ワイヤの形は変わらない）。
       ...this.scheduleParams,
       firmnessCodes: this.firmnessCodes,
       menuItems: this.menuItems,
@@ -675,12 +669,11 @@ export class StoreTimerDO extends DurableObject<Env> {
   /**
    * decide へ注入する値の束を組む唯一の場所（engine は StoreConfig 型を知らない・非純粋を端へ寄せる規律）。
    *
-   * arms / toleranceRatio / noodlePresets / 採点パラメータのいずれも ensureProvisioned（または
+   * toleranceRatio / noodlePresets / 採点パラメータ（arms を含む）のいずれも ensureProvisioned（または
    * applyProjection）が投影 config から確立した確定値。
    */
   private settleParams(): SettleParams {
     return {
-      arms: this.arms,
       toleranceRatio: this.toleranceRatio,
       noodlePresets: this.noodlePresets,
       ...this.scheduleParams,

@@ -57,48 +57,49 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 実効 endTime は同ファイルの `adjustedEndTime` を用いる（`endTime + adjustment` を二度書かない）。
     - _Requirements: 2.1, 2.3, 3.3_
 
-- [ ] 3. 採点 — 卓の成員を数える
-  - [ ] 3.1 `ScheduleParams` に `arms` を足す
+- [x] 3. 採点
+  - 実測・2026-09-04: task 3〜5・6.1・7.2・8.2・8.3・10.1〜10.3 を 1 クラスタ（1 コミット）で実施。7.3 のうち `reviveAcceptedSlice` の score 検査の撤去も型整合のため同時に済ませた（版の繰り上げは 7.3 に残る）。既存テストは計画の意味論（許容幅→錨への一致・点数の撤去）に合わせて期待値を更新。typecheck 0・224 ファイル全通過。 — 卓の成員を数える
+  - [x] 3.1 `ScheduleParams` に `arms` を足す
     - 重み 3・`arms` 1・許容幅 2・距離 1・レイアウト 2 の 9 値になる（`arms` は本数であって重みではない）。doc の「ちょうど 8 値」をこの内訳へ。
     - `tableSyncToleranceSeconds` の doc に「本項目を読む計算は無い（撤去候補・`online-cook-scheduling` の design に記録）」を書く。読み手がいない値を黙って残さない。
     - _Requirements: 2.4, 5.1, 6.5_
 
-  - [ ] 3.2 卓同期項を Table_Lag の和へ替える
+  - [x] 3.2 卓同期項を Table_Lag の和へ替える
     - `ceilSeconds(millis)`（切り上げ）を足し、`tableLagSeconds(serveTimes)` = `Σ ceilSeconds(max − t)` を書く。空列は 0。
     - **切り上げである理由をコメントに残す。** 切り捨てで揃えると、1 ms ずらした計画が wait の floor を 1 下げて lag を増やさず「真に良い」を作り、client が `serveAt` の等号で組む群を割る。既存 `toWholeSeconds` の「規則を二つ持たない」注記と衝突するので、**役割の違い**（wait は水準ゆえ切り捨て・lag は逸脱の罰ゆえ切り上げ）を明記する。
     - `serveSpread` / `excessSeconds` はオーダー同期項が使い続けるので残す。
     - _Requirements: 2.1, 2.2, 2.8, 7.2_
 
-  - [ ] 3.3 `armsOverflow` の項を足す
+  - [x] 3.3 `armsOverflow` の項を足す
     - `armsOverflow(serveTimes, arms)` = 同じ `serveAt` を持つ成員を束ね `Σ max(0, 本数 − arms)`。`armsOverflowWeight(params)` = `max(0, params.tableSyncWeight − 1)`。
     - 定数を置かない（判断 8）。「卓 > arms」が式から出ることをコメントに書く。
     - _Requirements: 2.4, 7.10_
 
-  - [ ] 3.4 `scoreSchedule` の署名を替える
+  - [x] 3.4 `scoreSchedule` の署名を替える
     - 第 3 引数に `members: TableMembers`。`Omit<PlanSlice, "score">` を `PlanSlice` へ（`:86` の段落を撤去）。
     - `scoreSlice` は当該一片の成員（`members.get(slice.tableKey) ?? []`）を受け、`placements.map(serveAt)` と連結した列で lag と arms を数える。走行中は `waitSeconds` に寄与しない（その待ちは既に実現済み）。
     - **卓なしの除外は文字列一致から従う。** 単独キーは NUL 始まりで `tableId` は非空文字列なので、`get` が当たらない。条件文を書かない。
     - `:73-77` の確定式と「3 項すべてが許容幅からの超過分で揃い、到達可能な下限 0 を持つ」を書き換える。卓同期項は Table_Lag の和・`Σ Wait_Time` の対象は Placement のみ・lag の対象は走行中を含む、と式を分ける。下限 0 は「走行中の仲間が無い卓で到達可能」に弱める（AC 3.4）。
     - _Requirements: 2.1, 2.3, 2.5, 2.9, 8.3_
 
-- [ ] 4. 配置 — 錨へ揃え、`slotSpan` 個の釜を占める（`score` の撤去を同時に行う）
-  - [ ] 4.1 型から `score` を落とす
+- [x] 4. 配置 — 錨へ揃え、`slotSpan` 個の釜を占める（`score` の撤去を同時に行う）
+  - [x] 4.1 型から `score` を落とす
     - `PlanSlice` / `CookSchedule` から `score` を削除（`AcceptedSlice extends PlanSlice {}` は名を残す——「計算の産物」と「採用したという事実」は概念が違う）。
     - `toCookSchedule` / `toPlanSlice` から `score` の検証を外す。**外部が添えても読まない**（読まない値の検証で計画を棄却しない）。
     - `event.ts:73` の「`plan.score` は外部が主張した値にすぎず、採否の根拠にしない」の注記を書き換える（主張する場所が型から消えたので、注記の対象が無くなる・AC 8.3）。
     - _Requirements: 5.6, 8.3_
 
-  - [ ] 4.2 `baselineSchedule` を採点から切り離す
+  - [x] 4.2 `baselineSchedule` を採点から切り離す
     - 署名に `members: TableMembers` を足し、`scoreSchedule` の呼び出しと `score` の埋め込みを消す。この関数は「配置を決める」だけになる。
     - _Requirements: 5.6, 1.4_
 
-  - [ ] 4.3 `placeGroup` の batch 分割を `slotSpan` の合計へ
+  - [x] 4.3 `placeGroup` の batch 分割を `slotSpan` の合計へ
     - `batches = ceil(boilings.length / capacity)` を捨て、正準順序のまま `Σ slotSpan ≤ capacity` で詰める貪欲へ替える。
     - `slotSpan ≤ SLOT_SPAN_MAX = SLOTS_PER_UNIT = 6 ≤ capacity`（`UNIT_COUNT_MIN = 1`）ゆえ**1 品目が単独で容量を超えることは無い**。「置けない品目」の分岐を書かない（起こり得ないものに防御を置かない）。
     - 茹で時間が引けない品目を置かない既存の規律は変えない。
     - _Requirements: 1.5, 4.1, 4.5_
 
-  - [ ] 4.4 `placeBatch` を錨へ一致させ、`slotSpan` 個を割り当てる
+  - [x] 4.4 `placeBatch` を錨へ一致させ、`slotSpan` 個を割り当てる
     - `tableFloor` / `orderFloor` の 2 つの床を**撤去**し、錨 1 つへ替える。`anchor = max(max(earliest), 走行中の錨)`、`serveAt = anchor`、`startAt = anchor − boilMillis`。
     - `chooseSlots` は**中身を変えない**。渡す count が `Σ slotSpan` になるだけ。選ばれた釜を `byRelease` 昇順に並べ、`byBoil` 降順の品目へ `slotSpan` 個ずつ連続した塊で配る。
     - 錨は**batch ごとに取り直す**（batch 2 の `earliest` は進めた解放表から出る）。走行中の錨は卓の事実なのでどの batch にも同じ値が入る。
@@ -106,25 +107,25 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 対応づけの主張は「**決定的**である」に留める。`slotSpan` 混在では錨の最小性は言えない（厳密解の供給は外部ソルバの役目・`chooseSlots` の既存の立場）。
     - _Requirements: 1.4, 1.5, 3.4, 4.1, 4.3, 4.4, 8.3_
 
-- [ ] 5. 合成とゲート
-  - [ ] 5.1 `committedSchedule` から採点を外す
+- [x] 5. 合成とゲート
+  - [x] 5.1 `committedSchedule` から採点を外す
     - `initialRelease` と並べて `tableMembers(running)` を導き、`baselineSchedule` へ渡す。`scoreSchedule` の呼び出しと `score` の埋め込みを消す。
     - 「採点は接頭辞を含めてやり直す」の段落は不要になる（外部の主張を総和へ流す危険が型から消えた）。尾部を再実行する規律は変えない。
     - _Requirements: 5.6_
 
-  - [ ] 5.2 `admit` を再採点で比べる形へ
+  - [x] 5.2 `admit` を再採点で比べる形へ
     - `members = tableMembers(running)` を 1 回導き、`scoreSchedule` を 3 回呼ぶ（`arrived` / `committed` / `composed`）。`committed` の `bySlice` と `total` は 1 回の呼び出しで両方使う。
     - **基準は Committed_Plan のままである。** 段 1 (d) は対応部分和（`tableKey` で引く）、段 2 は合成後総和と現行総和。永続値は読まない。
     - `:9-12` の 2 段の説明を再採点の形へ書き換える。
     - _Requirements: 5.4, 5.6_
 
-  - [ ] 5.3 feasibility に `slotSpan` を足す
+  - [x] 5.3 feasibility に `slotSpan` を足す
     - `feasibleRelease` で品目を 1 回引き、茹で時間の整合・`slotIds.length === order.slotSpan`・**`slotIds` が相異なること**を見る。
     - 相異性を見る理由をコメントに残す。`["3","3"]` は本数 2 を満たしながら 1 釜しか占めず、`advanceRelease` が重複を吸収するので解放表にも現れない。`slotSpan` を本数で数える設計が開けた穴を、同じ場所で閉じる。
     - _Requirements: 4.2, 5.3_
 
 - [ ] 6. 後処理 — 等価判定と指紋
-  - [ ] 6.1 `settle` の等価判定から `score` を外す
+  - [x] 6.1 `settle` の等価判定から `score` を外す
     - `isSameSlice` の `left.score === right.score` を落とす。`tableKey` と placements の比較で足りる。
     - 副産物として「重みだけが変わった遷移」で空振りの Persist が出なくなる（AC 7.6 の方向）。
     - _Requirements: 5.6_
@@ -142,7 +143,7 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - modification で卓が移っても走行中 Timer は変えない（`upsertOrder` が生きた Timer の品目を置換から除く既存の規律・AC 3.6）。**新しいコードは要らない**ことをコメントで示す。
     - _Requirements: 3.2, 3.6_
 
-  - [ ] 7.2 永続の版を 10 へ上げ、移行を両方向で書く
+  - [x] 7.2 永続の版を 10 へ上げ、移行を両方向で書く
     - `types.ts` の `CURRENT_SCHEMA_VERSION` を 10 へ。`snapshot.ts:21` の「現行は v8」を v10 へ直す。
     - `reviveOrderItem` に `tableId` を足す。非空文字列はその値、欠如・`null`・壊れた値は `null` へ畳む。**`tableId` だけが壊れていても `orderItem` 全体を捨てない**（`orderItem` の喪失は二重調理の防止を失うが、`tableId` の喪失はその卓の同期が 1 回崩れるだけ）。
     - `reviveAcceptedSlice` から `score` の整数性検査を**外す**。外し忘れると v10 の永続データが全滅して移行失敗（店舗が起動しない）。
@@ -155,12 +156,12 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 理由をコメントに残す。往路の契約（`PlanRequest`）は既に運んでいるが、**要求の入力が engine と shell の二箇所から来ている**のを一箇所にする。
     - _Requirements: 5.1_
 
-  - [ ] 8.2 shell の配線
+  - [x] 8.2 shell の配線
     - `requestPlan` を `noodlePresets: effect.noodlePresets` へ。`this.noodlePresets` は取り込みと config 配信で残る。
     - `scheduleParams` 束に `arms` を含め、`private arms` を廃す。移す箇所は 3 つ——`:635` の投影反映、`:667` と `:683` の config メッセージ（broadcast と hydration の 2 経路）。config ワイヤの形は変わらない（既に `arms` を運ぶ）。
     - _Requirements: 5.1, 6.2, 6.5_
 
-  - [ ] 8.3 `solver/index.ts` を新しい署名へ
+  - [x] 8.3 `solver/index.ts` を新しい署名へ
     - `PlanRequest` は `running` を運ぶので、solver 側でも `initialRelease` と `tableMembers` の 2 表を作れる。`request.ts` は変更しない。
     - 返す計画は `score` を持たない（`CookSchedule` の変更に追随するだけ）。
     - _Requirements: 5.1, 5.6_
@@ -173,18 +174,18 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - `orderItem: {` を構築する 4 のテストファイル
 
 - [ ] 10. フィクスチャと既存テストの更新（型検査を green に戻す）
-  - [ ] 10.1 共有フィクスチャに `arms` と `members` を足す
+  - [x] 10.1 共有フィクスチャに `arms` と `members` を足す
     - `tests/storeConfigDefaults.ts` / `tests/core/scheduleScenes.ts` / `tests/core/schedulingScenes.ts`（**2 つある**・両方）。`ScheduleParams` に `arms: DEFAULT_ARMS`、`baselineSchedule` の呼び出しに `members`（走行中が無い場面は空の `Map`）。
     - 場面（scene）に**走行中の仲間を持つ卓**を 1 つ足す。task 11 の性質がこの場面を使う。
     - _Requirements: 7.1, 7.2_
 
-  - [ ] 10.2 `score` の参照を撤去する
+  - [x] 10.2 `score` の参照を撤去する
     - 対象は 7 ファイル。`tests/core/{schedule,admit,plan,migrate}.example.test.ts`・`tests/core/{admit,migrate}.property.test.ts`・`tests/shell/cook-scheduling.integration.test.ts`。
     - `score:` のリテラル（期待値）を落とし、`.score` の参照（`schedule.example` に 7・`admit.example` に 5・`admit.property` に 2・統合に 1）は `scoreSchedule` を直接呼ぶ形へ寄せる。**採点を確かめたい検査は残す**——消すのは「計画が点数を持っている」という前提だけである。
     - `tests/core/objective.{property,example}.test.ts` は `scoreSchedule` の呼び出しだけなので 10.1 の署名追随で足りる。
     - _Requirements: 5.6_
 
-  - [ ] 10.3 `orderItem` のリテラルに `tableId` を足す
+  - [x] 10.3 `orderItem` のリテラルに `tableId` を足す
     - `tests/core/{to-wire-timer-adjustment,pending,migrate}.*` の 4 ファイル。多くは `tableId: null` で足りる。
     - _Requirements: 3.1_
 

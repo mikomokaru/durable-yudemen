@@ -87,7 +87,13 @@ describe("engine/schedule — baselineSchedule", () => {
   it("Property 1: ハード制約 (a) 重複なし (b) 同時本数 ≤ slot 数 (c) 解放時刻より前に開始しない", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, slotCount, params }) => {
-        const schedule = baselineSchedule(pending, release, DEFAULT_NOODLE_PRESETS, params);
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          new Map(),
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
         const placements = allPlacements(schedule.slices);
 
         expect(hasOverlapOnSameSlot(placements)).toBe(false);
@@ -125,12 +131,14 @@ describe("engine/schedule — baselineSchedule", () => {
           const canonical = baselineSchedule(
             scene.pending,
             scene.release,
+            new Map(),
             DEFAULT_NOODLE_PRESETS,
             scene.params,
           );
           const permuted = baselineSchedule(
             shuffled,
             scene.release,
+            new Map(),
             DEFAULT_NOODLE_PRESETS,
             scene.params,
           );
@@ -152,7 +160,13 @@ describe("engine/schedule — baselineSchedule", () => {
   it("Property 15: 計画対象は正準順序の先頭 64 件と厳密に一致する", () => {
     fc.assert(
       fc.property(genLargeScene, ({ pending, release, params }) => {
-        const schedule = baselineSchedule(pending, release, DEFAULT_NOODLE_PRESETS, params);
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          new Map(),
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
         const placed = allPlacements(schedule.slices).map((placement) =>
           keyOf(placement.externalOrderId, placement.itemIndex),
         );

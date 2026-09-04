@@ -242,12 +242,11 @@ function isSameAccepted(prev: readonly AcceptedSlice[], next: readonly AcceptedS
   return prev.every((slice, index) => isSameSlice(slice, next[index]));
 }
 
-/** 一片の同一性（分解軸の鍵・部分和・配置列）。 */
+/** 一片の同一性（分解軸の鍵・配置列）。点数は一片が持たない導出値ゆえ比較の対象にならない。 */
 function isSameSlice(left: AcceptedSlice, right: AcceptedSlice | undefined): boolean {
   return (
     right !== undefined &&
     left.tableKey === right.tableKey &&
-    left.score === right.score &&
     left.placements.length === right.placements.length &&
     left.placements.every((placement, index) => isSamePlacement(placement, right.placements[index]))
   );
