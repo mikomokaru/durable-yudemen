@@ -56,6 +56,8 @@ export interface ItemSpec {
   readonly noodleType: string;
   readonly firmness: Firmness;
   readonly tableId: string | null;
+  /** 占める釜の数（大盛は 2）。lift-group-planning で割当が読むようになった。 */
+  readonly slotSpan: number;
 }
 
 /** 1 注文の素データ。arrivalTime は注文単位（到着は注文単位で届く）。 */
@@ -69,6 +71,8 @@ export interface RunningSpec {
   readonly slot: number;
   readonly endOffset: number;
   readonly boiled: boolean;
+  /** 由来する卓。null なら卓なし（成員にならない）。lift-group-planning の錨を踏むために振る。 */
+  readonly tableId: string | null;
 }
 
 /** 卓の固定集合。同卓に複数注文が乗る形・卓なしの単独グループの双方を高い頻度で踏む。 */
@@ -80,6 +84,8 @@ export function genItemSpec(noodleTypes: readonly string[]): fc.Arbitrary<ItemSp
     noodleType: fc.constantFrom(...noodleTypes),
     firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
     tableId: fc.oneof(fc.constantFrom<string>(...TABLE_IDS), fc.constant(null)),
+    // 大盛（2 釜）は低い頻度で混ぜる。
+    slotSpan: fc.constantFrom(1, 1, 1, 2),
   });
 }
 
@@ -129,6 +135,7 @@ export function genRunning(slotCount: number): fc.Arbitrary<RunningSpec> {
     slot: fc.integer({ min: 0, max: slotCount - 1 }),
     endOffset: fc.integer({ min: -120_000, max: 300_000 }),
     boiled: fc.boolean(),
+    tableId: fc.oneof(fc.constantFrom<string>(...TABLE_IDS), fc.constant(null)),
   });
 }
 
@@ -145,6 +152,10 @@ export function timerOn(seed: RunningSpec, seq: number): Timer {
     seq,
     // 茹で上がり済みでも釜は空いている（湯切りで麺が上がる）。解放表がそれを式ひとつで扱うことを踏む。
     boiledAt: seed.boiled && seed.endOffset <= 0 ? endTime : null,
+    orderItem:
+      seed.tableId === null
+        ? null
+        : { externalOrderId: `running-${seq}`, itemIndex: 0, tableId: seed.tableId },
   });
 }
 
@@ -158,8 +169,7 @@ export function toPending(orders: readonly OrderSpec[]): readonly PendingOrder[]
       firmness: item.firmness,
       tableId: item.tableId,
       arrivalTime: order.arrivalTime,
-      // 本 spec は割り当ての算術を変えず 1 品目 1 スロットで計画する。ゆえに場面も占有幅 1 で組む。
-      slotSpan: 1,
+      slotSpan: item.slotSpan,
       itemName: null,
       sizeName: null,
     })),
@@ -291,7 +301,9 @@ export function exceedsSlotCount(placements: readonly Placement[], slotCount: nu
     const running = placements.filter(
       (placement) => placement.startAt <= moment.startAt && moment.startAt < placement.serveAt,
     );
-    return running.length > slotCount;
+    // 本数ではなく占める釜の数で数える（大盛は 2 釜・lift-group-planning AC 4.5）。
+    const occupied = running.reduce((sum, placement) => sum + placement.slotIds.length, 0);
+    return occupied > slotCount;
   });
 }
 

@@ -946,3 +946,64 @@ describe("20.6 採用経路の end-to-end（Requirements 2.4, 6.5, 7.1, 7.5）",
     reconnected.close();
   });
 });
+
+describe("lift-group-planning — 群の 1 本目を入れた後も残りが 1 本目に揃う（Requirements 3.2, 3.4, 7.4）", () => {
+  it("同じ卓の 3 品目のうち 1 本目を品目から開始すると、残りの推奨は走行中の実効 endTime に揃う", async () => {
+    const stub = await provision(freshStoreId("cook-lift-group"));
+    const client = await connect(stub);
+
+    // 同じ卓に茹で加減の違う 3 品目（既定プリセットは hard 52 / normal 60 / soft 75 秒）。
+    const table = "t-lift";
+    const items = [
+      {
+        externalOrderId: "order-lift",
+        itemIndex: 0,
+        noodleType: NOODLE,
+        firmness: "soft",
+        tableId: table,
+      },
+      {
+        externalOrderId: "order-lift",
+        itemIndex: 1,
+        noodleType: NOODLE,
+        firmness: "normal",
+        tableId: table,
+      },
+      {
+        externalOrderId: "order-lift",
+        itemIndex: 2,
+        noodleType: NOODLE,
+        firmness: "hard",
+        tableId: table,
+      },
+    ];
+    expect(await arrive(stub, items)).toBe(200);
+    const planned = await client.waitForSnapshot((message) => message.pendingOrders.length === 3);
+    // 計画は 3 本の serveAt（startAt + 茹で秒）を一致させる。
+    const boilOf = (firmness: string) => ({ hard: 52, normal: 60, soft: 75 })[firmness]! * 1000;
+    const serveTimes = planned.recommendations.map(
+      (rec) => rec.startAt + boilOf(items[rec.itemIndex]!.firmness),
+    );
+    expect(new Set(serveTimes).size).toBe(1);
+
+    // 1 本目（最も長い soft・最も早い startAt）を品目から始める。
+    const first = [...planned.recommendations].sort((a, b) => a.startAt - b.startAt)[0]!;
+    expect(first.itemIndex).toBe(0);
+    client.send({
+      type: "startOrderItem",
+      slotIds: first.slotIds,
+      externalOrderId: first.externalOrderId,
+      itemIndex: first.itemIndex,
+    });
+    const started = await client.waitForSnapshot((message) => message.timers.length === 1);
+    const anchor = started.timers[0]!.endTime;
+
+    // 残り 2 本の推奨は走行中の実効 endTime（錨）に揃う——1 本目を入れても群が崩れない。
+    expect(started.recommendations).toHaveLength(2);
+    for (const rec of started.recommendations) {
+      expect(rec.startAt + boilOf(items[rec.itemIndex]!.firmness)).toBe(anchor);
+    }
+
+    client.close();
+  });
+});

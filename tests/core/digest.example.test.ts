@@ -71,8 +71,8 @@ const PENDING: readonly PendingOrder[] = [
 ];
 
 const RUNNING: readonly Timer[] = [
-  timerOn({ slot: 0, endOffset: 60_000, boiled: false }, 0),
-  timerOn({ slot: 3, endOffset: 120_000, boiled: false }, 1),
+  timerOn({ slot: 0, endOffset: 60_000, boiled: false, tableId: null }, 0),
+  timerOn({ slot: 3, endOffset: 120_000, boiled: false, tableId: null }, 1),
 ];
 
 describe("engine/digest — digestInput", () => {

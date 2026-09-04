@@ -193,32 +193,33 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
 - [x] 11. チェックポイント — 型検査・静的解析・既存テストの green
   - `pnpm typecheck` / `pnpm lint` / `pnpm test` を実行し、**すべて完全に通る**ことを確認する。既存テストの更新は task 10 で済んでいるため、ここは但し書きの無い green である。通らなければ先へ進まない。
 
-- [ ] 12. 新しいテスト
-  - [ ] 12.1 卓の成員（`tests/core/table-members.property.test.ts`・新規）
+- [x] 12. 新しいテスト
+  - 実測・2026-09-04: 12.1〜12.8 を追加（`table-members.property` 新規、objective / schedule / admit / migrate / start-order-item / 統合へ追記）。場面生成器（`scheduleScenes.ts`）に slotSpan（1/2）と走行中の卓を足し、`exceedsSlotCount` を占有釜数で数える形に直した。**Property 2 は「真に大きい」ではなく「真に良くならない」で固定した**——arms 超過が立っている一片では、1 本を外すと超過が (w_table − 1) 減るため、lag の増分 w_table × ceil(Δ) と wait の節約 ≤ ceil(Δ) を差し引いて最悪で同値になる（同値はゲートが棄却する）。超過が無ければ真に大きい。design と ADR-0006 の「常に損」をこの形へ改めた。225 ファイル全通過。
+  - [x] 12.1 卓の成員（`tests/core/table-members.property.test.ts`・新規）
     - **Property 11** `tableId` が `null` の走行中 Timer はどの部分和にも寄与しない／**Property 12** 単独キー（NUL 始まり）と非空 `tableId` は衝突しない。
     - _Validates: Requirements 2.1, 3.5_
 
-  - [ ] 12.2 目的関数（`tests/core/objective.property.test.ts` / `.example.test.ts`・既存へ追記）
+  - [x] 12.2 目的関数（`tests/core/objective.property.test.ts` / `.example.test.ts`・既存へ追記）
     - **Property 7** 部分和の総和が総和に一致／**Property 8** 整数／**Property 9** 走行中の仲間が無い釜容量内の卓で卓同期項が 0／**Property 10** 同時刻の成員が `arms` 以下なら 0／**Property 13** 同じ入力で同じ値。
     - **Property 2**（採点の単調性）を PBT で。揃えた自前解の 1 本を Δ 早めた計画と比較する。`w_table` は 2〜100、Δ は **1〜999 ms と 1 秒以上の両方**。**Δ < 1 秒の側が本質**で、Table_Lag を切り捨てに戻した実装はここで落ちる。**12.4 の example と対である**——採点の側（ここ）とゲートの側（12.4）で同じ境界を両端から留めているので、片方だけ消さない。
     - example に観測事実 1 の卓（つけ 510s / REG 360s / なんこつ 330s）を置き、揃った計画で lag が 0 になることを固定する。
     - _Validates: Requirements 2.1, 2.4, 2.8, 2.9, 7.2, 7.7, 7.8, 7.9, 7.10_
 
-  - [ ] 12.3 配置（`tests/core/schedule.property.test.ts` / `.example.test.ts`・既存へ追記）
+  - [x] 12.3 配置（`tests/core/schedule.property.test.ts` / `.example.test.ts`・既存へ追記）
     - **Property 1** 釜容量に収まる卓で配置済みの `serveAt` が Group_Anchor に一致（走行中の錨あり／なしの両方）／**Property 3** `startAt ≥ 全釜の解放時刻の最大` かつ `serveAt = startAt + 茹で時間` かつ釜は `slotSpan` 個／**Property 14** 各 batch で `Σ slotSpan ≤ 釜数`・品目はどの batch にもちょうど 1 度。
     - example に `slotSpan` 混在（1 と 2）・釜容量を超える卓・boiled の仲間だけが残る卓を置く。
     - _Validates: Requirements 1.4, 1.5, 3.3, 3.4, 4.1, 4.4, 4.5, 7.1, 7.3_
 
-  - [ ] 12.4 ゲート（`tests/core/admit.property.test.ts` / `.example.test.ts`・既存へ追記）
+  - [x] 12.4 ゲート（`tests/core/admit.property.test.ts` / `.example.test.ts`・既存へ追記）
     - 基準が Committed_Plan であること（自前解より良いだけの外部解が採用されない）／`slotSpan` 不一致と重複 slot の棄却／永続値を読まずに再採点すること（走行中の adjustment を動かすと採否が変わりうる）。
     - **1 ms ずらした外部計画がゲートを通らない example を 1 本置く。** 重大な境界ゆえ property だけに委ねない。**12.2 の Property 2（Δ の二域）と対である**——採点で損になることと、ゲートを通らないことは別の主張なので、両方を留める。
     - _Validates: Requirements 4.2, 5.3, 5.4, 5.6, 7.2_
 
-  - [ ] 12.5 走行中の卓（`tests/core/start-order-item.{example,property}.test.ts`・既存へ追記）
+  - [x] 12.5 走行中の卓（`tests/core/start-order-item.{example,property}.test.ts`・既存へ追記）
     - 品目からの開始が `tableId` を写す／アドホック（`tests/core/start.property.test.ts`）は `orderItem = null` のまま／modification で卓が移っても走行中 Timer の `tableId` が変わらない。
     - _Validates: Requirements 3.2, 3.6_
 
-  - [ ] 12.6 移行（`tests/core/migrate.{property,example}.test.ts`・既存へ追記）
+  - [x] 12.6 移行（`tests/core/migrate.{property,example}.test.ts`・既存へ追記）
     - **Property 5** v9 以前の Timer が `tableId = null` で保持され落ちない／**Property 6** v9 の `AcceptedSlice`（`score` あり）が `score` を捨てて保持され落ちない。
     - v9 の実データ形（`score` あり・`tableId` なし）を入力に置く。`score` の検査を外し忘れた実装は Property 6 で落ちる。
     - _Validates: Requirements 3.7, 7.5, 7.6_
@@ -227,7 +228,7 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - `arms` と `slotSpan` を変えると指紋が変わる／`toleranceRatio` を変えても（走行中の実効 endTime が動かなければ）変わらない。
     - _Validates: Requirements 5.5_
 
-  - [ ] 12.8 統合（`tests/shell/cook-scheduling.integration.test.ts`・既存へ追記）
+  - [x] 12.8 統合（`tests/shell/cook-scheduling.integration.test.ts`・既存へ追記）
     - 「群の 1 本目を入れた後も残りが 1 本目に揃う」を DO 越しに 1 本。同じ卓の 3 品目を入れ、1 本目の開始後に broadcast された推奨の `startAt + 茹で秒` が一致することを見る。
     - _Validates: Requirements 3.2, 3.4, 7.4_
 

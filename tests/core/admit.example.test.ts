@@ -235,3 +235,44 @@ describe("admit — 同値と空", () => {
     expect(gate(same)).toEqual([]);
   });
 });
+
+describe("admit — 揃った群を 1 ms 崩した外部計画は通らない（lift-group-planning・ADR-0006）", () => {
+  // 同じ卓に短い麺 2 本。自前解は 2 本を同じ提供時刻に揃える。
+  const twin = [
+    order("o-x", "Short", "t-x"),
+    { ...order("o-y", "Short", "t-x"), externalOrderId: "o-y" },
+  ];
+  const committed = committedSchedule([], twin, BLOCKED, NOW, PRESETS, PARAMS);
+  const members = tableMembers(BLOCKED);
+  const gateTwin = (arrived: CookSchedule) =>
+    admit(arrived, committed, twin, BLOCKED, NOW, PRESETS, PARAMS);
+
+  it("前提: 自前解は 2 本を同じ serveAt に揃える", () => {
+    const placements = committed.slices.flatMap((each) => each.placements);
+    expect(new Set(placements.map((placement) => placement.serveAt)).size).toBe(1);
+  });
+
+  it("揃った配置の 1 本を 1 ms 早めた計画は、採点で真に良くならず棄却される", () => {
+    const [first, second] = committed.slices[0]!.placements;
+    const nudged: CookSchedule = {
+      slices: [
+        {
+          tableKey: "t-x",
+          placements: [
+            first!,
+            {
+              ...second!,
+              startAt: (second!.startAt - 1) as EpochMillis,
+              serveAt: (second!.serveAt - 1) as EpochMillis,
+            },
+          ],
+        },
+      ],
+    };
+    // 1 ms のずれは卓の遅れとして 1 秒（× w_table）に数えられ、wait の節約（高々 1 秒）を上回る。
+    const before = scoreSchedule(committed.slices, twin, members, PARAMS).total;
+    const after = scoreSchedule(nudged.slices, twin, members, PARAMS).total;
+    expect(after).toBeGreaterThan(before);
+    expect(gateTwin(nudged)).toEqual([]);
+  });
+});
