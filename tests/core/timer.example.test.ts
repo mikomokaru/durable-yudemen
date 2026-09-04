@@ -25,7 +25,7 @@ describe("createTimer — orderItem の確立", () => {
   });
 
   it("orderItem を渡すとその注文品目参照を保持する", () => {
-    const orderItem = { externalOrderId: "order-7", itemIndex: 2 } as const;
+    const orderItem = { externalOrderId: "order-7", itemIndex: 2, tableId: null } as const;
 
     expect(createTimer({ ...base, orderItem }).orderItem).toEqual(orderItem);
   });

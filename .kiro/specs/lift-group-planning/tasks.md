@@ -43,14 +43,15 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - AC 8.4 に「`tableSyncToleranceSeconds` は `ScheduleParams` に在るが読む計算が無い」を追記
   - _Requirements: 全体_
 
-- [ ] 2. engine の葉 — 卓の事実と、その射影
-  - [ ] 2.1 `Ordered.orderItem` に `tableId` を宿す（型の変更だけ）
+- [x] 2. engine の葉 — 卓の事実と、その射影
+  - 実測・2026-09-04: コミットを常に green に保つため、7.2 の写し（`startOrderItemTimer` が `item.tableId` を写す）・7.3 の `reviveOrderItem`（`tableId` の欠如 / 壊れを null へ）・10.3 のテストリテラル 4 ファイル（`timer.example` を含め 5 ファイル）を 2 と同じコミットで済ませた。typecheck 0・1358 テスト全通過。
+  - [x] 2.1 `Ordered.orderItem` に `tableId` を宿す（型の変更だけ）
     - `orderItem: { externalOrderId; itemIndex; tableId: string | null } | null`。**直下に置かない**——`(orderItem = null, tableId 非 null)` という「POS を経ないのに卓を知る Timer」を構築不能にする。
     - `Ordered` の doc の「用途は開始済み品目の同定ひとつ」を書き換える（卓の同定が二つ目の用途）。
     - **この項目が無いと 2.2 が書けない。** `tableMembers` は `orderItem?.tableId` を読む。写す側（`startOrderItemTimer`）と永続の移行は task 7 で扱い、ここは型だけを動かす。
     - _Requirements: 3.1, 3.5_
 
-  - [ ] 2.2 `project.ts` に `tableMembers` を足す
+  - [x] 2.2 `project.ts` に `tableMembers` を足す
     - `export type TableMembers = ReadonlyMap<string, NonEmptyArray<EpochMillis>>`。鍵は `tableId`、値は実効 endTime の**昇順**（`Map` の走査順は `running` の並びに依存するため、値の側で決定性を確立する）。
     - `tableId` が `null` の Timer は表に現れない（鍵を持たない）。除外の条件文を書かない——`orderItem?.tableId` が `null` なら鍵が無い、で足りる。
     - 実効 endTime は同ファイルの `adjustedEndTime` を用いる（`endTime + adjustment` を二度書かない）。

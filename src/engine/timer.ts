@@ -48,16 +48,28 @@ export interface Adjusted {
 /**
  * Ordered — engine だけが持つ「どの注文品目から始まったか」の事実（ワイヤには出ない）。
  *
- * orderItem は POS 由来の注文品目への参照（externalOrderId と、その注文内の itemIndex）。
- * null はアドホック麺茹で＝POS を経ない開始（外部注文に紐づかない麺茹で）。
- * 用途は開始済み品目の同定ひとつ。同一注文の modification が全品目を再送してきたとき、
- * 生きた Timer（running / boiled）を持つ品目を Pending_Order の置換から除いて二重調理を防ぐ（要件1.8 / 8.4）。
+ * orderItem は POS 由来の注文品目への参照（externalOrderId と、その注文内の itemIndex）と、その品目が
+ * 由来する卓（tableId・卓を持たない品目は null）。null はアドホック麺茹で＝POS を経ない開始。
+ * 用途は二つ。(1) 開始済み品目の同定——同一注文の modification が全品目を再送してきたとき、生きた Timer
+ * （running / boiled）を持つ品目を Pending_Order の置換から除いて二重調理を防ぐ（要件1.8 / 8.4）。
+ * (2) 卓の同定——同じ卓の走行中 Timer を計画の群の成員に留め、群の 1 本目を入れた後も残りが 1 本目へ揃う
+ * （lift-group-planning・ADR-0003）。
+ * tableId を Timer の直下ではなく orderItem の内側に置くのは、(orderItem = null, tableId 非 null) という
+ * 「POS を経ないのに卓を知る Timer」を型として構築不能にするためである。
+ * modification で品目の卓が移っても走行中 Timer の tableId は追随しない——その Timer は既に旧卓の群として
+ * 茹でている事実であり、再送で届いた未着手の品目が新しい卓の群に入る（upsertOrder が生きた Timer の
+ * 品目を置換から除く規律の帰結。新しいコードは要らない）。
  * client は注文への紐づけを表示に用いないため共有契約 domain には出さない
  * （timer-model.md: 片側専用の関心事は共有契約に混ぜない。混ぜれば TimerFact が god type に転じる）。
  */
 export interface Ordered {
-  /** 由来する注文品目への参照。null はアドホック麺茹で（POS を経ない開始）。 */
-  readonly orderItem: { readonly externalOrderId: string; readonly itemIndex: number } | null;
+  /** 由来する注文品目への参照と卓。null はアドホック麺茹で（POS を経ない開始）。 */
+  readonly orderItem: {
+    readonly externalOrderId: string;
+    readonly itemIndex: number;
+    /** 由来する卓。null は卓を持たない品目。 */
+    readonly tableId: string | null;
+  } | null;
 }
 
 /**
@@ -95,7 +107,7 @@ export function createTimer(input: {
   seq: number;
   boiledAt?: EpochMillis | null;
   adjustment?: number;
-  orderItem?: { readonly externalOrderId: string; readonly itemIndex: number } | null;
+  orderItem?: Ordered["orderItem"];
 }): Timer {
   return {
     id: input.id,

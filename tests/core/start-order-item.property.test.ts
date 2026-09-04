@@ -160,6 +160,7 @@ describe("Feature: slot-suggested-start, Property 5: 待ち行列の消費は当
         expect(timer.orderItem).toEqual({
           externalOrderId: order.externalOrderId,
           itemIndex: order.itemIndex,
+          tableId: order.tableId,
         });
       }),
       { numRuns: 200 },

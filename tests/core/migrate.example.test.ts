@@ -165,9 +165,11 @@ describe("migrate — v7 → v8", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
+    // v7 の orderItem は卓を持たない。欠如は null（卓なし）へ畳む（v10）。
     expect(result.snapshot.timers[0]!.orderItem).toEqual({
       externalOrderId: "order-7",
       itemIndex: 1,
+      tableId: null,
     });
     // v7 の待ち行列は slotSpan / itemName / sizeName を持たない。欠如は 1 スロット占有と「名前なし」として
     // 読み戻る（当時の実際の挙動に一致する——v7 に商品名の概念が無かったことと、名前が無い状態は同じである）。

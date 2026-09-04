@@ -26,7 +26,7 @@ function fixedTimer(id: string, adjustment: number, seq: number): Timer {
     seq,
     boiledAt: null,
     adjustment,
-    orderItem: { externalOrderId: "order-1", itemIndex: 0 },
+    orderItem: { externalOrderId: "order-1", itemIndex: 0, tableId: null },
   });
 }
 
