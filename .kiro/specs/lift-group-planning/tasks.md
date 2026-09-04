@@ -124,21 +124,22 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 相異性を見る理由をコメントに残す。`["3","3"]` は本数 2 を満たしながら 1 釜しか占めず、`advanceRelease` が重複を吸収するので解放表にも現れない。`slotSpan` を本数で数える設計が開けた穴を、同じ場所で閉じる。
     - _Requirements: 4.2, 5.3_
 
-- [ ] 6. 後処理 — 等価判定と指紋
+- [x] 6. 後処理 — 等価判定と指紋
+  - 実測・2026-09-04: 6.2・7.2（版 10・v9 の score を捨てる）・8.1（RequestPlan.noodlePresets を engine → settle → shell で一本化）を 1 コミット（19cf60e）。7.1 の写しは task 2 のコミットで済んでいる。`tests/operation-history/timer-model.static.test.ts` の Effect 形の断言と Persist の inline snapshot（version 10）、`tests/core/digest.example.test.ts`（arms と slotSpan が指紋を動かす・12.7 相当）を追随させた。checkpoint 9・11 は typecheck 0・224 ファイル全通過で green。
   - [x] 6.1 `settle` の等価判定から `score` を外す
     - `isSameSlice` の `left.score === right.score` を落とす。`tableKey` と placements の比較で足りる。
     - 副産物として「重みだけが変わった遷移」で空振りの Persist が出なくなる（AC 7.6 の方向）。
     - _Requirements: 5.6_
 
-  - [ ] 6.2 `digestInput` に `arms` と `slotSpan` を畳む
+  - [x] 6.2 `digestInput` に `arms` と `slotSpan` を畳む
     - 計画対象のループに `fold(order.slotSpan)`、パラメータ列に `fold(params.arms)`。
     - `:55` を「`arms` は畳む（計画が Arms_Overflow で読む）／`toleranceRatio` は畳まない（計画へ届く経路は走行中の実効 endTime ただ一つで、既に畳んである）」へ分ける。
     - `:39` の「Pending_Order は全フィールドを含める」を実装に合わせる（計画に効くフィールドを含める。表示だけに効く申告名は含めない）。
     - `:23` の無ブランド整数の列挙から `PlanSlice.score` / `CookSchedule.score` を外す。
     - _Requirements: 5.5, 8.3_
 
-- [ ] 7. 状態と永続
-  - [ ] 7.1 `startOrderItemTimer` が卓を写す
+- [x] 7. 状態と永続
+  - [x] 7.1 `startOrderItemTimer` が卓を写す
     - `orderItem: { externalOrderId, itemIndex, tableId: item.tableId }`。`startTimer`（アドホック）は `orderItem: null` のまま。
     - modification で卓が移っても走行中 Timer は変えない（`upsertOrder` が生きた Timer の品目を置換から除く既存の規律・AC 3.6）。**新しいコードは要らない**ことをコメントで示す。
     - _Requirements: 3.2, 3.6_
@@ -150,8 +151,8 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - **巻き戻しが不能になる。** `migrate.ts:65-66` は上限だけを見るため v9 のコードは v10 のデータを読めない。手順は task 15.2 に残す。
     - _Requirements: 3.7, 7.5, 7.6, 8.3_
 
-- [ ] 8. 作用と外周
-  - [ ] 8.1 `RequestPlan` に `noodlePresets` を足す
+- [x] 8. 作用と外周
+  - [x] 8.1 `RequestPlan` に `noodlePresets` を足す
     - `effect.ts` の Effect に項目を足し、`settle.ts` の `requestPlan` が `params.noodlePresets` を載せる（`SettleParams` が既に持っている）。`params` の注釈「8 値」を 9 値へ。
     - 理由をコメントに残す。往路の契約（`PlanRequest`）は既に運んでいるが、**要求の入力が engine と shell の二箇所から来ている**のを一箇所にする。
     - _Requirements: 5.1_
@@ -166,14 +167,14 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 返す計画は `score` を持たない（`CookSchedule` の変更に追随するだけ）。
     - _Requirements: 5.1, 5.6_
 
-- [ ] 9. チェックポイント — 型エラーの残り先を確認する
+- [x] 9. チェックポイント — 型エラーの残り先を確認する
   - `pnpm typecheck` を実行する。この段階ではフィクスチャと既存テストが未了のためエラーが残るのが正常である。**出所が次に限られていること**を確認し、`src/**` に残っていれば先へ進まない。
     - `ScheduleParams` を組む tests（`tests/storeConfigDefaults.ts` / `tests/core/scheduleScenes.ts` / `tests/core/objective.*` / `tests/core/digest.example.test.ts` ほか）
     - `score` を構築・参照する 6 のテストファイル
     - `baselineSchedule` / `committedSchedule` / `scoreSchedule` / `admit` の呼び出し元テスト
     - `orderItem: {` を構築する 4 のテストファイル
 
-- [ ] 10. フィクスチャと既存テストの更新（型検査を green に戻す）
+- [x] 10. フィクスチャと既存テストの更新（型検査を green に戻す）
   - [x] 10.1 共有フィクスチャに `arms` と `members` を足す
     - `tests/storeConfigDefaults.ts` / `tests/core/scheduleScenes.ts` / `tests/core/schedulingScenes.ts`（**2 つある**・両方）。`ScheduleParams` に `arms: DEFAULT_ARMS`、`baselineSchedule` の呼び出しに `members`（走行中が無い場面は空の `Map`）。
     - 場面（scene）に**走行中の仲間を持つ卓**を 1 つ足す。task 11 の性質がこの場面を使う。
@@ -189,7 +190,7 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - `tests/core/{to-wire-timer-adjustment,pending,migrate}.*` の 4 ファイル。多くは `tableId: null` で足りる。
     - _Requirements: 3.1_
 
-- [ ] 11. チェックポイント — 型検査・静的解析・既存テストの green
+- [x] 11. チェックポイント — 型検査・静的解析・既存テストの green
   - `pnpm typecheck` / `pnpm lint` / `pnpm test` を実行し、**すべて完全に通る**ことを確認する。既存テストの更新は task 10 で済んでいるため、ここは但し書きの無い green である。通らなければ先へ進まない。
 
 - [ ] 12. 新しいテスト
@@ -222,7 +223,7 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - v9 の実データ形（`score` あり・`tableId` なし）を入力に置く。`score` の検査を外し忘れた実装は Property 6 で落ちる。
     - _Validates: Requirements 3.7, 7.5, 7.6_
 
-  - [ ] 12.7 指紋（`tests/core/digest.example.test.ts`・既存へ追記）
+  - [x] 12.7 指紋（`tests/core/digest.example.test.ts`・既存へ追記）
     - `arms` と `slotSpan` を変えると指紋が変わる／`toleranceRatio` を変えても（走行中の実効 endTime が動かなければ）変わらない。
     - _Validates: Requirements 5.5_
 
