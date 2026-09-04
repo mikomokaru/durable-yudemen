@@ -1234,14 +1234,14 @@ export class StoreTimerDO extends DurableObject<Env> {
   ): Promise<void> {
     const storeId = this.ctx.id.name;
     if (storeId === undefined || storeId.length === 0) return;
-    // 麺プリセットは在メモリの確定値（投影 config）から載せる。Effect が宣言して運ぶのは採点パラメータの
-    // 8 値までで、茹で時間は engine 側でも算出の引数として別に渡される値である（solver/request.ts の注記）。
+    // 要求の内容は Effect の写しである。麺プリセットも engine が Effect に載せて決めた値を送り、shell の
+    // 在メモリから添え直さない（同じ要求の入力を二箇所から来させない・lift-group-planning 判断 13）。
     const body: PlanRequest = {
       storeId,
       pending: effect.pending,
       running: effect.running,
       params: effect.params,
-      noodlePresets: this.noodlePresets,
+      noodlePresets: effect.noodlePresets,
       digest: effect.digest,
     };
     try {

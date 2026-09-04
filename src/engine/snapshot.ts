@@ -18,7 +18,7 @@ import type { PendingOrder } from "../domain/order";
  * 世代管理は version が担い、キー名は永続層の内部詳細で外に漏れていない（design.md）。
  */
 export interface StoreSnapshot {
-  /** スキーマバージョン。現行は v8（CURRENT_SCHEMA_VERSION）。 */
+  /** スキーマバージョン。現行は v10（CURRENT_SCHEMA_VERSION）。 */
   readonly version: typeof CURRENT_SCHEMA_VERSION;
   /** アクティブな全 Timer。engine 専用の adjustment / orderItem を含む（欠如は migrate が埋める）。 */
   readonly timers: readonly Timer[];

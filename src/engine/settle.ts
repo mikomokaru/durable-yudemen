@@ -127,9 +127,9 @@ export function settle(
  * 受け取るため——外部が別の集合から解放表を組めば、こちらの feasibility 判定と噛み合わない。
  *
  * params は SettleParams（ScheduleParams の上位集合）をそのまま載せる。Effect が契約として宣言するのは
- * ScheduleParams の 8 値であり、読み手はそこだけを見る。同期パラメータと麺プリセットを 8 値へ削ぐ射影を
- * 立てないのは、削ぐために同じフィールド名の列挙をもう一箇所に置くことになるためである（何を外へ送るかは
- * 送出の関心事で、shell 側の担当・タスク 19.2）。
+ * ScheduleParams の 9 値であり、読み手はそこだけを見る。同期パラメータを 9 値へ削ぐ射影を立てないのは、
+ * 削ぐために同じフィールド名の列挙をもう一箇所に置くことになるためである。麺プリセットは Effect が自分の
+ * 項目として運ぶ——要求の入力を engine の決定として一箇所に定める（lift-group-planning 判断 13）。
  */
 function requestPlan(
   state: TimerState,
@@ -142,6 +142,7 @@ function requestPlan(
     pending: targets,
     running: state.timers,
     params,
+    noodlePresets: params.noodlePresets,
     digest,
   };
 }

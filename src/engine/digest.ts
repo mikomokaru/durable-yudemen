@@ -19,8 +19,8 @@ import type { NoodlePreset } from "../domain/store";
  * InputDigest — 計画入力から決定的に畳んだ指紋。
  *
  * 整数演算のみで畳む（浮動小数の丸めによる非決定性を排除する。Boil_Sync の整数スケール方針と同じ規律）ため
- * 実体は number である。それでもブランドを被せるのは、engine が扱う無ブランドの整数が既に複数あり
- * （PlanSlice.score・CookSchedule.score・adjustment）、素の number では requestedDigest へ目的関数値を
+ * 実体は number である。それでもブランドを被せるのは、engine が扱う無ブランドの整数が他にもあり
+ * （adjustment・ScheduleScore の値）、素の number では requestedDigest へ目的関数値を
  * 取り違えて代入するコードが型検査を通ってしまうためである。指紋と点数の混同は「要求を出すか否か」の
  * 判断を静かに壊す種類の誤りで、テストでも見えにくい。既存 types.ts のブランド型（EpochMillis / TimerId 等）と
  * 同じ規律——検証済み・所定の経路で生まれた値だけがその型を名乗れる——をここにも適用する。
@@ -36,8 +36,8 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
  *
  * **何を含めるかは「変われば計画が変わりうるか」で決まる。** 変わっても計画が変わらない値を含めれば、
  * 無駄な要求が出る。逆に計画を変える値を落とせば、改善の機会に気づけないまま抑制が効く。
- *   - 計画対象の Pending_Order は**全フィールド**を含める。PendingOrder は導出値を持たない設計ゆえ
- *     （domain/order.ts）、どのフィールドも変われば配置・提供時刻・目的関数のいずれかが動く。
+ *   - 計画対象の Pending_Order は**計画に効くフィールド**を含める（鍵・麺種・茹で加減・卓・到着時刻・
+ *     slotSpan）。表示だけに効く申告名（itemName / sizeName）は含めない——変わっても計画は変わらない。
  *   - 計画対象**外**（65 件目以降）は含めない。計画に現れず推奨の対象にもならないので、増減しても
  *     計画は変わらない。含めれば混雑時に届く到着のたびに要求が出る（AC 11.2 の意図に反する）。
  *   - Timer は id / slotIds / 実効 endTime だけ。麺種・茹で加減・seq・boiledAt は解放表に効かない。
@@ -52,10 +52,11 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
  *     待ち行列に現れない麺種の秒がいくら動いても計画は変わらないので、畳めば無駄な要求が出る
  *     （計画対象外の 65 件目以降を落とすのと同じ判断）。**麺種の粒度で切り、硬さの粒度までは切らない**
  *     ——プリセットは麺種 1 件が設定の単位であり、硬さごとに切り出すと「使われている」の定義が二つになる。
- *   - **`arms` / `toleranceRatio`（SyncParams）は畳まない。** これらが計画へ届く経路は Boil_Sync による
- *     running の実効 endTime の変化ただ一つで、その実効 endTime は既に上で畳んである。二重に畳めば、
- *     「解放表が 1 ミリ秒も動かないパラメータ変更」で要求が出る——変わっても計画が変わらない値を含めない
- *     という上の基準にそのまま反する。畳まないことで抑制の判定は「計画の入力が変わったか」に厳密に留まる。
+ *   - **`arms` は畳む。** 計画が Arms_Overflow で読む（lift-group-planning）ので、変われば採点が変わりうる。
+ *   - **`toleranceRatio`（SyncParams）は畳まない。** 計画へ届く経路は Boil_Sync による running の実効
+ *     endTime の変化ただ一つで、その実効 endTime は既に上で畳んである。二重に畳めば、「解放表が 1 ミリ秒も
+ *     動かないパラメータ変更」で要求が出る——変わっても計画が変わらない値を含めないという上の基準に
+ *     そのまま反する。畳まないことで抑制の判定は「計画の入力が変わったか」に厳密に留まる。
  *   - **`now` は含めない。** 含めれば指紋は毎回変わり、抑制（AC 5.6）が一度も働かない——「前回依頼時から
  *     入力が変わったか」を問う仕組みが、時計が進んだだけで常に「変わった」と答えることになる。時間の経過は
  *     確かに計画（解放表の下限・過ぎた推奨の陳腐化）を動かすが、それは**状態変化のたびに再評価される**もので
@@ -95,6 +96,8 @@ export function digestInput(
     // 本物の卓 id と衝突しない。
     fold(order.tableId ?? "");
     fold(order.arrivalTime);
+    // 占める釜の数は割当に効く（大盛は 2 釜）。
+    fold(order.slotSpan);
   }
 
   fold(occupants.length);
@@ -109,6 +112,7 @@ export function digestInput(
   fold(params.orderSyncWeight);
   fold(params.tableSyncWeight);
   fold(params.affinityWeight);
+  fold(params.arms);
   fold(params.orderSyncToleranceSeconds);
   fold(params.tableSyncToleranceSeconds);
   fold(params.affinityToleranceDistance);
