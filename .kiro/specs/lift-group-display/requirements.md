@@ -51,6 +51,7 @@
     - **群の鍵に卓を足す（判断 2 の改訂）。** `serveAt` だけで束ねると別の卓が一群になり「G の卓」が一つに定まらない。卓を鍵に足せば、client の群は計画側の Lift_Group を batch で割った単位に一致し、Group_Started は群ごとに一意に決まる。
     - **卓を持たない品目は 1 品 1 群で、「始まったまま残る」状態が無い。** 始まれば推奨から消えて群が消え、次の群が先頭になる。判断 19 の連鎖はこれをそのまま通す（卓なしの品目が続くときは 1 本ずつ現れる。並べて始めたければラジアルが残る）。
     - **`serveAt` の等号だけで判定する案（卓なし）は採らない。** 走行中の `endTime` は Boil_Sync で動き、卓なしの未着手は走行中に再錨しないので、等号が成り立たない。卓の一致と等号の**両方**を要る形にして、偶然の一致（無関係な Timer の `endTime` が `release + boil` に当たる）も卓の不一致で落とす。
+    - **開始済みは「現在も走行中」を要る。茹で上がり後は保持しない（2026-09-05・レビューで確定）。** 仲間が 600 秒に茹で上がり G1 に未着手が残っていると、599 秒まで見えていた G2 は 600 秒に隠れる。これは client の都合ではなく**サーバの再計画と同じ事実**である——茹で上がりの発火は状態変化で、計画は G1 の残りを「いま始める新しい群」（`serveAt = now + 茹で秒`・走行中の `endTime` とは一致しない）に組み直す。つまり 600 秒の時点で G1 の残りは開始済みの群ではなく、放置された分を先に片付けるべき状態であり、G2 が隠れて G1 の残りが先頭に戻るのは連鎖の意図どおりである。client が `endTime ≤ Corrected_Now` で先に茹で上がりを導く分は、発火の snapshot が届くまでの短い先行にすぎず、届いた snapshot と食い違わない。**採らなかった案**：(a) 茹で上がり後も live（Complete まで）の仲間で判定する——発火の snapshot で `serveAt` が変わり等号が切れるので、先行の隙間が消えるだけで保持にはならない。(b) 「卓の最早の群は、卓に live の仲間が在れば開始済み」——茹で上がりを跨いでも後続が消えないが、容量分割の同卓で G1 が全部走った後に未着手の G2 が開始済み扱いになり、G3 が同時に見える（レビューが退けた過剰解禁の一形）。単調性（Requirement 6.3）はこの転移を例外として明記する。
     - **型の構成。** `TimerFact` に `tableId` を直下で足すと、`Timer extends TimerFact` ゆえ engine の Timer にも直下の `tableId` が要り、`orderItem.tableId` と重複する（`(orderItem = null, tableId 非 null)` を表現不能にした ADR-0003 の構造も崩れる）。ゆえに **engine の `Ordered.orderItem` の形をそのまま domain へ移し、`TimerFact.orderItem: { externalOrderId, itemIndex, tableId: string | null } | null` とする**。engine の `Ordered` は削除（`Timer` は `TimerFact` から `orderItem` を継承する）。`toWireTimer` は `orderItem` を写す。復号は欠如と null を null に畳み（engine の `reviveOrderItem` と同じ）、非 null なら `externalOrderId` 非空・`itemIndex` 非負整数・`tableId` null か非空文字列を要る。ワイヤに品目参照が出ることは、client が既に待ち行列で同じ鍵を持つため新しい露出ではない。走行中カードの表示には使わない（Requirement 5.8）。
     - **これは判断 13 の改訂であり、ADR-0003「`TimerFact` には出さない……その spec が判断する」が本 spec へ委ねた判断そのものである。** ADR-0003 の Consequences を改訂する（Requirement 7.4）。
 
@@ -101,7 +102,7 @@
 - **Next_Group（次の群）**: 受信した推奨の全量から組んだ群のうち、最も早い `startAt` を持つ群。店舗全体で一つ。
 - **Prep_Lead（準備の猶予）**: 提案が薄く現れる、`startAt` までの時間。60 秒。domain の定数。
 - **Faint / Solid（薄 / 濃）**: 提案の二相。薄は `startAt − Prep_Lead ≤ now < startAt`、濃は `startAt ≤ now`。薄には語が無く、濃は `now`。
-- **Group_Started（群の開始）**: 群の卓が非 null で、同じ卓の走行中（boiled でない）`TimerFact` のうち `endTime` が群の `serveAt` に等しいものが在る状態（計画が残りを走行中の実効 `endTime` に揃えた事実）。卓なしの群には無い状態（始まれば消える）。次の群が現れる条件の一つ。
+- **Group_Started（群の開始）**: 群の卓が非 null で、同じ卓の**現在も走行中**（`endTime > Corrected_Now`）の `TimerFact` のうち `endTime` が群の `serveAt` に等しいものが在る状態（計画が残りを走行中の実効 `endTime` に揃えた事実）。茹で上がり後は保持しない。卓なしの群には無い状態（始まれば消える）。次の群が現れる条件の一つ。
 - **Group_Head（群の先頭）**: 群の未着手のうち `startAt` 最小の品目（同値は全部）。押せるのは先頭だけ。
 - **Visible_Groups（表示できる群）**: 群を最早 `startAt` 順に並べたとき、先頭の群と、それより前の群がすべて Group_Started である群の集合。
 - **All_Idle（全釜が空き）**: 推奨の `slotIds` の全釜が idle（走行中・茹で上がり・unreceived でない）である状態。snapshot の全 Timer（担当外を含む）から判定する。
@@ -122,7 +123,7 @@
 4. THE Next_Group SHALL 群の中で最も早い `startAt` が最小の群とする。同値は `entries` の順（到着順）で先のもの
 5. THE client SHALL Next_Group をビューに保持せず、毎描画導出する
 6. THE Next_Group の導出 SHALL 担当範囲・端末に依らず、同じ推奨の全量からは同じ群を返す
-7. THE client SHALL 群の Group_Started を、群の卓が非 null で、かつ snapshot の走行中（boiled でない）`TimerFact` に `orderItem.tableId` が群の卓に等しく `endTime` が群の `serveAt` に等しいものが在ることで判定する。卓の一致だけ・`endTime` の一致だけでは判定しない。端末ごとの履歴・過去の描画・推奨の消失を判定に用いない
+7. THE client SHALL 群の Group_Started を、群の卓が非 null で、かつ snapshot の現在も走行中（`endTime > Corrected_Now`・茹で上がりを含めない）の `TimerFact` に `orderItem.tableId` が群の卓に等しく `endTime` が群の `serveAt` に等しいものが在ることで判定する。卓の一致だけ・`endTime` の一致だけでは判定しない。端末ごとの履歴・過去の描画・推奨の消失を判定に用いない
 8. THE client SHALL Visible_Groups を、群を最早 `startAt` 順に並べたときの先頭の群と、それより前の群がすべて Group_Started である群の集合として導く
 9. THE client SHALL 各群の Group_Head を、群の未着手のうち `startAt` 最小の品目（同値は全部）として導く
 10. THE Group_Started / Visible_Groups / Group_Head の導出 SHALL 担当範囲・端末に依らず、同じ snapshot からは同じ結果を返す
@@ -193,7 +194,7 @@ _出所: 判断 10・12・18, 観測事実 4・6・7・8_
 #### Acceptance Criteria
 
 1. THE 変更 SHALL ワイヤ契約の変更を `TimerFact` への `orderItem: { externalOrderId: string; itemIndex: number; tableId: string | null } | null` の追加に限る。`CookRecommendation` / `ClientMessage` / `ServerMessage` の他の項目は変更しない
-2. THE ワイヤ復号（`domain/wire.ts` の `toTimerFact`） SHALL `orderItem` の欠如と null を null に畳み、非 null では `externalOrderId` 非空文字列・`itemIndex` 非負整数・`tableId` null または非空文字列を要し、逸脱を復号失敗とする（`verified-wire-contract` の規律・engine の `reviveOrderItem` と同じ判定）
+2. THE ワイヤ復号（`domain/wire.ts` の `toTimerFact`） SHALL `orderItem` の欠如と null を null に畳み、非 null では `externalOrderId` 非空文字列・`itemIndex` 非負整数・`tableId` null または非空文字列を要し、逸脱を復号失敗とする（`verified-wire-contract` の規律。engine の `reviveOrderItem` と同じなのは欠如・null を null に畳む扱いだけで、あちらは不正値を null へ救済し、こちらは失敗にする）
 3. THE 変更 SHALL `src/engine` の変更を、`Ordered` を削除して `Timer` が `TimerFact.orderItem` を継承する型の合成と、`toWireTimer` が `orderItem` を写すことに限る。計画・採点・遷移・永続スキーマを変更しない
 4. THE 変更 SHALL `StoreConfig` を変更しない
 5. THE 変更 SHALL レールの並び（到着順）と内容を変更しない
@@ -209,9 +210,9 @@ _出所: 判断 11・12・13・16_
 
 #### Acceptance Criteria
 
-1. **群の等号** — 同じ Lift_Group の任意の 2 推奨は `startAt + 茹で秒` が等しく、異なる群の 2 推奨は等しくない
+1. **群の等号** — 同じ Lift_Group の任意の 2 推奨は卓が同じで `startAt + 茹で秒` が等しい。逆は成り立たない——異なる群（別の卓・卓なしの別品目）が同じ `serveAt` を持つことはある
 2. **一意** — 同じ推奨の全量から、担当範囲・端末に依らず同じ Next_Group が導かれる
-3. **単調な出現** — 状態変化のない区間で Corrected_Now が進むとき、一度現れた提案は消えず、薄から濃へ一方向に変わる
+3. **単調な出現** — 状態変化のない区間で Corrected_Now が進むとき、一度現れた提案は消えず、薄から濃へ一方向に変わる。**例外は一つ**：走行中の仲間が茹で上がり（`endTime ≤ Corrected_Now`）に転じる時刻を跨ぐと、その群は Group_Started でなくなり、後続の群の提案は消える（判断 16・茹で上がりの扱い）
 4. **時刻不在** — 提案の可視の語は空か `now` のみである
 5. **群の境界** — ある群より前の群に Group_Started でないものが在る限り、その群の品目が表示されることはない
 6. **担当外の空白** — Visible_Groups の全品目が担当外の釜にあるとき、表示される提案は 0 件である
