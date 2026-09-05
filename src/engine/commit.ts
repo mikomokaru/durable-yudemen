@@ -10,6 +10,7 @@
 
 import { SLOTS_PER_UNIT, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
+import { advanceLifts, initialLifts, liftsOf, type LiftTable } from "./lift";
 import type { ScheduleParams } from "./objective";
 import { tableMembers } from "./project";
 import {
@@ -65,19 +66,30 @@ export function committedSchedule(
   // 卓の成員表も同じ走行中から引く（「その釜がいつ空くか」と「その卓がいつ上がるか」の二つの表）。
   const initial = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
   const members = tableMembers(running);
-  const { prefix, release } = livePrefix(accepted, targets, now, initial, members, presets, params);
+  // 上げ表（「店舗全体でいつ上がるか」）も同じ走行中から引く第三の表（lift-group-planning 判断 20）。
+  const { prefix, release, lifts } = livePrefix(
+    accepted,
+    targets,
+    now,
+    initial,
+    initialLifts(running),
+    members,
+    presets,
+    params,
+  );
 
   // 尾部の対象は「接頭辞が使わなかった計画対象」。全 Pending_Order から除くのではない——それでは
   // 65 件目以降が繰り上がって計画に現れ、計画対象を 64 件に限る AC 11.2 が破れる。
   const remaining = targets.filter((order) => !isPlaced(order, prefix));
-  const tail = baselineSchedule(remaining, release, members, presets, params);
+  const tail = baselineSchedule(remaining, release, members, lifts, presets, params);
 
   return { slices: [...prefix, ...tail.slices] };
 }
 
 /**
  * 採用済み列のうち、計画順に見て最初に陳腐化した一片の手前まで（design の合成手順 1）と、その接頭辞で進めた
- * 解放表。尾部はその表から再計算する。
+ * 解放表・上げ表。尾部はその表から再計算する（採用済み一片の上がりを避けて置く・AC 9.14。当該一片を含む窓の
+ * 上限超過を陳腐化と見なす検査は 21.8 が足す）。
  *
  * 陳腐化は 3 つの理由で立つ。**判定を分けているのは概念が違うから**である。
  *   - `isStale` — 対象品目が計画対象と食い違った（陳腐化A・B）、または配置が品目の現在の slotSpan を
@@ -96,12 +108,18 @@ function livePrefix(
   targets: readonly PendingOrder[],
   now: EpochMillis,
   initial: SlotRelease,
+  initialLiftTable: LiftTable,
   members: TableMembers,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
-): { readonly prefix: readonly AcceptedSlice[]; readonly release: SlotRelease } {
+): {
+  readonly prefix: readonly AcceptedSlice[];
+  readonly release: SlotRelease;
+  readonly lifts: LiftTable;
+} {
   const prefix: AcceptedSlice[] = [];
   let release = initial;
+  let lifts = initialLiftTable;
   for (const slice of accepted) {
     if (isStale(slice, targets) || hasLapsedStart(slice, now)) break;
     // 仲間が無い卓（null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
@@ -109,8 +127,9 @@ function livePrefix(
     if (!keepsAnchor(slice.placements, release, siblings, targets, presets, params)) break;
     prefix.push(slice);
     release = advanceRelease(release, slice.placements);
+    lifts = advanceLifts(lifts, liftsOf(slice.placements));
   }
-  return { prefix, release };
+  return { prefix, release, lifts };
 }
 
 /**

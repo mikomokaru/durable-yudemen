@@ -432,28 +432,47 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
   /** 1 本目（item1）を推奨どおり釜 0・1 で始めた直後。 */
   const firstStarted = step(arrived.state, startItem(ITEM1, [0, 1], at(0)));
 
-  it("到着直後：batch 1 の 3 品が一つの群（serveAt 360 秒）、釜 0・1 を待つ item4 は別の群（serveAt 720 秒）。どちらも錨は無い", () => {
+  it("到着直後：batch 1 の 3 品は上げ窓（上限 4 本分）で 2 品（serveAt 360 秒）と 1 品（405 秒）の群に割れ、釜 0・1 を待つ item4 は別の群（serveAt 720 秒）。どれも錨は無い", () => {
+    // 各 2 釜の 3 品は 6 本分。同じ窓に載るのは arms 2 + 手伝い 2 = 4 本分までなので、3 品目は次の窓へ
+    // （lift-group-planning 判断 20）。
     expect(planOf(arrived.snapshot)).toEqual([
       ["o#0", ["0", "1"], 0, null],
       ["o#1", ["2", "3"], 0, null],
-      ["o#2", ["4", "5"], 0, null],
+      ["o#2", ["4", "5"], 45, null],
       ["o#3", ["0", "1"], 360, null],
     ]);
     expect(groupsAt(arrived.snapshot, at(0))).toEqual([
-      { anchor: null, items: ["o#0", "o#1", "o#2"], started: false },
+      { anchor: null, items: ["o#0", "o#1"], started: false },
+      { anchor: null, items: ["o#2"], started: false },
       { anchor: null, items: ["o#3"], started: false },
     ]);
   });
 
-  it("1 本目を始めた後：合流する 2 品が G1（started・anchor ＝ 走行中の endTime）で今（先頭 arms 2 本）、G2 の item4 は釜 0・1 が走行中の間は出ない", () => {
+  it("1 本目を始めた後：合流する 2 品が G1（started・anchor ＝ 走行中の endTime）。走行中の 2 本分と同じ窓には載らず 45 秒後に濃くなる。G2 の item4 は釜 0・1 が走行中の間は出ない", () => {
+    // 走行中の 1 本目は 2 釜＝2 本分で 360 秒の窓を arms の分だけ埋めている。合流分 2 品（4 本分）を足すと上限 4 を
+    // 超えるので、pack は錨の次の窓 405 秒（startAt 45 秒）へ動く。所属（anchor 360）は変わらず started のまま
+    // （lift-group-planning 判断 20・AC 9.9）。
+    expect(planOf(firstStarted.snapshot)).toEqual([
+      ["o#1", ["2", "3"], 45, 360],
+      ["o#2", ["4", "5"], 45, 360],
+      ["o#3", ["0", "1"], 360, null],
+    ]);
     expect(groupsAt(firstStarted.snapshot, at(0))).toEqual([
       { anchor: 360, items: ["o#1", "o#2"], started: true },
       { anchor: null, items: ["o#3"], started: false },
     ]);
-    // 同じ卓でも後の batch の G2 は合流しておらず（anchor null）started にならない（AC 1.7 / 6.10）。
-    // 濃いのは店舗全体で arms 2 本——G1 の 2 品でちょうど埋まる。
-    expect(headsAt(firstStarted.snapshot, at(0))).toEqual(["o#1", "o#2"]);
+    // 釜が空いていても窓が埋まっていれば startAt は未来——提案は Prep_Lead の内側で薄く現れ、時刻が来たら濃くなる。
+    expect(headsAt(firstStarted.snapshot, at(0))).toEqual([]);
     expect(suggestionsAt(firstStarted.snapshot, at(0))).toEqual([
+      [2, ["o#1 queued"]],
+      [3, ["o#1 queued"]],
+      [4, ["o#2 queued"]],
+      [5, ["o#2 queued"]],
+    ]);
+    // 45 秒：同じ卓でも後の batch の G2 は合流しておらず（anchor null）started にならない（AC 1.7 / 6.10）。
+    // 濃いのは店舗全体で arms 2 本——G1 の 2 品でちょうど埋まる。
+    expect(headsAt(firstStarted.snapshot, at(45))).toEqual(["o#1", "o#2"]);
+    expect(suggestionsAt(firstStarted.snapshot, at(45))).toEqual([
       [2, ["o#1 now"]],
       [3, ["o#1 now"]],
       [4, ["o#2 now"]],
@@ -498,29 +517,28 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
     ]);
   });
 
-  it("(ii) 2 品を始めないまま 360 秒に 1 本目が発火 → 残り 3 品が一群に再統合され、濃いのは先頭 arms 2 本。item4 は空いている釜 4・5 に置かれ Complete 前から見える", () => {
+  it("(ii) 2 品を始めないまま 360 秒に 1 本目が発火 → 残り 3 品は同じ batch に再統合され、上げ窓で 2 品（720 秒）と 1 品（765 秒）の群に割れる。item4 の群は先頭の群が始まるまで隠れる", () => {
     const fired = step(firstStarted.state, fire(at(360)));
-    // 走行中の錨（360 秒）は過去ゆえ誰も合流できず、3 品が startAt 360 秒 / serveAt 720 秒の同じ batch（錨なし）になる。
+    // 走行中の錨（360 秒）は過去ゆえ誰も合流できず、3 品が候補 720 秒の同じ batch（錨なし）になる。6 本分は
+    // 同じ窓に載らない（上限 4 本分）ので、3 品目は次の窓 765 秒（startAt 405 秒）へ（lift-group-planning 判断 20）。
     expect(planOf(fired.snapshot)).toEqual([
       ["o#1", ["0", "1"], 360, null],
       ["o#2", ["2", "3"], 360, null],
-      ["o#3", ["4", "5"], 360, null],
+      ["o#3", ["4", "5"], 405, null],
     ]);
     expect(groupsAt(fired.snapshot, at(360))).toEqual([
-      { anchor: null, items: ["o#1", "o#2", "o#3"], started: false },
+      { anchor: null, items: ["o#1", "o#2"], started: false },
+      { anchor: null, items: ["o#3"], started: false },
     ]);
-    // 釜 0・1 は boiled で item2 は出ないが、item3 / item4 の釜はそこではない。表示できる 2 品が arms 2 の内側で
-    // どちらも濃い。
-    expect(headsAt(fired.snapshot, at(360))).toEqual(["o#2", "o#3"]);
+    // 釜 0・1 は boiled で item2 は出ない。item3 は濃い。item4 は後の群で、先頭の群が始まるまで表示できない
+    // （lift-group-display 判断 19・AC 1.8）。
+    expect(headsAt(fired.snapshot, at(360))).toEqual(["o#2"]);
     expect(suggestionsAt(fired.snapshot, at(360))).toEqual([
       [2, ["o#2 now"]],
       [3, ["o#2 now"]],
-      [4, ["o#3 now"]],
-      [5, ["o#3 now"]],
     ]);
 
-    // Complete で item2 の釜が空くと、並び（同じ startAt・正準順序）の先頭 2 本 item2・item3 が濃く、item4 は後続へ
-    // 退く——濃いのは店舗全体で arms 本（判断 21・AC 2.4）。表示は 3 品とも残る（AC 2.11）。
+    // Complete で item2 の釜が空くと、同じ群の item2・item3 が濃い（arms 2 の内側）。item4 の群は引き続き隠れる。
     const completed = step(fired.state, complete(ITEM1, at(360)));
     expect(headsAt(completed.snapshot, at(360))).toEqual(["o#1", "o#2"]);
     expect(suggestionsAt(completed.snapshot, at(360))).toEqual([
@@ -528,8 +546,6 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
       [1, ["o#1 now"]],
       [2, ["o#2 now"]],
       [3, ["o#2 now"]],
-      [4, ["o#3 queued"]],
-      [5, ["o#3 queued"]],
     ]);
   });
 });

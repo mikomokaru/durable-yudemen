@@ -39,6 +39,7 @@ import {
   type SlotRelease,
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
+import { advanceLifts, initialLifts, liftsOf, type LiftTable } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
@@ -125,6 +126,7 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
         planned,
         initialRelease(running, NOW, slotCount),
         tableMembers(running),
+        initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         plannedParams,
       ).slices;
@@ -228,6 +230,14 @@ function releaseAfterPrefix(scene: CommitScene, prefix: readonly AcceptedSlice[]
   );
 }
 
+/** 接頭辞の上がりで進めた上げ表（尾部は採用済み一片の上がりを避けて置く・lift-group-planning AC 9.14）。 */
+function liftsAfterPrefix(scene: CommitScene, prefix: readonly AcceptedSlice[]): LiftTable {
+  return prefix.reduce(
+    (lifts, slice) => advanceLifts(lifts, liftsOf(slice.placements)),
+    initialLifts(scene.running),
+  );
+}
+
 /** 一片の同一性を配置の一致で見る（部分和は合成側が採点し直すため比較に含めない）。 */
 const shapeOf = (slice: { readonly tableKey: string; readonly placements: unknown }) => ({
   tableKey: slice.tableKey,
@@ -299,6 +309,7 @@ describe("engine/commit — committedSchedule", () => {
           remaining,
           releaseAfterPrefix(scene, prefix),
           tableMembers(scene.running),
+          liftsAfterPrefix(scene, prefix),
           DEFAULT_NOODLE_PRESETS,
           scene.params,
         );

@@ -20,6 +20,7 @@ import {
   type SlotRelease,
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
+import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import {
   ARMS_MAX,
@@ -212,7 +213,8 @@ export function externalPlan(
 ): CookSchedule {
   const release = initialRelease(running, NOW, slotCount);
   const members = tableMembers(running);
-  const full = baselineSchedule(pending, release, members, DEFAULT_NOODLE_PRESETS, params);
+  const lifts = initialLifts(running);
+  const full = baselineSchedule(pending, release, members, lifts, DEFAULT_NOODLE_PRESETS, params);
   const victim = full.slices[dropPick % (full.slices.length + 1)];
   const planned =
     victim === undefined
@@ -220,7 +222,7 @@ export function externalPlan(
       : pending.filter(
           (order) => !victim.placements.some((placement) => refersTo(placement, order)),
         );
-  return baselineSchedule(planned, release, members, DEFAULT_NOODLE_PRESETS, params);
+  return baselineSchedule(planned, release, members, lifts, DEFAULT_NOODLE_PRESETS, params);
 }
 
 /**
@@ -261,6 +263,7 @@ export function shortestFirstPlan(
     resequenced,
     initialRelease(running, NOW, slotCount),
     tableMembers(running),
+    initialLifts(running),
     DEFAULT_NOODLE_PRESETS,
     params,
   );

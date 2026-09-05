@@ -89,6 +89,22 @@ export function initialLifts(running: readonly Timer[]): LiftTable {
 }
 
 /**
+ * 計画済みの配置を上がりへ写す——at は `serveAt`、span は占める釜の数（AC 9.3・9.11）。
+ *
+ * 配置から表の要素を作る写像はここ一つである。配置（schedule.ts）・合成（commit.ts）・ゲート（admit.ts）が
+ * それぞれ書けば、「大盛は 2 本分」（AC 9.11）の数え方が三箇所に散る。走行中を写す `initialLifts` と対になる。
+ * `Placement` 型そのものは引かない（schedule.ts がこのモジュールを読む側であり、表は上がりの形だけを知る）。
+ */
+export function liftsOf(
+  placements: readonly { readonly serveAt: EpochMillis; readonly slotIds: readonly unknown[] }[],
+): readonly Lift[] {
+  return placements.map((placement) => ({
+    at: placement.serveAt,
+    span: placement.slotIds.length,
+  }));
+}
+
+/**
  * 確定した上がりで表を進める（合成の尾部再実行と、貪欲法が次の群へ渡す表の更新に用いる）。
  *
  * 入力の表は破壊せず新しい表を返す（純粋変換であることを呼び出し側が確かめずに済む）。

@@ -14,6 +14,7 @@ import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Event } from "../../src/engine/event";
 import type { SettleParams } from "../../src/engine/settle";
 import { baselineSchedule, initialRelease, type CookSchedule } from "../../src/engine/schedule";
+import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
@@ -181,6 +182,7 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
       pending,
       initialRelease(timers, NOW, seed.slotCount),
       tableMembers(timers),
+      initialLifts(timers),
       DEFAULT_NOODLE_PRESETS,
       seed.schedule,
     );

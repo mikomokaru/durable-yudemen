@@ -16,14 +16,23 @@ import {
   baselineSchedule,
   initialRelease,
   toCookSchedule,
+  type Placement,
 } from "../../src/engine/schedule";
 import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
+import {
+  advanceLifts,
+  initialLifts,
+  liftCap,
+  liftsOf,
+  loadWith,
+  type LiftTable,
+} from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import { createTimer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
-import { DEFAULT_NOODLE_PRESETS, type NoodlePreset } from "../../src/domain/store";
+import { DEFAULT_NOODLE_PRESETS, HELPER_ARMS, type NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
 
@@ -121,6 +130,8 @@ const PARAMS: ScheduleParams = schedulingDefaults(1);
 const EMPTY_KITCHEN = initialRelease([], NOW, 6);
 /** 走行中の仲間が居ない卓の成員表。 */
 const NO_MEMBERS = tableMembers([]);
+/** 上がりの無い上げ表（走行中なし）。 */
+const NO_LIFTS = initialLifts([]);
 
 /** Pending_Order 1 件。既定プリセットの茹で時間は Thin 60 秒 / Medium 90 秒 / Thick 120 秒（normal）。 */
 function pendingItem(input: {
@@ -169,6 +180,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
       pending,
       EMPTY_KITCHEN,
       NO_MEMBERS,
+      NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -190,18 +202,25 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
     const pending = [pendingItem({ orderId: "o-1", noodleType: "Ghost" })];
 
     expect(
-      baselineSchedule(pending, EMPTY_KITCHEN, NO_MEMBERS, DEFAULT_NOODLE_PRESETS, PARAMS),
+      baselineSchedule(
+        pending,
+        EMPTY_KITCHEN,
+        NO_MEMBERS,
+        NO_LIFTS,
+        DEFAULT_NOODLE_PRESETS,
+        PARAMS,
+      ),
     ).toEqual({
       slices: [],
     });
   });
 
   it("Pending_Order が空なら空の計画", () => {
-    expect(baselineSchedule([], EMPTY_KITCHEN, NO_MEMBERS, DEFAULT_NOODLE_PRESETS, PARAMS)).toEqual(
-      {
-        slices: [],
-      },
-    );
+    expect(
+      baselineSchedule([], EMPTY_KITCHEN, NO_MEMBERS, NO_LIFTS, DEFAULT_NOODLE_PRESETS, PARAMS),
+    ).toEqual({
+      slices: [],
+    });
   });
 });
 
@@ -218,6 +237,7 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
       pending,
       EMPTY_KITCHEN,
       NO_MEMBERS,
+      NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -238,6 +258,7 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
       pending,
       EMPTY_KITCHEN,
       NO_MEMBERS,
+      NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -266,6 +287,7 @@ describe("baselineSchedule — 釜が埋まっている", () => {
       pending,
       initialRelease(running, NOW, 6),
       tableMembers(running),
+      initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -295,6 +317,7 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
       [...solo, ...table],
       EMPTY_KITCHEN,
       NO_MEMBERS,
+      NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -310,6 +333,7 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
       [...solo, ...table],
       EMPTY_KITCHEN,
       NO_MEMBERS,
+      NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -442,6 +466,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       pending,
       initialRelease(running, NOW, 6),
       tableMembers(running),
+      initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -465,6 +490,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       pending,
       initialRelease(running, NOW, 6),
       tableMembers(running),
+      initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -487,6 +513,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       pending,
       initialRelease(running, NOW, 6),
       tableMembers(running),
+      initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -517,6 +544,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       pending,
       initialRelease(running, NOW, 6),
       tableMembers(running),
+      initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -537,6 +565,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       pending,
       EMPTY_KITCHEN,
       NO_MEMBERS,
+      NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -548,8 +577,10 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
     ]);
   });
 
-  it("釜容量（slotSpan の合計）を超える卓は batch に割れ、batch の中で揃い、跨ぎは減点になる", () => {
+  it("釜容量（slotSpan の合計）を超える卓は batch に割れ、batch は上げ窓に載る本数で窓に割れ、跨ぎは減点になる", () => {
     // 6 釜の店に、同じ卓の Thin が 7 本。6 本で 1 batch、7 本目は釜が空く 60 秒後に始まる。
+    // batch の 6 本は上げ窓（arms 2 + 手伝い 2 = 4 本・L 45 秒）で 4 本と 2 本に割れ、後の 2 本は次の窓 105 秒へ
+    // （判断 20）。7 本目は釜が空く 60 秒から茹でて 120 秒——[105,150) の窓は 2 + 1 = 3 本で上限内。
     const pending = Array.from({ length: 7 }, (_unused, itemIndex) =>
       pendingItem({ orderId: "A", itemIndex, noodleType: "Thin", tableId: "t-1" }),
     );
@@ -558,6 +589,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       pending,
       EMPTY_KITCHEN,
       NO_MEMBERS,
+      NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
     );
@@ -565,17 +597,16 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       (placement) => (placement.serveAt - NOW) / 1000,
     );
 
-    expect(serveSeconds.slice(0, 6)).toEqual([60, 60, 60, 60, 60, 60]);
-    expect(serveSeconds[6]).toBe(120);
-    // 跨ぎの差は卓の遅れとして計上される（6 本 × 60 秒 × w_table 2 = 720）。arms を十分大きくして超過項を消し、
-    // 卓同期項の寄与だけを w_table の有無の差で取り出す。
+    expect(serveSeconds).toEqual([60, 60, 60, 60, 105, 105, 120]);
+    // 跨ぎの差は卓の遅れとして計上される（最遅 120 秒から 4 本 × 60 秒 + 2 本 × 15 秒 = 270 秒 × w_table 2 = 540）。
+    // arms を十分大きくして超過項を消し、卓同期項の寄与だけを w_table の有無の差で取り出す。
     const roomy = { ...PARAMS, arms: 7 };
     const withLag = scoreSchedule(schedule.slices, pending, NO_MEMBERS, roomy).total;
     const withoutLag = scoreSchedule(schedule.slices, pending, NO_MEMBERS, {
       ...roomy,
       tableSyncWeight: 0,
     }).total;
-    expect(withLag - withoutLag).toBe(2 * 60 * 6);
+    expect(withLag - withoutLag).toBe(2 * (60 * 4 + 15 * 2));
   });
 
   describe("走行中の仲間が在る卓は、錨に合流できる品目で最初の batch を組む（判断 16・ADR-0007・AC 1.8〜1.10）", () => {
@@ -598,11 +629,12 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       });
     }
 
-    it("レビューの再現: 6 釜・同卓 4 品・各 2 釜。1 本目を始めた後は「2 品を今、1 品を後」で、始めたまとまりが崩れない", () => {
+    it("レビューの再現: 6 釜・同卓 4 品・各 2 釜。1 本目を始めた後も残りは走行中の錨に合流し、始めたまとまりが崩れない", () => {
       const items = [1, 2, 3].map((itemIndex) =>
         pendingItem({ orderId: "A", itemIndex, noodleType: "Thin", tableId: "t-1", slotSpan: 2 }),
       );
-      // 開始前（4 品・走行中なし）は 3 品が今、1 品が 60 秒後——容量 6 で batch に割れる。
+      // 開始前（4 品・走行中なし）は容量 6 で 3 品と 1 品の batch に割れ、3 品（6 本分）は上げ窓の上限 4 本で
+      // 2 品（60 秒）と 1 品（105 秒）に割れる。4 品目は釜が空く 60 秒から茹でて 120 秒（[105,150) は 2 + 2 = 4 本）。
       const before = baselineSchedule(
         [
           pendingItem({
@@ -616,11 +648,12 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         ],
         EMPTY_KITCHEN,
         NO_MEMBERS,
+        NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
       );
       expect(before.slices[0]!.placements.map((p) => (p.serveAt - NOW) / 1000)).toEqual([
-        60, 60, 60, 120,
+        60, 60, 105, 120,
       ]);
 
       // 1 本目（A#0）を釜 0・1 で始めた（60 秒後に上がる）。
@@ -631,17 +664,22 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         items,
         initialRelease(running, NOW, 6),
         tableMembers(running),
+        initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
       );
-      // A#1・A#2 は空いている 4 釜で今始めて走行中の錨（60 秒）に合流し、A#3 だけが釜の空く 60 秒後に回る。
+      // A#1・A#2 は空いている 4 釜で走行中の錨（60 秒）に合流し、A#3 だけが釜の空く 60 秒後に回る。
       // 従来は 3 品が一つの batch に入り、全員が 60 秒後へ押し出されていた。
+      // 合流分の候補は錨の 60 秒だが、その窓には走行中の 2 本が在り、合流分 4 本分を足すと上限 4 を超える。
+      // pack（2 品を次の窓 105 秒へ）と split（1 品を 60 秒に手伝いで足し、1 品を 105 秒へ）を比べ、卓の遅れが
+      // 小さい pack を置く（390 対 435・判断 20「同時に上げる方」）。A#3 は 120 秒の候補から [105,150) の 4 本を
+      // 避けて 150 秒へ。
       expect(after.slices[0]!.placements.map(readable)).toEqual([
-        { item: "A#1", slots: ["2", "3"], startSeconds: 0, serveSeconds: 60 },
-        { item: "A#2", slots: ["4", "5"], startSeconds: 0, serveSeconds: 60 },
-        { item: "A#3", slots: ["0", "1"], startSeconds: 60, serveSeconds: 120 },
+        { item: "A#1", slots: ["2", "3"], startSeconds: 45, serveSeconds: 105 },
+        { item: "A#2", slots: ["4", "5"], startSeconds: 45, serveSeconds: 105 },
+        { item: "A#3", slots: ["0", "1"], startSeconds: 90, serveSeconds: 150 },
       ]);
-      // 合流分は走行中の錨（60 秒）を所属に持ち、後続の batch は持たない（AC 9.9）。
+      // 合流分は窓で後ろへ動いても走行中の錨（60 秒）を所属に持ち、後続の batch は持たない（AC 9.9・判断 20）。
       expect(after.slices[0]!.placements.map((p) => p.anchor)).toEqual([
         NOW + 60_000,
         NOW + 60_000,
@@ -667,6 +705,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         pending,
         initialRelease(running, NOW, 6),
         tableMembers(running),
+        initialLifts(running),
         presets,
         PARAMS,
       );
@@ -690,6 +729,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         pending,
         initialRelease(running, NOW, 6),
         tableMembers(running),
+        initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
       );
@@ -724,6 +764,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         pending,
         initialRelease(running, NOW, 6),
         tableMembers(running),
+        initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
       );
@@ -733,21 +774,264 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       expect(placement.slots).toHaveLength(2);
       expect(placement).toMatchObject({ item: "A#1", startSeconds: 30, serveSeconds: 90 });
 
-      // 対照: 2 釜とも今空いていれば合流する（釜 3 の走行中を外す）。
+      // 対照: 2 釜とも今空いていれば合流する（釜 3 の走行中を外す）。合流先の錨は 60 秒だが、店舗全体では
+      // 30 秒に 3 本・60 秒に 1 本が上がり、窓 [30,75) に 2 本分を足すと上限 4 を超える——半開ゆえ 75 秒で抜ける
+      // （所属は錨の 60 秒のまま・判断 20）。
       const roomier = running.filter((timer) => timer.id !== "t-other-3");
       const joined = baselineSchedule(
         pending,
         initialRelease(roomier, NOW, 6),
         tableMembers(roomier),
+        initialLifts(roomier),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
       );
       expect(readable(joined.slices[0]!.placements[0]!)).toEqual({
         item: "A#1",
         slots: ["3", "4"],
-        startSeconds: 0,
-        serveSeconds: 60,
+        startSeconds: 15,
+        serveSeconds: 75,
       });
+      expect(joined.slices[0]!.placements[0]!.anchor).toBe(NOW + 60_000);
     });
+  });
+});
+
+// 上げ窓（lift-group-planning Requirement 9・判断 20・ADR-0009）。lift.example が表の数え方と firstFit を固定し、
+// ここは **自前解がどこへ置くか**——pack / split の局所費用（AC 9.8）・大盛の 2 本分（AC 9.11）・置けない品目
+// （AC 9.12）——を具体値で固定する。既定は arms 2・L 45 秒・手伝い 2 本（上限 4 本）。
+describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）", () => {
+  /** 同じ卓の Thin（60 秒）n 本。到着は同時。 */
+  function family(count: number, slotSpan = 1): readonly PendingOrder[] {
+    return Array.from({ length: count }, (_unused, itemIndex) =>
+      pendingItem({ orderId: "F", itemIndex, noodleType: "Thin", tableId: "t-1", slotSpan }),
+    );
+  }
+
+  /** 提供の相対秒（配置の並び順）。 */
+  function serveSecondsOf(schedule: { slices: readonly { placements: readonly Placement[] }[] }) {
+    return schedule.slices.flatMap((slice) =>
+      slice.placements.map((placement) => (placement.serveAt - NOW) / 1000),
+    );
+  }
+
+  /**
+   * 各配置を含むすべての窓の負荷が上限以下か（AC 7.8）。当該配置を除いた表に当該配置を足して数える
+   * （loadWith は t を含む窓だけを見る）。
+   */
+  function withinLiftCap(
+    placements: readonly Placement[],
+    lifts: LiftTable,
+    params: ScheduleParams,
+  ): boolean {
+    return placements.every((placement) => {
+      const others = advanceLifts(
+        lifts,
+        liftsOf(placements.filter((other) => other !== placement)),
+      );
+      return (
+        loadWith(others, placement.serveAt, placement.slotIds.length, params) <= liftCap(params)
+      );
+    });
+  }
+
+  it("4 人家族（同じ卓 4 本・arms 2）は手伝いを頼んで同じ窓に 4 本載る（AC 7.9・判断 20）", () => {
+    // pack（4 本を 60 秒に・手伝いの費用 2 本 × 45 = 90）と split（2 本ずつ）を比べる。表が空なので split の残りも
+    // 同じ窓に入り両者は同じ配置——同点は pack（AC 9.8）。分けて次の窓へ送る形（卓の遅れ 270）は選ばれない。
+    const schedule = baselineSchedule(
+      family(4),
+      EMPTY_KITCHEN,
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+    );
+
+    expect(serveSecondsOf(schedule)).toEqual([60, 60, 60, 60]);
+    expect(liftCap(PARAMS)).toBe(2 + HELPER_ARMS);
+    expect(withinLiftCap(schedule.slices[0]!.placements, NO_LIFTS, PARAMS)).toBe(true);
+  });
+
+  it("9 本・6 釜・arms 2・間隔 45 秒：窓あたり 4 本までで 45 秒以上離れた窓に並び、「全部 now」にならない（AC 7.9）", () => {
+    // 釜容量で 6 本と 3 本の batch に割れ、6 本の列は上限 4 で 4 本（60 秒）と 2 本（次の窓 105 秒）に割れる。
+    // 3 本目の batch は釜が空く 60 秒から茹でて 120 秒が候補だが、[105,150) の 2 本に 3 本を足すと上限を超え、
+    // pack（3 本を 150 秒へ）が split（2 本を 120 秒・1 本を 150 秒）より卓の遅れが小さいので 150 秒に揃う。
+    const schedule = baselineSchedule(
+      family(9),
+      EMPTY_KITCHEN,
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+    );
+    const placements = schedule.slices[0]!.placements;
+
+    expect(serveSecondsOf(schedule)).toEqual([60, 60, 60, 60, 105, 105, 150, 150, 150]);
+    expect(withinLiftCap(placements, NO_LIFTS, PARAMS)).toBe(true);
+    // 全部 now ではない——釜が空いていても窓が埋まっていれば startAt は未来になる（判断 20）。
+    expect(placements.filter((placement) => placement.startAt <= NOW)).toHaveLength(4);
+    // 上がりの時刻は 45 秒以上離れた窓に並ぶ。
+    const windows = [...new Set(serveSecondsOf(schedule))].sort((a, b) => a - b);
+    for (let i = 1; i < windows.length; i++)
+      expect(windows[i]! - windows[i - 1]!).toBeGreaterThanOrEqual(45);
+  });
+
+  it("9 本・12 釜（釜が足りる）なら 4・4・1 の 3 窓に割れる（t・t + 45・t + 90・判断 20）", () => {
+    // 釜が足りれば 9 本が一つの列になり、上限 4 の接頭辞で 4・4・1 に割れて 60 / 105 / 150 秒に並ぶ。
+    const roomy = schedulingDefaults(2);
+    const schedule = baselineSchedule(
+      family(9),
+      initialRelease([], NOW, 12),
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      roomy,
+    );
+
+    expect(serveSecondsOf(schedule)).toEqual([60, 60, 60, 60, 105, 105, 105, 105, 150]);
+    expect(withinLiftCap(schedule.slices[0]!.placements, NO_LIFTS, roomy)).toBe(true);
+  });
+
+  it("大盛（slotSpan 2）は 2 本分として窓に数える（AC 9.11）", () => {
+    // 大盛 1 品 + Thin 3 本（合計 5 本分）。上限 4 に収まる最長の接頭辞は大盛 + Thin 2 本（4 本分）で 60 秒、
+    // 残る Thin 1 本は次の窓 105 秒へ。大盛を 1 本と数えれば 4 品が同じ窓に載ってしまう。
+    const pending = [
+      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", slotSpan: 2 }),
+      ...[1, 2, 3].map((itemIndex) =>
+        pendingItem({ orderId: "F", itemIndex, noodleType: "Thin", tableId: "t-1" }),
+      ),
+    ];
+
+    const schedule = baselineSchedule(
+      pending,
+      EMPTY_KITCHEN,
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+    );
+
+    expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+      { item: "F#0", slots: ["0", "1"], startSeconds: 0, serveSeconds: 60 },
+      { item: "F#1", slots: ["2"], startSeconds: 0, serveSeconds: 60 },
+      { item: "F#2", slots: ["3"], startSeconds: 0, serveSeconds: 60 },
+      { item: "F#3", slots: ["4"], startSeconds: 45, serveSeconds: 105 },
+    ]);
+  });
+
+  it("slotSpan が arms + 手伝いを超える品目は配置しない——arms 1 で 4 釜の品目は待ち行列に残る（AC 9.12）", () => {
+    // 上限 3 本にどの窓でも入らない品目は、茹で時間が引けない品目と同じく置かない。同じ卓の他の品目は置かれる。
+    const narrow = { ...PARAMS, arms: 1 };
+    const pending = [
+      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", slotSpan: 4 }),
+      pendingItem({ orderId: "F", itemIndex: 1, noodleType: "Thin", tableId: "t-1" }),
+    ];
+
+    const schedule = baselineSchedule(
+      pending,
+      EMPTY_KITCHEN,
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      narrow,
+    );
+
+    expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+      { item: "F#1", slots: ["0"], startSeconds: 0, serveSeconds: 60 },
+    ]);
+    // 4 釜の品目だけの卓なら一片そのものが立たない。
+    expect(
+      baselineSchedule(
+        [pending[0]!],
+        EMPTY_KITCHEN,
+        NO_MEMBERS,
+        NO_LIFTS,
+        DEFAULT_NOODLE_PRESETS,
+        narrow,
+      ),
+    ).toEqual({ slices: [] });
+  });
+
+  it("arms 1 の大盛は split の接頭辞が空なので単独で pack する——品目は不可分（AC 9.8）", () => {
+    // 大盛（2 本分）は arms 1 を超えるが上限 3 には収まる。arms に収まる非空の接頭辞が無いので split は候補にならず、
+    // pack（手伝いを頼んで 60 秒）を置く。同じ卓の Thin も同じ列で 3 本分に収まり同じ窓に載る。
+    const narrow = { ...PARAMS, arms: 1 };
+    const pending = [
+      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", slotSpan: 2 }),
+      pendingItem({ orderId: "F", itemIndex: 1, noodleType: "Thin", tableId: "t-1" }),
+    ];
+
+    const schedule = baselineSchedule(
+      pending,
+      EMPTY_KITCHEN,
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      narrow,
+    );
+
+    expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+      { item: "F#0", slots: ["0", "1"], startSeconds: 0, serveSeconds: 60 },
+      { item: "F#1", slots: ["2"], startSeconds: 0, serveSeconds: 60 },
+    ]);
+    expect(
+      baselineSchedule(
+        [pending[0]!],
+        EMPTY_KITCHEN,
+        NO_MEMBERS,
+        NO_LIFTS,
+        DEFAULT_NOODLE_PRESETS,
+        narrow,
+      ).slices[0]!.placements.map(readable),
+    ).toEqual([{ item: "F#0", slots: ["0", "1"], startSeconds: 0, serveSeconds: 60 }]);
+  });
+
+  it("split が勝つ場面：走行中 1 本の窓に 2 本を足し、残り 2 本を次の窓へ（w_table 1・AC 9.8）", () => {
+    // 他の卓の走行中が 60 秒に 1 本。同じ卓の Thin 4 本（4 本分）は候補 60 秒の窓に入らない（1 + 4 > 4）。
+    // pack は 4 本を 105 秒へ（待ち 420・手伝い 2 本 = 90 → 510）。split は 2 本を 60 秒に足し（3 本・手伝い 1 = 45）、
+    // 残り 2 本を 105 秒へ（待ち 330・卓の遅れ 90 × w_table 1 → 465）。w_table 1 なら split が安い。
+    // 既定の w_table 2 なら卓の遅れが 180 になり pack が勝つ（判断 20「同時に上げる方」）。
+    const running = [timerOn({ id: "t-other", slot: "5", endTime: NOW + 60_000 })];
+    const lifts = initialLifts(running);
+    const release = initialRelease(running, NOW, 6);
+    const place = (tableSyncWeight: number) =>
+      serveSecondsOf(
+        baselineSchedule(family(4), release, tableMembers(running), lifts, DEFAULT_NOODLE_PRESETS, {
+          ...PARAMS,
+          tableSyncWeight,
+        }),
+      );
+
+    expect(place(1)).toEqual([60, 60, 105, 105]);
+    expect(place(2)).toEqual([105, 105, 105, 105]);
+  });
+
+  it("窓は店舗全体で数える——別の卓の上がりが同じ窓に在れば、次の卓の候補は後ろへ動く（AC 9.3）", () => {
+    // 卓 t-1 の 4 本が 60 秒の窓を埋める。卓 t-2 の Thin 1 本は釜が空いていても 60 秒には上がれず 105 秒へ
+    // （釜が空いていても窓が埋まっていれば startAt は未来になる・判断 20）。
+    const pending = [
+      ...family(4),
+      pendingItem({
+        orderId: "G",
+        itemIndex: 0,
+        noodleType: "Thin",
+        tableId: "t-2",
+        arrivalTime: NOW + 1,
+      }),
+    ];
+
+    const schedule = baselineSchedule(
+      pending,
+      EMPTY_KITCHEN,
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+    );
+
+    expect(schedule.slices.map((slice) => slice.tableKey)).toEqual(["t-1", "t-2"]);
+    expect(schedule.slices[1]!.placements.map(readable)).toEqual([
+      { item: "G#0", slots: ["4"], startSeconds: 45, serveSeconds: 105 },
+    ]);
   });
 });

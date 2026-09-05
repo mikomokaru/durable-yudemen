@@ -21,6 +21,7 @@ import { admit } from "../../src/engine/admit";
 import { committedSchedule } from "../../src/engine/commit";
 import { baselineSchedule, initialRelease, type CookSchedule } from "../../src/engine/schedule";
 import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
+import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
@@ -296,6 +297,7 @@ describe("admit — 同値と空", () => {
       PENDING,
       initialRelease(BLOCKED, NOW, 6),
       tableMembers(BLOCKED),
+      initialLifts(BLOCKED),
       PRESETS,
       PARAMS,
     );
@@ -407,11 +409,18 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
     ],
   };
 
-  it("場面の前提: 自前解は 2 品を今（走行中の錨に合流）、1 品を後に置く", () => {
+  it("場面の前提: 自前解は 2 品を走行中の錨に合流させ（上げ窓で錨の次の窓 405 秒へ）、1 品を後に置く", () => {
+    // 合流の候補は錨の 360 秒だが、その窓には走行中の 2 本分が在り、合流分 4 本分を足すと上限 4 を超える。pack が
+    // 次の窓 405 秒へ動く（判断 20）。所属（anchor）は錨のまま。3 品目は釜が空く 360 秒から茹でて 720 秒。
     const serveSeconds = COMMITTED_WIDE.slices[0]!.placements.map(
       (candidate) => (candidate.serveAt - NOW) / 1000,
     );
-    expect(serveSeconds).toEqual([SIX_MINUTES, SIX_MINUTES, 2 * SIX_MINUTES]);
+    expect(serveSeconds).toEqual([SIX_MINUTES + 45, SIX_MINUTES + 45, 2 * SIX_MINUTES]);
+    expect(COMMITTED_WIDE.slices[0]!.placements.map((candidate) => candidate.anchor)).toEqual([
+      FIRST.endTime,
+      FIRST.endTime,
+      null,
+    ]);
   });
 
   it("目的関数（最遅参照）は全員を遅らせる計画を真に良いと採点する——採点では守れない", () => {
