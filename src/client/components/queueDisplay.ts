@@ -118,6 +118,21 @@ export function orderQueueEntries(
 }
 
 /**
+ * 品目の表示名。POS 申告の商品名を優先し、無ければ麺種名で代替する（pos-order-ingress 要件 5.3）。
+ *
+ * 表示のたびに NFKC 正規化する——半角カナ（`"ﾈｷﾞ丼"`）を全角へ寄せるのは表示の関心事であり、永続値は
+ * 申告のままである（要件 4.5 / 5.5）。麺量名があれば添える（無ければ省く・要件 5.4）。
+ *
+ * レール・釜カードの提案・ラジアルの待ち行列は同じ品目を同じ語で呼ぶ必要があり、代替と正規化の規則を
+ * 描画側へ散らせば三つの真実になる。語を組むのはここだけで、描画側は受け取った文字列を置くだけである。
+ */
+export function displayName(order: PendingOrder): string {
+  const name = (order.itemName ?? order.noodleType).normalize("NFKC");
+  const size = order.sizeName?.normalize("NFKC");
+  return size === undefined ? name : `${name} ${size}`;
+}
+
+/**
  * 到着順の全順序（arrivalTime 昇順, externalOrderId 昇順, itemIndex 昇順）。
  *
  * 待ち行列の並びと、群の中で startAt が同値の品目の並び（lift-group-display AC 1.4）は同じ順序を要る。

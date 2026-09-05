@@ -5,14 +5,36 @@
 // 親へ返すだけ。花びらの背景は noodleType からの導出色（noodleColor）で麺ごとに個性を出し、文字は統一の暗色。
 // createPortal で body 直下に描き、スロットの overflow / スタッキングに縛られない。
 //
-// 花びらの座標は実行時に変わるためインライン style（transform / transitionDelay）で渡す。Tailwind でも
-// 「実行時に変わる値」はインラインが正解で、無理にクラス化しない（design-system の方針）。
+// 花びら（アドホック開始）の反対側に、店舗全体の待ち行列を縦の帯として並べる（lift-group-display
+// Requirement 4）。提案されていない品目も釜から品目として始められ、待ち行列に品目が残らない。帯の行は
+// 押した釜から組めた釜の集合（slotIds）を親から受け取るだけで、ここでは占有も距離も判定しない——組めない
+// 行（null）は選べない形で示し、押しても何も起きない（AC 4.5 / 4.9）。degraded では親が空を渡し、帯は
+// 描かれない（AC 4.8）。花びらの項目数と幾何は変えない（AC 4.6）。
+//
+// 花びらと帯の座標は実行時に変わるためインライン style（transform / transitionDelay / left / right）で渡す。
+// Tailwind でも「実行時に変わる値」はインラインが正解で、無理にクラス化しない（design-system の方針）。
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../cn";
+import type { PendingOrder } from "../../domain/order";
 import type { NoodlePreset } from "../../domain/store";
+import type { NonEmptyArray } from "../../domain/timer";
+import { FIRMNESS_LABEL } from "./firmness";
 import type { NoodleColor } from "./noodleColor";
+import { displayName } from "./queueDisplay";
+
+/** 待ち行列の帯の 1 行。品目の事実と、押した釜から組めた釜の集合。 */
+export interface RadialQueueItem {
+  readonly order: PendingOrder;
+  /**
+   * 押した釜から組めた釜の集合（起点の釜を先頭に slotSpan 個）。null は組めない（選べない形で示す）。
+   *
+   * 起点の釜が埋まった・許容距離の内側に空きが足りない、のどちらも null に畳む——理由の内訳を現場へ
+   * 持ち出さない（提案なしの行と同じ判断）。導出は親（pairSlots）が描画ごとに view から行う。
+   */
+  readonly slotIds: NonEmptyArray<string> | null;
+}
 
 interface RadialMenuProps {
   /** タッチした地点（ビューポート座標の中心）。null で閉じる。 */
@@ -21,15 +43,50 @@ interface RadialMenuProps {
   readonly presets: readonly NoodlePreset[];
   /** noodleType → 背景色の resolver（花びらの背景塗りに用いる。SlotCard と同じ割り当てを共有する）。 */
   readonly colorOf: NoodleColor;
+  /** 店舗全体の待ち行列（到着順）。degraded では空を渡す（帯を描かない・AC 4.8）。 */
+  readonly queue: readonly RadialQueueItem[];
   /** 中心ハブの上に出すラベル（例: "Slot 0"）。 */
   readonly label?: string | undefined;
   /** 展開半径(px)。既定 132。 */
   readonly radius?: number;
   /** プリセットを選んだとき（＝そのまま自動スタート）。 */
   readonly onSelect: (preset: NoodlePreset) => void;
+  /**
+   * 待ち行列の品目を選んだとき（＝組めた釜で品目として開始）。
+   *
+   * 受け取るのは組めた行だけ——slotIds を非空へ絞った形で渡すので、親は null を検査しない（帯が組めない行を
+   * 呼ばないことと、親が null を受けないことが、一つの型で言われる）。
+   */
+  readonly onSelectItem: (
+    item: RadialQueueItem & { readonly slotIds: NonEmptyArray<string> },
+  ) => void;
   /** キャンセル（背景タップ / ×ハブ / Esc）。 */
   readonly onClose: () => void;
 }
+
+/** 花びらの半径（rem）。花びらのボタンは 5.75rem 四方で、その中心が半径 radius の円周に載る。 */
+const PETAL_RADIUS_REM = 2.875;
+/** 帯の幅の上限（rem）。レール（w-32 = 8rem）より広いのは、帯が卓まで 1 行に収める語を持つため。 */
+const COLUMN_MAX_WIDTH_REM = 12;
+/** 帯の幅の下限（rem）。反対側の余白がこれに満たなければ帯を弧の下へ落とす。 */
+const COLUMN_MIN_WIDTH_REM = 8;
+
+/**
+ * 帯の配置。花びらの反対側の余白に収まるなら側に、収まらなければ弧の下に置く。
+ *
+ * 値はすべて px で持ち、帯の内側の縁だけ花びらの半径（rem）を calc で足す——花びらは rem で描かれており、
+ * px に写せばルートのフォントサイズが変わったときに帯が花びらへ食い込む。
+ */
+type ColumnLayout =
+  | {
+      readonly at: "side";
+      readonly edge: "left" | "right";
+      readonly inset: number;
+      readonly top: number;
+      readonly height: number;
+      readonly width: number;
+    }
+  | { readonly at: "below"; readonly left: number; readonly top: number; readonly width: number };
 
 /**
  * タッチした地点を中心に麺種を円弧状に展開するラジアルメニュー。
@@ -39,9 +96,11 @@ export function RadialMenu({
   anchor,
   presets,
   colorOf,
+  queue,
   label,
   radius = 132,
   onSelect,
+  onSelectItem,
   onClose,
 }: RadialMenuProps) {
   const [shown, setShown] = useState(false);
@@ -87,10 +146,28 @@ export function RadialMenu({
         delay: k * 35,
       };
     });
-    return { cx, cy, petals };
+    // 帯は花びらの反対側——右へ咲く（base === 0）なら左、左へ咲くなら右。配置は base から導き、判定を
+    // 二度書かない。反対側の余白は画面端から弧の外縁（radius + 花びらの半径）まで。
+    const rem = rootFontSizePx();
+    const petalRadius = PETAL_RADIUS_REM * rem;
+    const room = base === 0 ? cx - radius - petalRadius : vw - (cx + radius + petalRadius);
+    const column: ColumnLayout =
+      room >= COLUMN_MIN_WIDTH_REM * rem
+        ? {
+            at: "side",
+            edge: base === 0 ? "right" : "left",
+            inset: base === 0 ? vw - (cx - radius) : cx + radius,
+            top: cy - radius - petalRadius,
+            height: 2 * (radius + petalRadius),
+            width: Math.min(COLUMN_MAX_WIDTH_REM * rem, room),
+          }
+        : belowArc(cx, cy + radius + petalRadius, Math.min(COLUMN_MAX_WIDTH_REM * rem, vw), vw);
+    return { cx, cy, petals, column };
   }, [anchor, presets, radius]);
 
   if (!anchor || !layout) return null;
+
+  const { column } = layout;
 
   return createPortal(
     <div
@@ -166,7 +243,105 @@ export function RadialMenu({
           </span>
         </button>
       ))}
+
+      {/* 待ち行列の帯。0 件（待ち行列が空・degraded）は帯そのものが不在——描くか否かはこの 1 箇所で決める。 */}
+      {queue.length > 0 && (
+        <ul
+          aria-label="Waiting orders"
+          style={
+            column.at === "side"
+              ? {
+                  [column.edge]: `calc(${column.inset}px + ${PETAL_RADIUS_REM}rem)`,
+                  top: column.top,
+                  maxHeight: column.height,
+                  width: column.width,
+                }
+              : {
+                  left: column.left,
+                  top: column.top,
+                  maxHeight: `calc(100vh - ${column.top}px)`,
+                  width: column.width,
+                }
+          }
+          className={cn(
+            "absolute m-0 flex list-none flex-col gap-1 p-0",
+            "overflow-x-hidden overflow-y-auto overscroll-contain",
+            "transition-opacity delay-[50ms] duration-200",
+            shown ? "opacity-100" : "opacity-0",
+          )}
+        >
+          {queue.map((item) => (
+            <QueueRow
+              key={`${item.order.externalOrderId}-${item.order.itemIndex}`}
+              item={item}
+              colorOf={colorOf}
+              onSelectItem={onSelectItem}
+            />
+          ))}
+        </ul>
+      )}
     </div>,
     document.body,
   );
+}
+
+/**
+ * 待ち行列の帯の 1 行。品目名（麺量）・茹で加減・卓を、レールと同じ語で示す（時刻は出さない）。
+ *
+ * 組めない行は aria-disabled と薄い塗りで「選べない」を示し、押しても何も起きない（AC 4.5 / 4.9）。
+ * 開始されない品目を選べる形で示さない、の裏返しである。
+ */
+function QueueRow({
+  item,
+  colorOf,
+  onSelectItem,
+}: {
+  readonly item: RadialQueueItem;
+  readonly colorOf: NoodleColor;
+  readonly onSelectItem: RadialMenuProps["onSelectItem"];
+}) {
+  const { order, slotIds } = item;
+  const selectable = slotIds !== null;
+  return (
+    <li className="flex-none">
+      {/* 組めない行は onClick を持たない——押しても何も起きないのは分岐ではなく口の不在による。 */}
+      <button
+        type="button"
+        aria-disabled={!selectable}
+        onClick={selectable ? () => onSelectItem({ order, slotIds }) : undefined}
+        className={cn(
+          "block w-full rounded-[0.625rem] border border-line bg-panel px-3 py-[0.4375rem] text-left text-sm leading-tight",
+          "shadow-[0_0.375rem_1.25rem_rgba(0,0,0,.45)]",
+          selectable
+            ? "cursor-pointer hover:border-ink active:brightness-105"
+            : "cursor-default opacity-40",
+        )}
+      >
+        {/* 麺種色はインライン style で与える。色の出所は釜カード・花びらと共有する resolver だけである。 */}
+        <span className="font-bold" style={{ color: colorOf(order.noodleType) }}>
+          {displayName(order)}
+        </span>
+        <span className="text-muted">
+          {` · ${FIRMNESS_LABEL[order.firmness]}`}
+          {order.tableId !== null && ` · Table ${order.tableId}`}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * 弧の下の配置。帯を中心に揃え、画面の横幅から出ないように寄せる。
+ *
+ * 弧の下端は radius + 花びらの半径より外へ出ない（弧の広がりは最大 1.5π で、base の反対側は空く）ので、
+ * 上端をそこに置けば花びらと重ならない。
+ */
+function belowArc(cx: number, top: number, width: number, vw: number): ColumnLayout {
+  return { at: "below", left: Math.min(Math.max(cx - width / 2, 0), vw - width), top, width };
+}
+
+/** ルートのフォントサイズ（px）。rem で描かれた花びらの寸法を px の座標系に写すために読む。読めなければ 16。 */
+function rootFontSizePx(): number {
+  const size = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return Number.isFinite(size) && size > 0 ? size : 16;
 }

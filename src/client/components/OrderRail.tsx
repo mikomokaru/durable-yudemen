@@ -16,9 +16,8 @@
 // あるが（湯切りで釜は空くため物理的に正しい）、カードの表示状態は既存の規律（running > boiled > idle）が
 // 決めたままにし、提案はこのレールの中だけに現れる。新しい重畳規則を持ち込まない。
 
-import type { PendingOrder } from "../../domain/order";
 import type { NonEmptyArray } from "../../domain/timer";
-import type { QueueEntry } from "./queueDisplay";
+import { displayName, type QueueEntry } from "./queueDisplay";
 import type { NoodleColor } from "./noodleColor";
 import { FIRMNESS_LABEL } from "./firmness";
 import { formatRemaining } from "../format";
@@ -65,18 +64,6 @@ export function OrderRail({ entries, noodleColor }: OrderRailProps) {
 }
 
 /** 待ち行列 1 行。麺種・卓・待ち時間の事実を示し、提案がある行にだけ開始の口を添える。 */
-/**
- * 行に出す名前。POS 申告の商品名を優先し、無ければ麺種名で代替する（要件 5.3）。
- *
- * 表示のたびに NFKC 正規化する——半角カナ（`"ﾈｷﾞ丼"`）を全角へ寄せるのは表示の関心事であり、永続値は
- * 申告のままである（要件 4.5 / 5.5）。麺量名があれば添える（無ければ省く・要件 5.4）。
- */
-function displayName(order: PendingOrder): string {
-  const name = (order.itemName ?? order.noodleType).normalize("NFKC");
-  const size = order.sizeName?.normalize("NFKC");
-  return size === undefined ? name : `${name} ${size}`;
-}
-
 function OrderRow({
   entry,
   noodleColor,

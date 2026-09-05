@@ -12,16 +12,22 @@
 // 記録ロジックを decideView 側へ寄せたことで、自端末完了・リモート完了の双方で残滓が出る（表示は導出のみ）。
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import type { TimerConnection } from "../connection";
+import { mode, type TimerConnection } from "../connection";
 import { correctedNow } from "../clock";
 import { FIRMNESS_LABEL } from "./firmness";
 import { isNonEmpty } from "../../domain/timer";
 import { assignedSlotDisplays } from "./slotDisplay";
-import { orderQueueEntries } from "./queueDisplay";
-import { liftGroups, slotSuggestions, visibleGroups, type SlotSuggestion } from "./liftGroups";
+import { displayName, orderQueueEntries } from "./queueDisplay";
+import {
+  liftGroups,
+  pairSlots,
+  slotSuggestions,
+  visibleGroups,
+  type SlotSuggestion,
+} from "./liftGroups";
 import { SlotCard, type SuggestionView } from "./SlotCard";
 import { OrderRail } from "./OrderRail";
-import { RadialMenu } from "./RadialMenu";
+import { RadialMenu, type RadialQueueItem } from "./RadialMenu";
 import { noodleColors } from "./noodleColor";
 
 interface SlotBoardProps {
@@ -82,6 +88,13 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   const waiting = isNonEmpty(queue) ? queue : null;
   // ラジアルメニューの開閉。ボード内で一つだけ持ち、RadialMenu も一つだけ描画する。
   const [picker, setPicker] = useState<PickerAnchor | null>(null);
+  // ラジアルの待ち行列の帯。レールと同じ到着順の行に、押した釜から組めた釜の集合を付ける（lift-group-display
+  // AC 4.1 / 4.4）。毎描画 view から導くので、開いたまま snapshot で起点の釜が埋まれば行は自動的に不活性になる
+  // （AC 4.9・状態に写さない）。degraded では空——選んでも開始されない品目を選べる形で示さない（AC 4.8 / 4.9）。
+  const radialQueue: readonly RadialQueueItem[] =
+    picker !== null && mode(view) === "live"
+      ? queue.map(({ order }) => ({ order, slotIds: pairSlots(picker.slot, order.slotSpan, view) }))
+      : [];
   // 麺色の resolver。メニュー順に重複なく色を割り当てる（config 受信時のみ再構築・毎ティックでは作り直さない）。
   const colorOf = useMemo(
     () => noodleColors(view.noodlePresets.map((preset) => preset.noodleType)),
@@ -186,6 +199,17 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
         presets={view.noodlePresets}
         colorOf={colorOf}
         label={picker ? `Slot ${picker.slot}` : undefined}
+        queue={radialQueue}
+        onSelectItem={({ order, slotIds }) => {
+          // 品目を指して開始する（提案からの開始と同じ口・AC 4.2）。釜は押した釜から組んだ集合——slotSpan 1 は
+          // 押した釜だけ（AC 4.3）、2 以上は許容距離の内側で最も近い idle の釜を足したもの（AC 4.4）。
+          connection.startOrderItem(slotIds, {
+            externalOrderId: order.externalOrderId,
+            itemIndex: order.itemIndex,
+          });
+          setPicker(null);
+          playTouchCue();
+        }}
         onSelect={(preset) => {
           // 麺選択確定＝Start。指定操作に Touch_Cue を相乗りさせる（開始動作は変えない・要件1.1/1.4/1.5）。
           if (picker) startOnSlot(picker.slot, preset.noodleType, preset.boilSeconds.normal);
@@ -201,8 +225,8 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
 /**
  * 提案の見え方（ラベル・aria-label・塗り）を組む。
  *
- * 表示語彙をここに集める。商品名の代替（`itemName ?? noodleType`）・NFKC 正規化はレールと同じ語で書く必要が
- * あり、カードへ散らすと二つの真実になる。カードは受け取った文字列を描くだけである。
+ * 表示語彙をここに集める。品目の名はレール・ラジアルの帯と同じ displayName で呼び（商品名の代替・NFKC 正規化・
+ * 麺量はそこにだけ在る）、カードへ散らすと二つの真実になる。カードは受け取った文字列を描くだけである。
  *
  * 時期を組まず、語だけを組む。可視の語は空か `now` の 2 つだけで、時刻（`in m:ss` / `+m:ss` / 壁時計 /
  * 秒読み）は描かない（lift-group-display AC 2.5 / 3.3 / 6.4）——順序は出現の順が語り、押せる先頭は薄くても
@@ -221,19 +245,13 @@ function suggestionOf(
   colorOf: (noodleType: string) => string,
 ): SuggestionView {
   const { order } = suggestion.item;
-  const name = (order.itemName ?? order.noodleType).normalize("NFKC");
-  const size = order.sizeName?.normalize("NFKC");
+  const name = displayName(order);
   const firmness = FIRMNESS_LABEL[order.firmness];
   const table = order.tableId === null ? undefined : `Table ${order.tableId}`;
   // 相の語。先頭は startAt を迎えたら `now`・手前は `soon`、仲間は常に `queued`（startAt が過ぎても・AC 2.4）。
   const phrase =
     suggestion.role === "head" ? (suggestion.phase === "solid" ? "now" : "soon") : "queued";
-  const parts = [
-    size === undefined ? name : `${name} ${size}`,
-    firmness,
-    table,
-    phrase === "now" ? phrase : undefined,
-  ];
+  const parts = [name, firmness, table, phrase === "now" ? phrase : undefined];
   const label = parts.filter((part) => part !== undefined).join(" · ");
   // 命令形を用いない（AC 3.3）。提案であること・品目・釜・相をこの順で語る。
   const ariaLabel = `Suggested — ${name} · Slot ${slot} · ${phrase}`;
