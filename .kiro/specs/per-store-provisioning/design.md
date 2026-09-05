@@ -278,7 +278,7 @@ export function composeEffectiveConfig(
 ```
 
 **責務**：
-- 出力は必ず `StoreConfig` の全フィールド（`unitCount` / `arms` / `toleranceRatio` / `noodlePresets`）を持ち、既存検証関数の値域に収まる（要件4.5）。
+- 出力は必ず `StoreConfig` の全フィールド（`unitCount` / `arms` / `toleranceRatio` / `noodlePresets`）を持ち、既存検証関数の値域に収まる（要件4.5）。Policy と Store_Override の主張対象でない項目（`online-cook-scheduling` の重み 3・許容幅 2・距離 1・レイアウト 2 と、`lift-group-planning` 判断 20 の上げの間隔 `liftIntervalSeconds`＝既定 45 秒）は常に `DEFAULT_*` を供給する（出力完全性）。`liftIntervalSeconds` が足される前に永続された投影は項目を持たないので、store DO の `adoptProjectionConfig` が欠如を既定へ畳む（`lift-group-planning` AC 9.1）。
 - priority 同着で同一フィールドを主張する曖昧さは**入口検証で排除済み**（要件3.4）ゆえ、合成関数は同着を安定順序（`policyId` 昇順）で決定的に畳むだけでよい。
 
 ### Component 3: `src/registry/roster.ts` — 実効名簿の導出

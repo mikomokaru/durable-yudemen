@@ -61,7 +61,7 @@ running: Timer[]  ──┬─→ initialRelease(running, now, slotCount) ─→
         ┌───────────────────────────┴───────────────────────────┐
         ↓                                                       ↓
   baselineSchedule(…, members, …)                     scoreSchedule(…, members, …)
-  Group_Anchor = max(members[key] ∪ earliest)          Table_Lag / Arms_Overflow の成員
+  Group_Anchor = max(members[key] ∪ earliest)          Table_Lag の成員（Arms_Overflow は判断 20 で Lift_Overflow へ・Component 10）
 ```
 
 **解放表と同じ資格の第二の表を立てる。** `baselineSchedule` が `running` ではなく `SlotRelease` を受けるのは、「過去に開始しない」という事実の置き場所を表ひとつに定めるためだった（既存の注記）。卓の錨も同じ形にする——走行中 Timer から射影した表を渡し、配置と採点は表だけを読む。射影が一箇所なら、実効 endTime（`adjustedEndTime`）を二度書く余地が消える。
@@ -106,7 +106,7 @@ function scoreSlice(placements, arrivals, memberEnds: readonly EpochMillis[], pa
   return (
     waitSeconds(placements, arrivals) +
     params.tableSyncWeight * tableLagSeconds(serveTimes) +
-    armsOverflowWeight(params) * armsOverflow(serveTimes, params.arms) +
+    // armsOverflowWeight(params) * armsOverflow(serveTimes, params.arms) +   ← 判断 20 で撤去（Component 10 の Lift_Overflow が total にだけ載る）
     params.orderSyncWeight * orderExcessSeconds(placements, params.orderSyncToleranceSeconds) +
     params.affinityWeight * affinityExcess(placements, params)
   );
@@ -114,8 +114,8 @@ function scoreSlice(placements, arrivals, memberEnds: readonly EpochMillis[], pa
 ```
 
 - **`tableLagSeconds(serveTimes)`** = `Σ ceilSeconds(max(serveTimes) − t)`。空列は 0。**切り上げである**（`waitSeconds` の切り捨てとは規則を分ける・次節）。
-- **`armsOverflow(serveTimes, arms)`** = 同じ `serveAt` を持つ成員を束ね、`Σ max(0, 本数 − arms)`。
-- **`armsOverflowWeight(params)`** = `max(0, params.tableSyncWeight − 1)`。定数を置かず `params` から導く（判断 8）。
+- ~~**`armsOverflow(serveTimes, arms)`** = 同じ `serveAt` を持つ成員を束ね、`Σ max(0, 本数 − arms)`。~~
+- ~~**`armsOverflowWeight(params)`** = `max(0, params.tableSyncWeight − 1)`。定数を置かず `params` から導く（判断 8）。~~（判断 20・21.7 で撤去。店舗全体の Lift_Overflow が `total` にだけ載る——Component 10）
 - `serveSpread` / `excessSeconds` は**オーダー同期の項が使い続ける**ので残す。卓同期だけが使わなくなる。
 - `waitSeconds` は `placements` だけを見る。走行中の成員は `Wait_Time` に寄与しない（Placement ではなく、その待ちは既に実現済み）。AC 2.5 の「定義を変えない」はこの非対称のことである。
 
@@ -547,7 +547,7 @@ scoreSlice(placements, arrivals, memberEnds, params):
 
 - `t ≤ A_run`（走行中の最大）のとき：`latest = A_run` で `lag = N(A_run − t) + Σ_j(A_run − r_j)`、`wait` は `N·t + c`。費用の t の係数は `N(1 − w)` で、`w ≥ 2` なら負——**t を上げるほど良い**ので t は `A_run` まで上がる。
 - `t > A_run` のとき：`latest = t` で `lag = Σ_j(t − r_j)`、費用の係数は正——**t を上げると悪くなる**。
-- 個別に 1 本だけ Δ 早めると `wait` は Δ 減り `lag` は wΔ 増えるので、`(w − 1)Δ` の損（Arms_Overflow が立っていれば超過項が `w − 1` 減り、最悪で同値。同値は棄却される）。
+- 個別に 1 本だけ Δ 早めると `wait` は Δ 減り `lag` は wΔ 増えるので、`(w − 1)Δ` の損（~~Arms_Overflow が立っていれば超過項が `w − 1` 減り、最悪で同値。同値は棄却される~~ 判断 20 で Arms_Overflow は部分和から消えたので、部分和は条件なしに真に大きい——Property 2 の再導出は tasks 21.7 の実測）。
 
 ゆえに**釜の割当と batch の分割を所与とすれば**、最適点は `t = max(A_run, max earliest) = Group_Anchor` のただ一点で、自前解の構成（`placeBatch`）がその点を直接置く。**自前解は、自分が選んだ割当の下で自分の目的関数の最適点に一致する**——これが「一致を制約にせず採点の帰結として得る」（AC 1.6）の実体である。
 
@@ -587,7 +587,7 @@ Component 3 の `placeGroup` / `placeBatch` の擬似コードがそのまま実
 7. **部分和** — 総和は卓ごとの部分和の和に等しい。
 8. **整数** — 目的関数の値は整数。
 9. **卓同期項の下限** — 走行中の仲間が無い釜容量内の卓では、自前解の卓同期項は 0。
-10. **Arms_Overflow の下限** — 同時刻の成員が `arms` 以下なら 0。
+10. ~~**Arms_Overflow の下限** — 同時刻の成員が `arms` 以下なら 0。~~ 判断 20 の改訂：**Lift_Overflow の下限** — 上げ表が空で全配置の `slotSpan` の合計が `arms` 以下なら 0（`total = Σ bySlice`）。
 
 設計から追加で立つ性質を 4 つ置く。いずれも上の 10 項では捕れない構造の主張である。
 

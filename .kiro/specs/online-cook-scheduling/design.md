@@ -216,14 +216,17 @@ export function advanceRelease(release: SlotRelease, placements: readonly Placem
  * 採点はしない（`lift-group-planning` 判断 9 で配置と採点を分離した。Acceptance_Gate は比較の時点で
  * 両側を `scoreSchedule` に通す）。
  *
- * 解放表と卓の成員表（`tableMembers(running)`）を引数に取る。前者は「途中まで確定した配置の続きを
- * 埋める」用途（committedSchedule の尾部再実行）に、後者は同じ卓の走行中 Timer を錨として読むために
- * 要る。全体の自前解は initialRelease(running, now) を渡した場合。
+ * 解放表・卓の成員表（`tableMembers(running)`）・上げ表（`initialLifts(running)`）を引数に取る。
+ * 一つ目は「途中まで確定した配置の続きを埋める」用途（committedSchedule の尾部再実行）に、二つ目は
+ * 同じ卓の走行中 Timer を錨として読むために、三つ目は店舗全体の上がり時刻を避けて置く（上げ窓・
+ * `lift-group-planning` 判断 20）ために要る。全体の自前解は initialRelease(running, now) と
+ * initialLifts(running) を渡した場合。尾部再実行は採用済み接頭辞の配置で進めた表を渡す。
  */
 export function baselineSchedule(
   pending: readonly PendingOrder[],
   release: SlotRelease,
   members: TableMembers,
+  lifts: LiftTable,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): CookSchedule;
@@ -236,7 +239,8 @@ export function baselineSchedule(
    - （`lift-group-planning` で改訂）グループを釜容量（Σ `slotSpan` ≤ slot 数）に収まる **batch** へ貪欲に割る。batch ごとに、各品目の `earliest`（解放時刻 − 茹で時間の逆算）と同じ卓の走行中の実効 `endTime` の最大（`members`）から錨 `max(...earliest, 走行中の錨)` を取り、全員の `serveAt` を錨に揃える（開始時刻は `錨 − 茹で時間`）。錨に届かない品目があれば batch ごと錨より後ろへずれ、走行中との差は Table_Lag として採点に残る（一致は保証ではなく採点の帰結・ADR-0001 / 0003）。
    - 走行中の仲間が在る卓では、その錨に合流できる品目（`slotSpan` 個の釜すべてが「錨 − 茹で時間」までに空く）だけで最初の batch を組み、残りを上の詰め方へ渡す——始めたまとまりを後続品のために崩さない（`lift-group-planning` 判断 16・ADR-0007）。走行中が無い卓は待つことも含めてまとめる。
    - 釜は解放時刻順に `slotSpan` 個ずつ、茹で時間の長い品目から割り当てる（相異なる釜・ハード制約 (d)）。`Slot_Affinity` は最早時刻が同点のときだけ効く（採点しない品目内の距離のために採点する値を悪化させない・ADR-0002）。
-   - 配置が決まったら `advanceRelease` で解放表を進め、次の batch / Table_Group へ渡す。
+   - （`lift-group-planning` 判断 20 で追補）同じ時刻に上げたい列（合流分は候補時刻ごと・batch は錨ごと）の `serveAt` を、候補以降で「その配置を含むすべての上げ窓（長さ `liftIntervalSeconds`・半開）の負荷が `arms + HELPER_ARMS` 以下」となる最初の時刻へ後ろに動かす（`firstFit`）。列の Σ `slotSpan` が `arms` を超えて上限に収まるなら pack（同じ窓）と split（`arms` 以下の最長接頭辞と残り）を同じ表で実際に作り、局所費用 Σ wait + w_table × Σ Table_Lag + ΔLift_Overflow で安い方を置く（同点は pack・品目は不可分）。上限を超える列は上限に収まる最長の非空接頭辞で割って再帰し、1 品で上限を超える品目は配置しない。合流の判定 → 窓の適用の順で行い、窓で後ろへ動いても合流の所属（`Placement.anchor`）は変わらない。
+   - 配置が決まったら `advanceRelease` で解放表を、`advanceLifts` で上げ表を進め、次の batch / Table_Group へ渡す。
 3. 採点はここでは行わない（`scoreSchedule` が placements から導く）。
 
 #### 計算量
@@ -250,26 +254,31 @@ export function baselineSchedule(
 ```ts
 // src/engine/objective.ts
 /**
- * 計画の目的関数値を Requirement 3 の確定式（`lift-group-planning` 判断 5 で改訂）で算出する
+ * 計画の目的関数値を Requirement 3 の確定式（`lift-group-planning` 判断 5・判断 20 で改訂）で算出する
  * （整数・秒換算）。
  *
- * = Σ Wait_Time                                    // floor 秒
+ * bySlice[i] = Σ Wait_Time                          // floor 秒
  *   + w_table × Σ Table_Lag                         // 卓の成員（未着手＋同じ卓の走行中）のうち
  *                                                   // 最遅からの各成員の遅れ。ceil 秒（ADR-0006）
- *   + max(0, w_table − 1) × Σ Arms_Overflow         // 同じ serveAt の成員の本数 − arms（ADR-0002）
  *   + w_order × Σ(同一オーダーの提供時刻最大差の 30 秒 超過分)
  *   + w_affinity × Σ max(0, slotDistance − 14)      // 14 = 斜め隣接。隣り合う釜なら 0
+ * total = Σ bySlice
+ *   + Lift_Overflow                                 // 店舗全体の上げ表で arms を超えた本数 × L 秒
+ *                                                   // （一意な貪欲・ADR-0009。かつての Arms_Overflow を置き換えた）
  *
  * 下限 0 は走行中の仲間が無い卓で到達可能（走行中は動かせないため、錨に届かない品目があれば
  * lag が残る）。`tableSyncToleranceSeconds` は読まない。
  *
- * Plan_Unit（Table_Group）ごとの部分和も返す。全項が Table_Group 内に閉じるため部分和の総和は
- * 全体値に厳密に一致する（AC 6.2(d) の部分比較の成立条件）。
+ * Plan_Unit（Table_Group）ごとの部分和も返す。ソフト制約 3 項は Table_Group 内に閉じるため部分和の
+ * 総和はその 3 項の全体値に厳密に一致する（AC 6.2(d) の部分比較の成立条件）。Lift_Overflow だけは
+ * 店舗全体の項ゆえ `total` にだけ足し `bySlice` に入れない（`lift-group-planning` AC 9.7・Requirement 2.9
+ * の例外。段 1 の部分和比較は枝刈り、段 2 の総和比較が単調改善を担う）。
  */
 export function scoreSchedule(
   slices: readonly PlanSlice[],
   pending: readonly PendingOrder[],
   members: TableMembers,
+  lifts: LiftTable,
   params: ScheduleParams,
 ): ScheduleScore;
 ```

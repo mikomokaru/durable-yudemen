@@ -183,7 +183,7 @@ describe("engine/digest — digestInput", () => {
     );
   });
 
-  it("計画が読む値には反応する（arms は Arms_Overflow で採点に効く・slotSpan は割当に効く）", () => {
+  it("計画が読む値には反応する（arms は Lift_Overflow と pack / split の分岐で効く・slotSpan は割当に効く）", () => {
     const baseline = digestInput(PENDING, RUNNING, PARAMS);
 
     expect(digestInput(PENDING, RUNNING, { ...PARAMS, arms: 4 })).not.toBe(baseline);

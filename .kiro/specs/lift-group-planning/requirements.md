@@ -107,7 +107,7 @@
 | `orderItem.tableId`（入れ子） | engine の `Ordered.orderItem` | Timer が由来する卓。`null` は卓なし。`orderItem` の内側に置くことで、POS を経ない Timer が卓を持つ状態を表現不能にする |
 | `Lift_Group` | 要件語彙（識別子にしない） | 同時に上げる群。同じ卓の計画対象の未着手品目全部 |
 | `tableLagSeconds`（仮） | `objective.ts` の卓同期項 | 卓の最遅からの各成員（走行中を含む）の遅れの和 |
-| `armsOverflow`（仮） | `objective.ts` の新しい項 | 群の本数が arms を超える分 |
+| ~~`armsOverflow`（仮）~~ | ~~`objective.ts` の新しい項~~ | ~~群の本数が arms を超える分~~ 判断 20 で `lift.ts` の `liftOverflow`（店舗全体の上げ窓）に置き換え |
 | `occupiesSlotSpan` | `schedule.ts` の述語（コードレビュー対応で追加・事後承認） | 配置が品目の `slotSpan` を満たすか（本数一致・釜番号で相異なる）。`isStale` と Acceptance_Gate が共用 |
 | `scoreSchedule(slices, pending, running, params)` | `objective.ts` | 走行中を成員として採点する |
 | `ScheduleParams` の項目変更（`arms` の追加） | `objective.ts` / `effect.ts` | 採点が `arms` を読む。値の意味を定めるのは目的関数の側ゆえ `SyncParams` から借りずここへ置く。外部契約に及ぶ |
@@ -121,7 +121,7 @@
 - **Group_Anchor（群の錨）**: `max(同じ卓の走行中 Timer の実効 endTime の最大, 未着手の品目の earliest の最大)`。一つの max であり、走行中が boiled（実効 endTime が過去）でも錨が過去へ落ちず、`earliest` が錨を超える品目も存在しない。群が釜容量を超えて batch に割れる場合は batch ごとに取り直す。
 - **earliest**: ある品目を最も早く始めたときの提供時刻。`割り当てた全釜の解放時刻の最大 + 茹で時間`。
 - **Table_Lag（卓の遅れ）**: 卓の成員のうち最も遅い `serveAt` から各成員の `serveAt` までの差。卓同期の項はこの和。
-- **Arms_Overflow（arms 超過）**: 同時刻（同じ `serveAt`）に上がる Table_Member の本数のうち `arms` を超える分。群の本数ではない——腕が競合するのは同時刻だけで、batch に割れて同時に上がらない本数は数えない。卓同期項と同じ成員集合の上で数える。重みは `max(0, tableSyncWeight − 1)` の導出値で、実質はタイブレーク。
+- **Arms_Overflow（arms 超過）**（判断 20 で Lift_Overflow に置き換え・Requirement 9.6。以下は撤回前の定義）: 同時刻（同じ `serveAt`）に上がる Table_Member の本数のうち `arms` を超える分。群の本数ではない——腕が競合するのは同時刻だけで、batch に割れて同時に上がらない本数は数えない。卓同期項と同じ成員集合の上で数える。重みは `max(0, tableSyncWeight − 1)` の導出値で、実質はタイブレーク。
 - **Wait_Time**: `serveAt − arrivalTime`。揃えのための待ちを含む。
 - **Acceptance_Gate**: 外部計画の受け入れ判定。feasibility は釜の排他・解放表・`serveAt = startAt + 茹で時間`・`slotSpan` の充足。群の一致は見ない。改善判定は外部解と現行 Committed_Plan を、比較の時点の `running` で採点し直して比べる（基準は Committed_Plan）。
 - **Boil_Sync**: 開始後の茹で上がり調整（`synchronized-boil-adjustment`）。本 spec は触れない。

@@ -109,7 +109,7 @@
 2. THE 合成関数 SHALL Policy を priority 昇順に畳み、最後に Store_Override を適用する。mode = default のフィールドは後の層が上書きでき、mode = enforced のフィールドはその層で確定して後の層（Store_Override 含む）に無視される。
 3. WHERE 複数の層が同一フィールドを enforced で主張するとき、THE 合成関数 SHALL 上位（priority が小さい層＝全社統制）の値を採用する。地域例外は、全社が当該フィールドの統制を外すか、地域 Policy 自体を本部が定義することで表現する。
 4. THE 合成関数 SHALL 各フィールドを不可分の値として合成する。配列フィールド（noodlePresets）は層ごとの丸ごと置換とし、要素レベルのマージを行わない。
-5. THE Store_Registry_DO SHALL 合成結果が完全な `StoreConfig`（unitCount / arms / toleranceRatio / noodlePresets の全フィールド）であり、既存検証関数の値域に収まることを保証する。
+5. THE Store_Registry_DO SHALL 合成結果が完全な `StoreConfig`（unitCount / arms / toleranceRatio / noodlePresets の全フィールド）であり、既存検証関数の値域に収まることを保証する。（追記・`lift-group-planning` 判断 20：主張対象でない採点パラメータ——重み・許容幅・距離・レイアウト・上げの間隔 `liftIntervalSeconds`——は合成が既定を供給し、既定より前に永続された投影の欠如は store DO が既定へ畳む）
 6. IF Provisioning_API への投入が検証に反する（必須フィールド欠落・型不一致・値域外・未知フィールド）とき、THEN THE Store_Registry_DO SHALL HTTP 400 で拒否し、イデアを変更しない（黙って既定値へ畳まない — 機械間 API では畳み込みが投入元の誤りを隠蔽するため。店舗 DO 側の受け口は計算済みの健全な投影しか受けないため現行のままとする）。
 7. WHEN 統制（enforced）が解除されたとき、THE Store_Registry_DO SHALL 保持されていた Store_Override を再び有効にする（統制中も店舗個別値は消さず、無視するに留める — 解除で店舗値が復活するのが最も驚きが少ない）。
 

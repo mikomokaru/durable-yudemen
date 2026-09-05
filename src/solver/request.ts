@@ -31,7 +31,7 @@ export interface PlanRequest {
   readonly pending: readonly PendingOrder[];
   /** 釜を占める Timer。slot 解放表の所与（送り手と同じ集合から表を組むことが feasibility の噛み合いの根拠）。 */
   readonly running: readonly Timer[];
-  /** 重み・許容幅・レイアウトの 8 値。 */
+  /** 重み 3・arms・許容調整割合・許容幅 2・距離 1・上げの間隔（`liftIntervalSeconds`）・レイアウト 2 の 11 値（`RequestPlan` と同じ）。 */
   readonly params: ScheduleParams;
   /**
    * 麺種ごとの硬さ別茹で時間。`startAt` と `serveAt` を結ぶ唯一の値ゆえ、計画を作る側は必ず要する。
