@@ -41,7 +41,7 @@ export interface Placement {
    * **配置の時点で決めて以後変えない**（lift-group-planning AC 9.9・判断 20）。上げ窓が `serveAt` を錨より後ろへ
    * 動かしても（21.5）、群の所属は合流の判定で決まった事実であって時刻からは逆算できなくなる。ゆえに
    * `serveAt` と錨の近さ（±h_i）から推定する形（旧 `joinedAnchor` を読む `recommend`）をやめ、配置が持つ。
-   * 外部計画も主張する（`toPlacement`）。ゲートと合成は 21.6 でこの主張を pack の単位で検証する（AC 9.10）。
+   * 外部計画も主張する（`toPlacement`）。ゲートと合成は `keepsAnchor` がこの主張を pack の単位で検証する（AC 9.10）。
    */
   readonly anchor: EpochMillis | null;
 }
@@ -137,7 +137,7 @@ function toPlanSlice(value: unknown): PlanSlice | null {
  * **`anchor` は明示の主張を要る（null か整数）。** 欠如を「合流していない」と読み替えれば、契約を知らない
  * 外部解が黙って合流無しの計画として通る。合流の所属は配置の事実であり（AC 9.9）、主張しない計画は形を
  * 満たしていない。主張の真偽（現在の走行中の仲間の実効 endTime に等しいか）はここでは見ない——`admit` の
- * ハード制約 (e) が pack の単位で検証する（AC 9.10・21.6）。
+ * ハード制約 (e)（`keepsAnchor`）が pack の単位で検証する（AC 9.10）。
  */
 function toPlacement(value: unknown): Placement | null {
   if (typeof value !== "object" || value === null) return null;
@@ -377,143 +377,213 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
 }
 
 /**
- * 一片が走行中の錨を守っているか（ハード制約 (e)・判断 16 / 17・ADR-0007）。守るとは 3 つ——
- *   0. **錨の主張は現在の仲間に在る**：`anchor` を持つ配置の錨は、現在の走行中の仲間の実効 endTime のいずれかに
- *      等しい（AC 9.10 (a)）。`Placement.anchor` は配置の事実として `recommend` が無条件に client へ運び、client は
- *      `anchor > now` で「開始済み」を読む（判断 19）。ゆえに主張を検証しなければ、外部計画が任意の錨を書いても
- *      通り、採用済み一片の錨が Boil_Sync で動いても一片が残る限り古い錨を運ぶ——判断 17 が潰した「『1 本目に
- *      揃う』という主張が黙って嘘になる」回帰そのものである。走行中の仲間が無い卓（`siblings` が null）では
- *      在りうる錨が無いので、`anchor` を持つ配置は一つも許さない。
- *   1. **合流分は錨に一致する**：錨以下に提供する配置は、ちょうど錨に提供する（錨より手前に散らさない）。
- *   2. **押し出さない**：合流できた品目を錨より後ろへ置かない（isPushedOut）。合流分は `anchor` を持つ配置で
- *      読む——上げ窓（21.5）が合流分の `serveAt` を錨より後ろの窓へ動かすので、時刻の近さからは読めない。
+ * 一片が走行中の錨を守っているか（ハード制約 (e)・判断 16 / 17・AC 9.10・ADR-0007 / ADR-0009）。
  *
- * Acceptance_Gate（admit.ts）と確定計画の合成（commit.ts）が同じ述語を読む。合成が読むのは、採用済み一片が
- * 採用時の錨の上に組まれているためである——錨は Boil_Sync で動く（無関係な Timer が仲間の窓の内側で始まると
- * 仲間の adjustment が変わる）。錨が動けば合流分の `anchor` はもう仲間に無く（0 が破れる）、一片は切られて自前解が
- * 現在の錨で置き直す（±h_i の内側の動きでも同じ——錨は等号で運ぶ約束であり、近似では運ばない）。`anchor` を
- * 持たない配置は、+Δ で錨より手前になり（1 が破れる）、−Δ でまだ合流できるなら押し出し（2 が破れる）、もう
- * 届かないなら正当な後続の batch になる。どれも導出だけで判定でき、採用時の錨を持たなくてよい。
+ * 一片の配置を**単位**にまとめ、単位を一つずつ解放表と上げ表へ載せながら検査する（design Component 10）。単位は
+ * `anchor` を持つ配置なら「同じ `anchor`・同じ `serveAt`」の pack、持たない配置なら 1 品。自前解は列（同じ候補時刻の
+ * 合流分）を pack 全体の span で `firstFit` して置く（placeWithLifts）ので、検証も同じ単位でなければ正当な待ち合わせ
+ * （走行中 3 本が 54・54・66 秒に上がる表で、2 品の pack が 99 秒に置かれる）を拒否してしまう。
  *
- * 0 は 21.6 の pack 単位の検査（AC 9.10 (a)〜(d)）の (a) を先に据えたもので、(b)〜(d) は 21.6 が足す。自前解は
- * 構成から満たす（`joinTarget` は錨を `siblings` から選ぶ・Property 17）。
+ * pack（錨 A・提供時刻 T・Σ span = S）には 4 条件を要る（`fitsPack`）。
+ *   (a) **錨の主張は現在の仲間に在る**：A は現在の走行中の仲間の実効 endTime のいずれかに等しい。`Placement.anchor` は
+ *       `recommend` が無条件に client へ運び、client は `anchor > now` で「開始済み」を読む（判断 19）ので、検証しなければ
+ *       外部計画が任意の錨を書いても通り、Boil_Sync で錨が動いた採用済み一片も古い錨を運び続ける（判断 17 が潰した
+ *       回帰）。仲間が無い卓（`siblings` が null）では在りうる錨が無く、`anchor` を持つ配置は一つも許さない。
+ *   (b) **手前に散らさない**：T ≥ A − h_i。
+ *   (c) **集合として合流できた**：各配置の釜が、手前の単位で進めた解放表で A + h_i − 茹で時間 までに空いていた
+ *       （空きが 1 釜だけなら、その釜を順に使う 2 品のうち後の品は仲間に合流できない）。
+ *   (d) **延期の理由は窓だけ**：T が、各配置の釜の解放から取った判断 18 の候補時刻（`joinTarget`）の最大を候補とし、
+ *       手前の単位で進めた上げ表の下で pack 全体の S で `firstFit` した時刻に一致する。**錨の主張だけでは合流分と
+ *       認めない**——主張を無条件に信じれば、押し出した配置に仲間の endTime を書くだけで (e) を素通りする
+ *       （全員を後ろへ遅らせた計画の 3 配置すべてに錨を付けた形が採用されていた。21.5 のレビュー P1）。後続品のために
+ *       合流分を遅らせた計画（Thin と 600 秒の品目を両方 600 秒に置き Thin に anchor 60 を付ける）は、Thin の pack の
+ *       firstFit が 60 秒ゆえここで落ちる。
+ * `anchor` を持たない配置には押し出し（`isPushedOut`）を判定する——手前の単位で進めた表の下でいずれかの仲間に合流
+ * できた品目が、候補時刻からの `firstFit` より後ろに置かれていれば押し出し。合流できない品目は保護の対象外である。
  *
- * **合流する部分集合を外部解に強制しない。** 残り容量が 1 品分で自前解が A を選んでも、外部解が B を合流させ
- * A を後ろに置く一片は、A が B の後では合流できない（isPushedOut が偽）ので守っている。強制するのは「合流した
- * ものは錨に一致」と「合流できるものを押し出さない」だけで、どれを合流させるかは外部の自由（ADR-0007）。
+ * 加えて、どの配置も走行中の最早より h_i を超えて手前には置かない（走行中より先に上げる配置は合流でも後続でもない）。
+ *
+ * **単位の順は「pack を (serveAt, startAt, 代表釜) の順にすべて載せてから、1 品の配置を同じ順に載せる」。** design の
+ * 擬似コードは pack と 1 品を serveAt 順に混ぜて載せるが、自前解は合流の判定（joinable）を batch より先に、群を置く前の
+ * 解放表の上で行う——上げ窓が pack を batch の 1 品より後ろの窓へ動かすと（釜 0・2 が空き・走行中 3 本が 60 秒に上がる
+ * 表で Thin 2 品の pack は 105 秒、釜 1 が 40 秒に空く 3 品目は合流できず 100 秒）、serveAt 順では batch の 1 品が pack
+ * より先に載り、pack の釜を「空いていた」と読んで正当な batch を押し出しと判定する。合流分を先に載せる順は、判断 16
+ * の「合流できる品目で最初の batch を組み、残りは進めた表で置く」そのものである（レビュー追記・2026-09-06）。
+ *
+ * Acceptance_Gate（admit.ts）・確定計画の合成（commit.ts）・自前解の性質検査（Property 17）が同じ述語を読む。合成が
+ * 読むのは、採用済み一片が採用時の錨の上に組まれているためである——錨は Boil_Sync で動く（無関係な Timer が仲間の
+ * 窓の内側で始まると仲間の adjustment が変わる）。錨が動けば合流分の `anchor` はもう仲間に無く（(a) が破れる）、一片は
+ * 切られて自前解が現在の錨で置き直す（±h_i の内側の動きでも同じ——錨は等号で運ぶ約束であり、近似では運ばない）。
+ * `anchor` を持たない配置は、−Δ でまだ合流できるなら押し出し、もう届かないなら正当な後続の batch になる。どれも導出
+ * だけで判定でき、採用時の錨を持たなくてよい。
+ *
+ * **合流する部分集合と pack の切り方を外部解に強制しない（ADR-0007）。** 残り容量が 1 品分で自前解が A を選んでも、
+ * 外部解が B を合流させ A を後ろに置く一片は、A が B の後では合流できない（押し出しではない）ので守っている。
+ *
+ * `release` / `lifts` は当該一片を置く前の表（計画順に進めた表）。
  */
 export function keepsAnchor(
   placements: readonly Placement[],
   release: SlotRelease,
+  lifts: LiftTable,
   siblings: readonly EpochMillis[] | null,
   targets: readonly PendingOrder[],
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): boolean {
-  // 0. 錨の主張は現在の仲間の実効 endTime のいずれかに等しい（仲間が無ければ主張そのものが立たない）。
+  // (a) 錨の主張は現在の仲間の実効 endTime のいずれかに等しい（仲間が無ければ主張そのものが立たない）。
   const claimsAbsent = placements.some(
     (placement) => placement.anchor !== null && !(siblings ?? []).includes(placement.anchor),
   );
   if (claimsAbsent) return false;
   if (siblings === null) return true;
-  // 1. 走行中の最早より h_i を超えて手前に散らさない（走行中より先に上げる配置は合流でも後続でもない）。
+  const resolved = placements.map((placement) => resolveBoil(placement, targets, presets));
+  // 走行中の最早より h_i を超えて手前に散らさない。
   const earliestSibling = siblings[0]!;
-  const scattered = placements.some((placement) => {
-    const order = targets.find((candidate) => refersTo(placement, candidate));
-    const boilMillis = order === undefined ? null : boilMillisOf(order, presets);
+  const scattered = resolved.some(({ placement, boilMillis }) => {
     const window = boilMillis === null ? 0 : joinWindowMillis(boilMillis, params);
     return placement.serveAt < earliestSibling - window;
   });
   if (scattered) return false;
-  return !isPushedOut(placements, release, siblings, targets, presets, params);
-}
 
-/**
- * 配置が合流している走行中の提供時刻（錨）を `serveAt` から**推定**する——走行中の仲間のうち `|serveAt − A| ≤ h_i`
- * を満たす最も近いもの（判断 18）。無ければ null（合流していない）。
- *
- * **推奨の射影はもう読まない。** 合流の所属は配置の事実として `Placement.anchor` が持ち（AC 9.9）、`recommend` は
- * それを運ぶ。上げ窓（21.5）が `serveAt` を錨より後ろへ動かすと、この推定は合流した配置を「合流していない」と
- * 読み違える——ゆえに押し出しの判定（isPushedOut）も `anchor` を持つ配置を合流分と読み、この推定は `anchor` を
- * 主張しない配置（錨の近くに置いた外部計画）を合流分と見なす補いにだけ残す。21.6 で `Placement.anchor` の単位検査
- * （AC 9.10）へ置き換わる——それまでの過渡として module 内に留める（export しない）。
- */
-function joinedAnchor(
-  placement: Placement,
-  siblings: readonly EpochMillis[],
-  boilMillis: number,
-  params: ScheduleParams,
-): EpochMillis | null {
-  const window = joinWindowMillis(boilMillis, params);
-  // 走行中のうち serveAt から h_i 以内（前後どちらでも）に在る最も近いもの。
-  let anchor: EpochMillis | null = null;
-  let distance = Number.POSITIVE_INFINITY;
-  for (const end of siblings) {
-    const gap = Math.abs(end - placement.serveAt);
-    if (gap <= window && gap < distance) {
-      anchor = end;
-      distance = gap;
-    }
+  // pack を順に載せる（(b)〜(d)）。
+  let free = release;
+  let ends = lifts;
+  for (const pack of packsOf(resolved)) {
+    if (!fitsPack(pack, free, ends, siblings, params)) return false;
+    const placed = pack.map(({ placement }) => placement);
+    free = advanceRelease(free, placed);
+    ends = advanceLifts(ends, liftsOf(placed));
   }
-  return anchor;
+  // 1 品の配置は pack で進めた表の上で押し出しを見る。
+  const singles = resolved
+    .filter(({ placement }) => placement.anchor === null)
+    .sort((one, other) => byUnitOrder(one.placement, other.placement));
+  return !isPushedOut(singles, free, ends, siblings, params);
+}
+
+/** 配置と、その品目の茹で時間（品目が計画対象に無い・麺種がプリセットに無いなら null）。 */
+interface Resolved {
+  readonly placement: Placement;
+  readonly boilMillis: number | null;
+}
+
+/** 配置の品目を計画対象から引いて茹で時間を解決する。 */
+function resolveBoil(
+  placement: Placement,
+  targets: readonly PendingOrder[],
+  presets: readonly NoodlePreset[],
+): Resolved {
+  const order = targets.find((candidate) => refersTo(placement, candidate));
+  return { placement, boilMillis: order === undefined ? null : boilMillisOf(order, presets) };
+}
+
+/** 単位の順——serveAt 昇順・同値は startAt 昇順・代表釜の番号（判定を配置の並び順に依存させない・AC 9.10）。 */
+function byUnitOrder(placement: Placement, other: Placement): number {
+  return (
+    placement.serveAt - other.serveAt ||
+    placement.startAt - other.startAt ||
+    slotOf(placement.slotIds[0]) - slotOf(other.slotIds[0])
+  );
+}
+
+/** `anchor` を持つ配置を「同じ anchor・同じ serveAt」の pack にまとめ、単位の順に並べる（AC 9.10）。 */
+function packsOf(resolved: readonly Resolved[]): readonly (readonly Resolved[])[] {
+  const packs = new Map<string, Resolved[]>();
+  for (const entry of resolved) {
+    if (entry.placement.anchor === null) continue;
+    const key = `${entry.placement.anchor} ${entry.placement.serveAt}`;
+    const pack = packs.get(key);
+    if (pack === undefined) packs.set(key, [entry]);
+    else pack.push(entry);
+  }
+  return [...packs.values()]
+    .map((pack) => pack.sort((one, other) => byUnitOrder(one.placement, other.placement)))
+    .sort((pack, other) => byUnitOrder(pack[0]!.placement, other[0]!.placement));
 }
 
 /**
- * 走行中の錨に合流できたのに、錨より後ろへ押し出された配置が在るか（ハード制約 (e)・判断 16・ADR-0007）。
+ * pack が (b) 手前に散らさず、(c) 集合として合流でき、(d) 延期の理由が窓だけか（AC 9.10・keepsAnchor の注記）。
+ *
+ * 茹で時間が引けない配置を含む pack は成立しない——(c)(d) が判定できず、その品目は自前解も置かない。
+ * `release` / `lifts` は手前の単位で進めた表。
+ */
+function fitsPack(
+  pack: readonly Resolved[],
+  release: SlotRelease,
+  lifts: LiftTable,
+  siblings: readonly EpochMillis[],
+  params: ScheduleParams,
+): boolean {
+  // pack は同じ anchor・同じ serveAt の配置の非空の集まり（packsOf が作る）。
+  const anchor = pack[0]!.placement.anchor!;
+  const serveAt = pack[0]!.placement.serveAt;
+  let candidate = Number.NEGATIVE_INFINITY;
+  let span = 0;
+  for (const { placement, boilMillis } of pack) {
+    if (boilMillis === null) return false;
+    const window = joinWindowMillis(boilMillis, params);
+    if (serveAt < anchor - window) return false; // (b)
+    const frees = placement.slotIds.map((slotId) => release[slotOf(slotId)]);
+    // 表の外を指す釜は存在しない釜であり、そこからは合流できない。
+    if (frees.some((at) => at === undefined)) return false;
+    const earliestOwn = Math.max(...(frees as number[])) + boilMillis;
+    if (earliestOwn > anchor + window) return false; // (c)
+    // (c) が成り立てば錨に h_i で届くので候補は必ず在る（起こらないものに防御を置かない）。
+    const target = joinTarget(earliestOwn, siblings, boilMillis, params)!;
+    if (target.serveAt > candidate) candidate = target.serveAt;
+    span += placement.slotIds.length;
+  }
+  return firstFit(lifts, candidate as EpochMillis, span, params) === serveAt; // (d)
+}
+
+/**
+ * 走行中の錨に合流できたのに、候補時刻からの `firstFit` より後ろへ押し出された配置が在るか（ハード制約 (e)・判断 16・
+ * ADR-0007）。`anchor` を持たない配置を単位の順に、手前の単位で進めた表の上で見る（AC 9.10）。
  *
  * 「始めたまとまりを崩さない」は目的関数では守れない——卓同期項は最遅からの遅れの和なので、合流できない 1 本が
  * 在るとき「合流できる品目まで全員を最後へ遅らせる」配置の方が点が良く（合流分の遅れが消える）、ソフトに
  * 置けば外部解がその形で自前解を上書きする。ゆえに feasibility の側に置く。主張は「揃えたい」という好みでは
  * なく「始めたまとまりを崩す計画は成立していない」という構造のもの。
  *
- * 判定：合流分だけで解放表を進めた上で、合流していない各配置について、その品目の `slotSpan` 個の釜が
- * 「錨 + h_i − 茹で時間」までに空いていたなら押し出しである（窓は判断 18）。合流分とは `anchor` を持つ配置
- * （AC 9.9・上げ窓で `serveAt` が錨の後ろの窓へ動いても所属は変わらない）、または `anchor` を主張しないが錨から
- * h_i 以内に置かれた配置（joinedAnchor・外部計画の補い）。上げ窓は合流分の釜を空ける時刻を後ろへ動かすだけで、
- * 間に合う釜を増やさない。錨が過去（走行中が boiled だけ）なら「錨 − 茹で時間」までに空く釜は無く、何も押し出しに
- * ならない。
+ * 判定：品目の `slotSpan` 個の釜が最も早く空く時刻 + 茹で時間（earliest）が「最遅の仲間 + h_i」以下——窓を当てる
+ * 前にいずれかの仲間に合流できた——なら保護の対象で、判断 18 の候補時刻（`joinTarget`）から span で `firstFit` した
+ * 時刻より後ろに置かれていれば押し出し。合流できない品目は保護の対象外で、仲間 60 秒・残りが茹で 300 秒と 600 秒
+ * を後の batch で 600 秒に揃える配置は押し出しではない。窓による必要な延期も押し出しではない（走行中 4 本が 60 秒に
+ * 上がる表で残りを 105 秒に置く一片は守っている）。錨が過去（走行中が boiled だけ）なら earliest は必ず錨 + h_i を
+ * 超え（解放表の下限が now）、何も押し出しにならない。茹で時間が引けない配置は判定しない（合流の可否が定まらない）。
  *
- * **自前解との整合には corner が残る（21.6 の pack 単位の検査への申し送り・Property 17）。** joinable は集合ごとに
- * chooseSlots で釜を選び直す貪欲で、釜の組の同点を index で断つため、単独なら錨に届く品目が集合に入ると別の釜を
- * 取って届かず残りの batch へ回ることがある。この述語は品目ごとに「釜が期限までに空いていたか」で見るので、その
- * 配置を押し出しと判定する（上げ窓の前から在る食い違い。錨の近くの batch を h_i の外へ動かす上げ窓が、それを
- * 隠していた補いを外した）。
- *
- * `release` は当該一片を置く前の解放表（計画順に進めた表）。Acceptance_Gate と自前解の性質検査が共用する。
+ * `release` / `lifts` は pack を載せた後の表。Acceptance_Gate と自前解の性質検査が keepsAnchor 経由で共用する。
  */
-export function isPushedOut(
-  placements: readonly Placement[],
+function isPushedOut(
+  singles: readonly Resolved[],
   release: SlotRelease,
+  lifts: LiftTable,
   siblings: readonly EpochMillis[],
-  targets: readonly PendingOrder[],
-  presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): boolean {
   const latest = siblings[siblings.length - 1]!;
-  const withBoil = placements.map((placement) => {
-    const order = targets.find((candidate) => refersTo(placement, candidate));
-    const boilMillis = order === undefined ? null : boilMillisOf(order, presets);
-    return { placement, order, boilMillis };
-  });
-  // 合流分（`anchor` を持つ配置、または錨から h_i 以内に置かれた配置）だけで解放表を進める。茹で時間が引けない
-  // 配置は合流と見なさない。
-  const isJoined = (placement: Placement, boilMillis: number | null): boolean =>
-    placement.anchor !== null ||
-    (boilMillis !== null && joinedAnchor(placement, siblings, boilMillis, params) !== null);
-  const joined = withBoil.filter(({ placement, boilMillis }) => isJoined(placement, boilMillis));
-  const joinedTable = advanceRelease(
-    release,
-    joined.map(({ placement }) => placement),
-  );
-  return withBoil.some(({ placement, order, boilMillis }) => {
-    if (order === undefined || boilMillis === null) return false;
-    if (isJoined(placement, boilMillis)) return false;
-    if (placement.serveAt < siblings[0]!) return false; // 手前の配置は keepsAnchor の 1 が見る
-    // 最遅の走行中にも間に合わない位置に置かれたが、間に合う釜が空いていたなら押し出し。
-    const deadline = latest + joinWindowMillis(boilMillis, params) - boilMillis;
-    const available = joinedTable.filter((at) => at <= deadline).length;
-    return available >= order.slotSpan;
-  });
+  let free = release;
+  let ends = lifts;
+  for (const { placement, boilMillis } of singles) {
+    if (boilMillis !== null) {
+      const span = placement.slotIds.length;
+      const window = joinWindowMillis(boilMillis, params);
+      // span 個の釜が最も早く空く時刻は解放時刻の span 番目に小さい値（釜が足りなければ合流できない）。
+      const nth = [...free].sort((at, other) => at - other)[span - 1];
+      const earliest = nth === undefined ? Number.POSITIVE_INFINITY : nth + boilMillis;
+      if (earliest <= latest + window) {
+        // 合流できた品目は候補時刻を必ず持つ（joinTarget は最遅の仲間 + h_i 以内なら非 null）。
+        const target = joinTarget(earliest, siblings, boilMillis, params)!;
+        const expected = firstFit(ends, target.serveAt, span, params);
+        // 1 品で上げ窓の上限を超える品目（expected が null）は置き場所が無く、押し出しの対象にならない（AC 9.12）。
+        if (expected !== null && placement.serveAt > expected) return true;
+      }
+    }
+    free = advanceRelease(free, [placement]);
+    ends = advanceLifts(ends, liftsOf([placement]));
+  }
+  return false;
 }
 
 /**
@@ -644,11 +714,17 @@ function placeGroup(
 
   let remaining = boilings;
   if (siblings !== null) {
-    const joined = joinable(boilings, free, siblings, params);
-    if (joined.length > 0) {
-      // 合流分は品目ごとに「間に合う最早の走行中」を候補にし、候補ごとの列を上げ窓に当てて置く。
-      collect(placeJoined(joined, free, ends, members, siblings, params));
-      remaining = boilings.filter((boiling) => !joined.includes(boiling));
+    // 合流分は品目ごとに「間に合う最早の走行中」を候補にし、候補ごとの列を上げ窓に当てて置く。
+    // **合流の判定は置いた後の解放表で繰り返す。** 合流分の釜は判定の間は取り置き（joinable）、置いてはじめて
+    // 実際の提供時刻で空く。先に合流した短い品目の釜がその上がりで空けば、次の品目がその釜から後の仲間に届く
+    // ことがある（仲間 41.85 秒と 145 秒・Thin が 45 秒に上がった釜 4 から Thick が 45 秒に投入して 145 秒に
+    // 届く）。一度の判定で残りを batch へ回すと、ゲート（isPushedOut・置いた後の表で合流できたかを見る）が
+    // その配置を押し出しと判定する（Property 17 の実測）。どの品目も合流できなくなるまで回す。
+    for (;;) {
+      const joined = joinable(remaining, free, siblings, params);
+      if (joined.length === 0) break;
+      collect(placeJoined(joined, ends, members, params));
+      remaining = remaining.filter((boiling) => !joined.some((entry) => entry.boiling === boiling));
     }
   }
 
@@ -670,40 +746,57 @@ function placeGroup(
 }
 
 /**
- * 走行中の錨に合流できる品目。正準順序の貪欲で、先に合流を確定した品目が釜を取った上で次を判定する。
- * 合流の本数を最大化しない——最適な部分集合の選択は外部ソルバの役目で、自前解に要るのは決定性だけ
- * （正準順序と assignSlots の全順序から従う）。
+ * 合流を確定した品目——釜の対応づけと合流先（候補時刻と錨）。joinable が決め、placeJoined がそのまま置く。
+ *
+ * 判定と配置が同じ対応づけを読むために持つ。判定が集合ごとに釜を選び直す形（かつての fits）では、単独なら錨に届く
+ * 品目が集合に入ると別の釜を取って届かず batch へ回り、ゲート（isPushedOut・品目ごとに釜の空きを見る）が自前解を
+ * 押し出しと判定する corner が在った（design Component 3「間に合う集合が在れば必ず間に合わせる」が成り立たない。
+ * 21.5 のレビュー P2）。
+ */
+interface Joined {
+  readonly boiling: Boiling;
+  /** 割り当てた釜（番号）。合流分の中で相異なる。 */
+  readonly slots: readonly number[];
+  /** 判断 18 の候補時刻と錨（AC 9.9）。 */
+  readonly target: { readonly serveAt: EpochMillis; readonly anchor: EpochMillis };
+}
+
+/**
+ * 走行中の錨に合流できる品目。正準順序の貪欲で、**先に合流を確定した品目が釜を取った上で**次を単独で判定する
+ * （design Component 3）。合流の本数を最大化しない——最適な部分集合の選択は外部ソルバの役目で、自前解に要るのは
+ * 決定性だけ（正準順序と assignSlots の全順序から従う）。
+ *
+ * 合流できるとは、品目の slotSpan 個の相異なる釜が最も早く空く時刻 + 茹で時間（earliest）でいずれかの走行中に
+ * h_i 以内で届くこと（`joinTarget` が非 null・判断 18）。「錨 + h_i − 茹で時間 までに釜が空く」と同値で、錨 + h_i
+ * までの残りより茹で時間が長い品目は、解放表の下限が now ゆえ必ず外れる。
+ *
+ * **確定した品目の釜は群の内側で再利用しない（`reserve`・解放時刻を無限大に置く）。** 合流分の実際の提供時刻は
+ * 上げ窓を当てるまで決まらない（候補より後ろの窓へ動きうる）ので、候補時刻で空くと見なして次の品目に同じ釜を
+ * 与えると、先の品目が上がる前に始める配置になる。残りの batch は合流分を実際に置いた後の解放表で釜を取る。
  */
 function joinable(
   boilings: readonly Boiling[],
   release: SlotRelease,
   siblings: readonly EpochMillis[],
   params: ScheduleParams,
-): readonly Boiling[] {
-  const joined: Boiling[] = [];
+): readonly Joined[] {
+  const joined: Joined[] = [];
+  let free = release;
   for (const boiling of boilings) {
-    if (fits([...joined, boiling], release, siblings, params)) joined.push(boiling);
+    const { slotsOfItem, earliest } = assignSlots([boiling], free, params);
+    const target = joinTarget(earliest[0]!, siblings, boiling.boilMillis, params);
+    if (target === null) continue;
+    joined.push({ boiling, slots: slotsOfItem[0]!, target });
+    free = reserve(free, slotsOfItem[0]!);
   }
   return joined;
 }
 
-/**
- * 合流先——走行中の仲間のうち、品目が間に合う最早の提供時刻（`A ≥ earliest − h_i` を満たす最小の A）。
- * 無ければ null（最遅の仲間にも h_i 以内で届かない＝合流できない）。
- *
- * 最遅（Group_Anchor の max）ではなく最早に揃えるのは、Boil_Sync が arms で走行中を複数の Sync_Set に
- * 分けた後、新しい品目まで最後のセットに揃えれば投入のたびに startAt が未来へずれ続けるからである
- * （実測：arms 1 で 2 本目の後に 3 秒、arms 2 で 3 本目の後に 12 秒）。「同じ投入作業として続ける」なら、
- * いま間に合う最早のセットに乗るのが自然で、届かない分は最早に置いて Boil_Sync に委ねる（判断 18）。
- */
-function catchable(
-  earliest: number,
-  siblings: readonly EpochMillis[],
-  boilMillis: number,
-  params: ScheduleParams,
-): EpochMillis | null {
-  const window = joinWindowMillis(boilMillis, params);
-  return siblings.find((end) => end >= earliest - window) ?? null;
+/** 釜を群の内側で取り置く——解放時刻を無限大にして以後の対応づけから外す。入力の表は破壊しない。 */
+function reserve(release: SlotRelease, slots: readonly number[]): SlotRelease {
+  return release.map((at, slot) =>
+    slots.includes(slot) ? (Number.POSITIVE_INFINITY as EpochMillis) : at,
+  );
 }
 
 /**
@@ -752,33 +845,35 @@ function joinTarget(
  * 狭い品目が持つ最も近いものは変わらず、走行中に揃える場合は錨がその走行中そのもの。ゆえに列は AC 9.10 の
  * pack（同じ anchor・同じ serveAt）の単位と一致し、ゲートと合成が自前解を同じ単位で検証できる。
  *
- * 釜の対応づけは合流分の全体で一度だけ行う（fits と同じ対応づけ・釜は列を跨いで相異なる）。列が窓で後ろへ
- * 動いても、その列の釜は候補の時点で空いているので feasibility は保たれる。返す並びは batch の順。
+ * 釜の対応づけは joinable が決めたものをそのまま使う（判定と配置が同じ釜を読む・釜は列を跨いで相異なる）。列が
+ * 窓で後ろへ動いても、その列の釜は候補の時点で空いているので feasibility は保たれる。列の順は配置の対応づけと
+ * 同じ（茹で時間の長い順・同値は正準順序）。返す並びは joined の順。
  */
 function placeJoined(
-  batch: readonly Boiling[],
-  release: SlotRelease,
+  joined: readonly Joined[],
   lifts: LiftTable,
   members: readonly EpochMillis[],
-  siblings: readonly EpochMillis[],
   params: ScheduleParams,
 ): readonly Placement[] {
-  const { slotsOfItem, earliest, byBoil } = assignSlots(batch, release, params);
-  // fits が全員の合流先の存在を確かめているので、ここで null は起こらない（起こらないものに防御を置かない）。
-  const targets = batch.map((boiling, index) =>
-    joinTarget(earliest[index]!, siblings, boiling.boilMillis, params)!,
+  const byBoil = joined
+    .map((_unused, index) => index)
+    .sort(
+      (index, other) =>
+        joined[other]!.boiling.boilMillis - joined[index]!.boiling.boilMillis || index - other,
+    );
+  const candidates = [...new Set(joined.map((entry) => entry.target.serveAt))].sort(
+    (a, b) => a - b,
   );
-  const candidates = [...new Set(targets.map((target) => target.serveAt))].sort((a, b) => a - b);
 
-  const placed: Placement[] = new Array(batch.length);
+  const placed: Placement[] = new Array(joined.length);
   let ends = lifts;
   let ended = members;
   for (const candidate of candidates) {
-    const indices = byBoil.filter((index) => targets[index]!.serveAt === candidate);
+    const indices = byBoil.filter((index) => joined[index]!.target.serveAt === candidate);
     const column = indices.map((index) => ({
-      boiling: batch[index]!,
-      slots: slotsOfItem[index]!,
-      anchor: targets[index]!.anchor,
+      boiling: joined[index]!.boiling,
+      slots: joined[index]!.slots,
+      anchor: joined[index]!.target.anchor,
     }));
     const result = placeWithLifts(column, candidate, ends, ended, params);
     indices.forEach((index, position) => {
@@ -788,25 +883,6 @@ function placeJoined(
     ended = [...ended, ...result.map((placement) => placement.serveAt)];
   }
   return placed;
-}
-
-/**
- * 品目群が全員、錨に間に合うか——placeBatch と同じ対応づけで各品目の earliest（全釜の解放時刻の最大 +
- * 茹で時間）を出し、すべてが 錨 + h_i 以下であること（合流の窓・判断 18）。「全釜が 錨 + h_i − 茹で時間 までに
- * 空く」と同値。錨 + h_i までの残りより茹で時間が長い品目は、解放表の下限が now ゆえ必ず外れる。
- */
-function fits(
-  candidate: readonly Boiling[],
-  release: SlotRelease,
-  siblings: readonly EpochMillis[],
-  params: ScheduleParams,
-): boolean {
-  const totalSpan = candidate.reduce((sum, boiling) => sum + boiling.order.slotSpan, 0);
-  if (totalSpan > release.length) return false;
-  const { earliest } = assignSlots(candidate, release, params);
-  return candidate.every(
-    (boiling, index) => catchable(earliest[index]!, siblings, boiling.boilMillis, params) !== null,
-  );
 }
 
 /** 茹で時間を解決する。プリセットに無い麺種は解決できない（null）。 */
@@ -1036,8 +1112,9 @@ function localCost(
 /**
  * 品目群への釜の対応づけと、各品目の earliest（全釜の解放時刻の最大 + 茹で時間）、対応づけの順（byBoil）。
  *
- * placeBatch / placeJoined（配置）と fits（合流の判定）が**同じ対応づけ**を読む唯一の場所。二箇所に書けば
- * 「合流できる」と判定した品目が、置くときには別の釜を取って錨に届かない、という食い違いが生まれる。
+ * placeBatch（batch の配置）と joinable（合流の判定・その対応づけを placeJoined がそのまま置く）が**同じ対応づけ**を
+ * 読む唯一の場所。二箇所に書けば「合流できる」と判定した品目が、置くときには別の釜を取って錨に届かない、という
+ * 食い違いが生まれる。
  *
  * 長い茹でから順に、早く空く釜を slotSpan 個ずつ連続した塊で配る（1 品目 1 釜では錨を最小にする対応づけ
  * だった。slotSpan が混在すると最小性は言えないが、要るのは決定性だけで、byRelease / byBoil の全順序——

@@ -18,6 +18,7 @@
 import { SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import { committedSchedule } from "./commit";
+import { advanceLifts, initialLifts, liftsOf, type LiftTable } from "./lift";
 import { scoreSchedule, type ScheduleParams } from "./objective";
 import { tableMembers, type TableMembers } from "./project";
 import {
@@ -128,6 +129,8 @@ function prune(
   const prefix: AcceptedSlice[] = [];
   const claimed = new Set<string>();
   let release = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
+  // 上げ表（「店舗全体でいつ上がるか」）も走行中から始め、採用した一片の上がりで進める（合成と同じ位置・同じ表）。
+  let lifts = initialLifts(running);
 
   for (const [index, slice] of arrived.slices.entries()) {
     // 同じ Table_Group を二度計画した外部計画は、計画としての形を成していない（一片は採用/棄却の単位ゆえ
@@ -138,7 +141,15 @@ function prune(
     if (isStale(slice, targets)) break;
     // (c) と (e)。進めた解放表が返れば feasible。走行中の錨は卓の成員表から引く（無ければ null）。
     const siblings = members.get(slice.tableKey) ?? null;
-    const advanced = feasibleRelease(slice.placements, release, targets, presets, siblings, params);
+    const advanced = feasibleRelease(
+      slice.placements,
+      release,
+      lifts,
+      targets,
+      presets,
+      siblings,
+      params,
+    );
     if (advanced === null) break;
     // (d)。**同値は棄却する**（無駄な Persist / Broadcast を生まないため・AC 6.2(d)）。
     // 対応する一片が現行 Committed_Plan に無いときも棄却する——比べる基準が無い一片は「真に良い」と
@@ -151,6 +162,7 @@ function prune(
     prefix.push({ tableKey: slice.tableKey, placements: slice.placements });
     claimed.add(slice.tableKey);
     release = advanced;
+    lifts = advanceLifts(lifts, liftsOf(slice.placements));
   }
   return prefix;
 }
@@ -174,10 +186,13 @@ function prune(
  * occupiesSlotSpan ただ一つ（相異なるかは釜番号で比べる。`["0","00"]` は 1 釜）。isStale も同じ述語を
  * 読むので (a)(b) で既に落ちているが、feasibility の側にも書くのは「解放表に置ける配置か」がここの主張だから。
  *
- * **(e) 始めたまとまりを崩さない。** 走行中の仲間が在る卓で、合流分が錨に一致しない（錨より手前に散らす）
- * 計画と、その錨に合流できた品目を錨より後ろへ押し出した計画は feasible と認めない（判断 16 / 17・ADR-0007）。
- * 目的関数は最遅参照ゆえ「合流できない 1 本のために全員を遅らせる」配置を真に良いと採点し、ソフトでは外部解に
- * 消される。述語は schedule.ts の keepsAnchor ただ一つ（確定計画の合成・自前解の性質検査と共用）。
+ * **(e) 始めたまとまりを崩さない。** 走行中の仲間が在る卓で、合流分の錨の主張が現在の仲間に無い・錨より手前に
+ * 散らす・集合として合流できていない・窓以外の理由で延期した計画と、その錨に合流できた品目を候補時刻からの
+ * `firstFit` より後ろへ押し出した計画は feasible と認めない（判断 16 / 17・AC 9.10・ADR-0007）。目的関数は最遅参照
+ * ゆえ「合流できない 1 本のために全員を遅らせる」配置を真に良いと採点し、ソフトでは外部解に消される。述語は
+ * schedule.ts の keepsAnchor ただ一つ（確定計画の合成・自前解の性質検査と共用）で、一片を置く前の解放表と上げ表を
+ * 受けて pack の単位で検証する——錨の主張だけでは合流分と認めない（主張を信じれば、押し出した配置に仲間の endTime
+ * を書くだけで (e) を素通りする）。
  *
  * **serveAt = startAt ＋ 当該品目の茹で時間 を検査する（design の (a)(b)(c) への追加）。** 外部計画は
  * startAt と serveAt の両方を主張してくるが、両者を結ぶのは品目の茹で時間ただ一つである。検査しないと
@@ -189,14 +204,15 @@ function prune(
 function feasibleRelease(
   placements: readonly Placement[],
   release: SlotRelease,
+  lifts: LiftTable,
   targets: readonly PendingOrder[],
   presets: readonly NoodlePreset[],
   siblings: readonly EpochMillis[] | null,
   params: ScheduleParams,
 ): SlotRelease | null {
-  // (e)。一片を置く前の表で判定する（合流分だけを進めた表は述語の内側で作る）。合成（commit.ts）と同じ述語。
+  // (e)。一片を置く前の解放表と上げ表で判定する（単位ごとに進めた表は述語の内側で作る）。合成（commit.ts）と同じ述語。
   // 仲間が無い卓（siblings null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
-  if (!keepsAnchor(placements, release, siblings, targets, presets, params)) return null;
+  if (!keepsAnchor(placements, release, lifts, siblings, targets, presets, params)) return null;
   // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
   const ordered = [...placements].sort(
     (placement, other) =>

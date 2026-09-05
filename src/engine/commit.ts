@@ -97,11 +97,12 @@ export function committedSchedule(
  *     述語（schedule.ts）。
  *   - `hasLapsedStart` — 推奨開始時刻を過ぎた。合成側だけの関心事ゆえここに置く。
  *   - `keepsAnchor` の否定 — 配置の `anchor` が現在の走行中の仲間の実効 endTime に無い（AC 9.10 (a)）、走行中の
- *     錨が在る卓で合流分が現在の錨に一致しない、または合流できる品目を押し出している。採用済み一片は採用時の
+ *     錨が在る卓で pack が集合として合流できていない・窓以外の理由で延期している（(b)〜(d)）、または合流できる
+ *     品目を押し出している。採用済み一片は採用時の
  *     錨の上に組まれ、錨は Boil_Sync で動くので、ここで再検証しなければ「1 本目に揃う」という一片の主張が
  *     黙って嘘になる（lift-group-planning 判断 17）——`recommend` は `Placement.anchor` を無条件に運ぶので、
- *     嘘の錨を運ばない保証はここにしか無い。`admit` の (e) と同じ述語。一片ごとに、その一片を置く前の解放表で
- *     判定する（ゲートと同じ位置・同じ表）。
+ *     嘘の錨を運ばない保証はここにしか無い。`admit` の (e) と同じ述語。一片ごとに、その一片を置く前の解放表と
+ *     上げ表で判定する（ゲートと同じ位置・同じ表）。
  */
 function livePrefix(
   accepted: readonly AcceptedSlice[],
@@ -124,7 +125,7 @@ function livePrefix(
     if (isStale(slice, targets) || hasLapsedStart(slice, now)) break;
     // 仲間が無い卓（null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
     const siblings = members.get(slice.tableKey) ?? null;
-    if (!keepsAnchor(slice.placements, release, siblings, targets, presets, params)) break;
+    if (!keepsAnchor(slice.placements, release, lifts, siblings, targets, presets, params)) break;
     prefix.push(slice);
     release = advanceRelease(release, slice.placements);
     lifts = advanceLifts(lifts, liftsOf(slice.placements));

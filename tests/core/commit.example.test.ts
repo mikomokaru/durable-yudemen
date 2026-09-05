@@ -157,8 +157,11 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
     expect(serveSecondsOf([sibling(-30 * SECS, 60)], [late])).toEqual([90]);
   });
 
-  it("容量分割の一片（合流分は錨に一致・残りは後続）は維持される", () => {
-    // 6 釜。仲間が釜 4・5 を占めて 600 秒に上がる。同卓の 1 釜の品目 5 本：4 本が合流し、5 本目は釜が空く 600 秒に始める。
+  it("容量分割の一片（合流分は錨の次の窓に pack・残りは後続）は維持される", () => {
+    // 6 釜。仲間が釜 4・5 を占めて 600 秒に上がる。同卓の 1 釜の品目 5 本：4 本が合流し、5 本目は釜が空いてから始める。
+    // 合流分の候補は錨の 600 秒だが、その窓には走行中の 2 本分が在り、4 本を足すと上限 4 を超えるので pack は次の窓
+    // 645 秒へ（判断 20・AC 9.10 (d) は pack 全体の span で firstFit した時刻との一致を求める）。5 本目は釜 4 が空く
+    // 600 秒からの候補 660 秒が [645,690) の 4 本を避けて 690 秒へ。
     const first = createTimer({
       id: "t-first" as TimerId,
       slotIds: nonEmpty(["4" as SlotId, "5" as SlotId]),
@@ -180,17 +183,17 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
       slotIds: nonEmpty([slot as SlotId]),
       startAt: (NOW + startSeconds * SECS) as EpochMillis,
       serveAt: (NOW + (startSeconds + 60) * SECS) as EpochMillis,
-      // 600 秒に上がる配置は仲間（600 秒）へ合流。釜が空いてから始める 5 本目は合流ではない。
-      anchor: startSeconds + 60 === 600 ? ((NOW + 600 * SECS) as EpochMillis) : null,
+      // 錨の次の窓 645 秒に上がる配置は仲間（600 秒）へ合流。釜が空いてから始める 5 本目は合流ではない。
+      anchor: startSeconds + 60 === 645 ? ((NOW + 600 * SECS) as EpochMillis) : null,
     });
     const split: AcceptedSlice = {
       tableKey: "t-a",
       placements: [
-        place(1, "0", 540),
-        place(2, "1", 540),
-        place(3, "2", 540),
-        place(4, "3", 540),
-        place(5, "4", 600),
+        place(1, "0", 585),
+        place(2, "1", 585),
+        place(3, "2", 585),
+        place(4, "3", 585),
+        place(5, "4", 630),
       ],
     };
     const schedule = committedSchedule([split], items, [first], NOW, PRESETS, PARAMS);

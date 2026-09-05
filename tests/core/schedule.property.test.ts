@@ -19,9 +19,11 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   PLAN_TARGET_LIMIT,
+  advanceRelease,
   baselineSchedule,
   initialRelease,
   joinWindowMillis,
+  keepsAnchor,
   planTargets,
   refersTo,
   type Placement,
@@ -374,24 +376,14 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   });
 
   // Feature: lift-group-planning, Property 17 — 自前解は始めたまとまりを崩さない（ハード制約 (e)）
-  // **Validates: Requirements 1.9, 1.11, 5.3, 9.9**
+  // **Validates: Requirements 1.9, 1.11, 5.3, 9.9, 9.10**
   //
-  // 計画順に解放表を進めながら、一片ごとに keepsAnchor（Acceptance_Gate・合成と同じ述語）の主張——`anchor` の
-  // 主張が現在の仲間に在り（AC 9.10 (a)・仲間が無い卓では null）、合流分を錨より手前に散らさない——が真であること。
-  // 自前解がゲートの (e) を構成から満たすことの検査で、joinTarget が錨を仲間から選ぶことを固定する。
-  //
-  // **押し出し（isPushedOut）は 21.5 の間、主張から外す（21.6 で pack 単位の検査へ再基底する）。** 述語そのものは
-  // 上げ窓の前から自前解と食い違う corner を持つ——`joinable` は集合ごとに `chooseSlots` で釜を選び直す貪欲で、
-  // 釜の組の同点（affinity）を index で断つため、単独なら錨に届く品目が集合に入ると届かなくなり、残りの batch へ
-  // 回る（6 釜・釜 0 が走行中 127 秒・同卓に Thick 2 釜 / Thin / Medium・toleranceRatio 18・他の卓が釜 1〜4 を
-  // 45〜100 秒まで使う場面で、Thin は単独なら 120 秒に合流できるのに [Thick, Thin] の組は釜 5 を落として届かず、
-  // batch の 150 秒に置かれる）。一方 isPushedOut は品目ごとに「釜が期限までに空いていたか」で見るので、この
-  // 配置を押し出しと判定する。上げ窓は錨の近くに置かれた batch を h_i の外へ動かすことがあり、この corner を
-  // 隠していた「serveAt が錨から h_i 以内なら合流分と読む」補いが効かなくなって、性質が確率的に落ちる
-  // （上げ窓の前の版でも同じ場面で偽になる。fast-check の種で再現：seed −138192900 相当の縮小例）。
-  // 貪欲と述語のどちらを正すかは spec の判断（design Component 3 の「対応づけは間に合う集合が在れば必ず
-  // 間に合わせる形」は成り立っていない）なので、ここでは主張を (0)(1) に限り、21.6 の再基底へ申し送る。
-  it("Property 17: 自前解の一片は錨の主張を仲間に持ち、走行中の最早より h_i を超えて手前に散らさない", () => {
+  // 計画順に解放表と上げ表を進めながら、一片ごとに keepsAnchor（Acceptance_Gate・合成と同じ述語）が真であること
+  // ——`anchor` の主張が現在の仲間に在り（AC 9.10 (a)・仲間が無い卓では null）、合流分の pack が手前に散らさず・
+  // 集合として合流でき・延期の理由が窓だけで（(b)〜(d)）、合流できた品目を押し出さない。自前解がゲートの (e) を
+  // 構成から満たすことの検査で、joinTarget が錨を仲間から選ぶこと・joinable の増分の対応づけと述語の整合・
+  // placeWithLifts が pack 全体の span で firstFit することを固定する（design Component 10）。
+  it("Property 17: 自前解の一片は keepsAnchor を守る（錨は仲間に在り・pack は窓の分だけ延期し・押し出さない）", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, params }) => {
         const schedule = baselineSchedule(
@@ -402,17 +394,24 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
         );
+        const targets = planTargets(pending);
+        let free = release;
+        let ends = lifts;
         for (const slice of schedule.slices) {
           const siblings = members.get(slice.tableKey) ?? null;
-          for (const placement of slice.placements) {
-            if (siblings === null) {
-              expect(placement.anchor).toBeNull();
-              continue;
-            }
-            if (placement.anchor !== null) expect(siblings).toContain(placement.anchor);
-            const window = joinWindowMillis(placement.serveAt - placement.startAt, params);
-            expect(placement.serveAt).toBeGreaterThanOrEqual(siblings[0] - window);
-          }
+          expect(
+            keepsAnchor(
+              slice.placements,
+              free,
+              ends,
+              siblings,
+              targets,
+              DEFAULT_NOODLE_PRESETS,
+              params,
+            ),
+          ).toBe(true);
+          free = advanceRelease(free, slice.placements);
+          ends = advanceLifts(ends, liftsOf(slice.placements));
         }
       }),
       { numRuns: 300 },

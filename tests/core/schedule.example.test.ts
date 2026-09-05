@@ -15,6 +15,7 @@ import {
   PLAN_TARGET_LIMIT,
   baselineSchedule,
   initialRelease,
+  keepsAnchor,
   toCookSchedule,
   type Placement,
 } from "../../src/engine/schedule";
@@ -28,7 +29,7 @@ import {
   type LiftTable,
 } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
-import { createTimer } from "../../src/engine/timer";
+import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
@@ -1033,5 +1034,213 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
     expect(schedule.slices[1]!.placements.map(readable)).toEqual([
       { item: "G#0", slots: ["4"], startSeconds: 45, serveSeconds: 105 },
     ]);
+  });
+});
+
+describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10・ハード制約 (e)・task 21.6）", () => {
+  // Feature: lift-group-planning, 判断 16 / 17 / 20
+  // **Validates: Requirements 1.11, 5.3, 9.9, 9.10**
+  //
+  // 一片の配置を pack（同じ anchor・同じ serveAt）と 1 品の単位にまとめ、pack から順に解放表と上げ表へ載せながら
+  // (a) 錨は仲間に在る (b) 手前に散らさない (c) 集合として合流できた (d) 延期の理由は窓だけ、を pack に、押し出しを
+  // 1 品に検査する。tasks.md 21.6 の回帰 6 件と、単位の順（pack を先に載せる）の根拠となる場面を固定する。
+  const SECS = 1_000;
+  /** Thin 60 秒（h_i 6 秒）に、茹で 300 秒（h_i 30 秒）と 600 秒（h_i 60 秒）を足した店。 */
+  const PRESETS: readonly NoodlePreset[] = [
+    ...DEFAULT_NOODLE_PRESETS,
+    { noodleType: "Mid", boilSeconds: { extraHard: 300, hard: 300, normal: 300, soft: 300 } },
+    { noodleType: "Long", boilSeconds: { extraHard: 600, hard: 600, normal: 600, soft: 600 } },
+  ];
+  const boilSecondsOf: Record<string, number> = {
+    Thin: 60,
+    Medium: 90,
+    Thick: 120,
+    Mid: 300,
+    Long: 600,
+  };
+
+  /** 卓 t-1 の走行中の仲間（1 釜）。 */
+  function sibling(id: string, slot: string, endSeconds: number) {
+    return timerOn({ id, slot, endTime: NOW + endSeconds * SECS, tableId: "t-1" });
+  }
+  /** 遠い未来まで釜を塞ぐ、卓の無い走行中。 */
+  function blocked(slot: string) {
+    return timerOn({ id: `blocked-${slot}`, slot, endTime: NOW + 10_000 * SECS });
+  }
+  /** 卓 t-1 の未着手。 */
+  function item(itemIndex: number, noodleType: string, slotSpan = 1): PendingOrder {
+    return pendingItem({ orderId: "F", itemIndex, noodleType, tableId: "t-1", slotSpan });
+  }
+  /** 外部計画の配置。serveAt は startAt + 茹で時間。 */
+  function place(
+    order: PendingOrder,
+    slots: readonly string[],
+    startSeconds: number,
+    anchorSeconds: number | null,
+  ): Placement {
+    return {
+      externalOrderId: order.externalOrderId,
+      itemIndex: order.itemIndex,
+      slotIds: nonEmpty(slots.map((slot) => slot as SlotId)),
+      startAt: (NOW + startSeconds * SECS) as EpochMillis,
+      serveAt: (NOW + (startSeconds + boilSecondsOf[order.noodleType]!) * SECS) as EpochMillis,
+      anchor: anchorSeconds === null ? null : ((NOW + anchorSeconds * SECS) as EpochMillis),
+    };
+  }
+  /** 走行中と未着手から、一片を置く前の表で述語を引く。 */
+  function keeps(running: readonly Timer[], pending: readonly PendingOrder[]) {
+    return (placements: readonly Placement[]) =>
+      keepsAnchor(
+        placements,
+        initialRelease(running, NOW, 6),
+        initialLifts(running),
+        tableMembers(running).get("t-1") ?? null,
+        pending,
+        PRESETS,
+        PARAMS,
+      );
+  }
+  /** 自前解の一片（卓 t-1 だけを置く）。 */
+  function own(running: readonly Timer[], pending: readonly PendingOrder[]) {
+    return baselineSchedule(
+      pending,
+      initialRelease(running, NOW, 6),
+      tableMembers(running),
+      initialLifts(running),
+      PRESETS,
+      PARAMS,
+    ).slices[0]!.placements;
+  }
+
+  it("自前解の pack を受け入れる——走行中 3 本が 54・54・66 秒、残り 2 品の候補 60 秒は pack の span 2 で 99 秒（AC 9.10 (d)）", () => {
+    // 1 品ずつなら 60 秒の窓に入る（3 + 1 = 4）が、pack の span 2 では 60 秒を含む窓 [54,99) が 5 本になる。pack の
+    // 最早は 99 秒で、自前解はそこへ置く。検証も pack 全体の span で firstFit するので、この一片は守っている。
+    const running = [sibling("s1", "3", 54), sibling("s2", "4", 54), sibling("s3", "5", 66)];
+    const pending = [item(0, "Thin"), item(1, "Thin")];
+    const placements = own(running, pending);
+    expect(placements.map(readable)).toEqual([
+      { item: "F#0", slots: ["0"], startSeconds: 39, serveSeconds: 99 },
+      { item: "F#1", slots: ["1"], startSeconds: 39, serveSeconds: 99 },
+    ]);
+    expect(placements.map((p) => p.anchor)).toEqual([NOW + 54 * SECS, NOW + 54 * SECS]);
+    expect(keeps(running, pending)(placements)).toBe(true);
+    // 同じ 2 品を 1 品ずつの firstFit（60 秒）に置いた計画は、pack の span 2 では 60 秒に入らないので守っていない。
+    expect(
+      keeps(running, pending)([place(pending[0]!, ["0"], 0, 54), place(pending[1]!, ["1"], 0, 54)]),
+    ).toBe(false);
+  });
+
+  it("走行中 4 本が 60 秒に上がる表で残りを 105 秒に置く一片は守る——窓による延期は押し出しではない", () => {
+    const running = ["2", "3", "4", "5"].map((slot) => sibling(`s${slot}`, slot, 60));
+    const pending = [item(0, "Thin")];
+    const keep = keeps(running, pending);
+    expect(own(running, pending).map(readable)).toEqual([
+      { item: "F#0", slots: ["0"], startSeconds: 45, serveSeconds: 105 },
+    ]);
+    expect(keep([place(pending[0]!, ["0"], 45, 60)])).toBe(true);
+    // 錨を主張しなくても同じ——合流できた品目を候補 60 秒からの firstFit（105 秒）に置く配置は押し出しではない。
+    expect(keep([place(pending[0]!, ["0"], 45, null)])).toBe(true);
+    // firstFit より後ろ（150 秒）は、錨を主張しても (d) で、主張しなくても押し出しで守っていない。
+    expect(keep([place(pending[0]!, ["0"], 90, 60)])).toBe(false);
+    expect(keep([place(pending[0]!, ["0"], 90, null)])).toBe(false);
+  });
+
+  it("合流できない品目に錨を付けた配置（茹で 600 秒を 60 秒の仲間へ anchor: 60）は棄却する（AC 9.10 (c)）", () => {
+    const running = [sibling("s", "5", 60)];
+    const pending = [item(0, "Long")];
+    const keep = keeps(running, pending);
+    expect(keep([place(pending[0]!, ["0"], 0, 60)])).toBe(false);
+    // 錨を名乗らない同じ配置は正当な後続——600 秒の品目は 60 + 60 秒までに上がれず、保護の対象ではない。
+    expect(keep([place(pending[0]!, ["0"], 0, null)])).toBe(true);
+  });
+
+  it("仲間 60 秒・茹で 300 秒と 600 秒（どちらも合流不能）を後の batch で 600 秒に揃える配置は押し出しではない", () => {
+    const running = [sibling("s", "5", 60)];
+    const pending = [item(0, "Mid"), item(1, "Long")];
+    const placements = [place(pending[1]!, ["0"], 0, null), place(pending[0]!, ["1"], 300, null)];
+    expect(keeps(running, pending)(placements)).toBe(true);
+    // 自前解も同じ形（Group_Anchor は max(earliest, 走行中の最遅) = 600 秒）。
+    expect(own(running, pending).map((p) => (p.serveAt - NOW) / 1000)).toEqual([600, 600]);
+  });
+
+  it("空き 1 釜に Thin を [0,60]・[60,120] と順に置いて両方に anchor: 60 を付けた計画は棄却する——(c) は集合の検査", () => {
+    // 手前の単位（[0,60] の pack）で釜 0 は 60 秒まで埋まるので、[60,120] の earliestOwn は 120 秒 > 60 + 6 秒。
+    const running = [sibling("s", "5", 60), ...["1", "2", "3", "4"].map(blocked)];
+    const pending = [item(0, "Thin"), item(1, "Thin")];
+    const keep = keeps(running, pending);
+    expect(keep([place(pending[0]!, ["0"], 0, 60), place(pending[1]!, ["0"], 60, 60)])).toBe(false);
+    // 後の品が錨を名乗らなければ正当な後続の batch。
+    expect(keep([place(pending[0]!, ["0"], 0, 60), place(pending[1]!, ["0"], 60, null)])).toBe(
+      true,
+    );
+  });
+
+  it("Thin と茹で 600 秒の品目を両方 600 秒に置き Thin に anchor: 60 を付けた計画は棄却する——(d) は延期の理由の検査", () => {
+    // 600 秒の品目は合流不能で pack に入らず、Thin だけの pack の firstFit は 60 秒。後続品のために合流分を遅らせた
+    // 配置は錨を主張しても合流分と認めない（主張だけで免除すれば、押し出した配置に仲間の endTime を書くだけで
+    // (e) を素通りする・21.5 のレビュー P1）。
+    const running = [sibling("s", "5", 60), ...["2", "3", "4"].map(blocked)];
+    const pending = [item(0, "Thin"), item(1, "Long")];
+    const keep = keeps(running, pending);
+    expect(keep([place(pending[1]!, ["0"], 0, null), place(pending[0]!, ["1"], 540, 60)])).toBe(
+      false,
+    );
+    // 同じ計画で Thin の錨を外しても押し出しとして棄却する。
+    expect(keep([place(pending[1]!, ["0"], 0, null), place(pending[0]!, ["1"], 540, null)])).toBe(
+      false,
+    );
+    // Thin を 60 秒に合流させ、600 秒の品目を後に置く形は守っている（自前解の形）。
+    expect(keep([place(pending[0]!, ["0"], 0, 60), place(pending[1]!, ["1"], 0, null)])).toBe(true);
+  });
+
+  it("上げ窓が pack を batch の 1 品より後ろへ動かしても押し出しではない——pack を先に載せてから 1 品を見る（単位の順）", () => {
+    // 走行中 3 本が 60 秒に上がり（仲間 1 本・他卓 2 本）、釜 1 は 40 秒に空く。Thin 3 品：2 品は釜 0・2 から 60 秒の
+    // 候補に届くが pack の span 2 は [40,85)・[60,105) の窓に入らず 105 秒へ。3 品目は釜 1 から 100 秒で届かず、
+    // batch の候補 100 秒がそのまま窓に入る。serveAt 順に載せると 3 品目（100 秒）が pack（105 秒）より先に載り、
+    // pack の釜 0 を「空いていた」と読んで押し出しと判定してしまう——自前解は合流の判定を batch より先に行う。
+    const running = [
+      sibling("s", "5", 60),
+      timerOn({ id: "other-3", slot: "3", endTime: NOW + 60 * SECS, tableId: "t-2" }),
+      timerOn({ id: "other-4", slot: "4", endTime: NOW + 60 * SECS, tableId: "t-2" }),
+      timerOn({ id: "busy-1", slot: "1", endTime: NOW + 40 * SECS }),
+    ];
+    const pending = [item(0, "Thin"), item(1, "Thin"), item(2, "Thin")];
+    const placements = own(running, pending);
+    expect(placements.map(readable)).toEqual([
+      { item: "F#0", slots: ["0"], startSeconds: 45, serveSeconds: 105 },
+      { item: "F#1", slots: ["2"], startSeconds: 45, serveSeconds: 105 },
+      { item: "F#2", slots: ["1"], startSeconds: 40, serveSeconds: 100 },
+    ]);
+    expect(placements.map((p) => p.anchor)).toEqual([NOW + 60 * SECS, NOW + 60 * SECS, null]);
+    expect(keeps(running, pending)(placements)).toBe(true);
+  });
+
+  it("先に合流した品目の釜がその上がりで空けば、次の品目はその釜から後の仲間に届く——合流の判定は置いた後の表で繰り返す", () => {
+    // 仲間が 66 秒（釜 5）と 170 秒（釜 4）に上がる。Thin（h_i 6 秒）は釜 0 から [0,60] で 66 秒の仲間に届く。
+    // Thick（120 秒・h_i 12 秒）は釜 5 が空く 66 秒からでは 186 秒で 170 秒の仲間に届かず、釜 1（100 秒に空く）からも
+    // 届かないが、Thin が上がった釜 0 からなら [60,180] で届く。合流の判定を一度で終えると Thick は batch
+    // （Group_Anchor 170 秒からの候補 220 秒）へ回り、置いた後の表で見れば合流できたので押し出しになる（Property 17
+    // の実測・仲間 41.85 秒と 145 秒の縮小例）。
+    const running = [
+      sibling("s1", "5", 66),
+      sibling("s2", "4", 170),
+      timerOn({ id: "busy-1", slot: "1", endTime: NOW + 100 * SECS }),
+      ...["2", "3"].map(blocked),
+    ];
+    const pending = [item(0, "Thin"), item(1, "Thick")];
+    const placements = own(running, pending);
+    expect(placements.map(readable)).toEqual([
+      { item: "F#0", slots: ["0"], startSeconds: 0, serveSeconds: 60 },
+      { item: "F#1", slots: ["0"], startSeconds: 60, serveSeconds: 180 },
+    ]);
+    expect(placements.map((p) => p.anchor)).toEqual([NOW + 66 * SECS, NOW + 170 * SECS]);
+    expect(keeps(running, pending)(placements)).toBe(true);
+    // 一度の判定で Thick を batch（170 秒の錨から 220 秒）へ回した形は、置いた後の表で合流できたので押し出し。
+    expect(
+      keeps(
+        running,
+        pending,
+      )([place(pending[0]!, ["0"], 0, 66), place(pending[1]!, ["0"], 100, null)]),
+    ).toBe(false);
   });
 });

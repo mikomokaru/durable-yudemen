@@ -201,6 +201,7 @@ function prefixLength(scene: CommitScene): number {
   const targets = planTargets(scene.pending);
   const members = tableMembers(scene.running);
   let release = initialRelease(scene.running, scene.now, scene.slotCount);
+  let lifts = initialLifts(scene.running);
   for (let index = 0; index < bound; index++) {
     const slice = scene.accepted[index]!;
     // 仲間が無い卓（null）でも述語を通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず見る。
@@ -209,6 +210,7 @@ function prefixLength(scene: CommitScene): number {
       !keepsAnchor(
         slice.placements,
         release,
+        lifts,
         siblings,
         targets,
         DEFAULT_NOODLE_PRESETS,
@@ -218,6 +220,7 @@ function prefixLength(scene: CommitScene): number {
       return index;
     }
     release = advanceRelease(release, slice.placements);
+    lifts = advanceLifts(lifts, liftsOf(slice.placements));
   }
   return bound;
 }

@@ -272,8 +272,8 @@ placeBatch(batch, release, runningAnchor: EpochMillis | null, params):
 #### 判断 18・19 の改訂（実装で確定・2026-09-05）
 
 - **`ScheduleParams.toleranceRatio`** を足し、合流の窓 `joinWindowMillis(boil, params) = floor(boil × toleranceRatio / 100)` を `schedule.ts` に置く。指紋（`digest.ts`）に畳む。`RequestPlan` の `params` は SettleParams をそのまま載せるので追加の配線は無い。
-- `placeGroup(items, release, siblings, presets, params)`——`runningAnchor` の代わりに同じ卓の走行中の提供時刻の列（`tableMembers` の値・昇順）を受ける。`joinable` / `fits` は `catchable(earliest, siblings, boil, params)`（`A ≥ earliest − h_i` を満たす最早の A）で合流の可否を判定し、`placeJoined` は `joinedServeAt`——いずれかの A が `|earliest − A| ≤ h_i` なら **earliest**、無ければ earliest より後の最早の A——に置く。残りの batch は従来どおり `placeBatch(…, max(siblings))`。
-- `keepsAnchor(placements, release, siblings, targets, presets, params)`：(0) `anchor` を持つ配置の錨は現在の走行中の仲間の実効 endTime のいずれかに等しい（AC 9.10 (a)・`siblings` が null＝仲間が無い卓では `anchor` を持てない。21.4 のレビュー追記で先に据えた）、(1) 走行中の最早より h_i を超えて手前に散らさない、(2) `isPushedOut`——合流分（`joinedAnchor` が非 null＝いずれかの A から h_i 以内）だけで解放表を進め、合流していない配置の釜が「最遅の A + h_i − 茹で時間」までに空いていたら押し出し。
+- `placeGroup(items, release, siblings, presets, params)`——`runningAnchor` の代わりに同じ卓の走行中の提供時刻の列（`tableMembers` の値・昇順）を受ける。`joinable` / `fits` は `catchable(earliest, siblings, boil, params)`（`A ≥ earliest − h_i` を満たす最早の A）で合流の可否を判定し、`placeJoined` は `joinedServeAt`——いずれかの A が `|earliest − A| ≤ h_i` なら **earliest**、無ければ earliest より後の最早の A——に置く。残りの batch は従来どおり `placeBatch(…, max(siblings))`。**21.6 で改訂**：`joinable` は増分——品目ごとに `joinTarget`（非 null＝いずれかの A に h_i で届く）で判定し、確定した品目の釜を取り置いて次を単独で判定する（`fits` / `catchable` は撤去）。対応づけは `placeJoined` がそのまま置き、判定は置いた後の解放表で繰り返す（Component 10 の注記）。
+- `keepsAnchor(placements, release, lifts, siblings, targets, presets, params)`：**21.6 で改訂**——配置を単位（`anchor` 付きは同じ anchor・同じ serveAt の pack、無しは 1 品）にまとめ、pack を (serveAt, startAt, 代表釜) 順に解放表と上げ表へ載せながら (a) 錨は現在の仲間に在る（21.4 のレビュー追記で先に据えた・仲間が無い卓では `anchor` を持てない）(b) 手前に散らさない (c) 集合として合流できた (d) serveAt が候補の最大から pack 全体の span で firstFit した時刻に一致、を検査し、その後 1 品の配置を同じ順に載せながら押し出し（`isPushedOut`——置いた後の表で合流できた品目が候補時刻からの firstFit より後ろ）を検査する（Component 10「(e) の契約」）。加えてどの配置も走行中の最早より h_i を超えて手前に散らさない。`joinedAnchor` の h_i 推定は撤去。
 - `boilMillisOf` を `schedule.ts` から export し、admit.ts の重複を消した。
 - `recommend(committed, pending, running, presets, params)`：配置ごとに `joinedAnchor` を引き、`group = joined ? \`${slice}:anchor:${A}\` : \`${slice}:${serveAt}\``、`anchor = A | null`。**21.4 で改訂**：`recommend(committed)` は `Placement.anchor` を運ぶだけで、`joinedAnchor` の推定は撤去（Component 10「`Placement.anchor`」）。引数の待ち行列・走行中・プリセット・採点パラメータは推定のためだけに要したので消える。
 - 検証：`tests/core/continuous-input.example.test.ts`（arms 1〜3 × 間隔 0 / 1 / 3 / 5 秒・6 本を順に投入し、各投入の直後に空いている釜の残りがすべて `anchor` 非 null で `startAt ≤ now`、いま押せる推奨が使わない空き釜に後ろへ置かれた品目が無い）。Property 1 は「最早の走行中 − h_i より手前に散らさない・最遅 + h_i より後ろは一つに揃う」へ。`digest.example` は toleranceRatio が指紋を変える形へ。
@@ -491,6 +491,7 @@ for u in units:
 - **(d) は延期の理由の検査になる。** 仲間 60 秒・残りが Thin 60 秒と茹で 600 秒で、両方を 600 秒に置き Thin に `anchor: 60` を付けた計画は、600 秒の品目が合流不能（anchor を名乗れない）で pack に入らず、Thin だけの pack の firstFit が 60 秒なので落ちる。正当な pack の待ち合わせ（上の 99 秒）は S = 2 で firstFit が 99 秒ゆえ通る。合流できる品目どうしなら、外部解が自前解と違う pack の切り方をしてもよい。
 - **押し出しは、窓を当てる前に合流できた品目に限って判定する。** 合流できない品目は保護の対象外なので、仲間 60 秒・残りが茹で 300 秒と 600 秒を後の batch で 600 秒に揃える配置は押し出しではない。窓による必要な延期も押し出しではなく、走行中 4 本が 60 秒に上がる表で残りを 105 秒に置く一片は守っている。
 - 自前解は構成からこの契約を満たす——`placeWithLifts` が pack（同じ候補時刻の joined の列）ごとに pack 全体の span で `firstFit` し、split すれば別の pack として順に載る。Property 17 を「一片ごとに `keepsAnchor` が真」のまま保つ。
+- **単位の順（実装で確定・レビュー追記 2026-09-06）**：擬似コードは pack と 1 品を serveAt 順に混ぜて載せるが、実装は **pack をすべて載せてから 1 品を載せる**（それぞれ (serveAt, startAt, 代表釜) 順）。自前解は合流の判定を batch より先に、群を置く前の解放表で行い、上げ窓は pack を batch の 1 品より後ろの窓へ動かしうる（釜 0・2 が空き・走行中 3 本が 60 秒に上がり・釜 1 が 40 秒に空く場面で、Thin 2 品の pack は 105 秒、3 品目は 100 秒）。serveAt 順では batch の 1 品が先に載り、pack の釜を「空いていた」と読んで正当な batch を押し出しと判定する。合流分を先に載せる順は判断 16「合流できる品目で最初の batch を組み、残りは進めた表で置く」そのものである。合わせて `joinable` は増分（先に確定した品目の釜を取り置いて次を単独で判定・取り置きは無限大の解放時刻）にし、**置いた後の解放表で合流の判定を繰り返す**——先に合流した短い品目の釜がその上がりで空けば、次の品目がその釜から後の仲間に届く（仲間 66 秒と 170 秒・Thin が上がった釜 0 から Thick が [60,180] で届く）。一度で終えると batch へ回した配置をゲートが押し出しと判定する（Property 17 の実測・40000 例で成立）。
 
 **貪欲採点の近似（レビュー 2 回目の注意・AC 9.15）。** `liftOverflow` の割当は起点を上がり時刻に限る。arms 2・L 45 で {60:1, 104:1, 105:2} は割当 [60,105) / [105,150) で超過 0 だが、窓 [104,149) には 3 本ある。「手伝いが要る窓には必ず費用が付く」定義ではないことを採点の判断として記す。ハード上限（`loadWith`）は t を含むすべての窓を見るので近似ではない。
 
@@ -625,7 +626,7 @@ Property 2 は「散らした計画は真に良くならない（Arms_Overflow �
 | --- | --- | --- |
 | 型 | `TableMembers`（`project.ts`） | 卓ごとの走行中の仲間の提供時刻。解放表と同じ資格の第二の表 |
 | 関数 | `tableMembers(running)` | 走行中 Timer から卓ごとの提供時刻を射影する唯一の経路 |
-| 関数 | `isPushedOut(placements, release, anchor, targets, presets)` | 走行中の錨に合流できた品目を後ろへ押し出した配置が在るか（ハード制約 (e)）。Acceptance_Gate と自前解の性質検査が共用。レビュー対応で追加・事後承認 |
+| 関数 | `isPushedOut(singles, release, lifts, siblings, params)`（module 内・`keepsAnchor` 経由） | 走行中の錨に合流できた品目を候補時刻からの firstFit より後ろへ押し出した配置が在るか（ハード制約 (e)）。21.6 で pack を載せた後の表の上で 1 品ずつ見る形へ改訂。Acceptance_Gate と自前解の性質検査が `keepsAnchor` で共用。レビュー対応で追加・事後承認 |
 | 関数 | `occupiesSlotSpan(placement, order)` | 配置が品目の `slotSpan` を満たすか（本数一致・釜番号で相異なる）。`isStale` と Acceptance_Gate が共用する述語。コードレビュー対応で追加・事後承認 |
 | 署名 | `scoreSchedule(slices, pending, members, params)` | 第 3 引数は `running` ではなく**射影表**（要件の naming ゲートは `running` と書いている・変更の提案） |
 | 署名 | `baselineSchedule(pending, release, members, presets, params)` | 配置は 2 つの表と茹で時間から決まる。採点は含まない |

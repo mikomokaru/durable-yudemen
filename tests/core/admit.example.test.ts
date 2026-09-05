@@ -384,6 +384,8 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
   }));
   const COMMITTED_WIDE = committedSchedule([], REST, [FIRST], NOW, WIDE_PRESETS, PARAMS);
 
+  /** 合流分の投入時刻（秒）。錨の窓 [360,405) には走行中の 2 本分が在り、4 本分の pack は次の窓 405 秒に上がる。 */
+  const JOINED_START = 45;
   function placement(itemIndex: number, slots: readonly string[], startSeconds: number) {
     return {
       externalOrderId: "o-table",
@@ -391,8 +393,8 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
       slotIds: nonEmpty(slots.map((slot) => slot as SlotId)),
       startAt: (NOW + startSeconds * SECOND) as EpochMillis,
       serveAt: (NOW + (startSeconds + SIX_MINUTES) * SECOND) as EpochMillis,
-      // 今始める配置は走行中の 1 本目（360 秒に上がる）へ合流する。後ろに置く配置は合流ではない。
-      anchor: startSeconds === 0 ? FIRST.endTime : null,
+      // 錨の次の窓に上がる配置は走行中の 1 本目（360 秒に上がる）へ合流する。後ろに置く配置は合流ではない。
+      anchor: startSeconds === JOINED_START ? FIRST.endTime : null,
     };
   }
   /** 旧挙動：残り 3 品を全員 360 秒後へ遅らせる（走行中の釜 0・1 が空くのを待つ）。feasible ではある。 */
@@ -408,6 +410,25 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
       },
     ],
   };
+
+  /** 採用済みの悪い一片：2 品は合流させ（405 秒の pack）、3 品目を 1080 秒（釜が空いてさらに 360 秒後）に置く。 */
+  const COMMITTED_LATE = committedSchedule(
+    [
+      {
+        tableKey: "t-1",
+        placements: [
+          placement(1, ["2", "3"], JOINED_START),
+          placement(2, ["4", "5"], JOINED_START),
+          placement(3, ["0", "1"], 2 * SIX_MINUTES),
+        ],
+      },
+    ],
+    REST,
+    [FIRST],
+    NOW,
+    WIDE_PRESETS,
+    PARAMS,
+  );
 
   it("場面の前提: 自前解は 2 品を走行中の錨に合流させ（上げ窓で錨の次の窓 405 秒へ）、1 品を後に置く", () => {
     // 合流の候補は錨の 360 秒だが、その窓には走行中の 2 本分が在り、合流分 4 本分を足すと上限 4 を超える。pack が
@@ -435,30 +456,17 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
   });
 
   it("合流させたまま 3 品目だけ後ろに置く計画は feasible であり、悪い確定計画に対しては採用される", () => {
-    // 採用済みの一片は 2 品を錨に合流させ（keepsAnchor を守る）、3 品目だけを 1080 秒（釜が空いてさらに
-    // 360 秒後）に置いていて、目的関数の上で合流の形（3 品目は 720 秒）より悪い。合流の形は (e) で落ちず、
-    // 改善として採用される。一方 DELAY_ALL は目的関数の上ではさらに良いが、(e) で feasible ではない。
+    // 採用済みの一片（COMMITTED_LATE）は 2 品を錨に合流させ（keepsAnchor を守る）、3 品目だけを 1080 秒に置いていて、
+    // 目的関数の上で合流の形（3 品目は 720 秒）より悪い。合流の形は (e) で落ちず、改善として採用される。一方
+    // DELAY_ALL は目的関数の上ではさらに良いが、(e) で feasible ではない。
     // （全員を 1080 秒に置く一片は、合流できる 2 品を押し出しているので合成が捨て、比較基準にならない。）
-    const late = [
-      placement(1, ["2", "3"], 0),
-      placement(2, ["4", "5"], 0),
-      placement(3, ["0", "1"], 2 * SIX_MINUTES),
-    ];
-    const committedLate = committedSchedule(
-      [{ tableKey: "t-1", placements: late }],
-      REST,
-      [FIRST],
-      NOW,
-      WIDE_PRESETS,
-      PARAMS,
-    );
     const keep: CookSchedule = {
       slices: [
         {
           tableKey: "t-1",
           placements: [
-            placement(1, ["2", "3"], 0),
-            placement(2, ["4", "5"], 0),
+            placement(1, ["2", "3"], JOINED_START),
+            placement(2, ["4", "5"], JOINED_START),
             placement(3, ["0", "1"], SIX_MINUTES),
           ],
         },
@@ -468,41 +476,133 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
     expect(scoreSchedule(DELAY_ALL.slices, REST, members, PARAMS).total).toBeLessThan(
       scoreSchedule(keep.slices, REST, members, PARAMS).total,
     );
-    expect(admit(keep, committedLate, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual(
+    expect(admit(keep, COMMITTED_LATE, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual(
       keep.slices,
     );
-    expect(admit(DELAY_ALL, committedLate, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
+    expect(admit(DELAY_ALL, COMMITTED_LATE, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
   });
 
   it("錨の主張が現在の仲間の実効 endTime に無い計画は feasible と認めず、棄却する（AC 9.10 (a)）", () => {
     // 上と同じ「合流させたまま 3 品目だけ後ろに置く」形（正しい錨なら採用される）で、合流分の `anchor` だけを
     // 走行中の 1 本目の実効 endTime（360 秒）から 1 秒ずらす。serveAt は錨に一致したままで散らしでも押し出しでも
     // ないが、錨は等号で運ぶ約束（判断 17・19）なので、主張が仲間に無い一片は feasible ではない。
-    const late = [
-      placement(1, ["2", "3"], 0),
-      placement(2, ["4", "5"], 0),
-      placement(3, ["0", "1"], 2 * SIX_MINUTES),
-    ];
-    const committedLate = committedSchedule(
-      [{ tableKey: "t-1", placements: late }],
-      REST,
-      [FIRST],
-      NOW,
-      WIDE_PRESETS,
-      PARAMS,
-    );
     const misclaimed: CookSchedule = {
       slices: [
         {
           tableKey: "t-1",
           placements: [
-            { ...placement(1, ["2", "3"], 0), anchor: (FIRST.endTime + SECOND) as EpochMillis },
-            { ...placement(2, ["4", "5"], 0), anchor: (FIRST.endTime + SECOND) as EpochMillis },
+            {
+              ...placement(1, ["2", "3"], JOINED_START),
+              anchor: (FIRST.endTime + SECOND) as EpochMillis,
+            },
+            {
+              ...placement(2, ["4", "5"], JOINED_START),
+              anchor: (FIRST.endTime + SECOND) as EpochMillis,
+            },
             placement(3, ["0", "1"], SIX_MINUTES),
           ],
         },
       ],
     };
-    expect(admit(misclaimed, committedLate, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
+    expect(admit(misclaimed, COMMITTED_LATE, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
+  });
+  it("押し出した配置に仲間の endTime を錨として書いても合流分とは認めず、棄却する（AC 9.10 (c)(d)・21.5 レビュー P1）", () => {
+    // DELAY_ALL の 3 配置すべて、または合流できる 2 品だけに `anchor: 360 秒` を付けた計画。錨は現在の仲間に在る
+    // （(a) は通る）が、pack として見れば 3 品目は 360 + 36 秒までに上がれず（(c)）、2 品の pack の firstFit は 405 秒で
+    // 720 秒ではない（(d)）。錨の主張だけで合流分と読めば、押し出す配置が一つも残らず keepsAnchor を素通りして
+    // 採用されていた（実測：anchor null は 0 件・主張ありは 1 件）。
+    const claimed = (itemIndices: readonly number[]): CookSchedule => ({
+      slices: [
+        {
+          tableKey: "t-1",
+          placements: DELAY_ALL.slices[0]!.placements.map((candidate) =>
+            itemIndices.includes(candidate.itemIndex)
+              ? Object.assign({}, candidate, { anchor: FIRST.endTime })
+              : candidate,
+          ),
+        },
+      ],
+    });
+    for (const arrived of [claimed([1, 2, 3]), claimed([1, 2])]) {
+      expect(admit(arrived, COMMITTED_WIDE, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
+      expect(admit(arrived, COMMITTED_LATE, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
+    }
+  });
+});
+
+describe("admit — 後続品のために合流分を遅らせた計画は棄却する（AC 9.10 (d)・design Component 10）", () => {
+  // 仲間の Short（60 秒）が釜 5 で 60 秒に上がる。釜 2〜4 は塞がり、釜 0・1 が空いている。同卓（t-c）に Short と Long。
+  const SIBLING: Timer = createTimer({
+    id: "t-sibling" as TimerId,
+    slotIds: nonEmpty(["5" as SlotId]),
+    noodleType: "Short" as NoodleType,
+    firmness: "normal",
+    startTime: NOW,
+    endTime: (NOW + 60 * SECOND) as EpochMillis,
+    seq: 9,
+    orderItem: { externalOrderId: "o-first", itemIndex: 0, tableId: "t-c" },
+  });
+  const RUNNING: readonly Timer[] = [
+    SIBLING,
+    ...BLOCKED.filter((timer) => timer.slotIds[0] !== "1" && timer.slotIds[0] !== "5"),
+  ];
+  const SHORT_C = order("o-short-c", "Short", "t-c");
+  const LONG_C = order("o-long-c", "Long", "t-c");
+  const PENDING_C: readonly PendingOrder[] = [SHORT_C, LONG_C];
+
+  function place(
+    target: PendingOrder,
+    slot: string,
+    startSeconds: number,
+    anchorSeconds: number | null,
+  ) {
+    const boilSeconds = target.noodleType === "Long" ? 600 : 60;
+    return {
+      externalOrderId: target.externalOrderId,
+      itemIndex: 0,
+      slotIds: nonEmpty([slot as SlotId]),
+      startAt: (NOW + startSeconds * SECOND) as EpochMillis,
+      serveAt: (NOW + (startSeconds + boilSeconds) * SECOND) as EpochMillis,
+      anchor: anchorSeconds === null ? null : ((NOW + anchorSeconds * SECOND) as EpochMillis),
+    };
+  }
+  function planC(...placements: readonly ReturnType<typeof place>[]): CookSchedule {
+    return { slices: [{ tableKey: "t-c", placements }] };
+  }
+  function gateC(arrived: CookSchedule) {
+    return admit(arrived, COMMITTED_C, PENDING_C, RUNNING, NOW, PRESETS, PARAMS);
+  }
+  function totalOf(schedule: CookSchedule) {
+    return scoreSchedule(schedule.slices, PENDING_C, tableMembers(RUNNING), PARAMS).total;
+  }
+  /** 採用済みの悪い一片：Short は 60 秒に合流、Long は 100 秒に始めて 700 秒（改善の余地を残す）。 */
+  const COMMITTED_C = committedSchedule(
+    [{ tableKey: "t-c", placements: [place(SHORT_C, "0", 0, 60), place(LONG_C, "1", 100, null)] }],
+    PENDING_C,
+    RUNNING,
+    NOW,
+    PRESETS,
+    PARAMS,
+  );
+
+  it("場面の前提: 採用済みの一片は維持され、Short を合流させたまま Long を 60 秒に始める計画は改善として採用される", () => {
+    expect(
+      COMMITTED_C.slices[0]!.placements.map((candidate) => (candidate.serveAt - NOW) / 1000),
+    ).toEqual([60, 700]);
+    const better = planC(place(SHORT_C, "0", 0, 60), place(LONG_C, "1", 60, null));
+    expect(gateC(better)).toEqual(better.slices);
+  });
+
+  it("Short を Long と同じ 660 秒へ遅らせて anchor: 60 を付けた計画は、目的関数の上では改善でも (d) で棄却する", () => {
+    // Long は合流不能で pack に入らず、Short だけの pack の候補は 60 秒・firstFit も 60 秒。660 秒は窓の延期ではない。
+    const delayed = planC(place(LONG_C, "1", 60, null), place(SHORT_C, "0", 600, 60));
+    expect(totalOf(delayed)).toBeLessThan(totalOf(COMMITTED_C));
+    expect(gateC(delayed)).toEqual([]);
+  });
+
+  it("同じ計画で Short の錨を外しても、合流できた Short を押し出しているので棄却する", () => {
+    const delayed = planC(place(LONG_C, "1", 60, null), place(SHORT_C, "0", 600, null));
+    expect(totalOf(delayed)).toBeLessThan(totalOf(COMMITTED_C));
+    expect(gateC(delayed)).toEqual([]);
   });
 });
