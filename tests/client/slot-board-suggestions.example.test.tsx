@@ -96,8 +96,18 @@ function recommendation(
   };
 }
 
-/** 先頭の品目。鍵が (externalOrderId, itemIndex) で運ばれることを見るため itemIndex は 0 でない値にする。 */
-const LONG = order({ externalOrderId: "long", itemIndex: 2, slotSpan: 2, itemName: "Salt" });
+/**
+ * 先頭の品目。鍵が (externalOrderId, itemIndex) で運ばれることを見るため itemIndex は 0 でない値にする。麺量を持つ
+ * のは、可視のラベルと aria-label が同じ `displayName`（名 麺量）で品目を呼ぶことを末尾まで固定するため——麺量の
+ * 違う同名の品目は別の品目であり、支援技術にも同じ語で告げる。
+ */
+const LONG = order({
+  externalOrderId: "long",
+  itemIndex: 2,
+  slotSpan: 2,
+  itemName: "Salt",
+  sizeName: "L",
+});
 const MID = order({ externalOrderId: "mid", noodleType: "Mid" });
 const SHORT = order({ externalOrderId: "short", noodleType: "Short" });
 
@@ -163,13 +173,13 @@ describe("本物の suggestionOf の語（R2.5・R3.4・R3.7・R6.4）", () => {
 
     // 先頭（釜 0・1）。可視の語は末尾の now だけで、aria-label の相も now（食い違わない）。
     const head = {
-      ariaLabel: "Suggested — Salt · Slot 0 · now",
-      label: `Salt · ${FIRMNESS} · Table t-1 · now`,
+      ariaLabel: "Suggested — Salt L · Slot 0 · now",
+      label: `Salt L · ${FIRMNESS} · Table t-1 · now`,
     };
     expect(shownOn(0)).toEqual([{ ...head, pressable: 1, phase: "solid" }]);
     // 1 件の推奨は含まれる各釜に同じ提案として現れる（AC 2.14）。釜の番号だけが違う。
     expect(shownOn(1)).toEqual([
-      { ...head, ariaLabel: "Suggested — Salt · Slot 1 · now", pressable: 1, phase: "solid" },
+      { ...head, ariaLabel: "Suggested — Salt L · Slot 1 · now", pressable: 1, phase: "solid" },
     ]);
     // 仲間（釜 2・6）。startAt が過ぎていても（釜 2 は 150 秒ちょうど）語は無く、aria-label は queued。
     // 商品名が無ければ麺種の名で代える。
@@ -206,8 +216,8 @@ describe("本物の suggestionOf の語（R2.5・R3.4・R3.7・R6.4）", () => {
 
     expect(shownOn(0)).toEqual([
       {
-        ariaLabel: "Suggested — Salt · Slot 0 · soon",
-        label: `Salt · ${FIRMNESS} · Table t-1`,
+        ariaLabel: "Suggested — Salt L · Slot 0 · soon",
+        label: `Salt L · ${FIRMNESS} · Table t-1`,
         pressable: 1,
         phase: "faint",
       },
@@ -243,7 +253,7 @@ describe("提案の押下は品目の鍵と推奨の slotIds 全体で startOrde
     const { connection, playTouchCue } = renderBoard([0], T0 + 150 * SECOND);
 
     fireEvent.click(
-      within(card(0)).getByRole("button", { name: "Suggested — Salt · Slot 0 · now" }),
+      within(card(0)).getByRole("button", { name: "Suggested — Salt L · Slot 0 · now" }),
     );
 
     expect(connection.startOrderItem).toHaveBeenCalledTimes(1);
@@ -259,7 +269,7 @@ describe("提案の押下は品目の鍵と推奨の slotIds 全体で startOrde
     const { connection } = renderBoard([0], T0 - 30 * SECOND);
 
     fireEvent.click(
-      within(card(1)).getByRole("button", { name: "Suggested — Salt · Slot 1 · soon" }),
+      within(card(1)).getByRole("button", { name: "Suggested — Salt L · Slot 1 · soon" }),
     );
 
     expect(connection.startOrderItem).toHaveBeenCalledWith(["0", "1"], {

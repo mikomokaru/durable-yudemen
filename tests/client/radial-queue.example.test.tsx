@@ -10,6 +10,10 @@
 // 場面は 1 台（釜 0〜5）・待ち行列 3 品（到着順は B → A → C）。B は 2 釜を要り、A と C は 1 釜。釜の組は
 // `liftGroups.example` の `pairSlots` と同じ既定の台（横 10・縦 10・斜め 14・許容 14）で、釜 0 から組むと
 // 釜 1 が最も近い。釜 1〜3 が埋まった台では釜 0 の隣接が無く、B だけが組めない。
+//
+// 帯の配置は happy-dom では観測できない（矩形はすべて 0・レイアウトが無い）ため、Start の矩形を差し替えて
+// 画面の隅から開き、帯のインライン style を矩形へ読み戻して問う。既定の 1024×768 で side の余白（8rem）が
+// 足りないのは画面端から約 306px の帯域で、右列・下段の釜の Start はそこに落ちる。
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -274,6 +278,92 @@ describe("degraded では帯が無い（R4.8・R6.11）", () => {
     expect(rows(dialog)).toEqual([]);
     expect(within(dialog).getAllByRole("button")).toHaveLength(PRESETS.length + 1); // 花びら + 中心の ×
     expect(connection.startOrderItem).not.toHaveBeenCalled();
+  });
+});
+
+/** 花びらの半径（rem）。`RadialMenu` の定数と同じ値で、帯が弧の外縁に揃うことを問う。 */
+const PETAL_RADIUS_REM = 2.875;
+/** 既定の展開半径（px）。 */
+const RADIUS = 132;
+
+/** Start の矩形を差し替え、押した釜の中心を (x, y) に置く。他の要素の矩形も同じになるが、読むのは Start だけ。 */
+function placeStartAt(x: number, y: number): void {
+  const rect = { x: x - 1, y: y - 1, left: x - 1, top: y - 1, width: 2, height: 2 };
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    ...rect,
+    right: x + 1,
+    bottom: y + 1,
+    toJSON: () => rect,
+  });
+}
+
+/** 長さの style（`Npx` または `calc(Npx + Rrem)`）を px に読む。rem は happy-dom の既定 16px。 */
+function px(value: string): number {
+  const plain = /^(-?[\d.]+)px$/.exec(value);
+  if (plain) return Number(plain[1]);
+  const calc = /^calc\((-?[\d.]+)px \+ ([\d.]+)rem\)$/.exec(value);
+  if (calc) return Number(calc[1]) + Number(calc[2]) * 16;
+  throw new Error(`読めない長さ: ${value}`);
+}
+
+/** 帯のインライン style を、行が上限まで詰まったときの矩形（ビューポート座標）に読み戻す。 */
+function bandRect(dialog: HTMLElement) {
+  const band = within(dialog).getByRole("list", { name: "Waiting orders" });
+  const { style } = band;
+  const height = px(style.maxHeight);
+  const width = px(style.width);
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const left = style.left !== "" ? px(style.left) : vw - px(style.right) - width;
+  const top = style.top !== "" ? px(style.top) : vh - px(style.bottom) - height;
+  return { left, top, right: left + width, bottom: top + height, height };
+}
+
+describe("帯は画面のどの隅の釜から開いても画面内に収まり、1 行以上の高さを持つ（R4.1）", () => {
+  const vw = 1024;
+  const vh = 768;
+  const petal = PETAL_RADIUS_REM * 16;
+  const margin = RADIUS + 60;
+
+  it.each([
+    ["右下（下段・右列の釜）", vw - 24, vh - 8],
+    ["左上", 24, 8],
+    ["右端の中段", vw - 24, vh / 2],
+    ["左端の中段", 24, vh / 2],
+  ])("%s から開いた帯の矩形は画面内で、弧の外縁と重ならず、高さは 8rem 以上", (_, x, y) => {
+    expect([window.innerWidth, window.innerHeight]).toEqual([vw, vh]);
+    placeStartAt(x, y);
+    renderBoard(OPEN);
+    const dialog = openRadial(0);
+    const rect = bandRect(dialog);
+    // 中心は margin で画面内へクランプされる（`RadialMenu` の幾何・AC 4.6 で不変）。
+    const cx = Math.max(margin, Math.min(vw - margin, x));
+    const cy = Math.max(margin, Math.min(vh - margin, y));
+
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.right).toBeLessThanOrEqual(vw);
+    expect(rect.top).toBeGreaterThanOrEqual(0);
+    expect(rect.bottom).toBeLessThanOrEqual(vh);
+    expect(rect.height).toBeGreaterThanOrEqual(8 * 16);
+    // 弧の外縁（radius + 花びらの半径）の円に、帯の矩形が食い込まない——上下左右のいずれかで外側に在る。
+    const outer = RADIUS + petal;
+    const clear =
+      rect.bottom <= cy - outer ||
+      rect.top >= cy + outer ||
+      rect.right <= cx - outer ||
+      rect.left >= cx + outer;
+    expect(clear).toBe(true);
+  });
+
+  it("右下の釜では帯は弧の上に置かれ、下端が弧の上端に揃う（下に固定すれば 14px しか残らない）", () => {
+    placeStartAt(vw - 24, vh - 8);
+    renderBoard(OPEN);
+    const rect = bandRect(openRadial(0));
+    const cy = vh - margin;
+
+    expect(rect.bottom).toBe(cy - RADIUS - petal);
+    expect(rect.top).toBe(0);
+    expect(vh - (cy + RADIUS + petal)).toBeLessThan(34); // 下に落とせば 1 行（≈ 34px）も出ない
   });
 });
 

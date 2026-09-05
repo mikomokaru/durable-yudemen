@@ -11,7 +11,7 @@
 // 行（null）は選べない形で示し、押しても何も起きない（AC 4.5 / 4.9）。degraded では親が空を渡し、帯は
 // 描かれない（AC 4.8）。花びらの項目数と幾何は変えない（AC 4.6）。
 //
-// 花びらと帯の座標は実行時に変わるためインライン style（transform / transitionDelay / left / right）で渡す。
+// 花びらと帯の座標は実行時に変わるためインライン style（transform / transitionDelay / left / right / top / bottom）で渡す。
 // Tailwind でも「実行時に変わる値」はインラインが正解で、無理にクラス化しない（design-system の方針）。
 
 import { useEffect, useMemo, useState } from "react";
@@ -68,14 +68,15 @@ interface RadialMenuProps {
 const PETAL_RADIUS_REM = 2.875;
 /** 帯の幅の上限（rem）。レール（w-32 = 8rem）より広いのは、帯が卓まで 1 行に収める語を持つため。 */
 const COLUMN_MAX_WIDTH_REM = 12;
-/** 帯の幅の下限（rem）。反対側の余白がこれに満たなければ帯を弧の下へ落とす。 */
+/** 帯の幅の下限（rem）。反対側の余白がこれに満たなければ帯を弧の上下へ逃がす。 */
 const COLUMN_MIN_WIDTH_REM = 8;
 
 /**
- * 帯の配置。花びらの反対側の余白に収まるなら側に、収まらなければ弧の下に置く。
+ * 帯の配置。花びらの反対側の余白に収まるなら側に、収まらなければ弧の上下の広い側に置く。
  *
- * 値はすべて px で持ち、帯の内側の縁だけ花びらの半径（rem）を calc で足す——花びらは rem で描かれており、
- * px に写せばルートのフォントサイズが変わったときに帯が花びらへ食い込む。
+ * どちらも「画面端からの inset」と「弧に沿う軸の位置」と「余白いっぱいの高さ」で言う。値はすべて px で持ち、
+ * 帯の内側の縁（edge 側）だけ花びらの半径（rem）を calc で足す——花びらは rem で描かれており、px に写せば
+ * ルートのフォントサイズが変わったときに帯が花びらへ食い込む。
  */
 type ColumnLayout =
   | {
@@ -86,7 +87,14 @@ type ColumnLayout =
       readonly height: number;
       readonly width: number;
     }
-  | { readonly at: "below"; readonly left: number; readonly top: number; readonly width: number };
+  | {
+      readonly at: "vertical";
+      readonly edge: "top" | "bottom";
+      readonly inset: number;
+      readonly left: number;
+      readonly height: number;
+      readonly width: number;
+    };
 
 /**
  * タッチした地点を中心に麺種を円弧状に展開するラジアルメニュー。
@@ -161,7 +169,15 @@ export function RadialMenu({
             height: 2 * (radius + petalRadius),
             width: Math.min(COLUMN_MAX_WIDTH_REM * rem, room),
           }
-        : belowArc(cx, cy + radius + petalRadius, Math.min(COLUMN_MAX_WIDTH_REM * rem, vw), vw);
+        : verticalColumn(
+            cx,
+            cy,
+            radius,
+            petalRadius,
+            Math.min(COLUMN_MAX_WIDTH_REM * rem, vw),
+            vw,
+            vh,
+          );
     return { cx, cy, petals, column };
   }, [anchor, presets, radius]);
 
@@ -257,9 +273,9 @@ export function RadialMenu({
                   width: column.width,
                 }
               : {
+                  [column.edge]: `calc(${column.inset}px + ${PETAL_RADIUS_REM}rem)`,
                   left: column.left,
-                  top: column.top,
-                  maxHeight: `calc(100vh - ${column.top}px)`,
+                  maxHeight: column.height,
                   width: column.width,
                 }
           }
@@ -331,13 +347,31 @@ function QueueRow({
 }
 
 /**
- * 弧の下の配置。帯を中心に揃え、画面の横幅から出ないように寄せる。
+ * 弧の上下の配置。上下の余白（画面端から弧の外縁まで）を比べ、広い側に置く。帯は中心に揃え、画面の横幅から
+ * 出ないように寄せる。
  *
- * 弧の下端は radius + 花びらの半径より外へ出ない（弧の広がりは最大 1.5π で、base の反対側は空く）ので、
- * 上端をそこに置けば花びらと重ならない。
+ * 「下」に固定してはならない。中心は margin（radius + 60）で画面内へクランプされるだけなので、下段の釜から
+ * 開けば弧の下に残るのは margin − radius − 花びらの半径 ≈ 14px で、帯は 1 行も描けない（側の余白を margin と
+ * 読んだときと同じ罠が縦軸に移る）。上下の余白の和は画面の高さから弧の直径を引いた分で一定ゆえ、広い側は
+ * 常にその半分以上を持つ。弧の広がりは最大 1.5π で base の反対側は上下とも空くため、どちらに置いても花びらと
+ * 重ならない。帯は弧の側の縁を弧の外縁に揃える（下なら top・上なら bottom）ので、行が少なくても先頭の行は
+ * 弧の近くに来る（上に置いたとき、行が画面の上端へ離れない）。
  */
-function belowArc(cx: number, top: number, width: number, vw: number): ColumnLayout {
-  return { at: "below", left: Math.min(Math.max(cx - width / 2, 0), vw - width), top, width };
+function verticalColumn(
+  cx: number,
+  cy: number,
+  radius: number,
+  petalRadius: number,
+  width: number,
+  vw: number,
+  vh: number,
+): ColumnLayout {
+  const left = Math.min(Math.max(cx - width / 2, 0), vw - width);
+  const above = cy - radius - petalRadius;
+  const below = vh - (cy + radius + petalRadius);
+  return below >= above
+    ? { at: "vertical", edge: "top", inset: cy + radius, left, height: below, width }
+    : { at: "vertical", edge: "bottom", inset: vh - (cy - radius), left, height: above, width };
 }
 
 /** ルートのフォントサイズ（px）。rem で描かれた花びらの寸法を px の座標系に写すために読む。読めなければ 16。 */

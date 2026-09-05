@@ -245,9 +245,11 @@ type SuggestionView =
   | { readonly role: "member"; readonly label: string; readonly ariaLabel: string; readonly tint: string };
 
 function suggestionOf(s: SlotSuggestion, slot, colorOf): SuggestionView
-  label = [name size, firmness, table, s.role === "head" && s.phase === "solid" ? "now" : undefined]
-  ariaLabel = `Suggested — ${name} · Slot ${slot} · ${s.role === "head" ? (s.phase === "solid" ? "now" : "soon") : "queued"}`
+  label = [displayName(order), firmness, table, s.role === "head" && s.phase === "solid" ? "now" : undefined]
+  ariaLabel = `Suggested — ${displayName(order)} · Slot ${slot} · ${s.role === "head" ? (s.phase === "solid" ? "now" : "soon") : "queued"}`
 ```
+
+- **実装注記（task 6・レビューで確定）**：品目の名は可視のラベルも aria-label も `queueDisplay.displayName(order)`（商品名の代替・NFKC 正規化・麺量があれば `名 麺量`）で呼ぶ。当初の記法は可視だけ `name size`・aria-label は `name` と読めたが、麺量の違う同名の品目は別の品目であり、支援技術にだけ麺量を落とす理由が無い。規則の定義はレール・釜カード・ラジアルの帯で 1 箇所（`displayName`）。`slot-board-suggestions.example` は麺量を持つ品目で aria-label の末尾までを固定する。
 
 - 可視の語は空か `now`（AC 3.3・6.4）。aria-label だけが `soon` / `queued` で薄・押せないを語る（AC 3.4・3.7）。
 - **実装注記（task 5・レビューで確定）**：`SlotCard` は `SuggestionView[]` を対で受けず、`noodleColor` と同じ形の resolver `suggestionOf: (SlotSuggestion) => SuggestionView` で受ける（並行する 2 配列は長さの食い違いを表現できる）。この形では上の判別共用体は**両立しない**——resolver が `member` に `role: "head"` を返せば「押せないのにボタン」が描け、`SuggestionView` の判別が二つ目の真実になる。ゆえに `SuggestionView` は `{ label, ariaLabel, tint }` の 1 形（判別を持たない）とし、丸ボタン・塗り・`data-phase` はすべて導出 `SlotSuggestion` の `role` / `phase` から取る。可視の `now` は aria-label の相の語（`now` / `soon` / `queued`）から導き、「可視の語と食い違わない」（AC 3.4）を構造にする。提案 1 件は `role="group"`（aria-label はここ。素の span/div は generic で aria-label が効かない）で、`head` のボタンは自分の aria-label を別に持つ。以下の「対で受け」「両方が判別共用体」はこの注記で読み替える。
@@ -272,7 +274,8 @@ export interface RadialQueueItem {
 }
 ```
 
-- 列は花びらの弧の**反対側**に縦の帯として描く。花びらは `base === 0`（画面の左半分で開いた）なら右へ、`base === Math.PI`（右半分）なら左へ咲く（`RadialMenu.tsx:81`）ので、帯は左半分で開けば**左**、右半分で開けば**右**——配置は `base` から導く（`base === 0` → 帯の右端を `cx − radius − 花びら半径` に、`base === Math.PI` → 帯の左端を `cx + radius + 花びら半径` に）。帯の幅は中心のクランプ余白（`margin = radius + 60`）から `min(12rem, 余白)` を取り、余白が最小幅（8rem）に満たなければ帯を弧の**下**へ落とす。`overflow-y: auto`。行は商品名・麺量・茹で加減・卓（レールと同じ語・時刻なし）。`slotIds === null` の行は `disabled`（aria-disabled・薄い塗り）で、押しても何も起きない（AC 4.5・4.9）。
+- 列は花びらの弧の**反対側**に縦の帯として描く。花びらは `base === 0`（画面の左半分で開いた）なら右へ、`base === Math.PI`（右半分）なら左へ咲く（`RadialMenu.tsx:81`）ので、帯は左半分で開けば**左**、右半分で開けば**右**——配置は `base` から導く（`base === 0` → 帯の右端を `cx − radius − 花びら半径` に、`base === Math.PI` → 帯の左端を `cx + radius + 花びら半径` に）。帯の幅は中心のクランプ余白（`margin = radius + 60`）から `min(12rem, 余白)` を取り、余白が最小幅（8rem）に満たなければ帯を弧の**下**へ落とす。`overflow-y: auto`。
+  - **実装注記（task 6・レビューで確定）**：余白は「画面端から弧の外縁（`radius` + 花びらの半径）までの実際の距離」と読む（`margin` と読めば `cx = margin` のとき帯が画面外に出る）。逃がす先は「弧の下」に固定せず、**弧の上下の余白を比べて広い側**に置く——中心は `margin` で画面内へクランプされるだけなので、下段の釜から開けば弧の下に残るのは `margin − radius − 花びらの半径 ≈ 14px` で帯が描けない。上下の余白の和は一定（画面の高さ − 弧の直径）ゆえ広い側は常にその半分以上を持ち、弧の広がりは最大 1.5π で上下とも空くため花びらと重ならない。帯は弧の側の縁を弧の外縁に揃える（下なら `top`・上なら `bottom`）。`radial-queue.example` が四隅と左右の中段から開いた帯の矩形（style から読み戻す）を画面内・8rem 以上・弧と重ならないで固定する。行は商品名・麺量・茹で加減・卓（レールと同じ語・時刻なし）。`slotIds === null` の行は `disabled`（aria-disabled・薄い塗り）で、押しても何も起きない（AC 4.5・4.9）。
 - `SlotBoard` は `picker` が開いたとき、`queue` の各行に `pairSlots(picker.slot, order.slotSpan, view)` を付けて渡す。degraded では `queue: []`（AC 4.8）。
 - 選択 → `connection.startOrderItem(slotIds, { externalOrderId, itemIndex })`（AC 4.2）。`slotSpan` 1 は押した釜だけ（AC 4.3）。
 - 弧の項目数はプリセット数のまま（3〜6）で、幾何は変えない。
