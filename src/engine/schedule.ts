@@ -432,6 +432,13 @@ function tableKeyOf(order: PendingOrder): string {
  * （batch の跨ぎで生じる提供時刻の開きは卓の遅れとして計上されるだけで、feasibility は保つ）。
  * 1 品目が単独で容量を超えることは無い——slotSpan ≤ SLOT_SPAN_MAX = SLOTS_PER_UNIT ≤ 容量
  * （UNIT_COUNT_MIN = 1）——ので「置けない品目」の分岐を書かない（起こり得ないものに防御を置かない）。
+ *
+ * **走行中の仲間が在る卓は、その錨に合流できる品目で最初の batch を組む（判断 16・ADR-0007）。** 容量は釜の
+ * 総数で数えるため走行中が占める釜も入り、群の 1 本目を始めた直後に残りが一つの batch に収まって、走行中の
+ * 釜が空くまで全員が錨ごと後ろへずれる（始めたまとまりを後続品のために崩す）。合流できるとは「slotSpan 個の
+ * 相異なる釜すべてが 錨 − 茹で時間 までに空く」こと——いま空いているかではなく、逆算した投入時刻までに
+ * 空くか。合流した品目は走行中と同じ serveAt を持ち、残りは従来どおり詰める。走行中が無い卓は一行も変えない
+ * （待つことも含めてまとめる・AC 1.8）。
  */
 function placeGroup(
   items: readonly PendingOrder[],
@@ -449,6 +456,18 @@ function placeGroup(
 
   const placements: Placement[] = [];
   let free = release;
+  let remaining = boilings;
+  if (runningAnchor !== null) {
+    const joined = joinable(boilings, free, runningAnchor, params);
+    if (joined.length > 0) {
+      // fits が placeBatch と同じ対応づけで earliest ≤ 錨 を確かめているので、この batch の錨は走行中の錨になる。
+      const placed = placeBatch(joined, free, runningAnchor, params);
+      placements.push(...placed);
+      free = advanceRelease(free, placed);
+      remaining = boilings.filter((boiling) => !joined.includes(boiling));
+    }
+  }
+
   let batch: Boiling[] = [];
   let span = 0;
   const flush = () => {
@@ -459,13 +478,47 @@ function placeGroup(
     batch = [];
     span = 0;
   };
-  for (const boiling of boilings) {
+  for (const boiling of remaining) {
     if (span + boiling.order.slotSpan > capacity) flush();
     batch.push(boiling);
     span += boiling.order.slotSpan;
   }
   flush();
   return placements;
+}
+
+/**
+ * 走行中の錨に合流できる品目。正準順序の貪欲で、先に合流を確定した品目が釜を取った上で次を判定する。
+ * 合流の本数を最大化しない——最適な部分集合の選択は外部ソルバの役目で、自前解に要るのは決定性だけ
+ * （正準順序と assignSlots の全順序から従う）。
+ */
+function joinable(
+  boilings: readonly Boiling[],
+  release: SlotRelease,
+  anchor: EpochMillis,
+  params: ScheduleParams,
+): readonly Boiling[] {
+  const joined: Boiling[] = [];
+  for (const boiling of boilings) {
+    if (fits([...joined, boiling], release, anchor, params)) joined.push(boiling);
+  }
+  return joined;
+}
+
+/**
+ * 品目群が全員、錨に間に合うか——placeBatch と同じ対応づけで各品目の earliest（全釜の解放時刻の最大 +
+ * 茹で時間）を出し、すべてが錨以下であること。earliest ≤ 錨 は「全釜が 錨 − 茹で時間 までに空く」と同値。
+ * 錨までの残りより茹で時間が長い品目は、解放表の下限が now ゆえ必ず外れる。
+ */
+function fits(
+  candidate: readonly Boiling[],
+  release: SlotRelease,
+  anchor: EpochMillis,
+  params: ScheduleParams,
+): boolean {
+  const totalSpan = candidate.reduce((sum, boiling) => sum + boiling.order.slotSpan, 0);
+  if (totalSpan > release.length) return false;
+  return assignSlots(candidate, release, params).earliest.every((serveAt) => serveAt <= anchor);
 }
 
 /** 茹で時間を解決する。プリセットに無い麺種は解決できない（null）。 */
@@ -501,33 +554,13 @@ function placeBatch(
   runningAnchor: EpochMillis | null,
   params: ScheduleParams,
 ): readonly Placement[] {
-  const totalSpan = batch.reduce((sum, boiling) => sum + boiling.order.slotSpan, 0);
-  const slots = chooseSlots(totalSpan, release, params);
-  const byRelease = [...slots].sort(
-    (slot, other) => release[slot]! - release[other]! || slot - other,
-  );
-  const byBoil = batch
-    .map((_unused, index) => index)
-    .sort((index, other) => batch[other]!.boilMillis - batch[index]!.boilMillis || index - other);
-  // 長い茹でから順に、早く空く釜を slotSpan 個ずつ連続した塊で配る。
-  const slotsOfItem = new Map<number, readonly number[]>();
-  let cursor = 0;
-  for (const index of byBoil) {
-    const span = batch[index]!.order.slotSpan;
-    slotsOfItem.set(index, byRelease.slice(cursor, cursor + span));
-    cursor += span;
-  }
-  // 各品目を最も早く始められたときの提供時刻＝全釜の解放時刻の最大 + 茹で時間。
-  const earliest = batch.map(
-    (boiling, index) =>
-      Math.max(...slotsOfItem.get(index)!.map((slot) => release[slot]!)) + boiling.boilMillis,
-  );
+  const { slotsOfItem, earliest } = assignSlots(batch, release, params);
   const anchor = Math.max(...earliest, runningAnchor ?? Number.NEGATIVE_INFINITY);
 
   return batch.map((boiling, index) => {
     // slotId はスロット番号の文字列表現（domain の slotOf = Number(slotId) の逆・要件12.5）。
     // 非空は構成から従う（slotSpan ≥ 1・domain の SLOT_SPAN_MIN）ので先頭と残りに分けて型へ載せる。
-    const [head, ...tail] = slotsOfItem.get(index)!;
+    const [head, ...tail] = slotsOfItem[index]!;
     const slotIds: NonEmptyArray<SlotId> = [
       String(head!) as SlotId,
       ...tail.map((slot) => String(slot) as SlotId),
@@ -540,6 +573,43 @@ function placeBatch(
       serveAt: anchor as EpochMillis,
     };
   });
+}
+
+/**
+ * 品目群への釜の対応づけと、各品目の earliest（全釜の解放時刻の最大 + 茹で時間）。
+ *
+ * placeBatch（配置）と fits（合流の判定）が**同じ対応づけ**を読む唯一の場所。二箇所に書けば「合流できる」と
+ * 判定した品目が、置くときには別の釜を取って錨に届かない、という食い違いが生まれる。
+ *
+ * 長い茹でから順に、早く空く釜を slotSpan 個ずつ連続した塊で配る（1 品目 1 釜では錨を最小にする対応づけ
+ * だった。slotSpan が混在すると最小性は言えないが、要るのは決定性だけで、byRelease / byBoil の全順序——
+ * 同点を index で断つ——から従う）。
+ */
+function assignSlots(
+  batch: readonly Boiling[],
+  release: SlotRelease,
+  params: ScheduleParams,
+): { readonly slotsOfItem: readonly (readonly number[])[]; readonly earliest: readonly number[] } {
+  const totalSpan = batch.reduce((sum, boiling) => sum + boiling.order.slotSpan, 0);
+  const slots = chooseSlots(totalSpan, release, params);
+  const byRelease = [...slots].sort(
+    (slot, other) => release[slot]! - release[other]! || slot - other,
+  );
+  const byBoil = batch
+    .map((_unused, index) => index)
+    .sort((index, other) => batch[other]!.boilMillis - batch[index]!.boilMillis || index - other);
+  const slotsOfItem: (readonly number[])[] = new Array(batch.length);
+  let cursor = 0;
+  for (const index of byBoil) {
+    const span = batch[index]!.order.slotSpan;
+    slotsOfItem[index] = byRelease.slice(cursor, cursor + span);
+    cursor += span;
+  }
+  const earliest = batch.map(
+    (boiling, index) =>
+      Math.max(...slotsOfItem[index]!.map((slot) => release[slot]!)) + boiling.boilMillis,
+  );
+  return { slotsOfItem, earliest };
 }
 
 /**

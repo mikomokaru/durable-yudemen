@@ -234,6 +234,7 @@ export function baselineSchedule(
 1. **計画対象の抽出（AC 11.2）** — Pending_Order を（Order_Arrival_Time 昇順, External_Order_Id 昇順, 品目 index 昇順）で整列し、先頭 `PLAN_TARGET_LIMIT = 64` 件を計画対象とする。超過分は計画に現れず、Cook_Recommendation の対象にもならない（保持と表示は続く）。**この境界で Table_Group が割れる場合は、計画対象に入った品目のみで PlanSlice を成す**（残りは次の再計算で先頭が減ったときに同じ Table_Group の PlanSlice へ合流する）。境界で割れた group はソフト制約の評価も対象品目の間だけで行う。
 2. **Table_Group 単位で配置** — 計画対象を Table_Group へまとめ、Table_Group を（最早 Order_Arrival_Time, 識別子）順に取り出す。各 Table_Group について、
    - （`lift-group-planning` で改訂）グループを釜容量（Σ `slotSpan` ≤ slot 数）に収まる **batch** へ貪欲に割る。batch ごとに、各品目の `earliest`（解放時刻 − 茹で時間の逆算）と同じ卓の走行中の実効 `endTime` の最大（`members`）から錨 `max(...earliest, 走行中の錨)` を取り、全員の `serveAt` を錨に揃える（開始時刻は `錨 − 茹で時間`）。錨に届かない品目があれば batch ごと錨より後ろへずれ、走行中との差は Table_Lag として採点に残る（一致は保証ではなく採点の帰結・ADR-0001 / 0003）。
+   - 走行中の仲間が在る卓では、その錨に合流できる品目（`slotSpan` 個の釜すべてが「錨 − 茹で時間」までに空く）だけで最初の batch を組み、残りを上の詰め方へ渡す——始めたまとまりを後続品のために崩さない（`lift-group-planning` 判断 16・ADR-0007）。走行中が無い卓は待つことも含めてまとめる。
    - 釜は解放時刻順に `slotSpan` 個ずつ、茹で時間の長い品目から割り当てる（相異なる釜・ハード制約 (d)）。`Slot_Affinity` は最早時刻が同点のときだけ効く（採点しない品目内の距離のために採点する値を悪化させない・ADR-0002）。
    - 配置が決まったら `advanceRelease` で解放表を進め、次の batch / Table_Group へ渡す。
 3. 採点はここでは行わない（`scoreSchedule` が placements から導く）。

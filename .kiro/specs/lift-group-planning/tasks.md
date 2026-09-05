@@ -266,24 +266,25 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
   - 差分外の既存問題として `pending.ts` の同一性判定が `slotSpan` を比べない指摘があった。本対応では触っていないが、`isStale` が現在の `slotSpan` を見るようになったため、サイズだけ変わった再送でも採用済み一片は陳腐化する（待ち行列の側の同一性は据え置き）。
   - 2 回目（同日）: 設定変更直後に届いた外部計画が、旧設定の同期結果（古い adjustment）の錨で採点され、新錨では悪化する計画が「改善」として通った。受領（plan.ts）が判定の前に settle と同じ `synchronize` を通す形にした（AC 4.7 を追加。当初は `resynchronize` を切り出したが、`synchronize` 自体が boiled を据え置いて並び順を保つので、レビューの任意指摘に従い直接共用に戻した）。例示は `plan.example.test.ts`。**申し送り（今回は分ける）**: 設定変更直後の hydration snapshot は旧 adjustment の錨で推奨を出す。表示だけの問題ではなく、**その提案に従って開始すると、開始時の再同期で計画が動き得る**。設定の適用（`applyProjection`）を遷移として settle に通すか、hydration の導出を同期後の列で行うかは別の変更で扱う。**設計上の懸念（未決）**: 釜容量を超える卓で 1 品を始めるたびに未着手だけで batch を作り直し、空いている釜があっても残りが走行中の仲間の錨ではなく次の batch へ押し出される（6 釜・同卓 4 品・各 2 釜で再現）。現行 design の分割規則どおりで実装違反ではないが、「提案に従って一まとまりを進める」意図に逆行する。→ 判断 16・ADR-0007 で「走行中の仲間が在る卓に限り、合流できる品目で最初の batch を組む」に決めた（task 17）。
 
-- [ ] 17. 走行中の仲間が在る卓は合流できる品目で最初の batch を組む（判断 16・ADR-0007・AC 1.8〜1.10）
-  - [ ] 17.1 `schedule.ts` の `placeGroup` に前段を足す
+- [x] 17. 走行中の仲間が在る卓は合流できる品目で最初の batch を組む（判断 16・ADR-0007・AC 1.8〜1.10）
+  - 実測・2026-09-05: `placeGroup` に前段（`joinable` / `fits`）を足し、釜の対応づけと earliest の算出を `assignSlots` に一つにまとめて `placeBatch` と `fits` が共用する。走行中が無い卓は経路が変わらない。例示 4 件（レビュー再現は釜まで固定：A#1 → 2,3・A#2 → 4,5 を今、A#3 → 0,1 を 60 秒後。(a) 180 秒投入・(b) Thin 合流 / Thick 120 秒・(c) 片釜不足で 90 秒、対照は合流）。Property 1 は「走行中が在れば合流分が錨に一致し残りが一つに揃う（高々 2 値）」へ改めて Property 16 を畳み込んだ。Property 17（走行中なしの回帰）は Property 1 の走行中なし分岐がそのまま担うので別立てにしなかった。
+  - [x] 17.1 `schedule.ts` の `placeGroup` に前段を足す
     - `runningAnchor !== null` のとき `joinable`（正準順序の貪欲・`fits` は placeBatch と同じ対応づけで `max(release of slotsOf[i]) ≤ anchor − boil_i`）で合流集合を取り、非空なら `placeBatch(joined, free, runningAnchor)` で先に置いて解放表を進め、残りを従来の詰め方へ渡す。走行中が無い卓は一行も変えない。
     - 対応づけ（chooseSlots → byRelease → byBoil で連続 span 個）は placeBatch と `fits` で**一つの関数**にする（同じ対応づけを二度書かない）。
     - _Requirements: 1.8, 1.9, 1.10_
-  - [ ] 17.2 例示（`schedule.example.test.ts`）
+  - [x] 17.2 例示（`schedule.example.test.ts`）
     - レビューの再現：6 釜・同卓 4 品・各 2 釜・茹で 6 分。開始前は「3 品を今、1 品を 6 分後」。1 本目を始めた後は「2 品を今（走行中の錨に合流）、1 品を 6 分後」。
     - (a) 全釜使用中：錨 510 秒・茹で 330 秒・30 秒後に空く釜 → 合流し、startAt = 180 秒。
     - (b) 茹で時間が混在：錨までの残りより長い茹での品目は合流せず、残りの batch に回る（錨は max(earliest, runningAnchor)）。
     - (c) 1 品が複数釜：2 釜のうち片方が投入時刻までに空かなければ合流しない。
     - 走行中が無い卓：変更前と同じ配置（待ってまとめる）。走行中が boiled だけ：既存の規則に落ちる。
     - _Requirements: 1.8, 1.9, 1.10_
-  - [ ] 17.3 性質（`schedule.property.test.ts`）
+  - [x] 17.3 性質（`schedule.property.test.ts`）
     - Property 16: 走行中の仲間が在る卓で、合流した品目の `serveAt` は走行中の錨に一致し、各釜の解放 ≤ `startAt`。
     - Property 17: 走行中が無い卓の配置は、batch ごとに Σ slotSpan ≤ 容量・錨 = max(earliest)（従来の性質・変更なしの回帰）。
     - Property 1（ハード制約）・決定性（Property 13）は前段を足しても保つ。
     - _Requirements: 1.4, 1.8, 1.9_
-  - [ ] 17.4 文書：design の Component 3 に前段の節（済）、ADR-0007（済）、`online-cook-scheduling/design.md` の `baselineSchedule` アルゴリズム手順 2 に合流の一文を足す。
+  - [x] 17.4 文書：design の Component 3 に前段の節（済）、ADR-0007（済）、`online-cook-scheduling/design.md` の `baselineSchedule` アルゴリズム手順 2 に合流の一文を足す。
     - _Requirements: 8.1_
-  - [ ] 17.5 チェックポイント（typecheck / lint / test / fmt:check）
+  - [x] 17.5 チェックポイント（typecheck / lint / test / fmt:check）
 

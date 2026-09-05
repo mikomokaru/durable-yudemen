@@ -247,10 +247,11 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // Feature: lift-group-planning, Property 1 — 錨への一致
   // **Validates: Requirements 1.4, 3.3, 3.4, 7.1**
   //
-  // 釜容量に収まる一片では、未着手の配置の serveAt がすべて等しく、その値は
-  // max(走行中の仲間の実効 endTime の最大, 各配置の earliest) 以上である。走行中の仲間が居なければ
-  // ちょうど max(earliest) に一致する。容量を超える一片は batch に割れるので対象外（Property 14）。
-  it("Property 1: 釜容量に収まる一片の未着手の serveAt はすべて等しく、走行中が無ければ最遅の earliest に一致する", () => {
+  // 釜容量に収まる一片では、走行中の仲間が居なければ未着手の配置の serveAt がすべて等しく、各配置の
+  // earliest 以上である。走行中の仲間が居れば（Property 16・判断 16・ADR-0007）配置は高々 2 つの serveAt に
+  // 分かれる——走行中の錨に**合流した**配置はちょうど錨に一致し、残りは一つの値に揃って錨より後ろにある。
+  // 容量を超える一片は batch に割れるので対象外（Property 14）。
+  it("Property 1 / 16: 容量に収まる一片は、走行中が無ければ一つの serveAt に揃い、在れば合流分が錨に一致し残りが一つに揃う", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, slotCount, params }) => {
         const schedule = baselineSchedule(
@@ -273,19 +274,23 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             0,
           );
           if (totalSpan > slotCount) continue;
-          const serveTimes = new Set(slice.placements.map((placement) => placement.serveAt));
-          expect(serveTimes.size).toBe(1);
-          const serveAt = slice.placements[0]!.serveAt;
-          const runningAnchor = Math.max(
-            ...(members.get(slice.tableKey) ?? [Number.NEGATIVE_INFINITY]),
-          );
-          expect(serveAt).toBeGreaterThanOrEqual(runningAnchor);
+          const serveTimes = [...new Set(slice.placements.map((placement) => placement.serveAt))];
+          const siblings = members.get(slice.tableKey);
+          if (siblings === undefined) {
+            expect(serveTimes).toHaveLength(1);
+          } else {
+            const runningAnchor = Math.max(...siblings);
+            // 合流分（錨に一致）と残り（錨より後ろで一つに揃う）の高々 2 値。
+            expect(serveTimes.length).toBeLessThanOrEqual(2);
+            for (const serveAt of serveTimes) expect(serveAt).toBeGreaterThanOrEqual(runningAnchor);
+            if (serveTimes.length === 2) expect(serveTimes).toContain(runningAnchor);
+          }
           // 各配置は自分の釜の解放時刻 + 茹で時間 以上（下限のクランプ無しで構成から従う）。
           for (const placement of slice.placements) {
             const boil = placement.serveAt - placement.startAt;
             const earliest =
               Math.max(...placement.slotIds.map((slotId) => release[Number(slotId)]!)) + boil;
-            expect(serveAt).toBeGreaterThanOrEqual(earliest);
+            expect(placement.serveAt).toBeGreaterThanOrEqual(earliest);
           }
         }
       }),

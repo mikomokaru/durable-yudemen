@@ -23,7 +23,7 @@ import { createTimer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
-import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import { DEFAULT_NOODLE_PRESETS, type NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
 
@@ -527,5 +527,171 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       tableSyncWeight: 0,
     }).total;
     expect(withLag - withoutLag).toBe(2 * 60 * 6);
+  });
+
+  describe("走行中の仲間が在る卓は、錨に合流できる品目で最初の batch を組む（判断 16・ADR-0007・AC 1.8〜1.10）", () => {
+    /** 2 釜を占めて走行中の仲間（1 本目）。 */
+    function wideRunning(input: {
+      id: string;
+      slots: readonly string[];
+      endTime: number;
+      tableId: string;
+    }) {
+      return createTimer({
+        id: input.id as TimerId,
+        slotIds: nonEmpty(input.slots.map((slot) => slot as SlotId)),
+        noodleType: "Thin" as NoodleType,
+        firmness: "normal",
+        startTime: (input.endTime - 60_000) as EpochMillis,
+        endTime: input.endTime as EpochMillis,
+        seq: 0,
+        orderItem: { externalOrderId: `run-${input.id}`, itemIndex: 0, tableId: input.tableId },
+      });
+    }
+
+    it("レビューの再現: 6 釜・同卓 4 品・各 2 釜。1 本目を始めた後は「2 品を今、1 品を後」で、始めたまとまりが崩れない", () => {
+      const items = [1, 2, 3].map((itemIndex) =>
+        pendingItem({ orderId: "A", itemIndex, noodleType: "Thin", tableId: "t-1", slotSpan: 2 }),
+      );
+      // 開始前（4 品・走行中なし）は 3 品が今、1 品が 60 秒後——容量 6 で batch に割れる。
+      const before = baselineSchedule(
+        [
+          pendingItem({
+            orderId: "A",
+            itemIndex: 0,
+            noodleType: "Thin",
+            tableId: "t-1",
+            slotSpan: 2,
+          }),
+          ...items,
+        ],
+        EMPTY_KITCHEN,
+        NO_MEMBERS,
+        DEFAULT_NOODLE_PRESETS,
+        PARAMS,
+      );
+      expect(before.slices[0]!.placements.map((p) => (p.serveAt - NOW) / 1000)).toEqual([
+        60, 60, 60, 120,
+      ]);
+
+      // 1 本目（A#0）を釜 0・1 で始めた（60 秒後に上がる）。
+      const running = [
+        wideRunning({ id: "t-first", slots: ["0", "1"], endTime: NOW + 60_000, tableId: "t-1" }),
+      ];
+      const after = baselineSchedule(
+        items,
+        initialRelease(running, NOW, 6),
+        tableMembers(running),
+        DEFAULT_NOODLE_PRESETS,
+        PARAMS,
+      );
+      // A#1・A#2 は空いている 4 釜で今始めて走行中の錨（60 秒）に合流し、A#3 だけが釜の空く 60 秒後に回る。
+      // 従来は 3 品が一つの batch に入り、全員が 60 秒後へ押し出されていた。
+      expect(after.slices[0]!.placements.map(readable)).toEqual([
+        { item: "A#1", slots: ["2", "3"], startSeconds: 0, serveSeconds: 60 },
+        { item: "A#2", slots: ["4", "5"], startSeconds: 0, serveSeconds: 60 },
+        { item: "A#3", slots: ["0", "1"], startSeconds: 60, serveSeconds: 120 },
+      ]);
+    });
+
+    it("(a) 全釜使用中: 錨 510 秒・茹で 330 秒なら、30 秒後に空く釜でも 180 秒に投入できて合流する", () => {
+      const presets: readonly NoodlePreset[] = [
+        { noodleType: "Slow", boilSeconds: { extraHard: 330, hard: 330, normal: 330, soft: 330 } },
+      ];
+      const running = [
+        timerOn({ id: "t-sibling", slot: "5", endTime: NOW + 510_000, tableId: "t-1" }),
+        ...[0, 1, 2, 3, 4].map((slot) =>
+          timerOn({ id: `t-other-${slot}`, slot: String(slot), endTime: NOW + 30_000 }),
+        ),
+      ];
+      const pending = [
+        pendingItem({ orderId: "A", itemIndex: 1, noodleType: "Slow", tableId: "t-1" }),
+      ];
+
+      const schedule = baselineSchedule(
+        pending,
+        initialRelease(running, NOW, 6),
+        tableMembers(running),
+        presets,
+        PARAMS,
+      );
+
+      expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+        { item: "A#1", slots: ["0"], startSeconds: 180, serveSeconds: 510 },
+      ]);
+    });
+
+    it("(b) 茹で時間が混在: 錨までの残りより長い茹での品目は合流せず、残りの batch に回る", () => {
+      // 仲間は 100 秒後に上がる。Thin（60 秒）は 40 秒後に始めて合流できるが、Thick（120 秒）は届かない。
+      const running = [
+        timerOn({ id: "t-sibling", slot: "5", endTime: NOW + 100_000, tableId: "t-1" }),
+      ];
+      const pending = [
+        pendingItem({ orderId: "A", itemIndex: 1, noodleType: "Thick", tableId: "t-1" }),
+        pendingItem({ orderId: "A", itemIndex: 2, noodleType: "Thin", tableId: "t-1" }),
+      ];
+
+      const schedule = baselineSchedule(
+        pending,
+        initialRelease(running, NOW, 6),
+        tableMembers(running),
+        DEFAULT_NOODLE_PRESETS,
+        PARAMS,
+      );
+
+      // Thin は錨（100 秒）へ合流。Thick は残りの batch で max(earliest 120, 錨 100) = 120 秒に置かれる。
+      expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+        { item: "A#2", slots: ["0"], startSeconds: 40, serveSeconds: 100 },
+        { item: "A#1", slots: ["1"], startSeconds: 0, serveSeconds: 120 },
+      ]);
+    });
+
+    it("(c) 1 品が複数釜: 2 釜のうち片方が投入時刻までに空かなければ合流しない", () => {
+      // 仲間は 60 秒後に上がる。Thin 2 釜（60 秒）の投入時刻は今。今空いているのは釜 4 だけ（0〜3 は 30 秒後）。
+      const running = [
+        timerOn({ id: "t-sibling", slot: "5", endTime: NOW + 60_000, tableId: "t-1" }),
+        ...[0, 1, 2, 3].map((slot) =>
+          timerOn({ id: `t-other-${slot}`, slot: String(slot), endTime: NOW + 30_000 }),
+        ),
+      ];
+      const pending = [
+        pendingItem({
+          orderId: "A",
+          itemIndex: 1,
+          noodleType: "Thin",
+          tableId: "t-1",
+          slotSpan: 2,
+        }),
+      ];
+
+      const schedule = baselineSchedule(
+        pending,
+        initialRelease(running, NOW, 6),
+        tableMembers(running),
+        DEFAULT_NOODLE_PRESETS,
+        PARAMS,
+      );
+
+      // 合流できず、残りの batch として max(earliest 90, 錨 60) = 90 秒に置かれる。
+      const placement = readable(schedule.slices[0]!.placements[0]!);
+      expect(placement.slots).toHaveLength(2);
+      expect(placement).toMatchObject({ item: "A#1", startSeconds: 30, serveSeconds: 90 });
+
+      // 対照: 2 釜とも今空いていれば合流する（釜 3 の走行中を外す）。
+      const roomier = running.filter((timer) => timer.id !== "t-other-3");
+      const joined = baselineSchedule(
+        pending,
+        initialRelease(roomier, NOW, 6),
+        tableMembers(roomier),
+        DEFAULT_NOODLE_PRESETS,
+        PARAMS,
+      );
+      expect(readable(joined.slices[0]!.placements[0]!)).toEqual({
+        item: "A#1",
+        slots: ["3", "4"],
+        startSeconds: 0,
+        serveSeconds: 60,
+      });
+    });
   });
 });
