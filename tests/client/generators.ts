@@ -348,8 +348,10 @@ export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
     pendingOrders: genPendingOrders,
     recommendations: genRecommendations,
   }),
-  // 計画の重み・許容幅・レイアウトは client の畳み込みが読まない（unitCount / noodlePresets だけが確定される）。
-  // 要らない次元へ生成の分散を広げず既定値で固定する（unitOrigins だけは生成した unitCount と整合させる）。
+  // 計画の重み・許容幅（秒）は client の畳み込みが読まない（採点はサーバ側の計算・ビューへ写されない）。
+  // レイアウト（unitOrigins / slotOffsets）と許容距離は釜の組が釜の距離を測るために読むので config case が
+  // ビューへ写す（lift-group-display AC 4.7）が、写す事実そのものは畳み込みの主張を強めないため、要らない
+  // 次元へ生成の分散を広げず既定値で固定する（unitOrigins だけは生成した unitCount と整合させる）。
   genUnitCount.chain((unitCount) =>
     fc.record({
       type: fc.constant("config" as const),
