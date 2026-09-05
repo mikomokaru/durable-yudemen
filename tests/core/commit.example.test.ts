@@ -256,3 +256,57 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
     expect(joined.externalOrderId).toBe("o-A");
   });
 });
+
+describe("committedSchedule — 採用済み一片は現在の上げ窓の上限で再検証する（AC 9.14・ハード制約 (f)・task 21.8）", () => {
+  // Feature: lift-group-planning, 判断 20・ADR-0009
+  // **Validates: Requirements 9.4, 9.14**
+  //
+  // 卓を持たない走行中 Thin（成員にならず、上げ表にだけ載る）が 60 秒に上がる。arms 2 → 上限 4・L 45 秒。
+  // ラジアルからの開始は上限を検査しない（AC 8.3）ので、採用時に収まっていた窓が後から埋まりうる。
+  function others(count: number): readonly Timer[] {
+    return Array.from({ length: count }, (_, index) =>
+      createTimer({
+        id: `t-other-${index}` as TimerId,
+        slotIds: nonEmpty([String(5 - index) as SlotId]),
+        noodleType: "Thin" as NoodleType,
+        firmness: "normal",
+        startTime: NOW,
+        endTime: (NOW + 60 * SECOND) as EpochMillis,
+        seq: 20 + index,
+      }),
+    );
+  }
+  const ONE: PendingOrder = { ...WIDE, externalOrderId: "o-one", slotSpan: 1 };
+  /** 釜 0 で serveSeconds に上がる採用済み一片（合流の所属は無い）。 */
+  function acceptedAt(serveSeconds: number): AcceptedSlice {
+    return {
+      tableKey: "t-a",
+      placements: [
+        {
+          externalOrderId: ONE.externalOrderId,
+          itemIndex: 0,
+          slotIds: nonEmpty(["0" as SlotId]),
+          startAt: (NOW + (serveSeconds - 60) * SECOND) as EpochMillis,
+          serveAt: (NOW + serveSeconds * SECOND) as EpochMillis,
+          anchor: null,
+        },
+      ],
+    };
+  }
+  function serveSecondsOf(running: readonly Timer[], accepted: AcceptedSlice): number[] {
+    return committedSchedule([accepted], [ONE], running, NOW, PRESETS, PARAMS)
+      .slices.flatMap((slice) => slice.placements)
+      .map((placement) => (placement.serveAt - NOW) / 1000);
+  }
+
+  it("当該配置を含む窓が無関係な走行中で上限を超えれば陳腐化と見なし、自前解が次の窓へ置き直す", () => {
+    // 3 本 + 1 本 = 4 ≤ 4 で維持。4 本 + 1 本 = 5 > 4 で切られ、自前解が firstFit の 105 秒へ置く。
+    expect(serveSecondsOf(others(3), acceptedAt(60))).toEqual([60]);
+    expect(serveSecondsOf(others(4), acceptedAt(60))).toEqual([105]);
+  });
+
+  it("走行中だけで超えている窓は、それを含まない一片を落とさない（AC 9.4）", () => {
+    // 5 本が 60 秒の窓 [60,105) は既に 5 > 4 だが、200 秒の一片はその窓に入らない。
+    expect(serveSecondsOf(others(5), acceptedAt(200))).toEqual([200]);
+  });
+});

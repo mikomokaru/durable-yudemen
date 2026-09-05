@@ -10,7 +10,7 @@
 
 import { SLOTS_PER_UNIT, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
-import { advanceLifts, initialLifts, liftsOf, type LiftTable } from "./lift";
+import { advanceLifts, initialLifts, liftsOf, withinLiftCap, type LiftTable } from "./lift";
 import type { ScheduleParams } from "./objective";
 import { tableMembers } from "./project";
 import {
@@ -88,10 +88,9 @@ export function committedSchedule(
 
 /**
  * 採用済み列のうち、計画順に見て最初に陳腐化した一片の手前まで（design の合成手順 1）と、その接頭辞で進めた
- * 解放表・上げ表。尾部はその表から再計算する（採用済み一片の上がりを避けて置く・AC 9.14。当該一片を含む窓の
- * 上限超過を陳腐化と見なす検査は 21.8 が足す）。
+ * 解放表・上げ表。尾部はその表から再計算する（採用済み一片の上がりを避けて置く・AC 9.14）。
  *
- * 陳腐化は 3 つの理由で立つ。**判定を分けているのは概念が違うから**である。
+ * 陳腐化は 4 つの理由で立つ。**判定を分けているのは概念が違うから**である。
  *   - `isStale` — 対象品目が計画対象と食い違った（陳腐化A・B）、または配置が品目の現在の slotSpan を
  *     満たさない（v9 で採用された 1 釜の配置は v10 の制約で再検証され、ここで切れる）。`admit` と共有する
  *     述語（schedule.ts）。
@@ -103,6 +102,10 @@ export function committedSchedule(
  *     黙って嘘になる（lift-group-planning 判断 17）——`recommend` は `Placement.anchor` を無条件に運ぶので、
  *     嘘の錨を運ばない保証はここにしか無い。`admit` の (e) と同じ述語。一片ごとに、その一片を置く前の解放表と
  *     上げ表で判定する（ゲートと同じ位置・同じ表）。
+ *   - `withinLiftCap` の否定 — 採用済み一片の上がりを、現在の走行中と手前の一片で埋めた上げ表に載せたとき、
+ *     当該配置を含む窓が arms + HELPER_ARMS を超える（ハード制約 (f)・AC 9.5・9.14・ADR-0009）。採用時には収まって
+ *     いた窓も、その後に始まった無関係な Timer（ラジアルからの開始は上限を検査しない・AC 8.3）で埋まりうる。
+ *     走行中だけで超えている窓は当該一片を含まない限り見ない。`admit` の (f) と同じ述語（lift.ts）。
  */
 function livePrefix(
   accepted: readonly AcceptedSlice[],
@@ -126,6 +129,7 @@ function livePrefix(
     // 仲間が無い卓（null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
     const siblings = members.get(slice.tableKey) ?? null;
     if (!keepsAnchor(slice.placements, release, lifts, siblings, targets, presets, params)) break;
+    if (!withinLiftCap(lifts, liftsOf(slice.placements), params)) break;
     prefix.push(slice);
     release = advanceRelease(release, slice.placements);
     lifts = advanceLifts(lifts, liftsOf(slice.placements));

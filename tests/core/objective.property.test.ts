@@ -6,6 +6,7 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { advanceLifts, liftOverflow, liftsOf } from "../../src/engine/lift";
 import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
 import type { PlanSlice } from "../../src/engine/schedule";
 import { tableMembers } from "../../src/engine/project";
@@ -54,7 +55,7 @@ interface ItemSeed {
   readonly inPending: boolean;
 }
 
-/** 生成した計画。scoreSchedule の 3 引数がそのまま揃う。 */
+/** 生成した計画。scoreSchedule の引数（上げ表は走行中なしの空）がそのまま揃う。 */
 interface PlanSeed {
   readonly slices: readonly PlanSlice[];
   readonly pending: readonly PendingOrder[];
@@ -200,26 +201,40 @@ const genPlan: fc.Arbitrary<PlanSeed> = fc
     return { slices, pending, params };
   });
 
+/**
+ * 計画の全配置を空の上げ表に載せたときの Lift_Overflow（秒相当）。total と Σ bySlice の差はこれに尽きる
+ * （lift-group-planning AC 9.6・9.7）。
+ */
+function overflowOf(slices: readonly PlanSlice[], params: ScheduleParams): number {
+  return liftOverflow(
+    advanceLifts([], liftsOf(slices.flatMap((slice) => slice.placements))),
+    params,
+  );
+}
+
 describe("engine/objective — 目的関数", () => {
   // Feature: online-cook-scheduling, Property: 3 — 目的関数は Plan_Unit ごとに厳密に加法分解される
   // **Validates: Requirements 6.2**
   //
   // 主張は 2 段ある。
-  //   1. 部分和の総和が全体値に等しい。
-  //   2. **各 PlanSlice を単独で採点した値が、計画全体の中でのその部分和に等しい。**
+  //   1. 部分和の総和に店舗全体の項 Lift_Overflow を足した値が全体値に等しい（lift-group-planning AC 9.7・
+  //      Requirement 2.9 の例外。Lift_Overflow は卓を跨いで窓を数えるので部分和には入らない）。
+  //   2. **各 PlanSlice を単独で採点した部分和が、計画全体の中でのその部分和に等しい。**
   // 2 が本体である。1 だけなら「全体値を部分和の和として定義した」ことの確認に留まり、
-  // Plan_Unit を跨ぐ項が忍び込んでも気づけない。2 は「一片の値が他の一片に依存しない」ことを言い、
+  // Plan_Unit を跨ぐ項が部分和に忍び込んでも気づけない。2 は「一片の部分和が他の一片に依存しない」ことを言い、
   // Acceptance_Gate の段 1 が部分和どうしを比べられる条件そのものである（AC 6.2(d)）。
-  it("Property 3: 部分和の総和が全体値に等しく、各部分和は単独採点と一致する", () => {
+  it("Property 3: 部分和の総和 + Lift_Overflow が全体値に等しく、各部分和は単独採点と一致する", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const score = scoreSchedule(slices, pending, new Map(), params);
+        const score = scoreSchedule(slices, pending, new Map(), [], params);
 
         expect(score.bySlice).toHaveLength(slices.length);
-        expect(score.bySlice.reduce((sum, value) => sum + value, 0)).toBe(score.total);
+        expect(
+          score.bySlice.reduce((sum, value) => sum + value, 0) + overflowOf(slices, params),
+        ).toBe(score.total);
 
         slices.forEach((slice, index) => {
-          expect(scoreSchedule([slice], pending, new Map(), params).total).toBe(
+          expect(scoreSchedule([slice], pending, new Map(), [], params).bySlice[0]).toBe(
             score.bySlice[index],
           );
         });
@@ -237,7 +252,7 @@ describe("engine/objective — 目的関数", () => {
   it("Property 16: 全体値と各部分和が整数である", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const score = scoreSchedule(slices, pending, new Map(), params);
+        const score = scoreSchedule(slices, pending, new Map(), [], params);
 
         expect(Number.isInteger(score.total)).toBe(true);
         for (const partial of score.bySlice) {
@@ -376,8 +391,8 @@ describe("engine/objective — 距離尺度", () => {
           const within = { ...params, affinityToleranceDistance: tolerance };
           const withoutAffinity = { ...within, affinityWeight: 0 };
 
-          expect(scoreSchedule(slices, pending, new Map(), within)).toEqual(
-            scoreSchedule(slices, pending, new Map(), withoutAffinity),
+          expect(scoreSchedule(slices, pending, new Map(), [], within)).toEqual(
+            scoreSchedule(slices, pending, new Map(), [], withoutAffinity),
           );
         },
       ),
@@ -472,11 +487,19 @@ const genDelta = fc.oneof(
 
 describe("engine/objective — 卓の群（lift-group-planning）", () => {
   // Feature: lift-group-planning, Property 2 — 採点の単調性（ずれが 1 ミリ秒でも成り立つ）
-  // **Validates: Requirements 2.1, 2.8, 7.2**
+  // **Validates: Requirements 2.1, 2.8, 7.2, 9.6, 9.7**
   //
-  // 揃えた一片の 1 本だけを Δ 早めた計画は、揃えた計画より必ず値が大きい。Δ < 1 秒の側が本質で、
-  // Table_Lag を切り捨てに戻した実装はここで落ちる（wait の切り捨てが 1 減り lag が増えない）。
-  it("Property 2: 揃えた配置から 1 本を Δ 早めた計画は、Δ が 1 ms でも真に良くならない（超過が無ければ真に悪い）", () => {
+  // 揃えた一片の 1 本だけを Δ 早めた計画は、**その一片の部分和**が Δ = 1 ms でも真に大きい。Δ < 1 秒の側が本質で、
+  // Table_Lag を切り捨てに戻した実装はここで落ちる（wait の切り捨てが 1 減り lag が増えない・ADR-0006）。
+  // 段 1 の (d) が比べるのはこの部分和なので、散らした外部計画はそこで棄却される——かつて Arms_Overflow が部分和に
+  // 在ったときは超過が立つ一片で同値になりえたが、Lift_Overflow は部分和に入らないので条件なしに真に大きい。
+  //
+  // total = Σ bySlice + Lift_Overflow。Lift_Overflow は店舗全体の項で、1 本を早めると窓の割当が変わって減りうる
+  // （同じ窓に arms を超えて載っていた本を手前の窓へ逃がす形——pack / split の費用比較そのもので、目的関数が意図して
+  // 払う差・ADR-0009）。ゆえに total の単調性は Lift_Overflow が動かない場合に限って言う：計画の全配置の Σ span が
+  // arms 以下なら（表が空ゆえどの窓の負荷も arms 以下）Lift_Overflow は両方 0 で total も真に大きい。それ以外は
+  // total の差が「部分和の差 + Lift_Overflow の差」に分解されることを見る（AC 9.7 の分担）。
+  it("Property 2: 揃えた配置から 1 本を Δ 早めた計画は、Δ が 1 ms でも部分和が真に悪い（Σ span ≤ arms なら total も）", () => {
     fc.assert(
       fc.property(
         genAlignedPlan,
@@ -498,24 +521,24 @@ describe("engine/objective — 卓の群（lift-group-planning）", () => {
           const worse = slices.map((slice, position) =>
             position === sliceIndex ? scattered(slice, pick % placementCount, delta) : slice,
           );
-          const alignedScore = scoreSchedule(slices, pending, members, weighted);
-          const scatteredScore = scoreSchedule(worse, pending, members, weighted);
+          const alignedScore = scoreSchedule(slices, pending, members, [], weighted);
+          const scatteredScore = scoreSchedule(worse, pending, members, [], weighted);
 
-          // arms 超過が立っている一片では、1 本を外すと超過が (w_table − 1) 減り、lag の増分（w_table × ceil(Δ)）と
-          // wait の節約（≤ ceil(Δ)）を差し引くと最悪で同値になる。同値はゲートが棄却するので採用には至らない。
-          // 超過が無い（arms ≥ 本数）なら常に真に大きい。
-          const overflowFree = weighted.arms >= placementCount;
-          if (overflowFree) {
-            expect(scatteredScore.bySlice[sliceIndex]!).toBeGreaterThan(
-              alignedScore.bySlice[sliceIndex]!,
-            );
+          // 部分和：lag の増分 w_table × ceil(Δ) が wait の節約 ≤ ceil(Δ) を必ず上回る（w_table ≥ 2）。
+          const sliceDelta =
+            scatteredScore.bySlice[sliceIndex]! - alignedScore.bySlice[sliceIndex]!;
+          expect(sliceDelta).toBeGreaterThan(0);
+          // total：全配置の Σ span ≤ arms なら Lift_Overflow は両方 0 で、部分和の差がそのまま total の差。
+          const totalSpan = slices
+            .flatMap((slice) => slice.placements)
+            .reduce((sum, placement) => sum + placement.slotIds.length, 0);
+          const overflowDelta = overflowOf(worse, weighted) - overflowOf(slices, weighted);
+          if (weighted.arms >= totalSpan) {
+            expect(overflowOf(slices, weighted)).toBe(0);
+            expect(overflowDelta).toBe(0);
             expect(scatteredScore.total).toBeGreaterThan(alignedScore.total);
-          } else {
-            expect(scatteredScore.bySlice[sliceIndex]!).toBeGreaterThanOrEqual(
-              alignedScore.bySlice[sliceIndex]!,
-            );
-            expect(scatteredScore.total).toBeGreaterThanOrEqual(alignedScore.total);
           }
+          expect(scatteredScore.total - alignedScore.total).toBe(sliceDelta + overflowDelta);
           // 触っていない一片の部分和は動かない（部分和の独立・Property 13 の前提）。
           slices.forEach((_slice, position) => {
             if (position !== sliceIndex) {
@@ -529,39 +552,47 @@ describe("engine/objective — 卓の群（lift-group-planning）", () => {
   });
 
   // Feature: lift-group-planning, Property 9 / 10 — 到達可能な下限 0
-  // **Validates: Requirements 7.9, 7.10**
+  // **Validates: Requirements 7.9, 7.10, 9.6**
   //
-  // 走行中の仲間が無く揃った一片では卓同期項が 0 で、同時刻の本数が arms 以下なら arms 超過も 0。
-  // どちらも「w_table を変えても値が動かない」ことで観測する（両項の重みは w_table から出る）。
-  it("Property 9 / 10: 揃った一片は卓同期項が 0、同時刻の本数が arms 以下なら arms 超過も 0", () => {
+  // 走行中の仲間が無く揃った一片では卓同期項が 0（w_table を変えても部分和が動かない——項の重みは w_table から出る）。
+  // 表が空で一片の Σ span が arms 以下なら Lift_Overflow も 0（どの窓の負荷も Σ span を超えない）ので、total は
+  // 部分和そのもの。
+  it("Property 9 / 10: 揃った一片は卓同期項が 0、Σ span が arms 以下なら Lift_Overflow も 0", () => {
     fc.assert(
       fc.property(genAlignedPlan, genTableWeight, ({ slices, sliceIndex, pending, params }, w) => {
         const target = slices[sliceIndex]!;
-        // 同時刻の本数（＝一片の本数）以上の arms なら超過は 0。
-        const roomy = { ...params, arms: target.placements.length };
-        const withWeight = scoreSchedule([target], pending, new Map(), {
+        // 同時刻に上がる本数（＝一片の Σ span）以上の arms なら手伝いの費用は 0。
+        const span = target.placements.reduce(
+          (sum, placement) => sum + placement.slotIds.length,
+          0,
+        );
+        const roomy = { ...params, arms: span };
+        const withWeight = scoreSchedule([target], pending, new Map(), [], {
           ...roomy,
           tableSyncWeight: w,
         });
-        const withoutWeight = scoreSchedule([target], pending, new Map(), {
+        const withoutWeight = scoreSchedule([target], pending, new Map(), [], {
           ...roomy,
           tableSyncWeight: 0,
         });
-        expect(withWeight.total).toBe(withoutWeight.total);
+        expect(withWeight.bySlice[0]).toBe(withoutWeight.bySlice[0]);
+        expect(withWeight.total).toBe(withWeight.bySlice[0]);
       }),
       { numRuns: 200 },
     );
   });
 
   // Feature: lift-group-planning, Property 13 — 再採点の決定性
-  // **Validates: Requirements 2.9, 7.7**
-  it("Property 13: 同じ入力から同じ値を返し、bySlice の総和は total に一致する", () => {
+  // **Validates: Requirements 2.9, 7.7, 9.7**
+  it("Property 13: 同じ入力から同じ値を返し、bySlice の総和 + Lift_Overflow は total に一致する", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const first = scoreSchedule(slices, pending, new Map(), params);
-        const second = scoreSchedule(slices, pending, new Map(), params);
+        const first = scoreSchedule(slices, pending, new Map(), [], params);
+        const second = scoreSchedule(slices, pending, new Map(), [], params);
         expect(second).toEqual(first);
-        expect(first.bySlice.reduce((sum, value) => sum + value, 0)).toBe(first.total);
+        expect(
+          first.bySlice.reduce((sum, value) => sum + value, 0) + overflowOf(slices, params),
+        ).toBe(first.total);
         expect(Number.isInteger(first.total)).toBe(true);
       }),
       { numRuns: 200 },
@@ -580,8 +611,8 @@ describe("engine/objective — 卓の群（lift-group-planning）", () => {
           const memberEnd = (latest + laterSeconds * 1000) as EpochMillis;
           const members = new Map([[target.tableKey, nonEmpty([memberEnd])]]);
           const roomy = { ...params, arms: 100 };
-          const alone = scoreSchedule([target], pending, new Map(), roomy);
-          const withMember = scoreSchedule([target], pending, members, roomy);
+          const alone = scoreSchedule([target], pending, new Map(), [], roomy);
+          const withMember = scoreSchedule([target], pending, members, [], roomy);
           // 配置全員が laterSeconds だけ遅れる（切り上げ・整数秒ゆえ厳密）。
           expect(withMember.total - alone.total).toBe(
             roomy.tableSyncWeight * laterSeconds * target.placements.length,

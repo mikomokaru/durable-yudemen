@@ -36,6 +36,7 @@ import {
   liftCap,
   liftsOf,
   loadWith,
+  withinLiftCap,
   type LiftTable,
 } from "../../src/engine/lift";
 import { tableMembers, type TableMembers } from "../../src/engine/project";
@@ -383,7 +384,9 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // 集合として合流でき・延期の理由が窓だけで（(b)〜(d)）、合流できた品目を押し出さない。自前解がゲートの (e) を
   // 構成から満たすことの検査で、joinTarget が錨を仲間から選ぶこと・joinable の増分の対応づけと述語の整合・
   // placeWithLifts が pack 全体の span で firstFit することを固定する（design Component 10）。
-  it("Property 17: 自前解の一片は keepsAnchor を守る（錨は仲間に在り・pack は窓の分だけ延期し・押し出さない）", () => {
+  // 併せて (f)——一片を手前の表に載せたとき、各配置を含む窓が上限以下（withinLiftCap・ゲートと合成が同じ位置で読む）
+  // ——も真であること（AC 9.5・9.14。firstFit の最小性から従う）。
+  it("Property 17: 自前解の一片は keepsAnchor と withinLiftCap を守る（錨は仲間に在り・pack は窓の分だけ延期し・押し出さず・上限内）", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, params }) => {
         const schedule = baselineSchedule(
@@ -410,6 +413,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
               params,
             ),
           ).toBe(true);
+          expect(withinLiftCap(ends, liftsOf(slice.placements), params)).toBe(true);
           free = advanceRelease(free, slice.placements);
           ends = advanceLifts(ends, liftsOf(slice.placements));
         }

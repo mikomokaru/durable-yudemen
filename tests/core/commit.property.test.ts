@@ -39,7 +39,13 @@ import {
   type SlotRelease,
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
-import { advanceLifts, initialLifts, liftsOf, type LiftTable } from "../../src/engine/lift";
+import {
+  advanceLifts,
+  initialLifts,
+  liftsOf,
+  withinLiftCap,
+  type LiftTable,
+} from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
@@ -219,6 +225,9 @@ function prefixLength(scene: CommitScene): number {
     ) {
       return index;
     }
+    // 上げ窓の上限 (f)：別のパラメータ（arms が違う）で組まれた一片は、現在の上限では当該配置を含む窓が超えうる
+    // （lift-group-planning AC 9.14）。合成と同じ述語で同じ位置の上げ表を読む。
+    if (!withinLiftCap(lifts, liftsOf(slice.placements), scene.params)) return index;
     release = advanceRelease(release, slice.placements);
     lifts = advanceLifts(lifts, liftsOf(slice.placements));
   }

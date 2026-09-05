@@ -19,7 +19,12 @@
 import { describe, expect, it } from "vitest";
 import { admit } from "../../src/engine/admit";
 import { committedSchedule } from "../../src/engine/commit";
-import { baselineSchedule, initialRelease, type CookSchedule } from "../../src/engine/schedule";
+import {
+  baselineSchedule,
+  initialRelease,
+  type AcceptedSlice,
+  type CookSchedule,
+} from "../../src/engine/schedule";
 import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
 import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
@@ -102,9 +107,21 @@ function plan(...slices: readonly ReturnType<typeof slice>[]): CookSchedule {
   return { slices };
 }
 
-/** 比較の時点の採点（走行中の卓なし Timer は成員にならない）。 */
+/**
+ * 比較の時点の採点（走行中の卓なし Timer は成員にならない）。
+ *
+ * BLOCKED の 5 本は 10000 秒に同じ窓で上がるので、走行中だけで Lift_Overflow (5 − arms 2) × 45 = 135 が立つ。
+ * 店舗全体の項ゆえどの計画の total にも同じ定数として載り（AC 9.6・9.7）、比較には効かない。
+ */
+const RUNNING_ONLY_OVERFLOW = (5 - PARAMS.arms) * PARAMS.liftIntervalSeconds;
 function scoreOf(schedule: CookSchedule) {
-  return scoreSchedule(schedule.slices, PENDING, tableMembers(BLOCKED), PARAMS);
+  return scoreSchedule(
+    schedule.slices,
+    PENDING,
+    tableMembers(BLOCKED),
+    initialLifts(BLOCKED),
+    PARAMS,
+  );
 }
 
 /** 現行 Committed_Plan（採用済みが無い＝自前解そのもの）。 */
@@ -119,7 +136,10 @@ describe("admit — 場面の前提", () => {
   it("自前解は A（600 秒）を先に置き、B（60 秒）を釜が空くまで待たせる", () => {
     // 卓 id 順に A → B。使える釜は 0 番だけゆえ B は A が上がってから始まる。
     expect(COMMITTED.slices.map((each) => each.tableKey)).toEqual(["t-a", "t-b"]);
-    expect(scoreOf(COMMITTED)).toEqual({ total: 1260, bySlice: [600, 660] });
+    expect(scoreOf(COMMITTED)).toEqual({
+      total: 1260 + RUNNING_ONLY_OVERFLOW,
+      bySlice: [600, 660],
+    });
   });
 });
 
@@ -145,7 +165,7 @@ describe("admit — 段 1（接頭辞の枝刈り）", () => {
       ["t-b", NOW],
       ["t-a", NOW + 60 * SECOND],
     ]);
-    expect(scoreOf(composed).total).toBe(720);
+    expect(scoreOf(composed).total).toBe(720 + RUNNING_ONLY_OVERFLOW);
   });
 });
 
@@ -163,7 +183,7 @@ describe("admit — 段 2（合成後の総和による全体判定）", () => {
 
     // 悪化の事実を固定する（棄却の理由が「悪化」であって陳腐化や制約違反ではないこと）。
     const wouldBe = committedSchedule([arrived.slices[0]!], PENDING, BLOCKED, NOW, PRESETS, PARAMS);
-    expect(scoreOf(wouldBe).total).toBe(1720);
+    expect(scoreOf(wouldBe).total).toBe(1720 + RUNNING_ONLY_OVERFLOW);
     expect(scoreOf(wouldBe).total).toBeGreaterThan(scoreOf(COMMITTED).total);
   });
 
@@ -340,8 +360,9 @@ describe("admit — 揃った群を 1 ms 崩した外部計画は通らない（
       ],
     };
     // 1 ms のずれは卓の遅れとして 1 秒（× w_table）に数えられ、wait の節約（高々 1 秒）を上回る。
-    const before = scoreSchedule(committed.slices, twin, members, PARAMS).total;
-    const after = scoreSchedule(nudged.slices, twin, members, PARAMS).total;
+    const lifts = initialLifts(BLOCKED);
+    const before = scoreSchedule(committed.slices, twin, members, lifts, PARAMS).total;
+    const after = scoreSchedule(nudged.slices, twin, members, lifts, PARAMS).total;
     expect(after).toBeGreaterThan(before);
     expect(gateTwin(nudged)).toEqual([]);
   });
@@ -446,8 +467,9 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
 
   it("目的関数（最遅参照）は全員を遅らせる計画を真に良いと採点する——採点では守れない", () => {
     const members = tableMembers([FIRST]);
-    const joined = scoreSchedule(COMMITTED_WIDE.slices, REST, members, PARAMS).total;
-    const delayed = scoreSchedule(DELAY_ALL.slices, REST, members, PARAMS).total;
+    const lifts = initialLifts([FIRST]);
+    const joined = scoreSchedule(COMMITTED_WIDE.slices, REST, members, lifts, PARAMS).total;
+    const delayed = scoreSchedule(DELAY_ALL.slices, REST, members, lifts, PARAMS).total;
     expect(delayed).toBeLessThan(joined);
   });
 
@@ -473,8 +495,9 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
       ],
     };
     const members = tableMembers([FIRST]);
-    expect(scoreSchedule(DELAY_ALL.slices, REST, members, PARAMS).total).toBeLessThan(
-      scoreSchedule(keep.slices, REST, members, PARAMS).total,
+    const lifts = initialLifts([FIRST]);
+    expect(scoreSchedule(DELAY_ALL.slices, REST, members, lifts, PARAMS).total).toBeLessThan(
+      scoreSchedule(keep.slices, REST, members, lifts, PARAMS).total,
     );
     expect(admit(keep, COMMITTED_LATE, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual(
       keep.slices,
@@ -573,7 +596,13 @@ describe("admit — 後続品のために合流分を遅らせた計画は棄却
     return admit(arrived, COMMITTED_C, PENDING_C, RUNNING, NOW, PRESETS, PARAMS);
   }
   function totalOf(schedule: CookSchedule) {
-    return scoreSchedule(schedule.slices, PENDING_C, tableMembers(RUNNING), PARAMS).total;
+    return scoreSchedule(
+      schedule.slices,
+      PENDING_C,
+      tableMembers(RUNNING),
+      initialLifts(RUNNING),
+      PARAMS,
+    ).total;
   }
   /** 採用済みの悪い一片：Short は 60 秒に合流、Long は 100 秒に始めて 700 秒（改善の余地を残す）。 */
   const COMMITTED_C = committedSchedule(
@@ -604,5 +633,67 @@ describe("admit — 後続品のために合流分を遅らせた計画は棄却
     const delayed = planC(place(LONG_C, "1", 60, null), place(SHORT_C, "0", 600, null));
     expect(totalOf(delayed)).toBeLessThan(totalOf(COMMITTED_C));
     expect(gateC(delayed)).toEqual([]);
+  });
+});
+
+describe("admit — 上げ窓の上限 arms + HELPER_ARMS を超える計画は feasible ではない（AC 9.5・ハード制約 (f)・task 21.8）", () => {
+  // Feature: lift-group-planning, 判断 20・ADR-0009
+  // **Validates: Requirements 9.4, 9.5, 9.14**
+  //
+  // 6 釜・arms 2（上限 4）・L 45 秒。卓を持たない走行中 Short（成員にならず、上げ表にだけ載る）が 60 秒に上がる。
+  // 釜 5 から順に塞ぎ、釜 0 は空けておく（slice は釜 0 に置く）。
+  function runningShorts(count: number): readonly Timer[] {
+    return Array.from({ length: count }, (_, index) =>
+      createTimer({
+        id: `t-run-${index}` as TimerId,
+        slotIds: nonEmpty([String(5 - index) as SlotId]),
+        noodleType: "Short" as NoodleType,
+        firmness: "normal",
+        startTime: NOW,
+        endTime: (NOW + 60 * SECOND) as EpochMillis,
+        seq: 10 + index,
+      }),
+    );
+  }
+  const ITEM = order("o-p", "Short", "t-p");
+  /** 採用済みの悪い一片：釜 0 で 300 秒に上がる（改善の余地を残し、棄却の理由を (f) に限る）。 */
+  const LATE: AcceptedSlice = slice("t-p", [
+    { order: ITEM, startAt: NOW + 240 * SECOND, serveAt: NOW + 300 * SECOND },
+  ]);
+  /** 釜 0 で serveSeconds に上がる外部計画。 */
+  function at(serveSeconds: number): CookSchedule {
+    return plan(
+      slice("t-p", [
+        {
+          order: ITEM,
+          startAt: NOW + (serveSeconds - 60) * SECOND,
+          serveAt: NOW + serveSeconds * SECOND,
+        },
+      ]),
+    );
+  }
+  function gateWith(running: readonly Timer[], arrived: CookSchedule, params = PARAMS) {
+    const committed = committedSchedule([LATE], [ITEM], running, NOW, PRESETS, params);
+    return admit(arrived, committed, [ITEM], running, NOW, PRESETS, params);
+  }
+
+  it("走行中 4 本が 60 秒に上がる窓へ 5 本目を置く計画は棄却され、次の窓（105 秒）なら採用される", () => {
+    expect(gateWith(runningShorts(4), at(60))).toEqual([]);
+    expect(gateWith(runningShorts(4), at(105))).toEqual(at(105).slices);
+  });
+
+  it("同じ計画でも arms 3（上限 5）なら採用される——棄却の理由が上限であること", () => {
+    expect(gateWith(runningShorts(4), at(60), { ...PARAMS, arms: 3 })).toEqual(at(60).slices);
+  });
+
+  it("走行中だけで上限を超えている窓は、それを含まない一片を落とさない（AC 9.4・9.14）", () => {
+    // 5 本が 60 秒に上がる窓 [60,105) は既に 5 > 4。200 秒の配置はその窓に入らないので採用され、100 秒は入るので棄却。
+    expect(gateWith(runningShorts(5), at(200))).toEqual(at(200).slices);
+    expect(gateWith(runningShorts(5), at(100))).toEqual([]);
+  });
+
+  it("arms を超えて上限に収まる計画は採点に委ねる——手伝いの費用（Lift_Overflow 45）を払っても改善なら採用される", () => {
+    // 走行中 2 本 + 1 本 = 3 ≤ 4。60 秒 + 45 は 300 秒より良い。
+    expect(gateWith(runningShorts(2), at(60))).toEqual(at(60).slices);
   });
 });

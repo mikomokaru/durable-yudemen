@@ -96,7 +96,7 @@ export function scoreSchedule(
 ): ScheduleScore;
 ```
 
-`Omit<PlanSlice, "score">` が消える（`PlanSlice` が `score` を持たなくなるため）。第 3 引数は `running: Timer[]` ではなく射影表を採る——`baselineSchedule` が `SlotRelease` を採るのと同じ判断で、`admit` が 3 回採点しても射影は 1 回で済む。
+`Omit<PlanSlice, "score">` が消える（`PlanSlice` が `score` を持たなくなるため）。第 3 引数は `running: Timer[]` ではなく射影表を採る——`baselineSchedule` が `SlotRelease` を採るのと同じ判断で、`admit` が 3 回採点しても射影は 1 回で済む。**21.7 で改訂**：第 4 引数に上げ表 `lifts: LiftTable`（`initialLifts(running)`）を足す。Lift_Overflow は店舗全体の項で、走行中の上がりに全配置の上がりを足した表の上で数える（Component 10）。
 
 #### 一片の部分和
 
@@ -593,7 +593,7 @@ Component 3 の `placeGroup` / `placeBatch` の擬似コードがそのまま実
 
 11. **卓なしは成員にならない** — `tableId` が `null` の走行中 Timer は、どの `PlanSlice` の部分和にも寄与しない（単独キーの一片にも入らない）。
 12. **成員の照合は一意** — `tableMembers` の鍵と `PlanSlice.tableKey` の一致は、卓に属する品目の一片に対してのみ成立する（NUL 始まりの単独キーは非空 `tableId` と衝突しない）。
-13. **再採点の決定性** — 同じ `(slices, pending, members, params)` に対する `scoreSchedule` は常に同じ値を返し、`bySlice` の総和は `total` に厳密に一致する。
+13. **再採点の決定性** — 同じ `(slices, pending, members, lifts, params)` に対する `scoreSchedule` は常に同じ値を返し、`bySlice` の総和 + Lift_Overflow は `total` に厳密に一致する（**21.7 で改訂**：Lift_Overflow は `total` にだけ載る・AC 9.7）。
 14. **batch 分割は容量で決まる** — 一片の各 batch について `Σ slotSpan ≤ 釜数` で、群の品目はどの batch にもちょうど 1 度現れる。
 
 ## Testing Strategy
@@ -628,9 +628,10 @@ Property 2 は「散らした計画は真に良くならない（Arms_Overflow �
 | 関数 | `tableMembers(running)` | 走行中 Timer から卓ごとの提供時刻を射影する唯一の経路 |
 | 関数 | `isPushedOut(singles, release, lifts, siblings, params)`（module 内・`keepsAnchor` 経由） | 走行中の錨に合流できた品目を候補時刻からの firstFit より後ろへ押し出した配置が在るか（ハード制約 (e)）。21.6 で pack を載せた後の表の上で 1 品ずつ見る形へ改訂。Acceptance_Gate と自前解の性質検査が `keepsAnchor` で共用。レビュー対応で追加・事後承認 |
 | 関数 | `occupiesSlotSpan(placement, order)` | 配置が品目の `slotSpan` を満たすか（本数一致・釜番号で相異なる）。`isStale` と Acceptance_Gate が共用する述語。コードレビュー対応で追加・事後承認 |
-| 署名 | `scoreSchedule(slices, pending, members, params)` | 第 3 引数は `running` ではなく**射影表**（要件の naming ゲートは `running` と書いている・変更の提案） |
+| 署名 | `scoreSchedule(slices, pending, members, lifts, params)` | 第 3 引数は `running` ではなく**射影表**（要件の naming ゲートは `running` と書いている・変更の提案）。**21.7 で改訂**：第 4 引数に上げ表（`initialLifts(running)`）を足す——Lift_Overflow は走行中と全配置の上がりを並べた店舗全体の表で数える（Component 10・AC 9.6）。成員表と同じく射影を受け、`admit` が 3 回採点しても射影は 1 回 |
 | 署名 | `baselineSchedule(pending, release, members, presets, params)` | 配置は 2 つの表と茹で時間から決まる。採点は含まない |
-| 内部関数 | `tableLagSeconds` / `armsOverflow` / `armsOverflowWeight` | 卓の遅れの和 / 同時刻の本数の超過 / 卓同期から導く重み |
+| 内部関数 | `tableLagSeconds` / ~~`armsOverflow` / `armsOverflowWeight`~~ | 卓の遅れの和 / ~~同時刻の本数の超過 / 卓同期から導く重み~~（21.7 で撤去・`lift.ts` の `liftOverflow` に置き換え） |
+| 関数 | `withinLiftCap(lifts, added, params)`（`lift.ts`） | 上がりの列を一つずつ表へ載せたとき、各上がりを含む窓の負荷が arms + HELPER_ARMS 以下か（ハード制約 (f)・AC 9.5・9.14）。Acceptance_Gate と合成が同じ述語・同じ位置（一片を置く前の表）で読む。21.8 で追加・事後承認 |
 | 内部関数 | `ceilSeconds`（`objective.ts`） | 逸脱の罰を秒へ切り上げる。既存の `toWholeSeconds`（水準を切り捨てる）と役割で対になる |
 | 型の項目 | `ScheduleParams.arms` | 採点が腕の本数を読む。外部契約に及ぶ |
 | 型の項目 | `Ordered.orderItem.tableId`（**入れ子**） | 卓はオーダーの事実。直下に置けば「POS を経ないのに卓を知る Timer」が構築可能になる（要件 AC 3.1 は直下の表記・変更の提案） |

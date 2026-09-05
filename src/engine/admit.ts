@@ -18,7 +18,7 @@
 import { SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import { committedSchedule } from "./commit";
-import { advanceLifts, initialLifts, liftsOf, type LiftTable } from "./lift";
+import { advanceLifts, initialLifts, liftsOf, withinLiftCap, type LiftTable } from "./lift";
 import { scoreSchedule, type ScheduleParams } from "./objective";
 import { tableMembers, type TableMembers } from "./project";
 import {
@@ -74,9 +74,10 @@ export function admit(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
-  // 卓の成員表は 1 回だけ引き、段 1・段 2 の採点 3 回で共有する。
+  // 卓の成員表と上げ表は 1 回だけ引き、段 1・段 2 の採点 3 回（と段 1 の (f)）で共有する。
   const members = tableMembers(running);
-  const committedScore = scoreSchedule(committed.slices, pending, members, params);
+  const lifts = initialLifts(running);
+  const committedScore = scoreSchedule(committed.slices, pending, members, lifts, params);
   const prefix = prune(
     arrived,
     committed,
@@ -85,6 +86,7 @@ export function admit(
     running,
     now,
     members,
+    lifts,
     presets,
     params,
   );
@@ -93,7 +95,7 @@ export function admit(
   // 段 2。候補接頭辞で合成を 1 回走らせ、総和を現行 Committed_Plan と比べる。合成は接頭辞の占有から
   // 尾部を再実行するため、ここで得る総和は「採用した後に実際に確定する計画」の値そのものである。
   const composed = committedSchedule(prefix, pending, running, now, presets, params);
-  const composedScore = scoreSchedule(composed.slices, pending, members, params);
+  const composedScore = scoreSchedule(composed.slices, pending, members, lifts, params);
   return composedScore.total < committedScore.total ? prefix : [];
 }
 
@@ -111,6 +113,7 @@ function prune(
   running: readonly Timer[],
   now: EpochMillis,
   members: TableMembers,
+  initialLiftTable: LiftTable,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
@@ -124,13 +127,13 @@ function prune(
     committed.slices.map((slice, index) => [slice.tableKey, committedBySlice[index]!]),
   );
   // 採点は一度で済む（全項が卓の内側に閉じるため部分和は一片ごとに独立・Property 3）。
-  const scores = scoreSchedule(arrived.slices, pending, members, params).bySlice;
+  const scores = scoreSchedule(arrived.slices, pending, members, initialLiftTable, params).bySlice;
 
   const prefix: AcceptedSlice[] = [];
   const claimed = new Set<string>();
   let release = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
   // 上げ表（「店舗全体でいつ上がるか」）も走行中から始め、採用した一片の上がりで進める（合成と同じ位置・同じ表）。
-  let lifts = initialLifts(running);
+  let lifts = initialLiftTable;
 
   for (const [index, slice] of arrived.slices.entries()) {
     // 同じ Table_Group を二度計画した外部計画は、計画としての形を成していない（一片は採用/棄却の単位ゆえ
@@ -139,7 +142,7 @@ function prune(
     if (claimed.has(slice.tableKey)) break;
     // (a)(b)。述語は schedule.ts の isStale ただ一つ。
     if (isStale(slice, targets)) break;
-    // (c) と (e)。進めた解放表が返れば feasible。走行中の錨は卓の成員表から引く（無ければ null）。
+    // (c)・(e)・(f)。進めた解放表が返れば feasible。走行中の錨は卓の成員表から引く（無ければ null）。
     const siblings = members.get(slice.tableKey) ?? null;
     const advanced = feasibleRelease(
       slice.placements,
@@ -194,6 +197,12 @@ function prune(
  * 受けて pack の単位で検証する——錨の主張だけでは合流分と認めない（主張を信じれば、押し出した配置に仲間の endTime
  * を書くだけで (e) を素通りする）。
  *
+ * **(f) 上げ窓の上限。** 走行中の上がりと計画順に見た手前の一片の上がりで埋めた表に当該一片の配置を載せたとき、
+ * 各配置を**含む**窓の負荷が arms + HELPER_ARMS を超えれば feasible と認めない（lift-group-planning AC 9.5・判断 20・
+ * ADR-0009）。含まない窓——走行中だけで既に超えている窓——は見ない（AC 9.4・9.14）。arms の超過は採点（Lift_Overflow）
+ * に委ねる。1 品で上限を超える品目（大盛 span 2 が arms 1 + 2 = 3 に入るのは可・span 4 は不可）も同じ経路で落ちる
+ * （AC 9.12）。述語は lift.ts の withinLiftCap ただ一つ（合成と共用）。
+ *
  * **serveAt = startAt ＋ 当該品目の茹で時間 を検査する（design の (a)(b)(c) への追加）。** 外部計画は
  * startAt と serveAt の両方を主張してくるが、両者を結ぶのは品目の茹で時間ただ一つである。検査しないと
  * 「10 秒で茹で上がる」と主張する計画が作れ、Wait_Time も解放表もその嘘に従う——目的関数値はいくらでも
@@ -213,6 +222,8 @@ function feasibleRelease(
   // (e)。一片を置く前の解放表と上げ表で判定する（単位ごとに進めた表は述語の内側で作る）。合成（commit.ts）と同じ述語。
   // 仲間が無い卓（siblings null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
   if (!keepsAnchor(placements, release, lifts, siblings, targets, presets, params)) return null;
+  // (f)。一片の上がりを載せたとき、各配置を含む窓が上限以下か。合成（commit.ts）と同じ述語・同じ位置。
+  if (!withinLiftCap(lifts, liftsOf(placements), params)) return null;
   // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
   const ordered = [...placements].sort(
     (placement, other) =>

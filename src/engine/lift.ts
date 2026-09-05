@@ -204,6 +204,33 @@ export function firstFit(
 }
 
 /**
+ * 上がりの列を一つずつ表へ載せたとき、どの上がりについても「それを含む窓」の負荷が arms + HELPER_ARMS 以下か
+ * （ハード制約 (f)・AC 9.5・9.14）。
+ *
+ * Acceptance_Gate（admit.ts）が外部計画の一片に、確定計画の合成（commit.ts）が採用済み一片に、同じ述語で同じ位置
+ * （一片を置く前の表）から検査する。**見るのは載せる上がりを含む窓だけ**——走行中だけ・過去の boiled だけで既に
+ * 上限を超えている窓は開始後の事実であり、それを含まない一片を落とす理由にならない（AC 9.4）。
+ *
+ * 載せる順は結果に効かない。ある窓に載る上がりのうち最後に載せるものの検査が、その窓に先に載った上がりを
+ * すべて含んだ負荷を見る（loadWith はその時刻を含む窓の負荷の最大を返す）ので、「列を全部載せたとき、列の
+ * いずれかを含むすべての窓が上限以下」と同値である。一片の内側で同じ窓に上がる 2 品（pack）も、2 品目の検査で
+ * 合計の負荷を見る。
+ */
+export function withinLiftCap(
+  lifts: LiftTable,
+  added: readonly Lift[],
+  params: LiftParams,
+): boolean {
+  const cap = liftCap(params);
+  let table = lifts;
+  for (const lift of added) {
+    if (loadWith(table, lift.at, lift.span, params) > cap) return false;
+    table = advanceLifts(table, [lift]);
+  }
+  return true;
+}
+
+/**
  * Lift_Overflow——店舗全体で arms を超えて同じ窓に上がる本数の、手伝いを頼む費用（秒相当の整数・AC 9.6）。
  *
  * 上がる時刻を昇順に走査し、未割当の最早の時刻 e を起点に窓 [e, e + L) の負荷を取り、max(0, 負荷 − arms) を

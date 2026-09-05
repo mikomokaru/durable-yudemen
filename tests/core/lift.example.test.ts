@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceLifts,
+  withinLiftCap,
   firstFit,
   initialLifts,
   liftCap,
@@ -164,5 +165,33 @@ describe("liftOverflow — 手伝いの費用（一意な貪欲・秒相当）",
     // 0 秒に 3 本・30 秒に 3 本・60 秒に 3 本（arms 2）。[0,45) に 6 → 4、次の未割当は 60 秒で [60,105) に 3 → 1。
     // 30 秒を起点に数え直せば [30,75) に 6 でもう 4 になるが、30 秒は [0,45) に割当済みなので起点にならない。
     expect(liftOverflow(table([0, 3], [30, 3], [60, 3]), PARAMS)).toBe((4 + 1) * 45);
+  });
+});
+
+describe("withinLiftCap — 列を載せたとき、それを含む窓が上限以下か（ハード制約 (f)・AC 9.5・9.14）", () => {
+  it("走行中 4 本が 60 秒の表（上限 4）に 60 秒の 1 本は入らず、105 秒なら入る", () => {
+    expect(withinLiftCap(table([60, 4]), [{ at: sec(60), span: 1 }], PARAMS)).toBe(false);
+    expect(withinLiftCap(table([60, 4]), [{ at: sec(105), span: 1 }], PARAMS)).toBe(true);
+  });
+
+  it("走行中だけで超えている窓は、それを含まない上がりを落とさない（AC 9.4）", () => {
+    // 60 秒に 5 本（既に 5 > 4）。200 秒はその窓に入らない。100 秒は [60,105) に入るので落ちる。
+    expect(withinLiftCap(table([60, 5]), [{ at: sec(200), span: 1 }], PARAMS)).toBe(true);
+    expect(withinLiftCap(table([60, 5]), [{ at: sec(100), span: 1 }], PARAMS)).toBe(false);
+  });
+
+  it("列の内側の合計も見る——載せる順に依らない", () => {
+    const two = [
+      { at: sec(60), span: 2 },
+      { at: sec(60), span: 2 },
+    ];
+    expect(withinLiftCap([], two, PARAMS)).toBe(true);
+    const three = [...two, { at: sec(70), span: 1 }];
+    expect(withinLiftCap([], three, PARAMS)).toBe(false);
+    expect(withinLiftCap([], [...three].reverse(), PARAMS)).toBe(false);
+  });
+
+  it("1 本で上限を超える上がり（span 5）はどの表にも入らない（AC 9.12）", () => {
+    expect(withinLiftCap([], [{ at: sec(0), span: 5 }], PARAMS)).toBe(false);
   });
 });
