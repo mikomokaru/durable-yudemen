@@ -21,7 +21,6 @@ import { EMPTY_VIEW } from "./connection";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness } from "../domain/firmness";
-import { toOrderItemOrigin } from "../domain/wire";
 
 /**
  * 永続ブロブの形（単一 JSON・version 付き・要件11.1）。
@@ -133,11 +132,6 @@ function isTimerOrigin(value: unknown): value is TimerOrigin {
  * id / noodleType は string、endTime は number、origin は "server" | "local"。slotIds は
  * 現行 v2 形（非空文字列の非空配列）を優先し、旧 v1 形（単一 `slotId` 文字列）は `[slotId]` に包んで
  * 受理する（保存キー据え置きで走行中タイマーを失わない優雅な移行）。余剰フィールドは無視する。
- *
- * 後から足された項目（startTime / firmness / orderItem）は欠如も不正も既定へ畳み、ブロブ全体を落とさない。
- * ここで一要素の不備を EMPTY_VIEW に落とせば、瞬断で走行中の秒読みが死ぬ——このファイル冒頭の目的に反する。
- * ワイヤ復号（domain/wire.ts）が同じ逸脱を Decode_Failure にするのと処置が違うのは、義務が違うからである
- * （あちらはサーバの送った形の検証、こちらは自分が書いた旧ブロブの救済）。
  */
 function toClientTimer(value: unknown): ClientTimer | null {
   if (!isRecord(value)) {
@@ -159,9 +153,6 @@ function toClientTimer(value: unknown): ClientTimer | null {
   const startTime = typeof value.startTime === "number" ? value.startTime : value.endTime;
   // firmness は v5 で追加。欠如/不正な旧ブロブは normal で埋める。
   const firmness = isFirmness(value.firmness) ? value.firmness : DEFAULT_FIRMNESS;
-  // orderItem は lift-group-display で追加。欠如（旧ブロブ）/ null / 不正はいずれも null（アドホック扱い）へ畳む。
-  // 失うのは群の開始の判定の手掛かりだけで、次の snapshot が正しい値で上書きする。
-  const orderItem = toOrderItemOrigin(value.orderItem) ?? null;
   return {
     id: value.id,
     slotIds,
@@ -169,7 +160,6 @@ function toClientTimer(value: unknown): ClientTimer | null {
     firmness,
     startTime,
     endTime: value.endTime,
-    orderItem,
     origin: value.origin,
   };
 }

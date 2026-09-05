@@ -26,7 +26,6 @@ export function adjustedEndTime(timer: Timer): EpochMillis {
  *
  * seq / boiledAt / adjustment（いずれも engine 専用）を削ぎ、endTime に実効値（= endTime + adjustment）を
  * 載せる。client は調整の存在を知らず、受け取った endTime から残り時間・boiled を今までどおり導出する。
- * orderItem はそのまま写す——client が群の開始の判定に読む共有事実である（lift-group-display 判断 16）。
  */
 export function toWireTimer(timer: Timer): TimerFact {
   return {
@@ -36,7 +35,6 @@ export function toWireTimer(timer: Timer): TimerFact {
     firmness: timer.firmness,
     startTime: timer.startTime,
     endTime: adjustedEndTime(timer),
-    orderItem: timer.orderItem,
   };
 }
 

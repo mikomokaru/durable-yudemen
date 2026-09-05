@@ -5,19 +5,21 @@
 //
 // liftGroups.example は snapshot を手書きして線を固定した。ここは snapshot を一切書かない——engine の唯一の遷移
 // `decide`（品目からの開始・アドホック開始・発火・完了・計画受領）が実際に出した Broadcast の snapshot を、client の
-// 唯一の遷移 `decideView` に通し、そこから群・連鎖・釜ごとの提案を導く。判断 16 の等号「群の serveAt ＝ 走行中の
-// 実効 endTime」は、計画側（lift-group-planning）が揃えた値をワイヤの両端で再計算して初めて成り立つ主張であり、
-// 片側だけの検査では固定できない。
+// 唯一の遷移 `decideView` に通し、そこから群・連鎖・釜ごとの提案を導く。判断 20 の「群の所属と錨は engine が運び、
+// client は `anchor > Corrected_Now` で開始済みを読む」は、計画側（lift-group-planning）が確定計画から `group` /
+// `anchor` を射影し、client がそれを読むだけで正しい連鎖に達して初めて成り立つ主張であり、片側だけの検査では
+// 固定できない。
 //
 // 場面は design「Testing Strategy」が名指しで求めた 3 つ。
 //   1. 茹で上がりの 2 場面——同じ snapshot で 599 → 600 秒を跨ぐ転移と、その後の発火 snapshot。boiled の釜が
 //      index 最小 / 最大の両方を置く（発火後の再計画が残りを boiled の釜へ置き直すか否かは釜の割当に依る）。
 //   2. 容量分割（6 釜・同卓 4 品・各 2 釜）の到達可能な続き (i)(ii)——(ii) は再統合後に 3 品とも head。
-//   3. keepsAnchor の帰結——採用済みの合流一片の錨が Boil_Sync で動いたとき、合流し直した群は started、
-//      届かなくなった一片の群は started でない。
+//   3. keepsAnchor の帰結——採用済みの合流一片の錨が Boil_Sync で動いたとき、h_i の内側なら一片は残って群は
+//      動いた錨に合流したまま started、h_i の外へ動けば一片は残っても合流でなくなり started でない。
 //
-// 時刻はすべて T0 からの秒で読む（serveAt / startAt の期待値も秒）。receivedAt を serverTime に揃えるので
-// offset は 0 で、Corrected_Now はサーバ時刻そのものである。
+// 時刻はすべて T0 からの秒で読む（serveAt / startAt / anchor の期待値も秒）。receivedAt を serverTime に揃えるので
+// offset は 0 で、Corrected_Now はサーバ時刻そのものである。群の識別子は snapshot 内で閉じた記号なので、その文字列
+// は読まない——群は品目の名の列で、群の同一性は識別子の一致・不一致で見る。
 
 import { describe, expect, it } from "vitest";
 import { decide } from "../../src/engine/decide";
@@ -69,7 +71,7 @@ const PRESETS: NonEmptyArray<NoodlePreset> = [
   { noodleType: "Short", boilSeconds: every(300) },
 ];
 
-/** Boil_Sync の 2 値。engine の params と client へ配る config で同じ値を使う。 */
+/** Boil_Sync の 2 値。engine の params と client へ配る config で同じ値を使う。合流の窓 h_i は茹で秒の 10%。 */
 const SYNC = { arms: 2, toleranceRatio: 10 } as const;
 
 /** engine が受ける値の束（1 ユニット＝6 釜・採点は既定・麺種は上の 3 種）。 */
@@ -151,7 +153,7 @@ function startItem(item: PendingOrder, slots: readonly number[], now: EpochMilli
   };
 }
 
-/** アドホック麺茹で（POS を経ない開始・orderItem は null・どの卓の成員にもならない）。 */
+/** アドホック麺茹で（POS を経ない開始・どの卓の成員にもならない）。 */
 function startAdhoc(id: string, slot: number, boilSeconds: number, now: EpochMillis): Event {
   return {
     type: "Start",
@@ -184,22 +186,20 @@ function viewOf(snapshot: Snapshot): ClientView {
   });
 }
 
-/** 群の要約——卓・serveAt（秒）・品目の名（群の中の順）・started。 */
+/** 群の要約——錨（秒・合流していなければ null）・品目の名（群の中の順）・started。 */
 function groupsAt(snapshot: Snapshot, corrected: number) {
   return liftGroups(viewOf(snapshot), corrected).map((group: LiftGroup) => ({
-    tableId: group.tableId,
-    serveAt: seconds(group.serveAt),
+    anchor: group.anchor === null ? null : seconds(group.anchor),
     items: group.items.map((item: GroupItem) => nameOf(item.order)),
     started: group.started,
   }));
 }
 
-/** 表示できる群の卓と serveAt（秒）の列。 */
+/** 表示できる群の品目の名の列。 */
 function visibleAt(snapshot: Snapshot, corrected: number) {
-  return visibleGroups(liftGroups(viewOf(snapshot), corrected)).map((group) => [
-    group.tableId,
-    seconds(group.serveAt),
-  ]);
+  return visibleGroups(liftGroups(viewOf(snapshot), corrected)).map((group) =>
+    group.items.map((item) => nameOf(item.order)),
+  );
 }
 
 /** 各群の先頭の名。 */
@@ -226,13 +226,22 @@ function phraseOf(suggestion: SlotSuggestion): string {
   return suggestion.role === "head" ? `${name} ${suggestion.phase}` : `${name} member`;
 }
 
-/** snapshot が運ぶ推奨——名・釜・startAt（秒）。engine がどこへ置いたかを読む（計画順のまま）。 */
+/**
+ * snapshot が運ぶ推奨——名・釜・startAt（秒）・錨（秒・合流していなければ null）。engine がどこへ置き、どの錨に
+ * 合流させたかを読む（計画順のまま）。
+ */
 function planOf(snapshot: Snapshot) {
   return snapshot.recommendations.map((each) => [
     nameOf(each),
     [...each.slotIds],
     seconds(each.startAt),
+    each.anchor === null ? null : seconds(each.anchor),
   ]);
+}
+
+/** snapshot が運ぶ推奨の群の識別子（名ごと）。同じ群かどうかは識別子の一致で見る（文字列そのものは読まない）。 */
+function groupIdsOf(snapshot: Snapshot): ReadonlyMap<string, string> {
+  return new Map(snapshot.recommendations.map((each) => [nameOf(each), each.group]));
 }
 
 /** snapshot が運ぶ Timer の実効 endTime（秒）。id 順。 */
@@ -246,9 +255,10 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
   /**
    * 同卓 t-1 の A（Long 600 秒）と B（Mid 360 秒）、別卓 t-2 の C（Short 300 秒・2 釜）。3 釜はアドホック麺茹でが
    * 塞いでいる——塞がなければ C は今すぐ空く釜へ置かれて最早の群になり、G1 の後ろに並ばない。うち 1 釜は 900 秒で
-   * 上がる。C の群の serveAt（900 秒）と偶然一致する卓なしの Timer で、endTime の一致だけでは started にならない
-   * ことを engine の実物で踏む（判断 16）。A を始めると B は走行中の錨 600 秒に合流し（startAt 240 秒）、C は
-   * 釜が空く 600 秒に置かれる（別卓の G2）。
+   * 上がる。C の群の serveAt（900 秒）と偶然一致する卓なしの Timer で、Timer の endTime の一致だけでは started に
+   * ならない（engine は C を合流させず anchor を null で運ぶ）ことを engine の実物で踏む（判断 16 / 20）。A を
+   * 始めると B は走行中の錨 600 秒に合流し（startAt 240 秒・anchor 600 秒）、C は釜が空く 600 秒に置かれる
+   * （別卓の G2・anchor null）。
    *
    * 塞ぐ釜と A を始める釜は変種ごとに違う。再計画は同点の釜を index で断つので、発火後に残りの B が boiled の
    * 釜へ置き直されるか（index 最小）、自分の釜に留まるか（index 最大）は釜の割当だけで決まる。
@@ -263,14 +273,14 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
     readonly blocked: readonly (readonly [slot: number, boilSeconds: number])[];
     /** 現場が A を始めた釜（推奨とは違う釜でもよい）。 */
     readonly pressed: number;
-    /** A を始めた直後の計画（B と C の釜と startAt）。C の釜の並びは engine の解放時刻順（先に空く釜が先）。 */
-    readonly plan: readonly (readonly [string, readonly string[], number])[];
+    /** A を始めた直後の計画（B と C の釜・startAt・錨）。C の釜の並びは engine の解放時刻順（先に空く釜が先）。 */
+    readonly plan: readonly (readonly [string, readonly string[], number, number | null])[];
     /** 599 秒の提案（G1 の B が濃く、G2 の C が薄く、C の 2 釜に同じ提案）。 */
     readonly at599: readonly (readonly [number, readonly string[]])[];
     /** 600 秒の提案（同じ snapshot・C が消え、B だけが残る）。 */
     readonly at600: readonly (readonly [number, readonly string[]])[];
-    /** 発火 snapshot の計画（B の新しい釜と startAt 600 秒）。 */
-    readonly firedPlan: readonly (readonly [string, readonly string[], number])[];
+    /** 発火 snapshot の計画（B の新しい釜と startAt 600 秒・錨は無い）。 */
+    readonly firedPlan: readonly (readonly [string, readonly string[], number, number | null])[];
     /** 発火 snapshot の提案。 */
     readonly fired: readonly (readonly [number, readonly string[]])[];
     /** A を Complete した後の提案。 */
@@ -287,8 +297,8 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
       ],
       pressed: 0,
       plan: [
-        ["b#0", ["4"], 240],
-        ["c#0", ["5", "4"], 600],
+        ["b#0", ["4"], 240, 600],
+        ["c#0", ["5", "4"], 600, null],
       ],
       at599: [
         [4, ["b#0 solid", "c#0 faint"]],
@@ -299,8 +309,8 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
       // 釜 0 は Complete 待ちで埋まっているので、B の提案はどこにも出ない（Error Handling「Complete までは残りの
       // 提案が出ないことがある」）。
       firedPlan: [
-        ["b#0", ["0"], 600],
-        ["c#0", ["4", "5"], 600],
+        ["b#0", ["0"], 600, null],
+        ["c#0", ["4", "5"], 600, null],
       ],
       fired: [],
       completed: [[0, ["b#0 solid"]]],
@@ -314,8 +324,8 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
       ],
       pressed: 5,
       plan: [
-        ["b#0", ["2"], 240],
-        ["c#0", ["4", "2"], 600],
+        ["b#0", ["2"], 240, 600],
+        ["c#0", ["4", "2"], 600, null],
       ],
       at599: [
         [2, ["b#0 solid", "c#0 faint"]],
@@ -324,8 +334,8 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
       at600: [[2, ["b#0 solid"]]],
       // index 最小は B 自身の釜 2 なので B はそこに留まり、釜 2 は idle ゆえ濃く出る。
       firedPlan: [
-        ["b#0", ["2"], 600],
-        ["c#0", ["4", "5"], 600],
+        ["b#0", ["2"], 600, null],
+        ["c#0", ["4", "5"], 600, null],
       ],
       fired: [[2, ["b#0 solid"]]],
       completed: [[2, ["b#0 solid"]]],
@@ -351,52 +361,52 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
     describe(variant.name, () => {
       const { started, fired, completed } = scene(variant);
 
-      it("A を始めた snapshot：B は走行中の錨 600 秒に合流し、C は釜の空く 600 秒に置かれる（engine の配置）", () => {
+      it("A を始めた snapshot：B は走行中の錨 600 秒に合流し（anchor 600）、C は釜の空く 600 秒に置かれる（anchor null・engine の配置）", () => {
         expect(planOf(started)).toEqual(variant.plan);
         expect(endTimesOf(started)).toContainEqual([`timer-${nameOf(A)}`, 600]);
+        // B と C は別の群（別の一片）。
+        const ids = groupIdsOf(started);
+        expect(ids.get("b#0")).not.toBe(ids.get("c#0"));
       });
 
-      it("599 秒：G1 は started（A の実効 endTime ＝ B の serveAt）で、G2 の提案も見える", () => {
-        // G2 の serveAt 900 秒は、卓なしのアドホック麺茹での endTime と一致する。卓の一致を要る判定は
-        // これを started と読まない（endTime の一致だけでは判定しない・AC 1.7）。
+      it("599 秒：G1 は started（anchor 600 秒 > now）で、G2 の提案も見える", () => {
+        // G2 の serveAt 900 秒は、卓なしのアドホック麺茹での endTime と一致する。engine は C を合流させておらず
+        // anchor は null——client は Timer の endTime の一致を読まないので started にならない（AC 1.7）。
         expect(endTimesOf(started)).toContainEqual([
           `adhoc-blocked-${variant.blocked[0]![0]}`,
           900,
         ]);
         expect(groupsAt(started, at(599))).toEqual([
-          { tableId: "t-1", serveAt: 600, items: ["b#0"], started: true },
-          { tableId: "t-2", serveAt: 900, items: ["c#0"], started: false },
+          { anchor: 600, items: ["b#0"], started: true },
+          { anchor: null, items: ["c#0"], started: false },
         ]);
-        expect(visibleAt(started, at(599))).toEqual([
-          ["t-1", 600],
-          ["t-2", 900],
-        ]);
+        expect(visibleAt(started, at(599))).toEqual([["b#0"], ["c#0"]]);
         expect(suggestionsAt(started, at(599))).toEqual(variant.at599);
       });
 
-      it("600 秒（同じ snapshot）：A が茹で上がりに転じて G1 は started でなくなり、G2 の提案は消え、B が先頭として濃く残る", () => {
+      it("600 秒（同じ snapshot）：錨が茹で上がりに転じて G1 は started でなくなり、G2 の提案は消え、B が先頭として濃く残る", () => {
         expect(groupsAt(started, at(600))).toEqual([
-          { tableId: "t-1", serveAt: 600, items: ["b#0"], started: false },
-          { tableId: "t-2", serveAt: 900, items: ["c#0"], started: false },
+          { anchor: 600, items: ["b#0"], started: false },
+          { anchor: null, items: ["c#0"], started: false },
         ]);
-        expect(visibleAt(started, at(600))).toEqual([["t-1", 600]]);
+        expect(visibleAt(started, at(600))).toEqual([["b#0"]]);
         expect(suggestionsAt(started, at(600))).toEqual(variant.at600);
       });
 
-      it("発火 snapshot：B は新しい serveAt（走行中の endTime と不一致）で届き、G2 は引き続き隠れる", () => {
+      it("発火 snapshot：B は錨を持たない新しい群として届き、G2 は引き続き隠れる", () => {
         expect(planOf(fired)).toEqual(variant.firedPlan);
-        // 残りは「いま始める群」に組み直される——serveAt 960 秒は boiled の A（600 秒）と一致せず started でない。
+        // 残りは「いま始める群」に組み直される——boiled の A（600 秒）にはもう合流せず anchor は null で started でない。
         // G2 との startAt の同値は到着順で断たれ、先に届いた t-1 が先頭に立つ（AC 1.4）。
         expect(groupsAt(fired, at(600))).toEqual([
-          { tableId: "t-1", serveAt: 960, items: ["b#0"], started: false },
-          { tableId: "t-2", serveAt: 900, items: ["c#0"], started: false },
+          { anchor: null, items: ["b#0"], started: false },
+          { anchor: null, items: ["c#0"], started: false },
         ]);
-        expect(visibleAt(fired, at(600))).toEqual([["t-1", 960]]);
+        expect(visibleAt(fired, at(600))).toEqual([["b#0"]]);
         expect(suggestionsAt(fired, at(600))).toEqual(variant.fired);
       });
 
       it("A を Complete した snapshot：B の釜が idle になり、B が先頭として濃く出る。G2 はまだ隠れる", () => {
-        expect(visibleAt(completed, at(600))).toEqual([["t-1", 960]]);
+        expect(visibleAt(completed, at(600))).toEqual([["b#0"]]);
         expect(suggestionsAt(completed, at(600))).toEqual(variant.completed);
       });
     });
@@ -416,25 +426,25 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
   /** 1 本目（item1）を推奨どおり釜 0・1 で始めた直後。 */
   const firstStarted = step(arrived.state, startItem(ITEM1, [0, 1], at(0)));
 
-  it("到着直後：batch 1 の 3 品が一つの群（serveAt 360 秒）、釜 0・1 を待つ item4 は別の群（serveAt 720 秒）", () => {
+  it("到着直後：batch 1 の 3 品が一つの群（serveAt 360 秒）、釜 0・1 を待つ item4 は別の群（serveAt 720 秒）。どちらも錨は無い", () => {
     expect(planOf(arrived.snapshot)).toEqual([
-      ["o#0", ["0", "1"], 0],
-      ["o#1", ["2", "3"], 0],
-      ["o#2", ["4", "5"], 0],
-      ["o#3", ["0", "1"], 360],
+      ["o#0", ["0", "1"], 0, null],
+      ["o#1", ["2", "3"], 0, null],
+      ["o#2", ["4", "5"], 0, null],
+      ["o#3", ["0", "1"], 360, null],
     ]);
     expect(groupsAt(arrived.snapshot, at(0))).toEqual([
-      { tableId: "t-1", serveAt: 360, items: ["o#0", "o#1", "o#2"], started: false },
-      { tableId: "t-1", serveAt: 720, items: ["o#3"], started: false },
+      { anchor: null, items: ["o#0", "o#1", "o#2"], started: false },
+      { anchor: null, items: ["o#3"], started: false },
     ]);
   });
 
-  it("1 本目を始めた後：合流する 2 品が G1（started・serveAt ＝ 走行中の endTime）で今、item4 は G2 の唯一の head", () => {
+  it("1 本目を始めた後：合流する 2 品が G1（started・anchor ＝ 走行中の endTime）で今、item4 は G2 の唯一の head", () => {
     expect(groupsAt(firstStarted.snapshot, at(0))).toEqual([
-      { tableId: "t-1", serveAt: 360, items: ["o#1", "o#2"], started: true },
-      { tableId: "t-1", serveAt: 720, items: ["o#3"], started: false },
+      { anchor: 360, items: ["o#1", "o#2"], started: true },
+      { anchor: null, items: ["o#3"], started: false },
     ]);
-    // 同じ卓でも serveAt の違う G2 は started にならない（卓の一致だけでは判定しない・AC 1.7 / 6.10）。
+    // 同じ卓でも後の batch の G2 は合流しておらず（anchor null）started にならない（AC 1.7 / 6.10）。
     expect(headsAt(firstStarted.snapshot, at(0))).toEqual([["o#1", "o#2"], ["o#3"]]);
     expect(suggestionsAt(firstStarted.snapshot, at(0))).toEqual([
       [2, ["o#1 solid"]],
@@ -465,16 +475,16 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
       ["timer-o#1", 324],
       ["timer-o#2", 360],
     ]);
-    expect(planOf(fired.snapshot)).toEqual([["o#3", ["0", "1"], 360]]);
+    expect(planOf(fired.snapshot)).toEqual([["o#3", ["0", "1"], 360, null]]);
     expect(groupsAt(fired.snapshot, at(360))).toEqual([
-      { tableId: "t-1", serveAt: 720, items: ["o#3"], started: false },
+      { anchor: null, items: ["o#3"], started: false },
     ]);
     // Complete までは釜 0・1 が boiled で埋まっており、先頭の群でも提案は出ない。
     expect(suggestionsAt(fired.snapshot, at(360))).toEqual([]);
 
     const completed = step(fired.state, complete(ITEM1, at(360)));
     // item2 / item3 の釜が boiled のままでも、釜 0・1 は idle なので item4 が head・solid で現れる。
-    expect(planOf(completed.snapshot)).toEqual([["o#3", ["0", "1"], 360]]);
+    expect(planOf(completed.snapshot)).toEqual([["o#3", ["0", "1"], 360, null]]);
     expect(suggestionsAt(completed.snapshot, at(360))).toEqual([
       [0, ["o#3 solid"]],
       [1, ["o#3 solid"]],
@@ -483,14 +493,14 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
 
   it("(ii) 2 品を始めないまま 360 秒に 1 本目が発火 → 残り 3 品が一群に再統合され、3 品とも head。item4 は空いている釜 4・5 に置かれ Complete 前から見える", () => {
     const fired = step(firstStarted.state, fire(at(360)));
-    // 走行中の錨（360 秒）は過去ゆえ誰も合流できず、3 品が startAt 360 秒 / serveAt 720 秒の同じ batch になる。
+    // 走行中の錨（360 秒）は過去ゆえ誰も合流できず、3 品が startAt 360 秒 / serveAt 720 秒の同じ batch（錨なし）になる。
     expect(planOf(fired.snapshot)).toEqual([
-      ["o#1", ["0", "1"], 360],
-      ["o#2", ["2", "3"], 360],
-      ["o#3", ["4", "5"], 360],
+      ["o#1", ["0", "1"], 360, null],
+      ["o#2", ["2", "3"], 360, null],
+      ["o#3", ["4", "5"], 360, null],
     ]);
     expect(groupsAt(fired.snapshot, at(360))).toEqual([
-      { tableId: "t-1", serveAt: 720, items: ["o#1", "o#2", "o#3"], started: false },
+      { anchor: null, items: ["o#1", "o#2", "o#3"], started: false },
     ]);
     expect(headsAt(fired.snapshot, at(360))).toEqual([["o#1", "o#2", "o#3"]]);
     // 釜 0・1 は boiled で item2 は出ないが、item3 / item4 の釜はそこではない。
@@ -522,6 +532,9 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
    * P を 900 秒へ置く——合流分が錨に一致し、P は Q の後では合流できない（押し出しではない）ので keepsAnchor を
    * 守る。採点は待ち時間が 300 秒増える一方、最遅（900 秒）から見た卓の遅れが錨に残る本数の分だけ減る
    * （S を含めて 3 本 × 300 秒 → 2 本 × 300 秒・重み 2）ので、合成後の総和が真に小さく改善として採用される。
+   *
+   * Q（Short 300 秒）の合流の窓 h_i は 30 秒。S の実効 endTime が Boil_Sync で動いたとき、Q の serveAt 600 秒から
+   * 30 秒の内側に留まる限り一片は合流のまま残り（錨だけが動く）、外へ出れば合流でなくなる。
    */
   const S = order("s", { noodleType: "Long", tableId: "t-a", arrivalTime: at(-200) });
   const P = [0, 1].map((itemIndex) =>
@@ -569,60 +582,81 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
   ]);
   const accepted = step(ready, { type: "PlanArrived", plan: EXTERNAL, now: at(0) });
 
-  it("採用直後：合流一片の群（Q・serveAt 600 秒）が started、後続の batch（P・900 秒）は同じ卓でも started でない", () => {
+  it("採用直後：合流一片の群（Q・anchor 600 秒）が started、後続の batch（P・900 秒・anchor null）は同じ卓でも started でない", () => {
     expect(accepted.state.acceptedSlices).toEqual(EXTERNAL.slices);
     expect(planOf(accepted.snapshot)).toEqual([
-      ["q#0", ["0", "1"], 300],
-      ["p#0", ["0"], 600],
-      ["p#1", ["1"], 600],
+      ["q#0", ["0", "1"], 300, 600],
+      ["p#0", ["0"], 600, null],
+      ["p#1", ["1"], 600, null],
     ]);
     expect(groupsAt(accepted.snapshot, at(0))).toEqual([
-      { tableId: "t-a", serveAt: 600, items: ["q#0"], started: true },
-      { tableId: "t-a", serveAt: 900, items: ["p#0", "p#1"], started: false },
+      { anchor: 600, items: ["q#0"], started: true },
+      { anchor: null, items: ["p#0", "p#1"], started: false },
     ]);
+    // 同じ一片の中でも、合流した Q と後続の P は別の群。
+    const ids = groupIdsOf(accepted.snapshot);
+    expect(ids.get("p#0")).toBe(ids.get("p#1"));
+    expect(ids.get("q#0")).not.toBe(ids.get("p#0"));
   });
 
-  it("錨が後ろへ動く：無関係な Timer で S の実効 endTime が 605 秒になると、採用済み一片は合成が捨て、合流し直した群が started になる", () => {
+  it("錨が後ろへ h_i の内側で動く：S の実効 endTime が 605 秒になっても採用済み一片は残り、Q の群は動いた錨 605 秒に合流したまま started", () => {
     // 釜 1 でアドホック麺茹で（600 秒・10 秒遅れて開始）。Boil_Sync が S と U を 605 秒へ揃える（S は +5 秒）。
     const shifted = step(accepted.state, startAdhoc("u", 1, 600, at(10)));
     expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 605]);
-    // 採用済み一片は状態に残るが（受領以外の遷移は触らない）、確定計画の合成は keepsAnchor（合流分 600 秒 < 錨 605 秒）
-    // で捨て、尾部を自前解で引き直す——空いている釜 0 に p#0 が 605 秒へ合流し、残りは 905 秒の batch になる。
+    // Q の serveAt 600 秒は錨 605 秒から h_i（30 秒）の内側——合流分は錨に一致していなくてよい（判断 18）ので、
+    // 採用済み一片は keepsAnchor を守って残り、推奨は serveAt をそのままに錨だけを 605 秒へ更新して運ぶ。
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
     expect(planOf(shifted.snapshot)).toEqual([
-      ["p#0", ["0"], 305],
-      ["p#1", ["0"], 605],
-      ["q#0", ["1", "5"], 605],
+      ["q#0", ["0", "1"], 300, 605],
+      ["p#0", ["0"], 600, null],
+      ["p#1", ["1"], 600, null],
     ]);
+    // client は serveAt（600 秒）と anchor（605 秒）の等号を見ない——anchor が未来なら started（AC 1.7）。
     expect(groupsAt(shifted.snapshot, at(10))).toEqual([
-      { tableId: "t-a", serveAt: 605, items: ["p#0"], started: true },
-      { tableId: "t-a", serveAt: 905, items: ["p#1", "q#0"], started: false },
+      { anchor: 605, items: ["q#0"], started: true },
+      { anchor: null, items: ["p#0", "p#1"], started: false },
     ]);
-    expect(visibleAt(shifted.snapshot, at(10))).toEqual([
-      ["t-a", 605],
-      ["t-a", 905],
-    ]);
+    expect(visibleAt(shifted.snapshot, at(10))).toEqual([["q#0"], ["p#0", "p#1"]]);
   });
 
-  it("錨が前へ動く：S の実効 endTime が 570 秒になり一片が届かなくなると、その一片は残り、群は started でない（正当な後続の batch）", () => {
+  it("錨が前へ h_i の内側で動く：S の実効 endTime が 570 秒になっても一片は届き、Q の群は錨 570 秒に合流したまま started", () => {
     // 290 秒に釜 1 でアドホック麺茹で（280 秒）。Boil_Sync が S と U を 570 秒へ揃える（S は −30 秒）。
-    // 採用済み一片の Q（startAt 300 秒）はまだ過ぎておらず、290 秒から 300 秒茹でては 570 秒に届かない
-    // ——押し出しではないので keepsAnchor は守られ、一片はそのまま確定計画に残る。
+    // Q の serveAt 600 秒は錨 570 秒からちょうど h_i（30 秒）——窓の縁で合流のまま残る。
     const shifted = step(accepted.state, startAdhoc("u", 1, 280, at(290)));
     expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 570]);
+    expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
     expect(planOf(shifted.snapshot)).toEqual([
-      ["q#0", ["0", "1"], 300],
-      ["p#0", ["0"], 600],
-      ["p#1", ["1"], 600],
+      ["q#0", ["0", "1"], 300, 570],
+      ["p#0", ["0"], 600, null],
+      ["p#1", ["1"], 600, null],
     ]);
-    // Q の群の serveAt 600 秒は S の実効 endTime 570 秒に一致せず、started でない。表示は開始済みを要求しない
-    // ——先頭の群として見えるが、後続の P は解禁されない。
     expect(groupsAt(shifted.snapshot, at(290))).toEqual([
-      { tableId: "t-a", serveAt: 600, items: ["q#0"], started: false },
-      { tableId: "t-a", serveAt: 900, items: ["p#0", "p#1"], started: false },
+      { anchor: 570, items: ["q#0"], started: true },
+      { anchor: null, items: ["p#0", "p#1"], started: false },
     ]);
-    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["t-a", 600]]);
+    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["q#0"], ["p#0", "p#1"]]);
     // Q の Prep_Lead は来ている（290 ≥ 240）が、指す釜 1 をアドホック麺茹でが占めたので提案は出ない（AC 2.7）。
+    expect(suggestionsAt(shifted.snapshot, at(290))).toEqual([]);
+  });
+
+  it("錨が前へ h_i の外まで動く：S の実効 endTime が 547 秒になり一片が届かなくなると、その一片は残るが合流ではなく（anchor null）、群は started でない（正当な後続の batch）", () => {
+    // 290 秒に釜 1 でアドホック麺茹で（240 秒）。Boil_Sync が S と U を 547 秒へ揃える（S は −53 秒）。
+    // Q の serveAt 600 秒は錨 547 秒から 53 秒——h_i（30 秒）の外で、もう合流ではない。採用済み一片の Q（startAt
+    // 300 秒）はまだ過ぎておらず、押し出しでもない（間に合う釜が 2 つ空いていない）ので一片はそのまま残る。
+    const shifted = step(accepted.state, startAdhoc("u", 1, 240, at(290)));
+    expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 547]);
+    expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
+    expect(planOf(shifted.snapshot)).toEqual([
+      ["q#0", ["0", "1"], 300, null],
+      ["p#0", ["0"], 600, null],
+      ["p#1", ["1"], 600, null],
+    ]);
+    // 合流していない群は started でない。表示は開始済みを要求しない——先頭の群として見えるが、後続の P は解禁されない。
+    expect(groupsAt(shifted.snapshot, at(290))).toEqual([
+      { anchor: null, items: ["q#0"], started: false },
+      { anchor: null, items: ["p#0", "p#1"], started: false },
+    ]);
+    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["q#0"]]);
     expect(suggestionsAt(shifted.snapshot, at(290))).toEqual([]);
   });
 });

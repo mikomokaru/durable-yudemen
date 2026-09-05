@@ -65,7 +65,7 @@ export function committedSchedule(
   // 卓の成員表も同じ走行中から引く（「その釜がいつ空くか」と「その卓がいつ上がるか」の二つの表）。
   const initial = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
   const members = tableMembers(running);
-  const { prefix, release } = livePrefix(accepted, targets, now, initial, members, presets);
+  const { prefix, release } = livePrefix(accepted, targets, now, initial, members, presets, params);
 
   // 尾部の対象は「接頭辞が使わなかった計画対象」。全 Pending_Order から除くのではない——それでは
   // 65 件目以降が繰り上がって計画に現れ、計画対象を 64 件に限る AC 11.2 が破れる。
@@ -96,6 +96,7 @@ function livePrefix(
   initial: SlotRelease,
   members: TableMembers,
   presets: readonly NoodlePreset[],
+  params: ScheduleParams,
 ): { readonly prefix: readonly AcceptedSlice[]; readonly release: SlotRelease } {
   const prefix: AcceptedSlice[] = [];
   let release = initial;
@@ -103,8 +104,7 @@ function livePrefix(
     if (isStale(slice, targets) || hasLapsedStart(slice, now)) break;
     const siblings = members.get(slice.tableKey);
     if (siblings !== undefined) {
-      const anchor = Math.max(...siblings) as EpochMillis;
-      if (!keepsAnchor(slice.placements, release, anchor, targets, presets)) break;
+      if (!keepsAnchor(slice.placements, release, siblings, targets, presets, params)) break;
     }
     prefix.push(slice);
     release = advanceRelease(release, slice.placements);

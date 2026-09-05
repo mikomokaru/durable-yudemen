@@ -223,7 +223,6 @@ const genTimerFact: fc.Arbitrary<TimerFact> = fc.record({
   firmness: fc.constantFrom(...FIRMNESS_POOL),
   startTime: fc.integer({ min: -5_000, max: 5_000 }),
   endTime: fc.integer({ min: -5_000, max: 5_000 }),
-  orderItem: fc.constant(null),
 });
 
 const genSlot: fc.Arbitrary<number> = fc.integer({ min: 0, max: 20 });

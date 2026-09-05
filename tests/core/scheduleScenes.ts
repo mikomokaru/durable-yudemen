@@ -21,7 +21,12 @@ import {
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
 import { tableMembers } from "../../src/engine/project";
-import { ARMS_MAX, ARMS_MIN } from "../../src/domain/store";
+import {
+  ARMS_MAX,
+  ARMS_MIN,
+  TOLERANCE_RATIO_MAX,
+  TOLERANCE_RATIO_MIN,
+} from "../../src/domain/store";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
@@ -112,6 +117,7 @@ export function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     tableSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     affinityWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     arms: fc.integer({ min: ARMS_MIN, max: ARMS_MAX }),
+    toleranceRatio: fc.integer({ min: TOLERANCE_RATIO_MIN, max: TOLERANCE_RATIO_MAX }),
     orderSyncToleranceSeconds: fc.integer({
       min: SYNC_TOLERANCE_SECONDS_MIN,
       max: SYNC_TOLERANCE_SECONDS_MAX,

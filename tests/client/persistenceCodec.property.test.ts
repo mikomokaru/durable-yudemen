@@ -97,31 +97,4 @@ describe("client/persistence serializeView / parsePersistedView — offline-degr
     expect(sawEmptyView).toBe(true);
     expect(sawTransientDifference).toBe(true);
   });
-
-  // Feature: lift-group-display, Property: 旧ブロブの優雅な移行（orderItem の欠如 / 不正は null に畳む）。
-  // 旧 client が書いた timers に orderItem キーは無い。ワイヤ復号（domain/wire.ts）が不正を Decode_Failure に
-  // するのと違い、永続は startTime / firmness と同じ規律で既定へ畳み、ブロブ全体を EMPTY_VIEW に落とさない
-  // ——一要素の不備で瞬断中の秒読みを殺さないため（persistence.ts 冒頭の目的）。
-  it("orderItem を欠く・壊れた旧ブロブは、その Timer だけ null に畳んで残りを保つ", () => {
-    let sawTimers = false;
-    fc.assert(
-      fc.property(genClientView, (view) => {
-        const blob: unknown = JSON.parse(serializeView(view));
-        const record = blob as { timers: readonly Record<string, unknown>[] };
-        const stripped = record.timers.map(({ orderItem: _dropped, ...rest }) => rest);
-        const broken = record.timers.map((timer) => ({
-          ...timer,
-          orderItem: { externalOrderId: "", itemIndex: -1 },
-        }));
-        for (const timers of [stripped, broken]) {
-          const restored = parsePersistedView(JSON.stringify({ ...record, timers }));
-          expect(restored.timers).toEqual(view.timers.map((t) => ({ ...t, orderItem: null })));
-          expect(restored.offset).toBe(view.offset);
-        }
-        if (view.timers.length > 0) sawTimers = true;
-      }),
-      { numRuns: NUM_RUNS },
-    );
-    expect(sawTimers).toBe(true);
-  });
 });

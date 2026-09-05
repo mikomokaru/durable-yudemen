@@ -219,7 +219,7 @@ describe("client/generators 生成器土台のスモーク", () => {
 });
 
 describe("client/generators 群を作る場面（lift-group-display）のスモーク", () => {
-  it("genLiftScene は複数品の群・started の群・started でない同卓の群・卓なしの群を踏む", () => {
+  it("genLiftScene は複数品の群・started の群・started でない群に続く群・錨が過去の群・合流していない群を踏む", () => {
     const scenes = fc.sample(genLiftScene, 300).map(({ view, corrected }) => ({
       view,
       corrected,
@@ -227,18 +227,13 @@ describe("client/generators 群を作る場面（lift-group-display）のスモ�
     }));
     expect(scenes.some((s) => s.groups.some((g) => g.items.length >= 2))).toBe(true);
     expect(scenes.some((s) => s.groups.some((g) => g.started))).toBe(true);
-    // 同じ卓の走行中が在るのに started でない群（endTime の不一致・boiled）。
+    // 合流していない群（anchor null）と、合流したが錨が過去（anchor ≤ corrected・boiled）で started でない群。
+    expect(scenes.some((s) => s.groups.some((g) => g.anchor === null))).toBe(true);
     expect(
       scenes.some((s) =>
-        s.groups.some(
-          (g) =>
-            !g.started &&
-            g.tableId !== null &&
-            s.view.timers.some((t) => t.orderItem?.tableId === g.tableId),
-        ),
+        s.groups.some((g) => g.anchor !== null && g.anchor <= s.corrected && !g.started),
       ),
     ).toBe(true);
-    expect(scenes.some((s) => s.groups.some((g) => g.tableId === null))).toBe(true);
     // 先頭の群より後ろに、started でない群を挟んで隠れる群（群の境界・Requirement 6.5 の主語）。
     // 「started でない群が在り、かつその後ろに群が続く」——findIndex の −1（全群 started）は主語を欠くので数えない。
     expect(
@@ -249,11 +244,14 @@ describe("client/generators 群を作る場面（lift-group-display）のスモ�
     ).toBe(true);
   });
 
-  it("genLiftScene の仲間は match / mismatch / stray / foreign と boiled を踏み、群に入らない推奨も混ざる", () => {
+  it("genLiftScene の仲間は錨に一致 / 不一致と boiled を踏み、群に入らない推奨も混ざる", () => {
     const scenes = fc.sample(genLiftScene, 300);
     const timers = scenes.flatMap((s) => s.view.timers.map((t) => ({ t, s })));
-    expect(timers.some(({ t }) => t.orderItem === null)).toBe(true);
-    expect(timers.some(({ t }) => t.orderItem !== null && t.orderItem.tableId !== null)).toBe(true);
+    const anchorsOf = (view: ClientView): ReadonlySet<number> =>
+      new Set(view.recommendations.flatMap((r) => (r.anchor === null ? [] : [r.anchor])));
+    // 錨の Timer（endTime が推奨の anchor に一致）と、どの錨にも一致しない Timer の双方。
+    expect(timers.some(({ t, s }) => anchorsOf(s.view).has(t.endTime))).toBe(true);
+    expect(timers.some(({ t, s }) => !anchorsOf(s.view).has(t.endTime))).toBe(true);
     // boiled（endTime ≤ corrected）と走行中（endTime > corrected）の双方。
     expect(timers.some(({ t, s }) => t.endTime <= s.corrected)).toBe(true);
     expect(timers.some(({ t, s }) => t.endTime > s.corrected)).toBe(true);

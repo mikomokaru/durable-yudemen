@@ -23,6 +23,7 @@ import { tableMembers, type TableMembers } from "./project";
 import {
   advanceRelease,
   initialRelease,
+  boilMillisOf,
   isStale,
   keepsAnchor,
   occupiesSlotSpan,
@@ -136,9 +137,8 @@ function prune(
     // (a)(b)。述語は schedule.ts の isStale ただ一つ。
     if (isStale(slice, targets)) break;
     // (c) と (e)。進めた解放表が返れば feasible。走行中の錨は卓の成員表から引く（無ければ null）。
-    const siblings = members.get(slice.tableKey);
-    const anchor = siblings === undefined ? null : (Math.max(...siblings) as EpochMillis);
-    const advanced = feasibleRelease(slice.placements, release, targets, presets, anchor);
+    const siblings = members.get(slice.tableKey) ?? null;
+    const advanced = feasibleRelease(slice.placements, release, targets, presets, siblings, params);
     if (advanced === null) break;
     // (d)。**同値は棄却する**（無駄な Persist / Broadcast を生まないため・AC 6.2(d)）。
     // 対応する一片が現行 Committed_Plan に無いときも棄却する——比べる基準が無い一片は「真に良い」と
@@ -191,10 +191,12 @@ function feasibleRelease(
   release: SlotRelease,
   targets: readonly PendingOrder[],
   presets: readonly NoodlePreset[],
-  anchor: EpochMillis | null,
+  siblings: readonly EpochMillis[] | null,
+  params: ScheduleParams,
 ): SlotRelease | null {
   // (e)。一片を置く前の表で判定する（合流分だけを進めた表は述語の内側で作る）。合成（commit.ts）と同じ述語。
-  if (anchor !== null && !keepsAnchor(placements, release, anchor, targets, presets)) return null;
+  if (siblings !== null && !keepsAnchor(placements, release, siblings, targets, presets, params))
+    return null;
   // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
   const ordered = [...placements].sort(
     (placement, other) =>
@@ -218,16 +220,4 @@ function feasibleRelease(
     free = advanceRelease(free, [placement]);
   }
   return free;
-}
-
-/**
- * 品目の茹で時間（ミリ秒）。麺種がプリセットに無ければ null。
- *
- * 茹で時間は PendingOrder が持たない導出値ゆえ（noodleType × firmness）、判定の直前に引く。品目の同定
- * （schedule.ts の refersTo）は呼び出し側が一度だけ行い、茹で時間と slotSpan の両方をその品目から読む。
- */
-function boilMillisOf(order: PendingOrder, presets: readonly NoodlePreset[]): number | null {
-  const preset = presets.find((candidate) => candidate.noodleType === order.noodleType);
-  if (preset === undefined) return null;
-  return preset.boilSeconds[order.firmness] * 1000;
 }

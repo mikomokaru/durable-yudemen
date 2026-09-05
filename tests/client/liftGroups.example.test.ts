@@ -4,7 +4,9 @@
 //
 // 性質テストは「全域でこうなる」を言うが、線がどこに引かれているかは言わない。ここは線そのものを名指しで
 // 固定する——レビューの再現（茹で 510 / 360 / 330 秒の同卓 3 品）で先頭だけが押せること、連鎖が「1 本目が
-// 始まった」で解禁されること、茹で上がりの転移で後続が隠れること、釜の組が距離と index で断たれること。
+// 始まった」（`anchor` が未来）で解禁されること、錨の茹で上がりの転移で後続が隠れること、釜の組が距離と index で
+// 断たれること。群の所属（`group`）と錨（`anchor`）は engine が推奨に載せる値で、ここではそれを手書きする
+// （判断 20）。client は卓も serveAt も Timer も群の判定に読まない。
 
 import { describe, expect, it } from "vitest";
 import { EMPTY_VIEW, type ClientTimer, type ClientView } from "../../src/client/connection";
@@ -45,12 +47,15 @@ function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): 
   };
 }
 
+/** 推奨。群の所属 `group` と錨 `anchor` は engine が付ける値（anchor の既定は null＝合流していない）。 */
 function recommendation(
   externalOrderId: string,
   slotIds: readonly string[],
   startAt: number,
+  group: string,
+  anchor: number | null = null,
 ): CookRecommendation {
-  return { externalOrderId, itemIndex: 0, slotIds: nonEmpty(slotIds), startAt };
+  return { externalOrderId, itemIndex: 0, slotIds: nonEmpty(slotIds), startAt, group, anchor };
 }
 
 function timer(overrides: Partial<ClientTimer> & { id: string; endTime: number }): ClientTimer {
@@ -59,7 +64,6 @@ function timer(overrides: Partial<ClientTimer> & { id: string; endTime: number }
     noodleType: "Long",
     firmness: "normal",
     startTime: overrides.endTime - 510 * SECOND,
-    orderItem: { externalOrderId: "started", itemIndex: 0, tableId: "t-1" },
     origin: "server",
     ...overrides,
   };
@@ -77,16 +81,16 @@ function view(overrides: Partial<ClientView>): ClientView {
   };
 }
 
-/** 同卓 3 品（開始予定 0 / 150 / 180 秒・serveAt は 510 秒で揃う）。 */
+/** 同卓 3 品（開始予定 0 / 150 / 180 秒・serveAt は 510 秒で揃う）。engine は 3 品を一つの群 g1 に置く。 */
 const THREE = [
   order({ externalOrderId: "long", noodleType: "Long" }),
   order({ externalOrderId: "mid", noodleType: "Mid" }),
   order({ externalOrderId: "short", noodleType: "Short" }),
 ];
 const THREE_PLAN = [
-  recommendation("long", ["0"], T0),
-  recommendation("mid", ["1"], T0 + 150 * SECOND),
-  recommendation("short", ["2"], T0 + 180 * SECOND),
+  recommendation("long", ["0"], T0, "g1"),
+  recommendation("mid", ["1"], T0 + 150 * SECOND, "g1"),
+  recommendation("short", ["2"], T0 + 180 * SECOND, "g1"),
 ];
 
 function suggestionsAt(current: ClientView, corrected: number) {
@@ -96,14 +100,20 @@ function suggestionsAt(current: ClientView, corrected: number) {
 describe("Feature: lift-group-display — 同卓 3 品で押せるのは先頭だけ（判断 17・レビューの再現）", () => {
   const current = view({ pendingOrders: THREE, recommendations: THREE_PLAN });
 
-  it("3 品は一つの群（serveAt 510 秒）に束なり、先頭は 510 秒の品目だけ", () => {
+  it("3 品は一つの群 g1（serveAt は 510 秒で揃う）に束なり、先頭は 510 秒の品目だけ", () => {
     const groups = liftGroups(current, T0);
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.serveAt).toBe(T0 + 510 * SECOND);
+    expect(groups[0]).toMatchObject({ group: "g1", anchor: null, started: false });
     expect(groups[0]!.items.map((item) => item.order.externalOrderId)).toEqual([
       "long",
       "mid",
       "short",
+    ]);
+    // serveAt は表示用の再計算（startAt + 茹で秒・AC 1.1）。群の鍵ではないが、計画が揃えた値がここで読める。
+    expect(groups[0]!.items.map((item) => item.suggestion.serveAt)).toEqual([
+      T0 + 510 * SECOND,
+      T0 + 510 * SECOND,
+      T0 + 510 * SECOND,
     ]);
     expect(headOf(groups[0]!).map((item) => item.order.externalOrderId)).toEqual(["long"]);
   });
@@ -135,10 +145,10 @@ describe("Feature: lift-group-display — 同卓 3 品で押せるのは先頭�
   });
 });
 
-describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」で解禁される（判断 16・19）", () => {
+describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」で解禁される（判断 16・19・20）", () => {
   /** 別卓の群 G2（開始予定 200 秒・Prep_Lead は 140 秒）。 */
   const other = order({ externalOrderId: "other", tableId: "t-2", noodleType: "Mid" });
-  const otherPlan = recommendation("other", ["3"], T0 + 200 * SECOND);
+  const otherPlan = recommendation("other", ["3"], T0 + 200 * SECOND, "g2");
 
   it("先頭の群が started でない間、後の群は Prep_Lead が来ても出ない", () => {
     const current = view({
@@ -146,25 +156,31 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
       recommendations: [...THREE_PLAN, otherPlan],
     });
     const groups = liftGroups(current, T0 + 180 * SECOND);
-    expect(groups.map((group) => group.tableId)).toEqual(["t-1", "t-2"]);
-    expect(visibleGroups(groups).map((group) => group.tableId)).toEqual(["t-1"]);
+    expect(groups.map((group) => group.group)).toEqual(["g1", "g2"]);
+    expect(visibleGroups(groups).map((group) => group.group)).toEqual(["g1"]);
     expect(suggestionsAt(current, T0 + 180 * SECOND).has(3)).toBe(false);
   });
 
-  it("1 本目を始める（同卓・endTime = serveAt の走行中）と群は started になり、次の先頭が濃くなり、後の群も出る", () => {
-    // long を釜 0 で始めた snapshot：推奨から消え、残り 2 品の serveAt は走行中の endTime に一致する。
+  it("1 本目を始める（残りが走行中の錨 510 秒に合流した snapshot）と群は started になり、次の先頭が濃くなり、後の群も出る", () => {
+    // long を釜 0 で始めた snapshot：推奨から消え、残り 2 品は錨（走行中の実効 endTime 510 秒）に合流して届く。
     // G2（t-2・serveAt 560 秒）にはもう 1 品 extra（Short・開始予定 230 秒）が在り、その推奨は走行中の釜 0 を指す。
+    const anchor = T0 + 510 * SECOND;
     const extra = order({ externalOrderId: "extra", tableId: "t-2", noodleType: "Short" });
-    const extraPlan = recommendation("extra", ["0"], T0 + 230 * SECOND);
+    const extraPlan = recommendation("extra", ["0"], T0 + 230 * SECOND, "g2");
     const current = view({
       pendingOrders: [THREE[1]!, THREE[2]!, other, extra],
-      recommendations: [THREE_PLAN[1]!, THREE_PLAN[2]!, otherPlan, extraPlan],
-      timers: [timer({ id: "long", endTime: T0 + 510 * SECOND })],
+      recommendations: [
+        recommendation("mid", ["1"], T0 + 150 * SECOND, "g1", anchor),
+        recommendation("short", ["2"], T0 + 180 * SECOND, "g1", anchor),
+        otherPlan,
+        extraPlan,
+      ],
+      timers: [timer({ id: "long", endTime: anchor })],
     });
     const groups = liftGroups(current, T0 + 180 * SECOND);
-    expect(groups[0]).toMatchObject({ tableId: "t-1", started: true });
+    expect(groups[0]).toMatchObject({ group: "g1", anchor, started: true });
     expect(headOf(groups[0]!).map((item) => item.order.externalOrderId)).toEqual(["mid"]);
-    expect(visibleGroups(groups).map((group) => group.tableId)).toEqual(["t-1", "t-2"]);
+    expect(visibleGroups(groups).map((group) => group.group)).toEqual(["g1", "g2"]);
     // extra は表示できる群 G2 の品目である（釜 0 に出ないのが「群に無い」ことの帰結でないと言うため）。
     expect(groups[1]!.items.map((item) => item.order.externalOrderId)).toEqual(["other", "extra"]);
     const bySlot = suggestionsAt(current, T0 + 180 * SECOND);
@@ -177,19 +193,20 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
   });
 
   it("同じ釜に 2 件以上の提案が並ぶとき、配列は startAt 昇順である（AC 2.11・受信順に依らない）", () => {
-    // G1（t-1・started）の残り 2 品が釜 1 を指す（rest1 は 240 秒・rest2 は 270 秒で serveAt 600 秒に揃う）。
+    // G1（started・錨 600 秒）の残り 2 品が釜 1 を指す（rest1 は 240 秒・rest2 は 270 秒で serveAt 600 秒に揃う）。
     // 別卓の G2（g2・開始予定 300 秒）も釜 1 を指す。推奨は startAt の降順で受信させ、並びが導出の側で決まることを見る。
+    const anchor = T0 + 600 * SECOND;
     const rest1 = order({ externalOrderId: "rest1", noodleType: "Mid" });
     const rest2 = order({ externalOrderId: "rest2", noodleType: "Short" });
     const g2 = order({ externalOrderId: "g2", tableId: "t-2", noodleType: "Short" });
     const current = view({
       pendingOrders: [g2, rest2, rest1],
       recommendations: [
-        recommendation("g2", ["1"], T0 + 300 * SECOND),
-        recommendation("rest2", ["1"], T0 + 270 * SECOND),
-        recommendation("rest1", ["1"], T0 + 240 * SECOND),
+        recommendation("g2", ["1"], T0 + 300 * SECOND, "g2"),
+        recommendation("rest2", ["1"], T0 + 270 * SECOND, "g1", anchor),
+        recommendation("rest1", ["1"], T0 + 240 * SECOND, "g1", anchor),
       ],
-      timers: [timer({ id: "mate", endTime: T0 + 600 * SECOND })],
+      timers: [timer({ id: "mate", endTime: anchor })],
     });
     const onSlot1 = suggestionsAt(current, T0 + 300 * SECOND).get(1) ?? [];
     expect(onSlot1.map((suggestion) => suggestion.item.order.externalOrderId)).toEqual([
@@ -206,39 +223,43 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
     expect(onSlot1.map((suggestion) => suggestion.role)).toEqual(["head", "member", "head"]);
   });
 
-  it("卓の一致だけ（endTime 不一致）・endTime の一致だけ（卓なし・別卓）では started にならない", () => {
+  it("started は anchor と Corrected_Now だけで決まる——anchor null・anchor が過去・anchor ちょうどは偽で、Timer の一致は読まない", () => {
     const serveAt = T0 + 510 * SECOND;
-    const remaining = view({
-      pendingOrders: [THREE[1]!, THREE[2]!],
-      recommendations: [THREE_PLAN[1]!, THREE_PLAN[2]!],
-    });
-    const startedWith = (running: ClientTimer) =>
-      liftGroups({ ...remaining, timers: [running] }, T0)[0]!.started;
-    expect(startedWith(timer({ id: "same-table-off", endTime: serveAt + 1 }))).toBe(false);
-    expect(startedWith(timer({ id: "adhoc", endTime: serveAt, orderItem: null }))).toBe(false);
-    expect(
-      startedWith(
-        timer({
-          id: "foreign",
-          endTime: serveAt,
-          orderItem: { externalOrderId: "x", itemIndex: 0, tableId: "t-9" },
+    const startedWith = (anchor: number | null, timers: readonly ClientTimer[]) =>
+      liftGroups(
+        view({
+          pendingOrders: [THREE[1]!, THREE[2]!],
+          recommendations: [
+            recommendation("mid", ["1"], T0 + 150 * SECOND, "g1", anchor),
+            recommendation("short", ["2"], T0 + 180 * SECOND, "g1", anchor),
+          ],
+          timers,
         }),
-      ),
-    ).toBe(false);
-    expect(startedWith(timer({ id: "mate", endTime: serveAt }))).toBe(true);
+        T0,
+      )[0]!.started;
+    // 合流していない（anchor null）群は、serveAt に一致する走行中 Timer が在っても started でない（AC 1.7）。
+    expect(startedWith(null, [timer({ id: "coincidence", endTime: serveAt })])).toBe(false);
+    // 錨が過去（茹で上がり）・ちょうど今は started でない。錨が未来なら、Timer が一つも無くても started である
+    // ——途中接続した端末が Timer を持たなくても同じ結論に達する（判断 20）。
+    expect(startedWith(T0 - SECOND, [])).toBe(false);
+    expect(startedWith(T0, [])).toBe(false);
+    expect(startedWith(T0 + SECOND, [])).toBe(true);
+    // 錨は serveAt に一致しなくてよい（合流した品目の serveAt は錨と h_i 以内でずれる・lift-group-planning 判断 18）。
+    expect(startedWith(serveAt - 5 * SECOND, [timer({ id: "mate", endTime: serveAt })])).toBe(true);
   });
 
-  it("茹で上がりの転移：599 秒では G2 が見え、600 秒で G1 が started でなくなり G2 は隠れ、G1 の残りが先頭として濃く残る", () => {
-    // 仲間の endTime は 600 秒。G1 の残り 1 品（開始予定 240 秒・茹で 360 秒）と、別卓の G2（開始予定 300 秒）。
+  it("茹で上がりの転移：599 秒では G2 が見え、600 秒（錨）で G1 が started でなくなり G2 は隠れ、G1 の残りが先頭として濃く残る", () => {
+    // 錨は 600 秒。G1 の残り 1 品（開始予定 240 秒・茹で 360 秒）と、別卓の G2（開始予定 300 秒）。
+    const anchor = T0 + 600 * SECOND;
     const rest = order({ externalOrderId: "rest", noodleType: "Mid" });
     const g2 = order({ externalOrderId: "g2", tableId: "t-2", noodleType: "Short" });
     const current = view({
       pendingOrders: [rest, g2],
       recommendations: [
-        recommendation("rest", ["1"], T0 + 240 * SECOND),
-        recommendation("g2", ["2"], T0 + 300 * SECOND),
+        recommendation("rest", ["1"], T0 + 240 * SECOND, "g1", anchor),
+        recommendation("g2", ["2"], T0 + 300 * SECOND, "g2"),
       ],
-      timers: [timer({ id: "mate", endTime: T0 + 600 * SECOND })],
+      timers: [timer({ id: "mate", endTime: anchor })],
     });
     const at599 = suggestionsAt(current, T0 + 599 * SECOND);
     expect(at599.get(1)?.[0]).toMatchObject({ role: "head", phase: "solid" });
@@ -250,15 +271,15 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
   });
 });
 
-describe("Feature: lift-group-display — 群に入らない推奨と全釜 idle（AC 1.3・2.7）", () => {
+describe("Feature: lift-group-display — 群に入らない推奨・group だけが鍵・全釜 idle（AC 1.2・1.3・2.7）", () => {
   it("品目が待ち行列に無い・麺種がプリセットに無い推奨は群に入らない", () => {
     const retired = order({ externalOrderId: "retired", noodleType: "Retired" });
     const current = view({
       pendingOrders: [THREE[0]!, retired],
       recommendations: [
         THREE_PLAN[0]!,
-        recommendation("retired", ["1"], T0),
-        recommendation("absent", ["2"], T0),
+        recommendation("retired", ["1"], T0, "g1"),
+        recommendation("absent", ["2"], T0, "g1"),
       ],
     });
     const groups = liftGroups(current, T0);
@@ -267,30 +288,56 @@ describe("Feature: lift-group-display — 群に入らない推奨と全釜 idle
     ).toEqual(["long"]);
   });
 
-  it("卓なしの品目は 1 品 1 群で、同じ serveAt でも束ならない", () => {
+  it("卓なしの品目は engine が 1 品 1 群に置く——同じ serveAt でも group が違えば束ならず、錨が無いので 1 本ずつ現れる", () => {
     const a = order({ externalOrderId: "a", tableId: null });
     const b = order({ externalOrderId: "b", tableId: null });
     const current = view({
       pendingOrders: [a, b],
-      recommendations: [recommendation("a", ["0"], T0), recommendation("b", ["1"], T0)],
+      recommendations: [recommendation("a", ["0"], T0, "ga"), recommendation("b", ["1"], T0, "gb")],
     });
     const groups = liftGroups(current, T0);
     expect(groups).toHaveLength(2);
-    expect(groups.every((group) => group.tableId === null && !group.started)).toBe(true);
-    // 先頭の群だけが見える（卓なしは started を持たないので 1 本ずつ現れる）。
+    expect(groups.every((group) => group.anchor === null && !group.started)).toBe(true);
+    // 先頭の群だけが見える（合流していない群は started を持たないので 1 本ずつ現れる）。
     expect(visibleGroups(groups)).toHaveLength(1);
+  });
+
+  it("群の鍵は group だけ——同じ卓・同じ serveAt でも group が違えば別の群、serveAt が違っても group が同じなら一つの群", () => {
+    // 同じ卓 t-1・同じ serveAt 510 秒の 2 品を、engine が別の群に置いた snapshot。
+    const split = view({
+      pendingOrders: [THREE[0]!, THREE[1]!],
+      recommendations: [
+        recommendation("long", ["0"], T0, "g1"),
+        recommendation("mid", ["1"], T0 + 150 * SECOND, "g2"),
+      ],
+    });
+    expect(liftGroups(split, T0).map((group) => group.group)).toEqual(["g1", "g2"]);
+    // serveAt が 510 秒と 540 秒でずれていても、同じ group なら一つの群（client は serveAt の等号を見ない）。
+    const skewed = view({
+      pendingOrders: [THREE[0]!, THREE[1]!],
+      recommendations: [
+        recommendation("long", ["0"], T0, "g1"),
+        recommendation("mid", ["1"], T0 + 180 * SECOND, "g1"),
+      ],
+    });
+    const groups = liftGroups(skewed, T0);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.items.map((item) => item.suggestion.serveAt)).toEqual([
+      T0 + 510 * SECOND,
+      T0 + 540 * SECOND,
+    ]);
   });
 
   it("複数釜の推奨は一部の釜が埋まっていればどの釜にも出ず、boiled の釜も埋まっている", () => {
     const wide = order({ externalOrderId: "wide", slotSpan: 2 });
-    const plan = recommendation("wide", ["0", "1"], T0);
+    const plan = recommendation("wide", ["0", "1"], T0, "g1");
     const idle = view({ pendingOrders: [wide], recommendations: [plan] });
     expect([...suggestionsAt(idle, T0).keys()].sort()).toEqual([0, 1]);
-    // 釜 1 が茹で上がり（endTime ≤ corrected）でも Complete までは埋まっている。担当外の卓なし Timer でも同じ。
+    // 釜 1 が茹で上がり（endTime ≤ corrected）でも Complete までは埋まっている。担当外のアドホック Timer でも同じ。
     const boiled = view({
       pendingOrders: [wide],
       recommendations: [plan],
-      timers: [timer({ id: "b", slotIds: nonEmpty(["1"]), endTime: T0 - SECOND, orderItem: null })],
+      timers: [timer({ id: "b", slotIds: nonEmpty(["1"]), endTime: T0 - SECOND })],
     });
     expect(suggestionsAt(boiled, T0).size).toBe(0);
   });

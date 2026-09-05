@@ -295,3 +295,6 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
 - [x] 19. 採用済み一片を現在の実効錨で再検証する（判断 17・AC 4.8・`lift-group-display` design レビューからの差し戻し）
   - 実測・2026-09-05: `keepsAnchor`（合流分は錨に一致・押し出しなし）を schedule.ts に置き、`livePrefix` が一片ごとに解放表を進めながら読み、ゲートの (e) も `isPushedOut` から同じ述語へ替えた。合流する部分集合は強制しない。例示（`commit.example`）：錨不変で維持・+Δ で 630 秒へ揃え直し・−Δ で 570 秒へ揃え直し・錨が早まって届かない一片は後続の batch として維持・容量分割の一片は維持・外部解が別の合流集合（B）を選んだ一片は維持（自前解は A）。`plan.example` の逆向きの例は「旧錨の一片は合成が捨て、外部計画は同値として棄却、確定計画は既に新錨」に、`admit.example` の対照は「合流分は守り 3 品目だけ遅い」一片に改めた。
 
+- [x] 20. 実機の差し戻し——合流の窓を h_i に、群と Sync_Set を分け、群の所属と合流を engine がワイヤで運ぶ（判断 18・19・ADR-0008）
+  - 実測・2026-09-05: `ScheduleParams.toleranceRatio`（指紋に畳む・DO と test 既定に配線）、`joinWindowMillis` / `catchable` / `joinedServeAt` / `placeJoined`、`keepsAnchor` と `isPushedOut` を走行中の列（siblings）で判定する形へ、`joinedAnchor` を export、`recommend` が `group` / `anchor` を導く（`CookRecommendation` と wire 復号に追加）。実装中に 2 つ分かった——(1) 錨を最遅（max）に取ると arms のセット分割の後に新しい品目が最後のセットへ揃い、投入のたびに startAt が未来へずれる（3 本目で 6 秒）。(2) 窓の内側で走行中に揃えるために待つのも同じ帰結を生む。ゆえに「窓の内側なら earliest に置く・外なら後の最早の走行中に揃える」で確定した。`continuous-input.example`（12 場面）で固定。全体 227 ファイル 1417 件通過。
+

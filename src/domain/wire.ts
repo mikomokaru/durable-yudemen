@@ -19,7 +19,7 @@
 // 規律に反し、snapshot の全量性という権威表現の性質も濁る）。
 
 import type { ClientMessage, CookRecommendation, ServerMessage } from "./messages";
-import { isNonEmpty, type NonEmptyArray, type OrderItemOrigin, type TimerFact } from "./timer";
+import { isNonEmpty, type NonEmptyArray, type TimerFact } from "./timer";
 import { isFirmness } from "./firmness";
 import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";
 import type { PendingOrder } from "./order";
@@ -183,34 +183,7 @@ function toTimerFact(value: unknown): TimerFact | null {
   if (typeof noodleType !== "string") return null;
   if (!isFirmness(firmness)) return null;
   if (typeof startTime !== "number" || typeof endTime !== "number") return null;
-  const orderItem = toOrderItemOrigin(value.orderItem);
-  if (orderItem === undefined) return null;
-  return { id, slotIds, noodleType, firmness, startTime, endTime, orderItem };
-}
-
-/**
- * Timer の由来する注文品目（OrderItemOrigin）を確立する。欠如 / null は null、逸脱は undefined。
- *
- * 三値で返すのは、「無い」（アドホック麺茹で・正当な事実）と「読めない」（形の逸脱）が別の結果だからである。
- * null を「読めない」に兼ねさせれば、壊れた参照が黙ってアドホックに化け、群の開始の判定（lift-group-display
- * 判断 16）が卓を見失う。処置は呼び出し側の義務に従って分かれる——ワイヤ復号（toTimerFact）は undefined を
- * Decode_Failure として伝播させ、永続の復元（client/persistence.ts）は null に畳む。同じ関門を両方が使うために
- * export する（判定を二度書かない）。
- *
- * 要る形は externalOrderId 非空文字列・itemIndex 非負整数・tableId が null か非空文字列（要件 5.2）。
- * engine の reviveOrderItem と同じなのは欠如 / null を null に畳む扱いだけで、あちらは不正値を null へ救済する。
- * 欠如を null に畳むのは、キーを持たない旧ブロブ（永続）を読むためであり、ワイヤでは同じ Worker が client と
- * snapshot を配るので欠如は起きない。
- */
-export function toOrderItemOrigin(value: unknown): OrderItemOrigin | null | undefined {
-  if (value === undefined || value === null) return null;
-  if (!isRecord(value)) return undefined;
-  const { externalOrderId, itemIndex } = value;
-  if (!isNonEmptyString(externalOrderId)) return undefined;
-  if (!isNonNegativeInteger(itemIndex)) return undefined;
-  const tableId = toDeclaredName(value.tableId);
-  if (tableId === null) return undefined;
-  return { externalOrderId, itemIndex, tableId: tableId.name };
+  return { id, slotIds, noodleType, firmness, startTime, endTime };
 }
 
 /**
@@ -253,13 +226,15 @@ function toPendingOrderFromWire(value: unknown): PendingOrder | null {
 /** 開始推奨 1 件を確立する。slotIds の非空はここで型へ載せる（受け手の読み飛ばしを不要にする）。 */
 function toRecommendation(value: unknown): CookRecommendation | null {
   if (!isRecord(value)) return null;
-  const { externalOrderId, itemIndex, startAt } = value;
+  const { externalOrderId, itemIndex, startAt, group, anchor } = value;
   if (!isNonEmptyString(externalOrderId)) return null;
   if (!isNonNegativeInteger(itemIndex)) return null;
   const slotIds = toSlotIds(value.slotIds);
   if (slotIds === null) return null;
   if (typeof startAt !== "number") return null;
-  return { externalOrderId, itemIndex, slotIds, startAt };
+  if (!isNonEmptyString(group)) return null;
+  if (anchor !== null && typeof anchor !== "number") return null;
+  return { externalOrderId, itemIndex, slotIds, startAt, group, anchor };
 }
 
 /**

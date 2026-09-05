@@ -170,7 +170,6 @@ function genTimerFacts(
             firmness: firmnesses[i]!,
             startTime: endTime - 60_000,
             endTime,
-            orderItem: null,
           });
         }
         return facts;

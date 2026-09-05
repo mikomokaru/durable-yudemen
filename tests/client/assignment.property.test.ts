@@ -26,7 +26,6 @@ const genTimerSpec: fc.Arbitrary<Omit<TimerFact, "id">> = fc.record({
   firmness: fc.constantFrom("extraHard", "hard", "normal", "soft"),
   startTime: fc.integer({ min: 0, max: 2000 }),
   endTime: fc.integer({ min: 0, max: 2000 }),
-  orderItem: fc.constant(null),
 });
 
 // 0〜30 件の TimerFact 集合（空・単一・多数を境界として含む）。id は一意。

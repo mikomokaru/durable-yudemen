@@ -187,15 +187,20 @@ function expectedAlarm(state: TimerState): Effect {
 
 /** 当該状態から導出される推奨（確定計画 → 推奨の経路は settle が通すのと同一）。 */
 function recommendationsOf(state: TimerState, scene: AlarmScene) {
+  const committed = committedSchedule(
+    state.acceptedSlices,
+    state.pendingOrders,
+    state.timers,
+    scene.now,
+    DEFAULT_NOODLE_PRESETS,
+    scene.params,
+  );
   return recommend(
-    committedSchedule(
-      state.acceptedSlices,
-      state.pendingOrders,
-      state.timers,
-      scene.now,
-      DEFAULT_NOODLE_PRESETS,
-      scene.params,
-    ),
+    committed,
+    state.pendingOrders,
+    state.timers,
+    DEFAULT_NOODLE_PRESETS,
+    scene.params,
   );
 }
 

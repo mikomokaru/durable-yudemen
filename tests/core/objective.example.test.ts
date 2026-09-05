@@ -15,6 +15,7 @@ import type { EpochMillis, SlotId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
 import {
   DEFAULT_ARMS,
+  DEFAULT_TOLERANCE_RATIO,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_AFFINITY_WEIGHT,
   DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
@@ -55,6 +56,7 @@ const PARAMS: ScheduleParams = {
   tableSyncWeight: DEFAULT_TABLE_SYNC_WEIGHT,
   affinityWeight: DEFAULT_AFFINITY_WEIGHT,
   arms: DEFAULT_ARMS,
+  toleranceRatio: DEFAULT_TOLERANCE_RATIO,
   orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
   tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
   affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
