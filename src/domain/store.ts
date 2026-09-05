@@ -217,8 +217,9 @@ export function slotDistance(
 /**
  * position — slot 番号から合成座標を導く。
  *
- * 範囲外への防御を置かない。unitOrigins は toUnitOrigins が長さを unitCount へ揃えるため、slot 番号が
- * unitCount × SLOTS_PER_UNIT の内側にある限り原点は必ず在る。オフセットの index は i % SLOTS_PER_UNIT ゆえ
+ * 範囲外への防御を置かない。unitOrigins は toUnitOrigins（サーバ側）が長さを unitCount へ揃え、client 側は
+ * config の復号（wire.ts の toStoreConfig）が長さの一致を要るため、slot 番号が unitCount × SLOTS_PER_UNIT の
+ * 内側にある限り原点は必ず在る。オフセットの index は i % SLOTS_PER_UNIT ゆえ
  * 定義上 6 要素タプルの内側に収まる。起こり得ない状態に既定座標を用意すれば、不正な slot 番号が
  * 座標を持ててしまい（嘘をつく計画が作れる）、かつ本当の設定不整合が黙って埋もれる。
  *

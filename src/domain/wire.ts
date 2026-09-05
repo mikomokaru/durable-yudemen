@@ -306,6 +306,10 @@ function toStoreConfig(record: Record<string, unknown>): StoreConfig | null {
   if (presets === null || !isNonEmpty(presets)) return null;
   const unitOrigins = toArrayOf(record.unitOrigins, toGridPoint);
   if (unitOrigins === null) return null;
+  // 原点の数はユニット総数に等しいこと。client は釜の組（pairSlots）で slot 番号から原点を引く（domain の
+  // position は「toUnitOrigins が長さを揃える」前提で範囲外の防御を置かない）。サーバ側の toUnitOrigins は
+  // ワイヤを通らないので、client の前提を成り立たせる場所はこの復号である（lift-group-display・レビュー指摘）。
+  if (unitOrigins.length !== unitCount) return null;
   const slotOffsets = toSlotOffsetsFromWire(record.slotOffsets);
   if (slotOffsets === null) return null;
   const firmnessCodes = toArrayOf<FirmnessCode>(record.firmnessCodes, toFirmnessCode);

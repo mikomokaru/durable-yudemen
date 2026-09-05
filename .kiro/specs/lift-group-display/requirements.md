@@ -199,7 +199,7 @@ _出所: 判断 10・12・18, 観測事実 4・6・7・8_
 
 1. THE 変更 SHALL ワイヤ契約の変更を `TimerFact` への `orderItem: { externalOrderId: string; itemIndex: number; tableId: string | null } | null` の追加に限る。`CookRecommendation` / `ClientMessage` / `ServerMessage` の他の項目は変更しない
 2. THE ワイヤ復号（`domain/wire.ts` の `toTimerFact`） SHALL `orderItem` の欠如と null を null に畳み、非 null では `externalOrderId` 非空文字列・`itemIndex` 非負整数・`tableId` null または非空文字列を要し、逸脱を復号失敗とする（`verified-wire-contract` の規律。engine の `reviveOrderItem` と同じなのは欠如・null を null に畳む扱いだけで、あちらは不正値を null へ救済し、こちらは失敗にする）
-3. THE 変更 SHALL `src/engine` の変更を、`Ordered` を削除して `Timer` が `TimerFact.orderItem` を継承する型の合成と、`toWireTimer` が `orderItem` を写すことに限る。計画・採点・遷移・永続スキーマを変更しない
+3. THE 変更 SHALL `src/engine` の変更を、`Ordered` を削除して `Timer` が `TimerFact.orderItem` を継承する型の合成と、`toWireTimer` が `orderItem` を写すことに限る。計画・採点・遷移・永続スキーマを変更しない（注：本 spec の design レビューで見つかった計画側の差し戻し——採用済み一片の再検証 `keepsAnchor`——は `lift-group-planning` 判断 17・AC 4.8 のものとして同じブランチ（PR #28・cb956b4）に入っている。本 AC の対象ではない）
 4. THE 変更 SHALL `StoreConfig` を変更しない
 5. THE 変更 SHALL レールの並び（到着順）と内容を変更しない
 6. THE 変更 SHALL 提案の出現に Alarm・`setInterval`・時刻起動を用いず、既存の毎描画導出だけで行う

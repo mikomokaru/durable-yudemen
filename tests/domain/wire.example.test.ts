@@ -102,6 +102,49 @@ describe("Feature: slot-suggested-start — 品目を指す開始（startOrderIt
 });
 
 describe("Feature: verified-wire-contract — ServerMessage は正規化条件を含む（要件 2.4）", () => {
+  it("config の unitOrigins の数が unitCount と違えば Decode_Failure（client の position は範囲外の防御を持たない）", () => {
+    const config = {
+      type: "config",
+      serverTime: 1,
+      unitCount: 3,
+      arms: 2,
+      toleranceRatio: 10,
+      noodlePresets: [
+        { noodleType: "Thin", boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
+      ],
+      orderSyncWeight: 1,
+      tableSyncWeight: 1,
+      affinityWeight: 1,
+      orderSyncToleranceSeconds: 10,
+      tableSyncToleranceSeconds: 10,
+      affinityToleranceDistance: 10,
+      unitOrigins: [{ x: 0, y: 0 }],
+      slotOffsets: [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 1, y: 1 },
+        { x: 0, y: 2 },
+        { x: 1, y: 2 },
+      ],
+      firmnessCodes: [],
+      menuItems: [],
+    };
+    expect(toServerMessage(JSON.stringify(config))).toBeNull();
+    expect(
+      toServerMessage(
+        JSON.stringify({
+          ...config,
+          unitOrigins: [
+            { x: 0, y: 0 },
+            { x: 4, y: 0 },
+            { x: 8, y: 0 },
+          ],
+        }),
+      ),
+    ).not.toBeNull();
+  });
+
   const snapshot = {
     type: "snapshot",
     serverTime: 1,
