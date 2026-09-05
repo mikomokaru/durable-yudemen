@@ -500,6 +500,7 @@ Property 2 は「散らした計画は真に良くならない（Arms_Overflow �
 | --- | --- | --- |
 | 型 | `TableMembers`（`project.ts`） | 卓ごとの走行中の仲間の提供時刻。解放表と同じ資格の第二の表 |
 | 関数 | `tableMembers(running)` | 走行中 Timer から卓ごとの提供時刻を射影する唯一の経路 |
+| 関数 | `occupiesSlotSpan(placement, order)` | 配置が品目の `slotSpan` を満たすか（本数一致・釜番号で相異なる）。`isStale` と Acceptance_Gate が共用する述語。コードレビュー対応で追加・事後承認 |
 | 署名 | `scoreSchedule(slices, pending, members, params)` | 第 3 引数は `running` ではなく**射影表**（要件の naming ゲートは `running` と書いている・変更の提案） |
 | 署名 | `baselineSchedule(pending, release, members, presets, params)` | 配置は 2 つの表と茹で時間から決まる。採点は含まない |
 | 内部関数 | `tableLagSeconds` / `armsOverflow` / `armsOverflowWeight` | 卓の遅れの和 / 同時刻の本数の超過 / 卓同期から導く重み |

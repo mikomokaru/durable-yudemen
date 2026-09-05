@@ -92,6 +92,7 @@
 | `Lift_Group` | 要件語彙（識別子にしない） | 同時に上げる群。同じ卓の計画対象の未着手品目全部 |
 | `tableLagSeconds`（仮） | `objective.ts` の卓同期項 | 卓の最遅からの各成員（走行中を含む）の遅れの和 |
 | `armsOverflow`（仮） | `objective.ts` の新しい項 | 群の本数が arms を超える分 |
+| `occupiesSlotSpan` | `schedule.ts` の述語（コードレビュー対応で追加・事後承認） | 配置が品目の `slotSpan` を満たすか（本数一致・釜番号で相異なる）。`isStale` と Acceptance_Gate が共用 |
 | `scoreSchedule(slices, pending, running, params)` | `objective.ts` | 走行中を成員として採点する |
 | `ScheduleParams` の項目変更（`arms` の追加） | `objective.ts` / `effect.ts` | 採点が `arms` を読む。値の意味を定めるのは目的関数の側ゆえ `SyncParams` から借りずここへ置く。外部契約に及ぶ |
 | `PlanSlice` / `CookSchedule` からの `score` の削除 | `schedule.ts` | 一片は自分の点数を持たない。採点は比較の時点の導出であって計画の一部ではない（公開型の変更ゆえ追加と同じ資格で挙げる） |
