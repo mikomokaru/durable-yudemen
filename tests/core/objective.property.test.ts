@@ -6,7 +6,7 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { scoreSchedule, slotDistance, type ScheduleParams } from "../../src/engine/objective";
+import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
 import type { PlanSlice } from "../../src/engine/schedule";
 import { tableMembers } from "../../src/engine/project";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
@@ -26,6 +26,7 @@ import {
   WEIGHT_MAX,
   WEIGHT_MIN,
   defaultUnitOrigins,
+  slotDistance,
   type GridPoint,
   type SlotOffsets,
 } from "../../src/domain/store";

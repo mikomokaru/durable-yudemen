@@ -1,4 +1,4 @@
-// engine/objective の具体値の回帰テスト（slotDistance と scoreSchedule）。
+// engine/objective の具体値の回帰テスト（scoreSchedule と、その尺度 slotDistance——正本は domain/store）。
 //
 // 距離尺度の選定理由は「縦横隣接 < 斜め隣接 < 2 マス直線」という順序の要求ひとつに掛かっている。
 // 10 / 14 / 20 という値そのものは式を読まないと出てこないため、既定の 3 行 × 2 列のユニットで
@@ -9,7 +9,7 @@
 // 具体値でしか固定できない）。ゆえに 1 つの計画を手計算で置く。
 
 import { describe, it, expect } from "vitest";
-import { scoreSchedule, slotDistance, type ScheduleParams } from "../../src/engine/objective";
+import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
 import type { PlanSlice } from "../../src/engine/schedule";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
@@ -23,6 +23,7 @@ import {
   DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
   DEFAULT_TABLE_SYNC_WEIGHT,
   defaultUnitOrigins,
+  slotDistance,
 } from "../../src/domain/store";
 import { nonEmpty } from "../nonEmpty";
 

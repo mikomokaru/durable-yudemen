@@ -30,6 +30,19 @@ export interface CookRecommendation {
   readonly startAt: number;
 }
 
+/**
+ * PREP_LEAD_MS — 麺を準備する猶予（60 秒・ミリ秒）。提案が薄く現れる、startAt までの時間。
+ *
+ * 現場は startAt ちょうどに麺を手に持っていられない。麺を取り出し、ほぐし、釜の前に立つまでの時間が要り、
+ * その分だけ先に「まもなく」を見せる。薄い段階（startAt − PREP_LEAD_MS ≤ now < startAt）には語が無く、
+ * startAt を過ぎて濃くなると now と添える（lift-group-display 判断 3・Requirement 2.1〜2.3）。
+ *
+ * 設定にしない。店舗差が実在するまでは domain の定数で足り、StoreConfig の項目を増やせば env シード・
+ * 検証・ワイヤ・client のビューの 4 箇所に読み手の無い写しが生まれる。ここ（CookRecommendation の隣）に
+ * 置くのは、この猶予が推奨の startAt に対してだけ意味を持つ時間だからである。
+ */
+export const PREP_LEAD_MS = 60_000;
+
 /** client → server のメッセージ。 */
 export type ClientMessage =
   // アドホック麺茹で（POS を経ない開始）。麺種を人が選び、茹で秒を client が持つ選択肢から送る。

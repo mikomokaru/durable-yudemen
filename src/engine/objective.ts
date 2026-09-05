@@ -2,19 +2,15 @@
 //
 // ここに置くのは「計画をどう採点するか」だけで、計画をどう作るかは schedule.ts の関心事である。
 // 採点が整数で閉じることは Acceptance_Gate の改善判定（真に良いか同値か）の前提ゆえ、
-// 距離も浮動小数を一切生まない形で持つ。
+// 距離も浮動小数を一切生まない形で持つ。距離の尺度そのもの（slotDistance）は domain/store.ts が正本で、
+// ここは超過分を計上するだけ——client の釜の組も同じ尺度を要るため、engine には置かない
+// （lift-group-display Requirement 6.7）。
 //
 // 採点のパラメータ（ScheduleParams）もここに置く。計画の算出・合成・受け入れも同じ 9 値を要するが、
 // それらは採点を経由して要求するのであって、値の意味を定めているのは目的関数である（sync.ts が
 // SyncParams を持つのと同じ置き方）。
 
-import {
-  SLOTS_PER_UNIT,
-  slotOf,
-  type GridPoint,
-  type SlotOffsets,
-  type UnitOrigin,
-} from "../domain/store";
+import { position, slotDistance, slotOf, type SlotOffsets, type UnitOrigin } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { TableMembers } from "./project";
@@ -295,59 +291,4 @@ function ceilSeconds(millis: number): number {
 /** 品目を指す鍵（externalOrderId × itemIndex）。区切りに文字列に現れない NUL を使い、鍵の衝突を作らない。 */
 function itemKey(item: { readonly externalOrderId: string; readonly itemIndex: number }): string {
   return `${item.externalOrderId}\u0000${item.itemIndex}`;
-}
-
-/** 縦横 1 マスのコスト。オクタイル距離を整数へ正規化する基準。 */
-const STRAIGHT_STEP_COST = 10;
-
-/** 斜め 1 マスの追加コスト。斜め移動は STRAIGHT_STEP_COST + 4 = 14 で、√2 ≈ 1.4 の整数近似になる。 */
-const DIAGONAL_EXTRA_COST = 4;
-
-/**
- * slotDistance — 2 つの slot の物理的な近さを測るオクタイル距離の整数版。
- *
- * 合成座標 position(i) = unitOrigins[⌊i / SLOTS_PER_UNIT⌋] + slotOffsets[i % SLOTS_PER_UNIT] を求め、
- * dx = |x₁ − x₂|・dy = |y₁ − y₂| として 10 × max(dx, dy) + 4 × min(dx, dy) を返す。
- *
- * なぜオクタイルか。要求されている順序は「縦横隣接 < 斜め隣接 < 2 マス直線」（10 < 14 < 20）であり、
- * この 1 点で他の候補が落ちる。マンハッタンは斜め隣接と 2 マス直線を同値に見て斜めを遠すぎに扱い、
- * チェビシェフは縦横隣接と斜め隣接を同値に見て斜めを近すぎに扱う。ユークリッドは順序を満たすが
- * 平方根が無理数を生み、改善判定を丸め誤差に晒す（Boil_Sync が整数スケールで決定性を担保するのと同じ規律で退ける）。
- * 二乗ユークリッドは整数で順序も満たすが距離が二次で伸び、Wait_Time（秒）の和と足し合わされる線形の
- * 重み係数と噛み合わない。オクタイルはユークリッドの利点をその欠点なしに得る（誤差は 8% 以内）。
- *
- * レイアウトを引数で受ける（合成座標は導出値ゆえ設定として持たない）。目的関数へ計上するのは
- * ここで得た生の距離ではなく許容距離からの超過分だが、それは呼び出し側（scoreSchedule）の関心事である。
- */
-export function slotDistance(
-  slot: number,
-  other: number,
-  unitOrigins: readonly UnitOrigin[],
-  slotOffsets: SlotOffsets,
-): number {
-  const from = position(slot, unitOrigins, slotOffsets);
-  const to = position(other, unitOrigins, slotOffsets);
-  const dx = Math.abs(from.x - to.x);
-  const dy = Math.abs(from.y - to.y);
-
-  return STRAIGHT_STEP_COST * Math.max(dx, dy) + DIAGONAL_EXTRA_COST * Math.min(dx, dy);
-}
-
-/**
- * slot 番号から合成座標を導く。
- *
- * 範囲外への防御を置かない。unitOrigins は toUnitOrigins が長さを unitCount へ揃えるため、slot 番号が
- * unitCount × SLOTS_PER_UNIT の内側にある限り原点は必ず在る。オフセットの index は i % SLOTS_PER_UNIT ゆえ
- * 定義上 6 要素タプルの内側に収まる。起こり得ない状態に既定座標を用意すれば、不正な slot 番号が
- * 座標を持ててしまい（嘘をつく計画が作れる）、かつ本当の設定不整合が黙って埋もれる。
- */
-function position(
-  slot: number,
-  unitOrigins: readonly UnitOrigin[],
-  slotOffsets: SlotOffsets,
-): GridPoint {
-  const origin = unitOrigins[Math.floor(slot / SLOTS_PER_UNIT)]!;
-  const offset = slotOffsets[slot % SLOTS_PER_UNIT]!;
-
-  return { x: origin.x + offset.x, y: origin.y + offset.y };
 }
