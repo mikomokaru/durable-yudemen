@@ -288,3 +288,6 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - _Requirements: 8.1_
   - [x] 17.5 チェックポイント（typecheck / lint / test / fmt:check）
 
+- [x] 18. コードレビュー対応（3 回目・2026-09-05）——合流規則をハード制約 (e) へ上げる
+  - 実測: task 17 の合流の形は目的関数に負ける。再現ケースで合流 4597 対 全員遅延 2887（最遅参照の卓同期項が合流分の遅れを全員に乗せる）で、全員遅延は feasible でもあるため、外部解が届くと自前解を上書きし、判断 16 が消したかった非連続が往復ごとに復活していた（`admit.example` に採点の比較を固定し、修正前に旧挙動の計画が admit されることを確かめた）。(A)「始めたまとまりを崩さない」を feasibility に置く：`isPushedOut`（schedule.ts）を述語として立て、`feasibleRelease` が (e) として読む。自前解は構成から満たす（Property 17 を新設。走行中の仲間が在る一片ごとに、計画順の解放表で述語が偽）。目的関数は変えない。(B) revert は現場の問題が残るので採らず、最早参照への変更は「揃えると得」を壊すので採らない。要件 AC 1.11・AC 5.3、design の判定表と Component 3 の注記、ADR-0007、online-cook-scheduling AC 3.3 (e) を更新。
+

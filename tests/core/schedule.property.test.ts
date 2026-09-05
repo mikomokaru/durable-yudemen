@@ -19,10 +19,14 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   PLAN_TARGET_LIMIT,
+  advanceRelease,
   baselineSchedule,
   initialRelease,
+  isPushedOut,
+  planTargets,
   type SlotRelease,
 } from "../../src/engine/schedule";
+import type { EpochMillis } from "../../src/engine/types";
 import type { ScheduleParams } from "../../src/engine/objective";
 import { tableMembers, type TableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
@@ -292,6 +296,38 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
               Math.max(...placement.slotIds.map((slotId) => release[Number(slotId)]!)) + boil;
             expect(placement.serveAt).toBeGreaterThanOrEqual(earliest);
           }
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: lift-group-planning, Property 17 — 自前解は始めたまとまりを崩さない（ハード制約 (e)）
+  // **Validates: Requirements 1.9, 1.11, 5.3**
+  //
+  // 計画順に解放表を進めながら、走行中の仲間が在る一片ごとに isPushedOut（Acceptance_Gate と同じ述語）が
+  // 偽であること。自前解がゲートの (e) を構成から満たすことの検査で、joinable の貪欲と述語の整合を固定する。
+  it("Property 17: 走行中の仲間が在る一片で、合流できた品目を錨より後ろへ押し出さない", () => {
+    fc.assert(
+      fc.property(genScene, ({ pending, release, members, params }) => {
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          members,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
+        const targets = planTargets(pending);
+        let free = release;
+        for (const slice of schedule.slices) {
+          const siblings = members.get(slice.tableKey);
+          if (siblings !== undefined) {
+            const anchor = Math.max(...siblings) as EpochMillis;
+            expect(
+              isPushedOut(slice.placements, free, anchor, targets, DEFAULT_NOODLE_PRESETS),
+            ).toBe(false);
+          }
+          free = advanceRelease(free, slice.placements);
         }
       }),
       { numRuns: 300 },

@@ -94,7 +94,7 @@
 
 1. THE Cook_Scheduling SHALL 計画の主目的を「全オーダー品目の Wait_Time の合計の最小化」とする
 2. THE Cook_Scheduling SHALL 各品目の Wait_Time を、当該品目の実効茹で上がり時刻（未開始品目は計画上の開始時刻＋茹で時間、開始済み品目は Boil_Sync 調整後の実効 `endTime`）から当該オーダーの Order_Arrival_Time を引いた導出値として算出し、状態として保持しない
-3. THE Cook_Scheduling SHALL 次のハード制約を満たさない計画を feasible と認めない: (a) 同一 slot を同一時間帯に複数品目へ割り当てない、(b) 各時点の同時走行本数を slot 数以下に保つ、(c) 開始済み Timer の slot 割当・実効 `endTime` を変更しない、(d) 各品目に相異なる `slotSpan` 個の slot を割り当てる（釜容量は `slotSpan` の合計で数える。`lift-group-planning` で追補・ADR-0002）
+3. THE Cook_Scheduling SHALL 次のハード制約を満たさない計画を feasible と認めない: (a) 同一 slot を同一時間帯に複数品目へ割り当てない、(b) 各時点の同時走行本数を slot 数以下に保つ、(c) 開始済み Timer の slot 割当・実効 `endTime` を変更しない、(d) 各品目に相異なる `slotSpan` 個の slot を割り当てる（釜容量は `slotSpan` の合計で数える。`lift-group-planning` で追補・ADR-0002）、(e) 同じ卓の走行中 Timer の錨に合流できる品目を、合流できない品目のために錨より後ろへ押し出さない（始めたまとまりを崩さない。`lift-group-planning` AC 1.11・ADR-0007）
 4. THE Cook_Scheduling SHALL 次をソフト制約（目的関数への劣後項）として扱う: (a) 同一 Table_Group の品目の提供時刻の近接、(b) 同一オーダーの複数品目の同時提供、(c) Slot_Affinity（関連品目間の slot 物理距離のうち許容距離を超過した分の最小化）、(d) Arms_Overflow（同じ `serveAt` を持つ卓の成員——走行中を含む——の本数のうち `arms` を超えた分。重みは `max(0, w_table − 1)` から導く。`lift-group-planning` で追補・ADR-0002）
 5. WHERE ソフト制約とハード制約または主目的が衝突する、THE Cook_Scheduling SHALL ハード制約を常に優先し、ソフト制約の違反を feasibility の否定事由にしない
 6. THE Cook_Scheduling SHALL 計画と推奨の導出を決定的に行う（決定性の入力の組は Requirement 7.3 に定める四つ組を正本とする）

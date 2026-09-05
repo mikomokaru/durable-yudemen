@@ -351,6 +351,45 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
 }
 
 /**
+ * 走行中の錨に合流できたのに、錨より後ろへ押し出された配置が在るか（ハード制約 (e)・判断 16・ADR-0007）。
+ *
+ * 「始めたまとまりを崩さない」は目的関数では守れない——卓同期項は最遅からの遅れの和なので、合流できない 1 本が
+ * 在るとき「合流できる品目まで全員を最後へ遅らせる」配置の方が点が良く（合流分の遅れが消える）、ソフトに
+ * 置けば外部解がその形で自前解を上書きする。ゆえに feasibility の側に置く。主張は「揃えたい」という好みでは
+ * なく「始めたまとまりを崩す計画は成立していない」という構造のもの。
+ *
+ * 判定：錨以下に提供する配置（合流分）だけで解放表を進めた上で、錨より後ろの各配置について、その品目の
+ * `slotSpan` 個の釜が「錨 − 茹で時間」までに空いていたなら押し出しである。自前解はこの述語を構成から満たす
+ * （joinable の貪欲が拒んだ品目は、合流分を置いた後の表でも間に合わない——対応づけは間に合う集合が在れば
+ * 必ず間に合わせる形で、集合が増えるほど間に合いにくくなるだけ）。錨が過去（走行中が boiled だけ）なら
+ * 「錨 − 茹で時間」までに空く釜は無く、何も押し出しにならない。
+ *
+ * `release` は当該一片を置く前の解放表（計画順に進めた表）。Acceptance_Gate と自前解の性質検査が共用する。
+ */
+export function isPushedOut(
+  placements: readonly Placement[],
+  release: SlotRelease,
+  anchor: EpochMillis,
+  targets: readonly PendingOrder[],
+  presets: readonly NoodlePreset[],
+): boolean {
+  const joinedTable = advanceRelease(
+    release,
+    placements.filter((placement) => placement.serveAt <= anchor),
+  );
+  return placements.some((placement) => {
+    if (placement.serveAt <= anchor) return false;
+    const order = targets.find((candidate) => refersTo(placement, candidate));
+    if (order === undefined) return false;
+    const boiling = toBoiling(order, presets);
+    if (boiling === null) return false;
+    const deadline = anchor - boiling.boilMillis;
+    const available = joinedTable.filter((at) => at <= deadline).length;
+    return available >= order.slotSpan;
+  });
+}
+
+/**
  * 配置が当該品目の slotSpan を満たしているか——`slotIds` の本数が `slotSpan` に等しく、かつ釜が相異なる
  * （lift-group-planning AC 4.2）。
  *

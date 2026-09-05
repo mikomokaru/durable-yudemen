@@ -320,3 +320,121 @@ describe("admit — 揃った群を 1 ms 崩した外部計画は通らない（
     expect(gateTwin(nudged)).toEqual([]);
   });
 });
+
+describe("admit — 始めたまとまりを崩す計画は feasible ではない（判断 16・ADR-0007・ハード制約 (e)）", () => {
+  // レビューの再現：6 釜・同卓 4 品・各 2 釜・茹で 360 秒・1 本目（釜 0・1）が走行中で 360 秒後に上がる。
+  const SIX_MINUTES = 360;
+  const WIDE_PRESETS: readonly NoodlePreset[] = [
+    {
+      noodleType: "Wide",
+      boilSeconds: {
+        extraHard: SIX_MINUTES,
+        hard: SIX_MINUTES,
+        normal: SIX_MINUTES,
+        soft: SIX_MINUTES,
+      },
+    },
+  ];
+  const FIRST: Timer = createTimer({
+    id: "t-first" as TimerId,
+    slotIds: nonEmpty(["0" as SlotId, "1" as SlotId]),
+    noodleType: "Wide" as NoodleType,
+    firmness: "normal",
+    startTime: NOW,
+    endTime: (NOW + SIX_MINUTES * SECOND) as EpochMillis,
+    seq: 0,
+    orderItem: { externalOrderId: "o-table", itemIndex: 0, tableId: "t-1" },
+  });
+  const REST: readonly PendingOrder[] = [1, 2, 3].map((itemIndex) => ({
+    externalOrderId: "o-table",
+    itemIndex,
+    noodleType: "Wide",
+    firmness: "normal",
+    tableId: "t-1",
+    arrivalTime: NOW,
+    slotSpan: 2,
+    itemName: null,
+    sizeName: null,
+  }));
+  const COMMITTED_WIDE = committedSchedule([], REST, [FIRST], NOW, WIDE_PRESETS, PARAMS);
+
+  function placement(itemIndex: number, slots: readonly string[], startSeconds: number) {
+    return {
+      externalOrderId: "o-table",
+      itemIndex,
+      slotIds: nonEmpty(slots.map((slot) => slot as SlotId)),
+      startAt: (NOW + startSeconds * SECOND) as EpochMillis,
+      serveAt: (NOW + (startSeconds + SIX_MINUTES) * SECOND) as EpochMillis,
+    };
+  }
+  /** 旧挙動：残り 3 品を全員 360 秒後へ遅らせる（走行中の釜 0・1 が空くのを待つ）。feasible ではある。 */
+  const DELAY_ALL: CookSchedule = {
+    slices: [
+      {
+        tableKey: "t-1",
+        placements: [
+          placement(1, ["2", "3"], SIX_MINUTES),
+          placement(2, ["4", "5"], SIX_MINUTES),
+          placement(3, ["0", "1"], SIX_MINUTES),
+        ],
+      },
+    ],
+  };
+
+  it("場面の前提: 自前解は 2 品を今（走行中の錨に合流）、1 品を後に置く", () => {
+    const serveSeconds = COMMITTED_WIDE.slices[0]!.placements.map(
+      (candidate) => (candidate.serveAt - NOW) / 1000,
+    );
+    expect(serveSeconds).toEqual([SIX_MINUTES, SIX_MINUTES, 2 * SIX_MINUTES]);
+  });
+
+  it("目的関数（最遅参照）は全員を遅らせる計画を真に良いと採点する——採点では守れない", () => {
+    const members = tableMembers([FIRST]);
+    const joined = scoreSchedule(COMMITTED_WIDE.slices, REST, members, PARAMS).total;
+    const delayed = scoreSchedule(DELAY_ALL.slices, REST, members, PARAMS).total;
+    expect(delayed).toBeLessThan(joined);
+  });
+
+  it("合流できる 2 品を押し出した計画は feasible と認めず、棄却する", () => {
+    expect(admit(DELAY_ALL, COMMITTED_WIDE, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
+  });
+
+  it("合流させたまま 3 品目だけ後ろに置く計画は feasible であり、悪い確定計画に対しては採用される", () => {
+    // 採用済みの一片が全員を 1080 秒（走行中の釜が空いてさらに 360 秒後）に置いていて、目的関数の上でも
+    // 合流の形（2 品を今・1 品を 720 秒）より悪い。合流の形は (e) で落ちず、改善として採用される。
+    // 一方 DELAY_ALL は目的関数の上ではさらに良いが、(e) で feasible ではない。
+    const late = [
+      placement(1, ["2", "3"], 2 * SIX_MINUTES),
+      placement(2, ["4", "5"], 2 * SIX_MINUTES),
+      placement(3, ["0", "1"], 2 * SIX_MINUTES),
+    ];
+    const committedLate = committedSchedule(
+      [{ tableKey: "t-1", placements: late }],
+      REST,
+      [FIRST],
+      NOW,
+      WIDE_PRESETS,
+      PARAMS,
+    );
+    const keep: CookSchedule = {
+      slices: [
+        {
+          tableKey: "t-1",
+          placements: [
+            placement(1, ["2", "3"], 0),
+            placement(2, ["4", "5"], 0),
+            placement(3, ["0", "1"], SIX_MINUTES),
+          ],
+        },
+      ],
+    };
+    const members = tableMembers([FIRST]);
+    expect(scoreSchedule(DELAY_ALL.slices, REST, members, PARAMS).total).toBeLessThan(
+      scoreSchedule(keep.slices, REST, members, PARAMS).total,
+    );
+    expect(admit(keep, committedLate, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual(
+      keep.slices,
+    );
+    expect(admit(DELAY_ALL, committedLate, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
+  });
+});
