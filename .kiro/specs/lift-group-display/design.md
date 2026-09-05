@@ -41,7 +41,7 @@ engine と永続は、`Ordered` を `TimerFact.orderItem` に置き換える型�
 | engine | `src/engine/migrate.ts` / `start.ts` / `objective.ts` | 型参照の追随（`Ordered["orderItem"]` → `TimerFact["orderItem"]`）。`slotDistance` を domain から import |
 | client | `src/client/connection.ts` | `ClientView` に `unitOrigins` / `slotOffsets` / `affinityToleranceDistance` を足し、config 受信で写す |
 | client | `src/client/components/liftGroups.ts`（新規） | 群・開始・表示できる群・先頭・釜ごとの提案・釜の組の導出（純粋） |
-| client | `src/client/components/queueDisplay.ts` | `suggestionTiming` / `SuggestionTiming` を撤去。`QueueSuggestion` に `order` と `serveAt` を足す |
+| client | `src/client/components/queueDisplay.ts` | `suggestionTiming` / `SuggestionTiming` を撤去。`QueueSuggestion` に `serveAt` を足す（注文参照は足さない） |
 | client | `src/client/components/slotDisplay.ts` | idle の `next` を `readonly SlotSuggestion[]` へ。`nextForSlot` を撤去し、`slotSuggestions` の結果を受ける |
 | client | `src/client/components/SlotBoard.tsx` | `planAnchor` と時期の語を撤去。提案の見え方を `phase` から組む。ラジアルへ待ち行列と釜の組を渡す |
 | client | `src/client/components/SlotCard.tsx` | 提案を複数描く。`head` だけ丸ボタン、`member` はラベルだけ。薄 / 濃の塗り |
@@ -118,10 +118,14 @@ function toOrderItemOrigin(value: unknown): OrderItemOrigin | null | undefined
 ```ts
 // src/client/components/liftGroups.ts
 
-/** 群の 1 品目。開始に要る事実（推奨・品目・茹で秒・serveAt）が揃った形。 */
+/**
+ * 群の 1 品目。開始に要る事実（品目・推奨・茹で秒・serveAt）が揃った形。
+ * 注文への参照は `order` ただ一つ——`suggestion` は釜と時刻だけを持ち、注文を指さない（同じ注文を二箇所で
+ * 指せば別の注文を指す状態が表現できてしまう）。
+ */
 export interface GroupItem {
   readonly order: PendingOrder;
-  readonly suggestion: QueueSuggestion;    // slotIds / startAt / boilSeconds / serveAt
+  readonly suggestion: QueueSuggestion;    // slotIds / startAt / boilSeconds / serveAt（注文参照なし）
 }
 
 /** 同時に上げる群。同じ卓で serveAt が等しい品目の集合。卓なしは 1 品 1 群。 */
@@ -207,6 +211,8 @@ for g in visible:
 #### `pairSlots`
 
 ```
+occupied = view.timers の slotIds の和集合（running / boiled とも・担当外を含む）
+if occupied has slot: return null                       # 起点の釜自身が埋まっていれば組めない（slotSpan 1 でも）
 if slotSpan === 1: return [String(slot)]
 idle = 0..unitCount×6−1 のうち occupied でなく slot でもない釜
 near = idle を (slotDistance(slot, s), s) 昇順に並べ、distance ≤ affinityToleranceDistance のもの
@@ -214,27 +220,34 @@ if near.length < slotSpan − 1: return null
 return [String(slot), ...near.slice(0, slotSpan − 1).map(String)]
 ```
 
-距離は domain の `slotDistance` と `view.unitOrigins` / `view.slotOffsets`（AC 4.7）。既定 14 は斜め隣接まで。担当ユニットを跨いでよい——距離が近ければ同じ腕の届く釜である。
+- **起点の釜自身も現在の店舗全体の Timer で検査する。** ラジアルは idle のカードから開くが、開いたまま別端末がその釜を始めた snapshot が届きうる。engine は占有を検査しない（観測事実 12）ので、ここで落とさなければ同じ釜へ重ねて開始できる。`pairSlots` は描画ごとに `view` から導くため、snapshot が更新されれば行は自動的に不活性になる（ラジアルを閉じる機構は足さない——閉じるかどうかは表示の判断で、開始できないことは構造で保証する）。
+- 距離は domain の `slotDistance` と `view.unitOrigins` / `view.slotOffsets`（AC 4.7）。既定 14 は斜め隣接まで。担当ユニットを跨いでよい——距離が近ければ同じ腕の届く釜である。
+- 麺種プリセットのアドホック開始（`connection.start`）は既存経路のまま変えない（Requirement 5）。同じ重畳の余地は既存のもので、本 spec の範囲外として tasks に記録する。
 
 ### Component 4: `queueDisplay.ts` / `slotDisplay.ts`
 
-- `QueueSuggestion` に `order: PendingOrder` と `serveAt: number` を足す。`SlotBoard` の `itemOf`（提案オブジェクトの同一性で行を引く）は不要になり消える。
+- `QueueSuggestion` に `serveAt: number` を足す。注文参照は足さない——注文を指すのは `GroupItem.order`（釜の提案は `item.order` から鍵を取る）と `QueueEntry.order`（レール）で、提案そのものは釜と時刻だけを語る。`SlotBoard` の `itemOf`（提案オブジェクトの同一性で行を引く）は不要になり消える。
 - `suggestionTiming` / `SuggestionTiming` を削除。
 - `SlotDisplay` idle の `next: readonly SlotSuggestion[]`（空配列は提案なし）。`assignedSlotDisplays(view, units, now, bySlot)` は `bySlot.get(slot) ?? []` を載せるだけで、`nextForSlot` は消える。degraded で空なのは `slotSuggestions` が担う（判定を一箇所に）。
 - `orderQueueEntries` は変えない（レール用・AC 5.5）。`QueueEntry.suggestion` は残す——レールが「提案あり」を語らなくても、待ち行列の行と提案の対応は待ち行列の関心事である。
 
 ### Component 5: `SlotBoard.tsx` / `SlotCard.tsx`
 
-`suggestionOf` は時期を組まない：
+`suggestionOf` は時期を組まず、**判別を表示まで運ぶ**：
 
 ```ts
-function suggestionOf(s: SlotSuggestion, slot, colorOf): { label; ariaLabel; tint; phase: "faint" | "solid"; pressable: boolean }
+/** 提案の見え方。role の判別は SlotSuggestion から落とさない——「押せないのに濃い」を表示側でも表現不能にする。 */
+type SuggestionView =
+  | { readonly role: "head"; readonly phase: "faint" | "solid"; readonly label: string; readonly ariaLabel: string; readonly tint: string }
+  | { readonly role: "member"; readonly label: string; readonly ariaLabel: string; readonly tint: string };
+
+function suggestionOf(s: SlotSuggestion, slot, colorOf): SuggestionView
   label = [name size, firmness, table, s.role === "head" && s.phase === "solid" ? "now" : undefined]
-  ariaLabel = `Suggested — ${name} · Slot ${slot} · ${s.role === "head" ? (phase === "solid" ? "now" : "soon") : "queued"}`
+  ariaLabel = `Suggested — ${name} · Slot ${slot} · ${s.role === "head" ? (s.phase === "solid" ? "now" : "soon") : "queued"}`
 ```
 
 - 可視の語は空か `now`（AC 3.3・6.4）。aria-label だけが `soon` / `queued` で薄・押せないを語る（AC 3.4・3.7）。
-- `SlotCard` は `display.next` を順に描く。`head` は丸ボタン＋ラベル、`member` はラベルだけ（`actionStack` の丸ボタンの位置に何も置かず、ラベルの位置を揃える）。薄は `opacity` を下げ、濃は現行の塗り。`onStartSuggested(item)` は `head` からしか呼ばれない。
+- `SlotCard` は `display.next` と `SuggestionView[]` を対で受け、`role` で分岐する。`head` の分岐だけが丸ボタンを描き `onStartSuggested(item)` を呼ぶ。`member` の分岐にはボタンの JSX が無い（`actionStack` の丸ボタンの位置に何も置かず、ラベルの位置を揃える）。濃い塗りは `head` かつ `solid` の分岐にだけ現れ、`member` は常に薄い。**保証の所在**：導出（`SlotSuggestion`）と見え方（`SuggestionView`）の両方が判別共用体で、描画は `role` の分岐だけを持つ。それでも JSX の分岐は型が強制しないので、「`member` にボタンが無い」「`member` が濃くない」は `slot-card.example` が固定する（AC 3.6 は型と Example の両方で担う）。
 - `Start` ボタンと配置は変えない（AC 3.5）。
 
 ### Component 6: `RadialMenu.tsx` — 待ち行列の列
@@ -277,6 +290,7 @@ export interface RadialQueueItem {
 | degraded | 提案もラジアルの待ち行列も空。`startOrderItem` は呼ばれない | AC 2.13・4.8・6.11 |
 | 走行中の仲間が茹で上がりに転じた（同じ snapshot・Corrected_Now が進んだ） | その群は started でなくなり、後続の群は消える。発火の snapshot で残りが新しい群として届く | 判断 16・AC 6.3 の例外 |
 | `slotSpan ≥ 2` で許容距離の内側に空き釜が足りない | ラジアルの行を不活性にする | AC 4.5 |
+| ラジアルを開いた釜自身が、開いた後の snapshot で埋まった | `pairSlots` が null を返し、全行が不活性になる（`slotSpan` 1 でも） | AC 4.9・観測事実 12 |
 | ワイヤの `orderItem` が不正（空文字・負の index） | 復号失敗（snapshot 全体を落とす・`verified-wire-contract` の規律） | AC 5.2 |
 | `TimerFact.orderItem` が欠如 | null に畳む | AC 5.2 |
 
@@ -312,9 +326,9 @@ export interface RadialQueueItem {
 ### Example
 
 - レビューの再現：茹で 510 / 360 / 330 秒の同卓 3 品（開始予定 0 / 150 / 180 秒）。180 秒経っても押せるのは 510 秒の品目だけで、他 2 品は薄いラベルだけ。
-- 6 釜・同卓 4 品・各 2 釜：1 本目を始めた後、残り 2 品が今（head・solid）、1 品が仲間（member）として釜 0・1 の空きを待つ。釜 0 だけが空いた状態では出ない（全釜 idle）。
+- 6 釜・同卓 4 品・各 2 釜：1 本目を始めた後、合流する 2 品が G1（started・`serveAt` = 走行中の `endTime`）で今（head・solid）。釜 0・1 を待つ 1 品は別の `serveAt` を持つ **G2 の唯一の head** であり、member ではない。釜 0・1 が走行中の間は全釜 idle を満たさず提案自体が出ず、空いた時点で head として現れる（G1 が started なので連鎖は通っている）。釜 0 だけが空いた状態でも出ない。
 - `SlotCard`：`head` に丸ボタンと aria-label `… · now` / `… · soon`、`member` にボタン無しと `… · queued`。
-- `RadialMenu`：live で待ち行列の列が出る。`slotSpan` 2 で許容距離の内側に空きが無い行は不活性。degraded で列が無い。
+- `RadialMenu`：live で待ち行列の列が出る。`slotSpan` 2 で許容距離の内側に空きが無い行は不活性。degraded で列が無い。**開いたまま snapshot が更新され、起点の釜が走行中になった場面**：`slotSpan` 1 の行を含めて全行が不活性になり、選んでも `startOrderItem` が呼ばれない。
 - ワイヤ：`orderItem` 欠如 → null、不正 → 復号失敗（`wire.example`）。往復 Property に `orderItem` を足す（`wireGenerators`）。
 
 ## Correctness Properties
