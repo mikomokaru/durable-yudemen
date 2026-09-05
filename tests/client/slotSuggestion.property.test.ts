@@ -54,6 +54,8 @@ function recommendationFor(
     itemIndex: order.itemIndex,
     slotIds: nonEmpty(slots.map((slot) => String(slot))),
     startAt,
+    group: "g",
+    anchor: null,
   };
 }
 

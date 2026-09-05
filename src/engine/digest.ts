@@ -113,6 +113,7 @@ export function digestInput(
   fold(params.tableSyncWeight);
   fold(params.affinityWeight);
   fold(params.arms);
+  fold(params.toleranceRatio); // 合流の窓 h_i を導く（判断 18）
   fold(params.orderSyncToleranceSeconds);
   fold(params.tableSyncToleranceSeconds);
   fold(params.affinityToleranceDistance);

@@ -11,7 +11,13 @@
 // 推奨はそこから committedSchedule を経て毎回導かれる（状態に昇格させれば計画と推奨の二つの真実が生まれる）。
 
 import type { CookRecommendation } from "../domain/messages";
-import type { CookSchedule } from "./schedule";
+import type { NoodlePreset } from "../domain/store";
+import type { PendingOrder } from "../domain/order";
+import type { ScheduleParams } from "./objective";
+import { tableMembers } from "./project";
+import { boilMillisOf, joinedAnchor, refersTo, type CookSchedule } from "./schedule";
+import type { Timer } from "./timer";
+import type { EpochMillis } from "./types";
 
 /**
  * recommend — 確定計画から「次に開始すべき品目・slot・開始タイミング」を導出する（AC 8.1）。
@@ -34,6 +40,12 @@ import type { CookSchedule } from "./schedule";
  * 並べ直せばその情報が失われる一方、client は startAt を受け取っているので時刻順の並べ替えは自分でできる。
  * 復元できない順序を捨てない。
  *
+ * **群と合流の状態をここで決める（判断 19）。** 一片の中で、走行中の仲間 A に A ≤ serveAt ≤ A + h_i で続く配置は
+ * 「合流」で、同じ A に続くものが一つの群（`anchor = A`）。それ以外は serveAt の等しい配置ごとに一つの群
+ * （`anchor = null`）。卓を
+ * 持たない品目は一片が 1 品なので 1 品 1 群になる。識別子は snapshot 内で閉じ、永続的な履歴を持たない。
+ * client はこれを読むだけで、卓・serveAt・許容幅のいずれからも群を逆算しない（`lift-group-display` 判断 20）。
+ *
  * **射影をここに閉じる。** engine の `Placement`（ブランド型・NonEmptyArray）からワイヤの
  * `CookRecommendation`（生プリミティブ）への変換はこの関数の本体そのものである。project.ts の
  * 「射影はここ一箇所に集約する」は同じ射影が二度書かれることを禁じる規律で、そこに集約された
@@ -41,15 +53,36 @@ import type { CookSchedule } from "./schedule";
  * こちらは導出を一切含まないブランドの落としだけで、しかも CookRecommendation を作る場所は
  * この関数以外に無い。一度しか現れない射影を別ファイルへ切り出せば、「推奨とは何か」が二箇所に散る。
  */
-export function recommend(committed: CookSchedule): readonly CookRecommendation[] {
-  return committed.slices.flatMap((slice) =>
-    slice.placements.map((placement) => ({
-      externalOrderId: placement.externalOrderId,
-      itemIndex: placement.itemIndex,
-      // ブランド型（SlotId / EpochMillis）を生プリミティブへ落とすだけ。非空の保証は JSON を跨げないため
-      // 型からも落ちる（受け手が境界で isNonEmpty を通して再確立する・domain/messages.ts の規律）。
-      slotIds: placement.slotIds,
-      startAt: placement.startAt,
-    })),
-  );
+export function recommend(
+  committed: CookSchedule,
+  pending: readonly PendingOrder[],
+  running: readonly Timer[],
+  presets: readonly NoodlePreset[],
+  params: ScheduleParams,
+): readonly CookRecommendation[] {
+  // 群と合流は確定計画（自前解・採用済み外部解とも）から決める（lift-group-planning 判断 19・ADR-0008）。
+  // 走行中の錨は配置・合成・ゲートと同じ成員表から引く。
+  const members = tableMembers(running);
+  return committed.slices.flatMap((slice, index) => {
+    const siblings = members.get(slice.tableKey);
+    return slice.placements.map((placement) => {
+      const order = pending.find((candidate) => refersTo(placement, candidate));
+      const boilMillis = order === undefined ? null : boilMillisOf(order, presets);
+      const anchor: EpochMillis | null =
+        siblings === undefined || boilMillis === null
+          ? null
+          : joinedAnchor(placement, siblings, boilMillis, params);
+      return {
+        externalOrderId: placement.externalOrderId,
+        itemIndex: placement.itemIndex,
+        // ブランド型（SlotId / EpochMillis）を生プリミティブへ落とすだけ。非空の保証は JSON を跨げないため
+        // 型からも落ちる（受け手が境界で isNonEmpty を通して再確立する・domain/messages.ts の規律）。
+        slotIds: placement.slotIds,
+        startAt: placement.startAt,
+        // 群の識別は snapshot 内で閉じる：一片の位置と、合流なら「錨」、それ以外は serveAt の等しい batch。
+        group: anchor !== null ? `${index}:anchor:${anchor}` : `${index}:${placement.serveAt}`,
+        anchor,
+      };
+    });
+  });
 }

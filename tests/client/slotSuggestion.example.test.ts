@@ -40,6 +40,8 @@ function recommendation(overrides: Partial<CookRecommendation> = {}): CookRecomm
     itemIndex: 0,
     slotIds: nonEmpty(["0"]),
     startAt: NOW,
+    group: "g",
+    anchor: null,
     ...overrides,
   };
 }

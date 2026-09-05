@@ -33,6 +33,8 @@ import {
   advanceRelease,
   baselineSchedule,
   initialRelease,
+  keepsAnchor,
+  planTargets,
   type AcceptedSlice,
   type SlotRelease,
 } from "../../src/engine/schedule";
@@ -190,7 +192,33 @@ function prefixLength(scene: CommitScene): number {
   const lapsed = scene.accepted.findIndex((slice) =>
     slice.placements.some((placement) => placement.startAt < scene.now),
   );
-  return Math.min(scene.staleAt, lapsed === -1 ? scene.accepted.length : lapsed);
+  const bound = Math.min(scene.staleAt, lapsed === -1 ? scene.accepted.length : lapsed);
+  // 錨の再検証（judgment 17 / 18）：採用済み一片は別のパラメータ（合流の窓 h_i が違う）で組まれているため、
+  // 現在のパラメータでは合流分が窓の外に出て「押し出し」と判定されうる。合成と同じ述語で同じ位置の解放表を
+  // 読み、最初に破れた一片の手前までを期待する。
+  const targets = planTargets(scene.pending);
+  const members = tableMembers(scene.running);
+  let release = initialRelease(scene.running, scene.now, scene.slotCount);
+  for (let index = 0; index < bound; index++) {
+    const slice = scene.accepted[index]!;
+    const siblings = members.get(slice.tableKey);
+    if (siblings !== undefined) {
+      if (
+        !keepsAnchor(
+          slice.placements,
+          release,
+          siblings,
+          targets,
+          DEFAULT_NOODLE_PRESETS,
+          scene.params,
+        )
+      ) {
+        return index;
+      }
+    }
+    release = advanceRelease(release, slice.placements);
+  }
+  return bound;
 }
 
 /** 接頭辞の配置で進めた解放表（合成が尾部の初期状態に用いるはずの表）。 */

@@ -226,13 +226,15 @@ function toPendingOrderFromWire(value: unknown): PendingOrder | null {
 /** 開始推奨 1 件を確立する。slotIds の非空はここで型へ載せる（受け手の読み飛ばしを不要にする）。 */
 function toRecommendation(value: unknown): CookRecommendation | null {
   if (!isRecord(value)) return null;
-  const { externalOrderId, itemIndex, startAt } = value;
+  const { externalOrderId, itemIndex, startAt, group, anchor } = value;
   if (!isNonEmptyString(externalOrderId)) return null;
   if (!isNonNegativeInteger(itemIndex)) return null;
   const slotIds = toSlotIds(value.slotIds);
   if (slotIds === null) return null;
   if (typeof startAt !== "number") return null;
-  return { externalOrderId, itemIndex, slotIds, startAt };
+  if (!isNonEmptyString(group)) return null;
+  if (anchor !== null && typeof anchor !== "number") return null;
+  return { externalOrderId, itemIndex, slotIds, startAt, group, anchor };
 }
 
 /**

@@ -13,6 +13,8 @@ supersedes: 0004
 
 **群の所属と合流の状態は engine が決め、ワイヤで運ぶ（ADR-0004 を改める）。** 合流した品目の `serveAt` は錨と h_i 以内でずれるので、client が `serveAt` の等号で群を組み `endTime === serveAt` で開始済みを判定する形は保てない。client に許容幅を持ち込めば「揃っていないものを揃っていると言う経路を持たない」に反する。engine は自前解でも採用済み外部解でも現在の確定計画から群と合流を決めているので、`CookRecommendation` に `group`（snapshot 内の識別子）と `anchor`（合流した錨の実効 endTime・合流していなければ null）を載せる。client は読むだけで逆算しない。開始済みの失効（錨の Timer が茹で上がると開始済みでなくなる）は client が `anchor > Corrected_Now` で読む——boolean ではなく錨の時刻を運ぶのはこのためである。
 
+**合流した品目は最遅の走行中（Group_Anchor）に揃えない。** いずれかの走行中が earliest から h_i 以内に在れば earliest に置き（待たずにいま始める）、無ければ earliest より後の最早の走行中に揃える。最遅に揃えると、Boil_Sync が arms で走行中を複数のセットに分けた後、新しい品目まで最後のセットに揃えて投入のたびに startAt が未来へずれ続ける（実測：arms 2 の 3 本目で新しい仲間が 85 秒のセットへ遅れ、残りが 6 秒未来へ）。連続投入の不変（Requirement 7.6・arms 1〜3 × 間隔 0 / 1 / 3 / 5 秒）はこの形で初めて成り立った。
+
 ## Considered Options
 
 - **等号のまま（ADR-0004 の形）**: 同じ茹で時間の品目の連続投入で必ず崩れる。採らない。

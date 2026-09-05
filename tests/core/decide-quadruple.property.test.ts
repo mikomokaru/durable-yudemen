@@ -112,9 +112,9 @@ const genDeliveryScene: fc.Arbitrary<QuadrupleScene> = fc
     const timers = seed.running.map(timerOn);
     const pending = toPending(seed.orders);
     const params: SettleParams = {
-      toleranceRatio: seed.toleranceRatio,
       noodlePresets: DEFAULT_NOODLE_PRESETS,
       ...seed.schedule,
+      toleranceRatio: seed.toleranceRatio,
       arms: seed.arms,
     };
     const state: TimerState = {

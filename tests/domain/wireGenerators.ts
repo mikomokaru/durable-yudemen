@@ -75,6 +75,8 @@ const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
   itemIndex: fc.integer({ min: 0, max: 8 }),
   slotIds: genSlotIds,
   startAt: genEpoch,
+  group: fc.string({ minLength: 1, maxLength: 8 }),
+  anchor: fc.option(genEpoch, { nil: null }),
 });
 
 /**

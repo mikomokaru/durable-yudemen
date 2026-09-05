@@ -190,6 +190,8 @@ const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
   itemIndex: fc.integer({ min: 0, max: 2 }),
   slotIds: genSlotIds,
   startAt: genReceivedAt,
+  group: fc.constantFrom("g-1", "g-2", "g-3"),
+  anchor: fc.option(genReceivedAt, { nil: null }),
 });
 
 /** 開始推奨の全量（空・複数の双方）。 */

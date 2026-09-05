@@ -23,10 +23,10 @@ import {
   baselineSchedule,
   initialRelease,
   isPushedOut,
+  joinWindowMillis,
   planTargets,
   type SlotRelease,
 } from "../../src/engine/schedule";
-import type { EpochMillis } from "../../src/engine/types";
 import type { ScheduleParams } from "../../src/engine/objective";
 import { tableMembers, type TableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
@@ -255,7 +255,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // earliest 以上である。走行中の仲間が居れば（Property 16・判断 16・ADR-0007）配置は高々 2 つの serveAt に
   // 分かれる——走行中の錨に**合流した**配置はちょうど錨に一致し、残りは一つの値に揃って錨より後ろにある。
   // 容量を超える一片は batch に割れるので対象外（Property 14）。
-  it("Property 1 / 16: 容量に収まる一片は、走行中が無ければ一つの serveAt に揃い、在れば合流分が錨に一致し残りが一つに揃う", () => {
+  it("Property 1 / 16: 容量に収まる一片は、走行中が無ければ一つの serveAt に揃い、在れば合流分が錨から h_i 以内で残りが一つに揃う", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, slotCount, params }) => {
         const schedule = baselineSchedule(
@@ -283,11 +283,24 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           if (siblings === undefined) {
             expect(serveTimes).toHaveLength(1);
           } else {
-            const runningAnchor = Math.max(...siblings);
-            // 合流分（錨に一致）と残り（錨より後ろで一つに揃う）の高々 2 値。
-            expect(serveTimes.length).toBeLessThanOrEqual(2);
-            for (const serveAt of serveTimes) expect(serveAt).toBeGreaterThanOrEqual(runningAnchor);
-            if (serveTimes.length === 2) expect(serveTimes).toContain(runningAnchor);
+            const earliestSibling = siblings[0];
+            const latestSibling = siblings[siblings.length - 1]!;
+            // 走行中の最早より h_i を超えて手前に散らさない。合流分はいずれかの走行中から h_i 以内（判断 18）、
+            // 残りは最遅の走行中 + h_i より後ろで一つに揃う。
+            for (const placement of slice.placements) {
+              const window = joinWindowMillis(placement.serveAt - placement.startAt, params);
+              expect(placement.serveAt).toBeGreaterThanOrEqual(earliestSibling - window);
+            }
+            const beyond = new Set(
+              slice.placements
+                .filter(
+                  (placement) =>
+                    placement.serveAt >
+                    latestSibling + joinWindowMillis(placement.serveAt - placement.startAt, params),
+                )
+                .map((placement) => placement.serveAt),
+            );
+            expect(beyond.size).toBeLessThanOrEqual(1);
           }
           // 各配置は自分の釜の解放時刻 + 茹で時間 以上（下限のクランプ無しで構成から従う）。
           for (const placement of slice.placements) {
@@ -322,9 +335,15 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
         for (const slice of schedule.slices) {
           const siblings = members.get(slice.tableKey);
           if (siblings !== undefined) {
-            const anchor = Math.max(...siblings) as EpochMillis;
             expect(
-              isPushedOut(slice.placements, free, anchor, targets, DEFAULT_NOODLE_PRESETS),
+              isPushedOut(
+                slice.placements,
+                free,
+                siblings,
+                targets,
+                DEFAULT_NOODLE_PRESETS,
+                params,
+              ),
             ).toBe(false);
           }
           free = advanceRelease(free, slice.placements);

@@ -412,6 +412,7 @@ export class StoreTimerDO extends DurableObject<Env> {
     tableSyncWeight: DEFAULT_TABLE_SYNC_WEIGHT,
     affinityWeight: DEFAULT_AFFINITY_WEIGHT,
     arms: DEFAULT_ARMS,
+    toleranceRatio: DEFAULT_TOLERANCE_RATIO,
     orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
     tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
     affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
@@ -637,6 +638,7 @@ export class StoreTimerDO extends DurableObject<Env> {
       tableSyncWeight: config.tableSyncWeight,
       affinityWeight: config.affinityWeight,
       arms: config.arms,
+      toleranceRatio: config.toleranceRatio,
       orderSyncToleranceSeconds: config.orderSyncToleranceSeconds,
       tableSyncToleranceSeconds: config.tableSyncToleranceSeconds,
       affinityToleranceDistance: config.affinityToleranceDistance,
@@ -658,8 +660,7 @@ export class StoreTimerDO extends DurableObject<Env> {
       serverTime: Date.now(),
       unitCount: this.unitCount,
       noodlePresets: this.noodlePresets,
-      toleranceRatio: this.toleranceRatio,
-      // arms は scheduleParams の内側に一つだけ在る（config ワイヤの形は変わらない）。
+      // arms と toleranceRatio は scheduleParams の内側に一つだけ在る（config ワイヤの形は変わらない）。
       ...this.scheduleParams,
       firmnessCodes: this.firmnessCodes,
       menuItems: this.menuItems,
@@ -674,7 +675,6 @@ export class StoreTimerDO extends DurableObject<Env> {
    */
   private settleParams(): SettleParams {
     return {
-      toleranceRatio: this.toleranceRatio,
       noodlePresets: this.noodlePresets,
       ...this.scheduleParams,
     };

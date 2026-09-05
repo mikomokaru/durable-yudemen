@@ -80,7 +80,14 @@ function recommendation(
   slot: number,
   startAt: number,
 ): CookRecommendation {
-  return { externalOrderId, itemIndex: 0, slotIds: nonEmpty([String(slot)]), startAt };
+  return {
+    externalOrderId,
+    itemIndex: 0,
+    slotIds: nonEmpty([String(slot)]),
+    startAt,
+    group: "g",
+    anchor: null,
+  };
 }
 
 /** 待ち行列と推奨だけを差し替えた同期済みビュー。走行中 Timer は置かない（全釜が idle）。 */

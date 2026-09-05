@@ -14,6 +14,8 @@ import type { PendingOrder } from "../../src/domain/order";
 import {
   ARMS_MAX,
   ARMS_MIN,
+  TOLERANCE_RATIO_MAX,
+  TOLERANCE_RATIO_MIN,
   AFFINITY_TOLERANCE_DISTANCE_MIN,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_SLOT_OFFSETS,
@@ -97,6 +99,7 @@ function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     tableSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     affinityWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     arms: fc.integer({ min: ARMS_MIN, max: ARMS_MAX }),
+    toleranceRatio: fc.integer({ min: TOLERANCE_RATIO_MIN, max: TOLERANCE_RATIO_MAX }),
     orderSyncToleranceSeconds: fc.integer({
       min: SYNC_TOLERANCE_SECONDS_MIN,
       max: SYNC_TOLERANCE_SECONDS_MAX,
