@@ -2,8 +2,10 @@
 // **Validates: Requirements 5.1, 6.5**
 //
 // 後続の online-cook-scheduling で StoreConfig は全項目配信へ改められた。
-// ここでは現行契約を固定する。arms / toleranceRatio は config で一方向配信されるが、
-// client のビューにも client → server の変更要求にも現れず、StoreConfig が同期計算の権威を持つ。
+// ここでは現行契約を固定する。arms / toleranceRatio は config で一方向配信され、client → server の変更要求には
+// 現れず、StoreConfig が同期計算の権威を持つ。arms だけは client のビューへ写す——濃く（now・押せる）出す提案を
+// 店舗全体で先頭 arms 本に限るための読み手ができた（lift-group-display 判断 21・affinityToleranceDistance と同じ
+// 「表示・導出にのみ用い変更要求を送らない」扱い）。toleranceRatio は読み手が無く、ビューに写さない。
 
 import { describe, expect, it } from "vitest";
 import { decideView, EMPTY_VIEW } from "../../src/client/connection";
@@ -78,7 +80,7 @@ const CONFIG_KEYS = [
 ] as const;
 
 describe("同期調整パラメータの一方向配信と server authority の境界", () => {
-  it("config で一方向配信しても JSON 往復後の client view と変更要求には保持しない", () => {
+  it("config で一方向配信しても JSON 往復後の client view には読み手のある arms だけが写り、toleranceRatio は写らず、変更要求には現れない", () => {
     expect(configShapeAssertions).toEqual([true, true]);
     expect(Object.keys(configMessage).sort()).toEqual(CONFIG_KEYS);
     expect(configMessage.arms).toBe(3);
@@ -99,7 +101,8 @@ describe("同期調整パラメータの一方向配信と server authority の�
 
     expect(view.unitCount).toBe(2);
     expect(view.noodlePresets).toEqual(configMessage.noodlePresets);
-    expect(view).not.toHaveProperty("arms");
+    // arms は表示の上限（判断 21）としてビューへ写る。サーバ権威の写しであり、変更要求の口は無い（上の型検査）。
+    expect(view.arms).toBe(3);
     expect(view).not.toHaveProperty("toleranceRatio");
   });
 });

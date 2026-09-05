@@ -46,6 +46,7 @@ import { correctedNow, remainingMs } from "../../src/client/clock";
 import { slotsOfUnits } from "../../src/client/assignment";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_ARMS,
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_SLOT_OFFSETS,
   defaultUnitOrigins,
@@ -228,6 +229,7 @@ const genScenario: fc.Arbitrary<DisplayScenario> = fc
             unitOrigins: defaultUnitOrigins(4),
             slotOffsets: DEFAULT_SLOT_OFFSETS,
             affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+            arms: DEFAULT_ARMS,
           },
         };
       });

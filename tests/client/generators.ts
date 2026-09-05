@@ -548,12 +548,16 @@ interface LiftMateSpec {
   readonly boilSeconds: number;
 }
 
-/** 群を作る場面の指定。orphan は待ち行列に無い品目への推奨、retired はプリセットに無い麺種の品目。 */
+/**
+ * 群を作る場面の指定。orphan は待ち行列に無い品目への推奨、retired はプリセットに無い麺種の品目。arms は腕の本数
+ * （濃く出す先頭の上限・lift-group-display 判断 21）で、1〜3 を振って上限が効く場面と効かない場面の双方を生む。
+ */
 interface LiftSceneSpec {
   readonly batches: readonly LiftBatchSpec[];
   readonly mates: readonly LiftMateSpec[];
   readonly orphan: boolean;
   readonly retired: boolean;
+  readonly arms: number;
 }
 
 /** batch の錨の時刻（合流していなければ null）。 */
@@ -564,7 +568,7 @@ function anchorOf(batch: LiftBatchSpec): number | null {
 /** 場面の指定からビュー（live・synced）を組む。 */
 function liftViewOf(
   unitCount: number,
-  { batches, mates, orphan, retired }: LiftSceneSpec,
+  { batches, mates, orphan, retired, arms }: LiftSceneSpec,
 ): ClientView {
   const pendingOrders: PendingOrder[] = [];
   const recommendations: CookRecommendation[] = [];
@@ -666,6 +670,7 @@ function liftViewOf(
     pendingOrders,
     recommendations,
     timers,
+    arms,
   };
 }
 
@@ -680,7 +685,8 @@ function liftViewOf(
  *
  * 走行中の仲間は batch を指して作る。match は錨（合流していなければ serveAt）に endTime が一致し、mismatch は
  * 1 秒ずれ、stray は無関係の時刻に上がる。仲間と錨の釜は推奨の釜と同じプールから引き、推奨の釜と重なる
- * （全釜 idle を破る）盤面も生む。
+ * （全釜 idle を破る）盤面も生む。腕の本数 arms は 1〜3 を振る——濃く出す先頭は店舗全体で arms 本（判断 21）ゆえ、
+ * 表示できる品目が arms を超える場面（上限が効く）と超えない場面の双方が要る。
  */
 export const genLiftView: fc.Arbitrary<ClientView> = fc
   .integer({ min: 1, max: 2 })
@@ -720,6 +726,7 @@ export const genLiftView: fc.Arbitrary<ClientView> = fc
         mates: fc.array(genMate, { maxLength: 3 }),
         orphan: fc.boolean(),
         retired: fc.boolean(),
+        arms: fc.integer({ min: 1, max: 3 }),
       })
       .map((spec) => liftViewOf(unitCount, spec));
   });

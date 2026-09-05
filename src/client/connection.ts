@@ -25,6 +25,7 @@ import type { PendingOrder } from "../domain/order";
 import type { TimerFact, NonEmptyArray } from "../domain/timer";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_ARMS,
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_SLOT_OFFSETS,
   DEFAULT_UNIT_COUNT,
@@ -152,6 +153,11 @@ export interface ClientView {
   readonly slotOffsets: SlotOffsets;
   /** 許容 slot 距離（サーバ権威・受信した事実）。config 受信で確定する。釜の組がこの内側の空き釜だけを組む（AC 4.4 / 4.5）。 */
   readonly affinityToleranceDistance: number;
+  /**
+   * 同時に上げられる本数（腕の本数・サーバ権威・受信した事実）。config 受信で確定する。
+   * 濃く（now・押せる）出す提案を店舗全体で先頭 arms 本に限るために読む（lift-group-display 判断 21）。
+   */
+  readonly arms: number;
 }
 
 /**
@@ -203,6 +209,7 @@ export const EMPTY_VIEW: ClientView = {
   unitOrigins: defaultUnitOrigins(DEFAULT_UNIT_COUNT),
   slotOffsets: DEFAULT_SLOT_OFFSETS,
   affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  arms: DEFAULT_ARMS,
 };
 
 /**
@@ -463,8 +470,9 @@ function decideServerMessage(
       // 許容距離を確定し offset も最新化する。稼働中の差し替え（運用エンドポイント発の再配信）も同じ経路で
       // 反映される（要件2.3）。
       //
-      // 計画のパラメータのうち、ビューへ写すのは client に読み手のできた 3 項目（unitOrigins / slotOffsets /
-      // affinityToleranceDistance——釜の組が釜の距離を測るために読む・lift-group-display AC 4.7）だけである。
+      // 計画のパラメータのうち、ビューへ写すのは client に読み手のできた 4 項目（unitOrigins / slotOffsets /
+      // affinityToleranceDistance——釜の組が釜の距離を測るために読む・lift-group-display AC 4.7、arms——濃く出す
+      // 提案を先頭 arms 本に限る・判断 21）だけである。
       // 重み・許容幅（秒）は引き続き読まない。それらは計画の採点（サーバ側の計算）にのみ効く事実で、client の
       // 表示・導出のどこからも参照されない。読み手の無い写しをビューへ置けば、サーバ設定の第二の真実を抱える
       // だけになる（online-cook-scheduling AC 3.4 の「表示・導出にのみ用い変更要求を送らない」を、最小の形
@@ -475,6 +483,7 @@ function decideServerMessage(
         unitCount: message.unitCount,
         noodlePresets: message.noodlePresets,
         unitOrigins: message.unitOrigins,
+        arms: message.arms,
         slotOffsets: message.slotOffsets,
         affinityToleranceDistance: message.affinityToleranceDistance,
       };

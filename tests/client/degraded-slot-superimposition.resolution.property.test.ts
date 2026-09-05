@@ -24,6 +24,7 @@ import {
 } from "../../src/client/connection";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_ARMS,
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_SLOT_OFFSETS,
   defaultUnitOrigins,
@@ -180,6 +181,7 @@ function genScene(
               unitOrigins: defaultUnitOrigins(drawn.unitCount),
               slotOffsets: DEFAULT_SLOT_OFFSETS,
               affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+              arms: DEFAULT_ARMS,
             },
             serverTimers: drawn.serverTimers,
             at: drawn.correctedNowMs - drawn.offset,

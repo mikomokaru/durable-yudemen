@@ -14,7 +14,7 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { EMPTY_VIEW, type ClientEvent, type ClientView } from "../../src/client/connection";
-import { liftGroups } from "../../src/client/components/liftGroups";
+import { liftGroups, slotSuggestions, visibleGroups } from "../../src/client/components/liftGroups";
 import {
   genBoilSeconds,
   genClientTimer,
@@ -242,6 +242,29 @@ describe("client/generators 群を作る場面（lift-group-display）のスモ�
         return stop !== -1 && stop < s.groups.length - 1;
       }),
     ).toBe(true);
+  });
+
+  it("genLiftScene は腕の本数 1〜3 を踏み、先頭の上限が効く場面（startAt が来た表示できる品目が arms を超える）を含む", () => {
+    const scenes = fc.sample(genLiftScene, 300);
+    expect(new Set(scenes.map((s) => s.view.arms))).toEqual(new Set([1, 2, 3]));
+    // 上限が効く場面：先頭がちょうど arms 本で、startAt が来ているのに後続に留まる品目が在る（Requirement 6.9 の主語）。
+    // 上限が効かない場面（先頭が arms 本に満たない）も要る——上限が常に効けば「arms 本以下」は「ちょうど arms 本」に退化する。
+    const shapes = scenes.map(({ view, corrected }) => {
+      const list = [
+        ...slotSuggestions(visibleGroups(liftGroups(view, corrected)), view, corrected).values(),
+      ].flat();
+      const heads = new Set(
+        list
+          .filter((s) => s.role === "head")
+          .map((s) => s.item.order.externalOrderId + "#" + s.item.order.itemIndex),
+      );
+      const lapsedMembers = list.some(
+        (s) => s.role === "member" && s.item.suggestion.startAt <= corrected,
+      );
+      return { arms: view.arms, heads: heads.size, lapsedMembers };
+    });
+    expect(shapes.some((s) => s.heads === s.arms && s.lapsedMembers)).toBe(true);
+    expect(shapes.some((s) => s.heads > 0 && s.heads < s.arms)).toBe(true);
   });
 
   it("genLiftScene の仲間は錨に一致 / 不一致と boiled を踏み、群に入らない推奨も混ざる", () => {

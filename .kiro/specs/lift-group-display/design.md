@@ -7,7 +7,7 @@
 1. **群の導出**（`liftGroups`）— 受信した推奨の全量を `group` で束ね、最早 `startAt` 順に並べる。`serveAt` の再計算は表示と検証のためだけ。
 2. **開始の事実**（`Group_Started`）— 群の推奨が運ぶ `anchor`（合流した走行中の錨の実効 endTime）が非 null で、かつ `anchor > Corrected_Now`。群の所属（`group`）と `anchor` は engine が確定計画から決めて `CookRecommendation` で運ぶ（判断 20・`lift-group-planning` 判断 19・ADR-0008）。client は卓・serveAt・走行中 Timer から逆算しない。
 3. **表示できる群の連鎖**（`visibleGroups`）— 先頭の群と、それより前の群がすべて Group_Started である群。
-4. **釜ごとの提案**（`slotSuggestions`）— 表示できる群の品目のうち、その釜を含み、全釜が idle で、Prep_Lead が来たもの。群の先頭だけが押せ、濃くなる。先頭でない品目は薄く見えるだけ。
+4. **釜ごとの提案**（`slotSuggestions`）— 表示できる群の品目のうち、全釜 idle と Prep_Lead を通ったものを釜に載せる。濃く（`now`・押せる）出す `head` は、開始推奨時刻が来たもののうち**店舗全体で先頭 arms 本**（判断 21）。それ以外は薄い `member`（押せない・準備の合図）。`head` / `member` の判別共用体で、`member` にボタンを描く経路が型から無い。
 5. **ラジアルの待ち行列** — 店舗全体の待ち行列を到着順に列挙し、品目として開始する。`slotSpan ≥ 2` は押した釜から許容距離の内側で最も近い空き釜を組にする。degraded では列挙しない。
 6. **撤去** — `planAnchor` / `suggestionTiming`（#27）と `nextForSlot`。時刻の語（`in m:ss` / `+m:ss`）は消える。
 
@@ -114,13 +114,11 @@ export function liftGroups(view: ClientView, corrected: number): readonly LiftGr
 /** 表示できる群——先頭の群と、それより前がすべて started の群（判断 19）。 */
 export function visibleGroups(groups: readonly LiftGroup[]): readonly LiftGroup[];
 
-/** 群の先頭——未着手のうち startAt 最小の品目（同値は全部・判断 17）。 */
-export function headOf(group: LiftGroup): readonly GroupItem[];
 
-/** 釜の提案。押せる先頭（薄 / 濃）と、押せない仲間（薄）。 */
+/** 釜の提案。いま押せる先頭（濃）と、押せない後続（薄）。判断 21：先頭は店舗全体で先頭 arms 本。 */
 export type SlotSuggestion =
-  | { readonly role: "head"; readonly phase: "faint" | "solid"; readonly item: GroupItem }
-  | { readonly role: "member"; readonly item: GroupItem };
+  | { readonly role: "head"; readonly item: GroupItem }   // 濃・now・押せる（店舗全体で先頭 arms 本）
+  | { readonly role: "member"; readonly item: GroupItem }; // 薄・押せない
 
 /** 釜ごとの提案。live でなければ空。全釜 idle と Prep_Lead をここで判定する。 */
 export function slotSuggestions(
@@ -162,21 +160,22 @@ for g in groups:            # 最早順
 ```
 if mode(view) !== "live": return empty
 occupied = view.timers の slotIds の和集合（running / boiled とも・担当外を含む）
+shown = []                                       # 表示できる品目（群の順, 群の中の順）
 for g in visible:
-  heads = headOf(g)
   for item in g.items:
     if item.suggestion.slotIds のいずれかが occupied: continue          # 全釜 idle（AC 2.7）
     if corrected < item.suggestion.startAt − PREP_LEAD_MS: continue       # Prep_Lead（AC 2.1）
-    role = heads.includes(item)
-      ? { role: "head", phase: corrected ≥ startAt ? "solid" : "faint", item }
-      : { role: "member", item }
-    for slotId in item.suggestion.slotIds: bySlot[slotOf(slotId)].push(role)   # 各釜に同じ提案（AC 2.14）
+    shown.push(item)
+heads = shown のうち startAt ≤ corrected のものを (startAt, shown の順) で並べた先頭 view.arms 本   # 判断 21・AC 1.9 / 2.4
+for item in shown:
+  role = heads に含まれる ? { role: "head", item } : { role: "member", item }
+  for slotId in item.suggestion.slotIds: bySlot[slotOf(slotId)].push(role)   # 各釜に同じ提案（AC 2.14）
 各釜の配列を startAt 昇順（同値は群の順）に並べる
 ```
 
 - 「idle」は「その釜を駆動する Timer が無い」で、`slotDisplay` の idle と同じ事実（`view.sync` は表示側が見る）。
-- `member` に `phase` は無い。先頭でない品目は `startAt` が過ぎても濃くならない（AC 2.4）。「押せる」と「濃い」は先頭にだけ在る。
-- 上限は置かない（AC 2.11）。同じ釜に 2 件以上並ぶのは、G1 の残りが放置されて G2 の Prep_Lead が来たときなど。カードの `actionRow` は折り返して Start を右下に留める（#26 の構造）。
+- `head` は常に `now`（濃・押せる）。`member` は薄く、`startAt` が過ぎても濃くならない（AC 2.3）。「押せる」と「濃い」は `head` にだけ在る。判断 5「薄くても押せる」は判断 21 で撤回——薄いものを早く始めたければラジアル。
+- 上限は「濃いもの」にだけ置く（店舗全体で arms 本・AC 2.4 / 2.11）。表示する数には上限を置かない。同じ釜に 2 件以上並ぶのは、先頭の残りが放置されて後の群の Prep_Lead が来たときなど。カードの `actionRow` は折り返して Start を右下に留める（#26 の構造）。
 
 #### `pairSlots`
 
@@ -212,13 +211,13 @@ type SuggestionView =
   | { readonly role: "member"; readonly label: string; readonly ariaLabel: string; readonly tint: string };
 
 function suggestionOf(s: SlotSuggestion, slot, colorOf): SuggestionView
-  label = [displayName(order), firmness, table, s.role === "head" && s.phase === "solid" ? "now" : undefined]
-  ariaLabel = `Suggested — ${displayName(order)} · Slot ${slot} · ${s.role === "head" ? (s.phase === "solid" ? "now" : "soon") : "queued"}`
+  label = [displayName(order), firmness, table, s.role === "head" ? "now" : undefined]
+  ariaLabel = `Suggested — ${displayName(order)} · Slot ${slot} · ${s.role === "head" ? "now" : "queued"}`
 ```
 
 - **実装注記（task 6・レビューで確定）**：品目の名は可視のラベルも aria-label も `queueDisplay.displayName(order)`（商品名の代替・NFKC 正規化・麺量があれば `名 麺量`）で呼ぶ。当初の記法は可視だけ `name size`・aria-label は `name` と読めたが、麺量の違う同名の品目は別の品目であり、支援技術にだけ麺量を落とす理由が無い。規則の定義はレール・釜カード・ラジアルの帯で 1 箇所（`displayName`）。`slot-board-suggestions.example` は麺量を持つ品目で aria-label の末尾までを固定する。
 
-- 可視の語は空か `now`（AC 3.3・6.4）。aria-label だけが `soon` / `queued` で薄・押せないを語る（AC 3.4・3.7）。
+- 可視の語は空か `now`（AC 3.3・6.4）。aria-label だけが `queued` で押せないを語る（AC 3.4・3.7）。
 - **実装注記（task 5・レビューで確定）**：`SlotCard` は `SuggestionView[]` を対で受けず、`noodleColor` と同じ形の resolver `suggestionOf: (SlotSuggestion) => SuggestionView` で受ける（並行する 2 配列は長さの食い違いを表現できる）。この形では上の判別共用体は**両立しない**——resolver が `member` に `role: "head"` を返せば「押せないのにボタン」が描け、`SuggestionView` の判別が二つ目の真実になる。ゆえに `SuggestionView` は `{ label, ariaLabel, tint }` の 1 形（判別を持たない）とし、丸ボタン・塗り・`data-phase` はすべて導出 `SlotSuggestion` の `role` / `phase` から取る。可視の `now` は aria-label の相の語（`now` / `soon` / `queued`）から導き、「可視の語と食い違わない」（AC 3.4）を構造にする。提案 1 件は `role="group"`（aria-label はここ。素の span/div は generic で aria-label が効かない）で、`head` のボタンは自分の aria-label を別に持つ。以下の「対で受け」「両方が判別共用体」はこの注記で読み替える。
 - `SlotCard` は `display.next` と `SuggestionView[]` を対で受け、`role` で分岐する。`head` の分岐だけが丸ボタンを描き `onStartSuggested(item)` を呼ぶ。`member` の分岐にはボタンの JSX が無い（`actionStack` の丸ボタンの位置に何も置かず、ラベルの位置を揃える）。濃い塗りは `head` かつ `solid` の分岐にだけ現れ、`member` は常に薄い。**保証の所在**：導出（`SlotSuggestion`）と見え方（`SuggestionView`）の両方が判別共用体で、描画は `role` の分岐だけを持つ。それでも JSX の分岐は型が強制しないので、「`member` にボタンが無い」「`member` が濃くない」は `slot-card.example` が固定する（AC 3.6 は型と Example の両方で担う）。
 - `Start` ボタンと配置は変えない（AC 3.5）。
@@ -247,9 +246,9 @@ export interface RadialQueueItem {
 - 選択 → `connection.startOrderItem(slotIds, { externalOrderId, itemIndex })`（AC 4.2）。`slotSpan` 1 は押した釜だけ（AC 4.3）。
 - 弧の項目数はプリセット数のまま（3〜6）で、幾何は変えない。
 
-### Component 7: `connection.ts` — `ClientView` の 3 項目
+### Component 7: `connection.ts` — `ClientView` の 4 項目
 
-`unitOrigins: readonly UnitOrigin[]`・`slotOffsets: SlotOffsets`・`affinityToleranceDistance: number` を足し、`EMPTY_VIEW` は `defaultUnitOrigins(DEFAULT_UNIT_COUNT)` / `DEFAULT_SLOT_OFFSETS` / `DEFAULT_AFFINITY_TOLERANCE_DISTANCE`、config 受信で写す。config case の「計画のパラメータは読まない……読み手の無い写しをビューへ置かない」の注記は、読み手ができた 3 項目に限って改める（重み・許容幅は引き続き持たない）。
+`unitOrigins: readonly UnitOrigin[]`・`slotOffsets: SlotOffsets`・`affinityToleranceDistance: number`・`arms: number`（判断 21）を足し、`EMPTY_VIEW` は `defaultUnitOrigins(DEFAULT_UNIT_COUNT)` / `DEFAULT_SLOT_OFFSETS` / `DEFAULT_AFFINITY_TOLERANCE_DISTANCE`、config 受信で写す。config case の「計画のパラメータは読まない……読み手の無い写しをビューへ置かない」の注記は、読み手ができた 3 項目に限って改める（重み・許容幅は引き続き持たない）。
 
 ### Component 8: `slotDistance` の移設
 
@@ -293,7 +292,7 @@ export interface RadialQueueItem {
 | 6.6 | 担当外の空白 | Visible_Groups の全品目が担当外なら `assignedSlotDisplays` の idle の `next` はすべて空 |
 | 6.7 | 距離の一致 | `objective.ts` が import する `slotDistance` は domain のもの（静的検査：`objective.ts` に `function slotDistance` が無い） |
 | 6.8 | 全釜 idle | 現れた提案の `slotIds` は occupied と交わらない |
-| 6.9 | 先頭の一意 | `head` の品目は群の `startAt` 最小のものだけ。Corrected_Now を全品の `startAt` より後ろに置いても変わらない |
+| 6.9 | 先頭の上限 | `head` は店舗全体で `arms` 本以下、いずれも `startAt ≤ Corrected_Now`、表示できる品目の並びの先頭から取られている。全品の `startAt` が過ぎても `arms` 本を超えない。`member` は決してボタンを持たず濃くならない |
 | 6.10 | 開始の事実の一意 | `started` は群の `anchor` と Corrected_Now だけの関数。`anchor` null は決して started にならず、`anchor ≤ Corrected_Now` も started でない |
 | 6.11 | 非 live の沈黙 | degraded では `slotSuggestions` が空、ラジアルの `queue` が空、`startOrderItem` が呼ばれない（既存の connection.example と同じ形） |
 
@@ -345,10 +344,10 @@ export interface RadialQueueItem {
 | `LiftGroup.group` / `LiftGroup.anchor` | `liftGroups.ts` | engine が運ぶ群の識別子と合流の錨をそのまま持つ（client は計算しない） |
 | `PREP_LEAD_MS` | `src/domain/messages.ts` | 麺を準備する猶予（60 秒）。提案が薄く現れる `startAt` までの時間 |
 | `LiftGroup` / `GroupItem` | `liftGroups.ts` | 同時に上げる群と、その品目 |
-| `liftGroups` / `visibleGroups` / `headOf` / `slotSuggestions` / `pairSlots` | `liftGroups.ts` | 群の導出・連鎖・先頭・釜ごとの提案・釜の組 |
-| `SlotSuggestion`（`role: "head" \| "member"`・`phase: "faint" \| "solid"`） | `liftGroups.ts` | 押せる先頭と押せない仲間、薄と濃 |
+| `liftGroups` / `visibleGroups` / `slotSuggestions` / `pairSlots` | `liftGroups.ts` | 群の導出・連鎖・釜ごとの提案（先頭 arms 本を含む）・釜の組。`headOf` は判断 21 で撤去 |
+| `SlotSuggestion`（`role: "head" \| "member"`） | `liftGroups.ts` | 押せる先頭（濃・店舗全体で arms 本）と押せない後続（薄）。`phase` は判断 21 で撤去 |
 | `RadialQueueItem` / `RadialMenu.queue` / `onSelectItem` | `RadialMenu.tsx` | ラジアルの待ち行列の行と口 |
-| `ClientView.unitOrigins` / `slotOffsets` / `affinityToleranceDistance` | `connection.ts` | config から写す 3 項目（釜の組に要る） |
+| `ClientView.unitOrigins` / `slotOffsets` / `affinityToleranceDistance` / `arms` | `connection.ts` | config から写す 4 項目（釜の組と先頭 arms 本に要る） |
 | `slotDistance`（移設） | `src/domain/store.ts` | 釜どうしの距離。engine と client が共有 |
 
 撤去：`suggestionTiming` / `SuggestionTiming` / `planAnchor`（変数）/ `nextForSlot` / `itemOf`。engine の `Ordered`。

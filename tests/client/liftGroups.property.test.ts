@@ -4,8 +4,8 @@
 //
 // 群も先頭も提案も状態ではない。snapshot（推奨・待ち行列・Timer の全量）と補正後現在時刻からの導出値であり、
 // ビューに保持しない。ここで問うのは導出の性質——群の所属（`group` だけで束ねる）・端末に依らない一意・時間に
-// 対する単調性（分割点は `anchor` だけ）・群の境界・全釜 idle・先頭の一意・開始の事実（`anchor` と Corrected_Now
-// だけ）・degraded の沈黙——である。
+// 対する単調性（分割点は `anchor` と、濃くなる点の `startAt`）・群の境界・全釜 idle・先頭の上限（店舗全体で
+// `arms` 本・判断 21）・開始の事実（`anchor` と Corrected_Now だけ）・degraded の沈黙——である。
 //
 // 「提案は idle にしか現れない」「member にボタンが無い」は型で真になる（PBT で検査する内容が無い）。描画の
 // 見え方は slot-card の example が担う。時刻はすべて生成器が引数値として吐き、Date.now のスタブは用いない。
@@ -14,7 +14,6 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { ClientView } from "../../src/client/connection";
 import {
-  headOf,
   liftGroups,
   slotSuggestions,
   visibleGroups,
@@ -23,7 +22,7 @@ import {
   type SlotSuggestion,
 } from "../../src/client/components/liftGroups";
 import { suggestedItemOf } from "../../src/client/components/queueDisplay";
-import type { CookRecommendation } from "../../src/domain/messages";
+import { PREP_LEAD_MS, type CookRecommendation } from "../../src/domain/messages";
 import { slotOf } from "../../src/domain/store";
 import { genConnectivity, genLiftScene, genUnreachableReason } from "./generators";
 
@@ -53,11 +52,48 @@ function occupiedOf(view: ClientView): ReadonlySet<number> {
   return new Set(view.timers.flatMap((timer) => timer.slotIds.map(slotOf)));
 }
 
-/** 品目が属する群を鍵で引く。 */
-function groupOf(groups: readonly LiftGroup[], item: GroupItem): LiftGroup {
-  const found = groups.find((group) => group.items.some((member) => keyOf(member) === keyOf(item)));
-  if (found === undefined) throw new Error(`群に無い品目: ${keyOf(item)}`);
-  return found;
+/**
+ * 品目の鍵ごとの役（head / member）。同じ品目は含まれる全釜で同じ役である（1 件の推奨は各釜に同じ提案・AC 2.14）
+ * ——釜ごとに役が割れていれば、ここで落ちる。
+ */
+function rolesOf(
+  bySlot: ReadonlyMap<number, readonly SlotSuggestion[]>,
+): ReadonlyMap<string, SlotSuggestion["role"]> {
+  const roles = new Map<string, SlotSuggestion["role"]>();
+  for (const { suggestion } of flatten(bySlot)) {
+    const key = keyOf(suggestion.item);
+    const seen = roles.get(key);
+    if (seen !== undefined) expect(seen).toBe(suggestion.role);
+    roles.set(key, suggestion.role);
+  }
+  return roles;
+}
+
+/**
+ * 先頭の期待値——表示できる群の品目を（群の順, 品目の順）に並べ、全釜 idle と Prep_Lead を満たし、かつ
+ * `startAt ≤ corrected` のものの先頭 `arms` 本（AC 1.9・判断 21）。導出側の `slotSuggestions` を照合に使わず、
+ * 群の並びと占有から直に組む（同じ関数を両辺に置けば等式が空になる）。
+ */
+function expectedHeads(
+  visible: readonly LiftGroup[],
+  view: ClientView,
+  corrected: number,
+): readonly string[] {
+  const occupied = occupiedOf(view);
+  // 先頭は開始推奨時刻の順（同値は群の順・品目の順）で数える（判断 21）。群の順で数えると、同じ snapshot で
+  // 時刻が進んだだけで前の群の後の品目が後の群の先頭を押しのける。
+  return visible
+    .flatMap((group) => group.items)
+    .map((item, order) => ({ item, order }))
+    .filter(
+      ({ item }) =>
+        !item.suggestion.slotIds.some((slotId) => occupied.has(slotOf(slotId))) &&
+        corrected >= item.suggestion.startAt - PREP_LEAD_MS &&
+        corrected >= item.suggestion.startAt,
+    )
+    .sort((a, b) => a.item.suggestion.startAt - b.item.suggestion.startAt || a.order - b.order)
+    .slice(0, view.arms)
+    .map(({ item }) => keyOf(item));
 }
 
 /** 群の形（識別子を除く）——anchor・品目の鍵の列・started。群の付け替えの前後で比べる。 */
@@ -168,7 +204,7 @@ describe("Feature: lift-group-display, Property 1: 群の所属", () => {
 });
 
 describe("Feature: lift-group-display, Property 2: 一意（担当範囲・端末に依らない）", () => {
-  it("全量の並べ替えと端末ローカルの項目の変更に対して、群・表示できる群・先頭は構造的に等しい", () => {
+  it("全量の並べ替えと端末ローカルの項目の変更に対して、群・表示できる群・釜ごとの提案（先頭と後続）は構造的に等しい", () => {
     fc.assert(
       // Feature: lift-group-display, Property 2
       // Validates: Requirements 6.2, 1.6, 1.10
@@ -195,7 +231,12 @@ describe("Feature: lift-group-display, Property 2: 一意（担当範囲・端�
           const otherGroups = liftGroups(other, corrected);
           expect(otherGroups).toEqual(groups);
           expect(visibleGroups(otherGroups)).toEqual(visibleGroups(groups));
-          expect(otherGroups.map(headOf)).toEqual(groups.map(headOf));
+          // 先頭（濃・押せる）と後続も端末に依らない。live か否かだけは提案の有無を決める（Property 11 の主語）
+          // ので、接続の状態は元のまま比べる——それ以外のローカルの項目は提案に現れない。
+          const otherLive: ClientView = { ...other, connectivity: view.connectivity };
+          expect(slotSuggestions(visibleGroups(otherGroups), otherLive, corrected)).toEqual(
+            slotSuggestions(visibleGroups(groups), view, corrected),
+          );
         },
       ),
       { numRuns: NUM_RUNS },
@@ -204,16 +245,16 @@ describe("Feature: lift-group-display, Property 2: 一意（担当範囲・端�
 });
 
 describe("Feature: lift-group-display, Property 3: 単調な出現（例外つき）", () => {
-  it("同じ snapshot で時刻を進めても、表示できる群の anchor を跨がない限り群は変わらず、提案は消えず薄→濃だけである", () => {
+  it("同じ snapshot で時刻を進めても、表示できる群の anchor を跨がない限り群は変わらず提案は消えない。表示できる品目の startAt も跨がなければ先頭・後続の役も変わらない", () => {
     fc.assert(
       // Feature: lift-group-display, Property 3
-      // Validates: Requirements 6.3
+      // Validates: Requirements 6.3, 2.3
       fc.property(
         genLiftScene,
         fc.integer({ min: 0, max: 600_000 }),
         ({ view, corrected }, delta) => {
           const before = visibleGroups(liftGroups(view, corrected));
-          // 分割点は「表示できる群の anchor」だけ。Timer の endTime（錨の Timer のものを含め）は client の判定に
+          // 群の分割点は「表示できる群の anchor」だけ。Timer の endTime（錨の Timer のものを含め）は client の判定に
           // 現れないので分割点にならない——跨いでも何も変わらない（started は anchor だけで決まる・AC 1.7）。
           const splits = before
             .map((group) => group.anchor)
@@ -225,21 +266,45 @@ describe("Feature: lift-group-display, Property 3: 単調な出現（例外つ�
           expect(visibleGroups(liftGroups(view, later))).toEqual(before);
 
           const earlier = flatten(slotSuggestions(before, view, corrected));
+          const survivorsIn = (
+            list: readonly { readonly slot: number; readonly suggestion: SlotSuggestion }[],
+            slot: number,
+            item: GroupItem,
+          ) =>
+            list.find(
+              (candidate) =>
+                candidate.slot === slot && keyOf(candidate.suggestion.item) === keyOf(item),
+            );
+
+          // 一度現れた提案は消えない（Prep_Lead も全釜 idle も時刻に対して単調）。
           const after = flatten(
             slotSuggestions(visibleGroups(liftGroups(view, later)), view, later),
           );
           for (const { slot, suggestion } of earlier) {
-            const survivor = after.find(
-              (candidate) =>
-                candidate.slot === slot &&
-                keyOf(candidate.suggestion.item) === keyOf(suggestion.item),
-            );
+            const survivor = survivorsIn(after, slot, suggestion.item);
             expect(survivor).toBeDefined();
-            expect(survivor!.suggestion.role).toBe(suggestion.role);
-            if (suggestion.role === "head" && survivor!.suggestion.role === "head") {
-              // 濃から薄へ戻らない。
-              if (suggestion.phase === "solid") expect(survivor!.suggestion.phase).toBe("solid");
+            // startAt がまだ来ていない後続は、進めても後続のまま（濃くなるのは startAt が来てから・AC 2.3）。
+            if (suggestion.item.suggestion.startAt > later) {
+              expect(suggestion.role).toBe("member");
+              expect(survivor!.suggestion.role).toBe("member");
             }
+            // 一度先頭になった品目は、始めるまで先頭のまま——新たに時刻が来た品目は開始推奨時刻の順で後ろに並び、
+            // 先頭を押しのけない（判断 21・6.3「薄から濃へ一方向」）。
+            if (suggestion.role === "head") expect(survivor!.suggestion.role).toBe("head");
+          }
+
+          // 役の分割点は表示できる品目の startAt（濃くなる点）。それも跨がなければ先頭も後続も変わらない——
+          // 先頭は「startAt が来た品目の並びの先頭 arms 本」（判断 21）で、並びは snapshot が決め、startAt を跨がない
+          // 限り「来た品目」の集合が変わらないからである。
+          const startAts = before
+            .flatMap((group) => group.items.map((item) => item.suggestion.startAt))
+            .filter((startAt) => startAt > corrected);
+          const steady = Math.min(later, ...startAts.map((startAt) => startAt - 1));
+          const held = flatten(
+            slotSuggestions(visibleGroups(liftGroups(view, steady)), view, steady),
+          );
+          for (const { slot, suggestion } of earlier) {
+            expect(survivorsIn(held, slot, suggestion.item)?.suggestion.role).toBe(suggestion.role);
           }
         },
       ),
@@ -326,37 +391,43 @@ describe("Feature: lift-group-display, Property 8: 全釜 idle", () => {
   });
 });
 
-describe("Feature: lift-group-display, Property 9: 先頭の一意", () => {
-  it("head の品目は群の startAt 最小のものだけで、全品の startAt を過ぎても変わらない", () => {
+describe("Feature: lift-group-display, Property 9: 先頭の上限", () => {
+  it("head は店舗全体で arms 本以下、いずれも startAt ≤ corrected で、開始推奨時刻の順（同値は群の順・品目の順）の先頭から取られる。放置して全品の startAt が過ぎても arms 本を超えない", () => {
     fc.assert(
       // Feature: lift-group-display, Property 9
-      // Validates: Requirements 6.9, 1.9, 2.4
+      // Validates: Requirements 6.9, 1.9, 2.2, 2.3, 2.4
       fc.property(genLiftScene, ({ view, corrected }) => {
-        const groups = liftGroups(view, corrected);
-        for (const group of groups) {
-          const earliest = Math.min(...group.items.map((item) => item.suggestion.startAt));
-          expect(headOf(group).map(keyOf).sort()).toEqual(
-            group.items
-              .filter((item) => item.suggestion.startAt === earliest)
-              .map(keyOf)
-              .sort(),
-          );
-        }
-        // 放置して全品の startAt が過ぎた時刻でも、先頭の集合は同じ（先頭は時刻の関数でない）。
+        // 放置して全品の startAt が過ぎた時刻も踏む——表示できる品目がすべて濃くなれる時刻で、上限だけが効く。
         const lapsed = Math.max(corrected, ...view.recommendations.map((r) => r.startAt)) + 1;
-        const lapsedGroups = liftGroups(view, lapsed);
         for (const time of [corrected, lapsed]) {
-          const current = time === corrected ? groups : lapsedGroups;
-          for (const { suggestion } of flatten(
-            slotSuggestions(visibleGroups(current), view, time),
-          )) {
-            const heads = headOf(groupOf(current, suggestion.item)).map(keyOf);
-            expect(heads.includes(keyOf(suggestion.item))).toBe(suggestion.role === "head");
+          const visible = visibleGroups(liftGroups(view, time));
+          const bySlot = slotSuggestions(visible, view, time);
+          const roles = rolesOf(bySlot);
+          const heads = [...roles].filter(([, role]) => role === "head").map(([key]) => key);
+          expect(heads.length).toBeLessThanOrEqual(view.arms);
+          for (const { suggestion } of flatten(bySlot)) {
+            // 先頭は startAt が来ている。後続は「表示できるがそれ以外」——startAt が来ていても濃くならない（AC 2.3）。
+            if (suggestion.role === "head") {
+              expect(suggestion.item.suggestion.startAt).toBeLessThanOrEqual(time);
+            }
+          }
+          // 先頭の集合は、群の並びと占有から直に組んだ期待値と一致する（並びの先頭 arms 本・AC 1.9）。
+          expect(new Set(heads)).toEqual(new Set(expectedHeads(visible, view, time)));
+          if (time === lapsed) {
+            // 全品の startAt が過ぎれば、表示できる品目が arms 本を超える限り先頭はちょうど arms 本（上限が効く）。
+            expect(heads.length).toBe(Math.min(view.arms, roles.size));
           }
         }
-        expect(lapsedGroups.map((group) => headOf(group).map(keyOf))).toEqual(
-          groups.map((group) => headOf(group).map(keyOf)),
-        );
+        // 表示される品目の集合は arms に依らない（上限は濃さにだけ効き、表示の数に上限は無い・AC 2.11）。
+        const visible = visibleGroups(liftGroups(view, corrected));
+        const shownWith = (arms: number) =>
+          new Set(
+            flatten(slotSuggestions(visible, { ...view, arms }, corrected)).map(
+              ({ slot, suggestion }) => `${slot}:${keyOf(suggestion.item)}`,
+            ),
+          );
+        expect(shownWith(view.arms + 1)).toEqual(shownWith(view.arms));
+        expect(shownWith(1)).toEqual(shownWith(view.arms));
       }),
       { numRuns: NUM_RUNS },
     );

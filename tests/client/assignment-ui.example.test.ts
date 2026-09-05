@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import type { ClientTimer, ClientView } from "../../src/client/connection";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_ARMS,
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_SLOT_OFFSETS,
   defaultUnitOrigins,
@@ -67,6 +68,7 @@ function syncedView(timers: readonly ClientTimer[]): ClientView {
     unitOrigins: defaultUnitOrigins(4),
     slotOffsets: DEFAULT_SLOT_OFFSETS,
     affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+    arms: DEFAULT_ARMS,
   };
 }
 
