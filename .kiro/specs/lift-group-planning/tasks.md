@@ -243,11 +243,12 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 「engine が `slotSpan` を見て複数スロットを割り当てる変更は別 spec で扱う」に、本 spec が解消した旨を追記する。
     - _Requirements: 8.2_
 
-- [ ] 14. チェックポイント — 全体の green
+- [x] 14. チェックポイント — 全体の green
+  - 実測・2026-09-05: `pnpm typecheck` 0 エラー、`pnpm lint` エラー 0（警告は `tests/operation-history` の既存 no-map-spread のみ）、`pnpm fmt:check` 通過、`pnpm test` 225 ファイル 1382 件通過。
   - `pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm fmt:check` を実行し、全体が通ることを確認する。
   - **実機確認は要らない。** 本 spec は client を変えず、出力は「群の `serveAt` が一致した計画」までである。見え方の確認は `lift-group-display` の担当。
 
-- [ ] 15. 独立の後続タスク（本体の差分と混ぜない）
+- [x] 15. 独立の後続タスク（本体の差分と混ぜない）
   - [x] 15.1 `lift-group-display` への申し送り — **反映済み（確認のみ）**
     - `lift-group-display/requirements.md:72-74` に「`lift-group-planning` からの申し送り」節として既に入っている（群の中で押す順は `startAt` 順・短い品目を先に入れると群ごと遅い方へずれる・薄い段階の押下をどう絞るかは display の design で決める）。
     - 本 spec 側で書き足すことは無い。実装時に文面が現状の判断と食い違っていないかだけを見る。
