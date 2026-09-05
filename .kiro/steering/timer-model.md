@@ -26,7 +26,7 @@ Timer は本プロジェクトの中核概念であり、パイロットから�
 ## 既知の分岐点（脱皮時に判断を要する点）
 
 - **SlotId の複数化（実装済み）** — `TimerFact.slotId` を `slotIds: NonEmptyArray<Slot>`（型で非空強制・`readonly [Slot, ...Slot[]]`）へ変えた。1スロット↔多スロットは表現差ではなく**事実の基数変化**ゆえ、共有の芯 `TimerFact` を変えて両側（engine/client/wire/永続）が同一基数に追従する。未検証入力（`ClientMessage.start`・永続）は `readonly string[]` のままにし、境界で `isNonEmpty`（domain/timer.ts）を通して非空を確立する。永続は v2 へ上げ `migrate` が旧単一 `slotId` を `[slotId]` に写す。担当絞り込みは any-overlap（`slotIds` のいずれかが範囲内）、表示は multi-cell（各スロットセルに現れる）。詳細は yude-men-timer/design.md「スロット複数化（slotIds・スキーマ v2）」。
-- **駆動オーダーの保持** — `seq`（登録順・engine 専用 `Sequenced`）とは**別概念**。「オーダーを client が見るか」をまず決める。client 可視なら共有事実として `TimerFact`（または共有の兄弟概念）へ。engine 内部のみなら `Sequenced` と混同せず別の engine 専用概念として立てる。
+- **駆動オーダーの保持（実装済み）** — `seq`（登録順・engine 専用 `Sequenced`）とは**別概念**。「オーダーを client が見るか」をまず決める。client 可視なら共有事実として `TimerFact`（または共有の兄弟概念）へ。engine 内部のみなら `Sequenced` と混同せず別の engine 専用概念として立てる。**経過**：`online-cook-scheduling` が engine 専用 `Ordered.orderItem`（品目参照・永続 v7）として立て、`lift-group-planning` が卓 `tableId` をその内側に足し（ADR-0003・engine 専用のまま）、`lift-group-display` が群の開始の判定に client が読む必要を生じたので共有事実 `TimerFact.orderItem: OrderItemOrigin | null`（`src/domain/timer.ts`）へ昇格させ、`Ordered` を撤去した。null はアドホック。ワイヤ・永続・engine の三者が同じ形を継承する。
 - **近接茹で上がりの終了調整** — 調整対象は `endTime`（既に `TimerFact` の共有事実）。engine の純粋変換（`decide` 配下）で `endTime` を調整すれば、調整後の値は既存フィールドのまま client へ伝わる。**ワイヤ／共有の形は変えない**。新しい変換を engine へ足すだけにとどめる。
 
 ## 不変点

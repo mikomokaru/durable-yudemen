@@ -44,7 +44,7 @@ engine と永続は、`Ordered` を `TimerFact.orderItem` に置き換える型�
 | client | `src/client/persistence.ts` | `toClientTimer` が `orderItem` を復元する（欠如 / null → null。旧ブロブの優雅な移行・`startTime` / `firmness` と同じ扱い） |
 | client | `src/client/components/useAudioCues.ts` | `assignedSlotDisplays(view, units, now, [])` の第 4 引数を落とす（省略可にする） |
 | client | `src/client/components/liftGroups.ts`（新規） | 群・開始・表示できる群・先頭・釜ごとの提案・釜の組の導出（純粋） |
-| client | `src/client/components/queueDisplay.ts` | `suggestionTiming` / `SuggestionTiming` を撤去。`QueueSuggestion` に `serveAt` を足す（注文参照は足さない） |
+| client | `src/client/components/queueDisplay.ts` | `suggestionTiming` / `SuggestionTiming` を撤去。`QueueSuggestion` に `serveAt` を足す（注文参照は足さない）。実装では `boilSecondsOf` を export せず、推奨 → 品目 → 茹で秒 → `serveAt` の一連を `suggestedItemOf` として一つ置き、到着順の全順序 `compareArrival` と品目の表示名 `displayName` を公開した（task 0・6 の実測・事後承認を要る） |
 | client | `src/client/components/slotDisplay.ts` | idle の `next` を `readonly SlotSuggestion[]` へ。`nextForSlot` を撤去し、`slotSuggestions` の結果を受ける |
 | client | `src/client/components/SlotBoard.tsx` | `planAnchor` と時期の語を撤去。提案の見え方を `phase` から組む。ラジアルへ待ち行列と釜の組を渡す |
 | client | `src/client/components/SlotCard.tsx` | 提案を複数描く。`head` だけ丸ボタン、`member` はラベルだけ。薄 / 濃の塗り |
@@ -172,7 +172,7 @@ export function pairSlots(
 
 #### `liftGroups` の導出
 
-1. 推奨の全量を品目と突き合わせ、茹で秒を引く（`boilSecondsOf` を `queueDisplay.ts` から export して共用）。引けない推奨は群に入れない（AC 1.3）。`serveAt = startAt + boilSeconds × 1000`。
+1. 推奨の全量を品目と突き合わせ、茹で秒を引く（**実装注記**：`boilSecondsOf` は export せず、`queueDisplay.suggestedItemOf` が推奨 → 品目 → 茹で秒 → `serveAt` を一度に組む。レールと群で `serveAt` の等号を二度書かない）。引けない推奨は群に入れない（AC 1.3）。`serveAt = startAt + boilSeconds × 1000`。
 2. 鍵は `tableId === null ? solo(externalOrderId, itemIndex) : (tableId, serveAt)`。同じ鍵の品目を束ね、`items` を startAt 昇順（同値は正準順序）に並べる。
 3. `started`（AC 1.7）：`tableId !== null && view.timers.some(t => t.orderItem?.tableId === tableId && t.endTime === serveAt && t.endTime > corrected)`。boiled（`endTime ≤ corrected`）は数えない——茹で上がりの発火で計画は残りを新しい群に組み直すので、client が先に同じ結論に達するだけである（判断 16）。`t.endTime` はワイヤの実効値で、計画が錨に使った `adjustedEndTime` と同じ値。
 4. 群を最早 `startAt`（`items[0].suggestion.startAt`）昇順、同値は先頭品目の正準順序で並べる（AC 1.4）。
@@ -387,3 +387,5 @@ export interface RadialQueueItem {
 | `slotDistance`（移設） | `src/domain/store.ts` | 釜どうしの距離。engine と client が共有 |
 
 撤去：`suggestionTiming` / `SuggestionTiming` / `planAnchor`（変数）/ `nextForSlot` / `itemOf`。engine の `Ordered`。
+
+**表に無く実装で増えた公開名（事後承認を要る）**：`suggestedItemOf` / `compareArrival`（task 0 の実測）・`displayName`（task 6 の実測）。いずれも `queueDisplay.ts` で、既存のインライン式・非公開関数に名を与えたものであり新しい概念ではない。
