@@ -201,20 +201,19 @@ function prefixLength(scene: CommitScene): number {
   let release = initialRelease(scene.running, scene.now, scene.slotCount);
   for (let index = 0; index < bound; index++) {
     const slice = scene.accepted[index]!;
-    const siblings = members.get(slice.tableKey);
-    if (siblings !== undefined) {
-      if (
-        !keepsAnchor(
-          slice.placements,
-          release,
-          siblings,
-          targets,
-          DEFAULT_NOODLE_PRESETS,
-          scene.params,
-        )
-      ) {
-        return index;
-      }
+    // 仲間が無い卓（null）でも述語を通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず見る。
+    const siblings = members.get(slice.tableKey) ?? null;
+    if (
+      !keepsAnchor(
+        slice.placements,
+        release,
+        siblings,
+        targets,
+        DEFAULT_NOODLE_PRESETS,
+        scene.params,
+      )
+    ) {
+      return index;
     }
     release = advanceRelease(release, slice.placements);
   }

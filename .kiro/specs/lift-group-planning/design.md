@@ -273,7 +273,7 @@ placeBatch(batch, release, runningAnchor: EpochMillis | null, params):
 
 - **`ScheduleParams.toleranceRatio`** を足し、合流の窓 `joinWindowMillis(boil, params) = floor(boil × toleranceRatio / 100)` を `schedule.ts` に置く。指紋（`digest.ts`）に畳む。`RequestPlan` の `params` は SettleParams をそのまま載せるので追加の配線は無い。
 - `placeGroup(items, release, siblings, presets, params)`——`runningAnchor` の代わりに同じ卓の走行中の提供時刻の列（`tableMembers` の値・昇順）を受ける。`joinable` / `fits` は `catchable(earliest, siblings, boil, params)`（`A ≥ earliest − h_i` を満たす最早の A）で合流の可否を判定し、`placeJoined` は `joinedServeAt`——いずれかの A が `|earliest − A| ≤ h_i` なら **earliest**、無ければ earliest より後の最早の A——に置く。残りの batch は従来どおり `placeBatch(…, max(siblings))`。
-- `keepsAnchor(placements, release, siblings, targets, presets, params)`：(1) 走行中の最早より h_i を超えて手前に散らさない、(2) `isPushedOut`——合流分（`joinedAnchor` が非 null＝いずれかの A から h_i 以内）だけで解放表を進め、合流していない配置の釜が「最遅の A + h_i − 茹で時間」までに空いていたら押し出し。
+- `keepsAnchor(placements, release, siblings, targets, presets, params)`：(0) `anchor` を持つ配置の錨は現在の走行中の仲間の実効 endTime のいずれかに等しい（AC 9.10 (a)・`siblings` が null＝仲間が無い卓では `anchor` を持てない。21.4 のレビュー追記で先に据えた）、(1) 走行中の最早より h_i を超えて手前に散らさない、(2) `isPushedOut`——合流分（`joinedAnchor` が非 null＝いずれかの A から h_i 以内）だけで解放表を進め、合流していない配置の釜が「最遅の A + h_i − 茹で時間」までに空いていたら押し出し。
 - `boilMillisOf` を `schedule.ts` から export し、admit.ts の重複を消した。
 - `recommend(committed, pending, running, presets, params)`：配置ごとに `joinedAnchor` を引き、`group = joined ? \`${slice}:anchor:${A}\` : \`${slice}:${serveAt}\``、`anchor = A | null`。**21.4 で改訂**：`recommend(committed)` は `Placement.anchor` を運ぶだけで、`joinedAnchor` の推定は撤去（Component 10「`Placement.anchor`」）。引数の待ち行列・走行中・プリセット・採点パラメータは推定のためだけに要したので消える。
 - 検証：`tests/core/continuous-input.example.test.ts`（arms 1〜3 × 間隔 0 / 1 / 3 / 5 秒・6 本を順に投入し、各投入の直後に空いている釜の残りがすべて `anchor` 非 null で `startAt ≤ now`、いま押せる推奨が使わない空き釜に後ろへ置かれた品目が無い）。Property 1 は「最早の走行中 − h_i より手前に散らさない・最遅 + h_i より後ろは一つに揃う」へ。`digest.example` は toleranceRatio が指紋を変える形へ。
@@ -461,7 +461,7 @@ placeWithLifts(batch, t0, release, lifts, siblingsEnds, params):
 
 両候補を同じ既存の表に対して**実際に作って**比べる。pack が既存の上がりを避けて 135 秒後ろへ動くなら、その待ちと遅れは cost(pack) に入る。split が既存の走行中と重なれば手伝いの費用は cost(split) に入る。4 人家族（arms 2・L 45・表が空）：pack 90、split 270 → pack。9 本：先頭 4 本の列で pack（90 < 270）、残り 5 本は次の窓で 4 + 1。arms 1 の大盛（span 2 ≤ 上限 3）は split の接頭辞が空なので pack で単独に置く。
 
-**`Placement.anchor`（AC 9.9・9.10・レビュー 1）。** 合流先の走行中の実効 endTime を配置の時点で決めて `Placement` に持ち、窓で `serveAt` が動いても変えない。`recommend` はそれを運ぶ（`joinedAnchor` の ±h_i 推定は撤去）。`AcceptedSlice` も持つので永続 v11（v10 の一片は移行時に h_i の窓で推定して埋める・推定できなければ null）。
+**`Placement.anchor`（AC 9.9・9.10・レビュー 1）。** 合流先の走行中の実効 endTime を配置の時点で決めて `Placement` に持ち、窓で `serveAt` が動いても変えない。`recommend` はそれを運ぶ（`joinedAnchor` の ±h_i 推定は撤去）。`AcceptedSlice` も持つので永続 v11（**v10 の一片は推定せず null**——`migrate` は純粋で設定（toleranceRatio・プリセット）を持たず h_i の窓を引けない。所属を失った合流分は合成が 1 品の単位として再検証する。代償は次の再計画まで「開始済み」が失われることで、`docs/persisted-schema-rollback.md` の v11 行に明記。レビュー追記・2026-09-06）。**`anchor` の主張は `recommend` が無条件に運ぶので、検証は `keepsAnchor` ただ一つが担う**——(a)「錨は現在の走行中の仲間の実効 endTime のいずれかに等しい・仲間が無い卓では `anchor` を持てない」は 21.4 の時点で先に据え（21.6 の pack 単位の検査はこれを含む）、ゲートと合成が同じ述語で読む。錨が Boil_Sync で ±h_i の内側に動いた採用済み一片も切られ、自前解が現在の錨で置き直す（錨は等号で運ぶ約束・判断 17）。
 
 **(e) の契約（レビュー 4 回で確定・単位は pack）。** `keepsAnchor` は一片の配置を**単位**にまとめ、単位を一つずつ解放表と上げ表へ載せながら検査する。単位は、`anchor` を持つ配置なら「同じ `anchor`・同じ `serveAt`」の pack、`anchor` を持たない配置なら 1 品。配置は batch 単位で置かれる（`placeWithLifts` は pack 全体の span で `firstFit` する）ので、検証も同じ単位でなければ自前解を拒否する——arms 2・L 45・走行中 3 本が 54・54・66 秒に上がる表で、残り 2 品（候補 60 秒）を pack すると 60 秒の窓負荷が 5 になり両方 99 秒に置かれるが、1 品ずつの firstFit は 60 秒である。
 

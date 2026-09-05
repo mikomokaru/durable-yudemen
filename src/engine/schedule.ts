@@ -368,15 +368,25 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
 }
 
 /**
- * 一片が走行中の錨を守っているか（ハード制約 (e)・判断 16 / 17・ADR-0007）。守るとは 2 つ——
+ * 一片が走行中の錨を守っているか（ハード制約 (e)・判断 16 / 17・ADR-0007）。守るとは 3 つ——
+ *   0. **錨の主張は現在の仲間に在る**：`anchor` を持つ配置の錨は、現在の走行中の仲間の実効 endTime のいずれかに
+ *      等しい（AC 9.10 (a)）。`Placement.anchor` は配置の事実として `recommend` が無条件に client へ運び、client は
+ *      `anchor > now` で「開始済み」を読む（判断 19）。ゆえに主張を検証しなければ、外部計画が任意の錨を書いても
+ *      通り、採用済み一片の錨が Boil_Sync で動いても一片が残る限り古い錨を運ぶ——判断 17 が潰した「『1 本目に
+ *      揃う』という主張が黙って嘘になる」回帰そのものである。走行中の仲間が無い卓（`siblings` が null）では
+ *      在りうる錨が無いので、`anchor` を持つ配置は一つも許さない。
  *   1. **合流分は錨に一致する**：錨以下に提供する配置は、ちょうど錨に提供する（錨より手前に散らさない）。
  *   2. **押し出さない**：合流できた品目を錨より後ろへ置かない（isPushedOut）。
  *
  * Acceptance_Gate（admit.ts）と確定計画の合成（commit.ts）が同じ述語を読む。合成が読むのは、採用済み一片が
  * 採用時の錨の上に組まれているためである——錨は Boil_Sync で動く（無関係な Timer が仲間の窓の内側で始まると
- * 仲間の adjustment が変わる）。錨が +Δ 動けば合流分は錨より手前になり（1 が破れる）、−Δ 動けば合流分は
- * 錨より後ろになって、まだ合流できるなら押し出し（2 が破れる）、もう届かないなら正当な後続の batch になる。
- * どちらも導出だけで判定でき、採用時の錨を持たなくてよい。
+ * 仲間の adjustment が変わる）。錨が動けば合流分の `anchor` はもう仲間に無く（0 が破れる）、一片は切られて自前解が
+ * 現在の錨で置き直す（±h_i の内側の動きでも同じ——錨は等号で運ぶ約束であり、近似では運ばない）。`anchor` を
+ * 持たない配置は、+Δ で錨より手前になり（1 が破れる）、−Δ でまだ合流できるなら押し出し（2 が破れる）、もう
+ * 届かないなら正当な後続の batch になる。どれも導出だけで判定でき、採用時の錨を持たなくてよい。
+ *
+ * 0 は 21.6 の pack 単位の検査（AC 9.10 (a)〜(d)）の (a) を先に据えたもので、(b)〜(d) は 21.6 が足す。自前解は
+ * 構成から満たす（`joinTarget` は錨を `siblings` から選ぶ・Property 17）。
  *
  * **合流する部分集合を外部解に強制しない。** 残り容量が 1 品分で自前解が A を選んでも、外部解が B を合流させ
  * A を後ろに置く一片は、A が B の後では合流できない（isPushedOut が偽）ので守っている。強制するのは「合流した
@@ -385,11 +395,17 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
 export function keepsAnchor(
   placements: readonly Placement[],
   release: SlotRelease,
-  siblings: readonly EpochMillis[],
+  siblings: readonly EpochMillis[] | null,
   targets: readonly PendingOrder[],
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): boolean {
+  // 0. 錨の主張は現在の仲間の実効 endTime のいずれかに等しい（仲間が無ければ主張そのものが立たない）。
+  const claimsAbsent = placements.some(
+    (placement) => placement.anchor !== null && !(siblings ?? []).includes(placement.anchor),
+  );
+  if (claimsAbsent) return false;
+  if (siblings === null) return true;
   // 1. 走行中の最早より h_i を超えて手前に散らさない（走行中より先に上げる配置は合流でも後続でもない）。
   const earliestSibling = siblings[0]!;
   const scattered = placements.some((placement) => {

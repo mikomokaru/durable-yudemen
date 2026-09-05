@@ -177,6 +177,26 @@ describe("admit — 段 2（合成後の総和による全体判定）", () => {
 });
 
 describe("admit — 外部の申告を検証する", () => {
+  it("走行中の仲間が無い卓で錨を主張する計画は feasible と認めず、棄却する（AC 9.10 (a)）", () => {
+    // 上の「遊ばせずに入れ替える」計画は採用される。同じ配置に `anchor` を書き足しただけの計画は、卓 t-b に
+    // 走行中の仲間が無く在りうる錨が無いので棄却される——`recommend` は `anchor` を無条件に運び、client は
+    // `anchor > now` で「開始済み」を読むため、検証しなければ外部計画が任意の錨で「開始済み」を作れる。
+    const adopted = plan(
+      slice("t-b", [{ order: SHORT, startAt: NOW, serveAt: NOW + 60 * SECOND }]),
+    );
+    expect(gate(adopted)).toEqual([adopted.slices[0]!]);
+    const [only] = adopted.slices[0]!.placements;
+    const claimed: CookSchedule = {
+      slices: [
+        {
+          tableKey: "t-b",
+          placements: [{ ...only!, anchor: (NOW + 60 * SECOND) as EpochMillis }],
+        },
+      ],
+    };
+    expect(gate(claimed)).toEqual([]);
+  });
+
   it("採点は engine が比較の時点で行う（悪化と見れば棄却する）", () => {
     // engine の採点では 760 秒待ち＝現行の 660 より悪い。外部が何を主張していても計画は点数を運ばない。
     const arrived = plan(
@@ -443,5 +463,37 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
       keep.slices,
     );
     expect(admit(DELAY_ALL, committedLate, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
+  });
+
+  it("錨の主張が現在の仲間の実効 endTime に無い計画は feasible と認めず、棄却する（AC 9.10 (a)）", () => {
+    // 上と同じ「合流させたまま 3 品目だけ後ろに置く」形（正しい錨なら採用される）で、合流分の `anchor` だけを
+    // 走行中の 1 本目の実効 endTime（360 秒）から 1 秒ずらす。serveAt は錨に一致したままで散らしでも押し出しでも
+    // ないが、錨は等号で運ぶ約束（判断 17・19）なので、主張が仲間に無い一片は feasible ではない。
+    const late = [
+      placement(1, ["2", "3"], 0),
+      placement(2, ["4", "5"], 0),
+      placement(3, ["0", "1"], 2 * SIX_MINUTES),
+    ];
+    const committedLate = committedSchedule(
+      [{ tableKey: "t-1", placements: late }],
+      REST,
+      [FIRST],
+      NOW,
+      WIDE_PRESETS,
+      PARAMS,
+    );
+    const misclaimed: CookSchedule = {
+      slices: [
+        {
+          tableKey: "t-1",
+          placements: [
+            { ...placement(1, ["2", "3"], 0), anchor: (FIRST.endTime + SECOND) as EpochMillis },
+            { ...placement(2, ["4", "5"], 0), anchor: (FIRST.endTime + SECOND) as EpochMillis },
+            placement(3, ["0", "1"], SIX_MINUTES),
+          ],
+        },
+      ],
+    };
+    expect(admit(misclaimed, committedLate, REST, [FIRST], NOW, WIDE_PRESETS, PARAMS)).toEqual([]);
   });
 });

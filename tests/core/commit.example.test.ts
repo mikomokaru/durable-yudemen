@@ -127,6 +127,12 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
     expect(serveSecondsOf([sibling(0)])).toEqual([600]);
   });
 
+  it("錨が h_i の内側で +Δ 動いても、配置の錨（600 秒）は現在の仲間に無く、一片は捨てられて自前解が新しい錨（605 秒）へ置き直す", () => {
+    // Thin 60 秒の h_i は 6 秒。serveAt 600 秒は錨 605 秒から手前 5 秒——散らしではないが、`anchor: 600` は
+    // 現在の仲間の実効 endTime に等しくない（AC 9.10 (a)）。錨は等号で運ぶ約束であり、近似では運ばない（判断 17）。
+    expect(serveSecondsOf([sibling(5 * SECS)])).toEqual([605]);
+  });
+
   it("錨が +Δ 動くと合流分は錨より手前になり、一片は捨てられて自前解が新しい錨（630 秒）へ揃え直す", () => {
     expect(serveSecondsOf([sibling(30 * SECS)])).toEqual([630]);
   });

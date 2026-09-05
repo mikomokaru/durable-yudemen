@@ -22,8 +22,8 @@ import {
   advanceRelease,
   baselineSchedule,
   initialRelease,
-  isPushedOut,
   joinWindowMillis,
+  keepsAnchor,
   planTargets,
   type SlotRelease,
 } from "../../src/engine/schedule";
@@ -326,9 +326,11 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // Feature: lift-group-planning, Property 17 — 自前解は始めたまとまりを崩さない（ハード制約 (e)）
   // **Validates: Requirements 1.9, 1.11, 5.3**
   //
-  // 計画順に解放表を進めながら、走行中の仲間が在る一片ごとに isPushedOut（Acceptance_Gate と同じ述語）が
-  // 偽であること。自前解がゲートの (e) を構成から満たすことの検査で、joinable の貪欲と述語の整合を固定する。
-  it("Property 17: 走行中の仲間が在る一片で、合流できた品目を錨より後ろへ押し出さない", () => {
+  // 計画順に解放表を進めながら、一片ごとに keepsAnchor（Acceptance_Gate・合成と同じ述語）が真であること——
+  // `anchor` の主張が現在の仲間に在り（AC 9.10 (a)・仲間が無い卓では null）、合流分を錨より手前に散らさず、
+  // 合流できた品目を押し出さない。自前解がゲートの (e) を構成から満たすことの検査で、joinTarget が錨を仲間から
+  // 選ぶことと joinable の貪欲と述語の整合を固定する。
+  it("Property 17: 自前解の一片は keepsAnchor を守る（錨は仲間に在り・散らさず・押し出さない）", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, params }) => {
         const schedule = baselineSchedule(
@@ -341,19 +343,10 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
         const targets = planTargets(pending);
         let free = release;
         for (const slice of schedule.slices) {
-          const siblings = members.get(slice.tableKey);
-          if (siblings !== undefined) {
-            expect(
-              isPushedOut(
-                slice.placements,
-                free,
-                siblings,
-                targets,
-                DEFAULT_NOODLE_PRESETS,
-                params,
-              ),
-            ).toBe(false);
-          }
+          const siblings = members.get(slice.tableKey) ?? null;
+          expect(
+            keepsAnchor(slice.placements, free, siblings, targets, DEFAULT_NOODLE_PRESETS, params),
+          ).toBe(true);
           free = advanceRelease(free, slice.placements);
         }
       }),

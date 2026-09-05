@@ -195,8 +195,8 @@ function feasibleRelease(
   params: ScheduleParams,
 ): SlotRelease | null {
   // (e)。一片を置く前の表で判定する（合流分だけを進めた表は述語の内側で作る）。合成（commit.ts）と同じ述語。
-  if (siblings !== null && !keepsAnchor(placements, release, siblings, targets, presets, params))
-    return null;
+  // 仲間が無い卓（siblings null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
+  if (!keepsAnchor(placements, release, siblings, targets, presets, params)) return null;
   // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
   const ordered = [...placements].sort(
     (placement, other) =>

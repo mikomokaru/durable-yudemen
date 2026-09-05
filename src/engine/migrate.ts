@@ -273,12 +273,13 @@ const INVALID_ANCHOR = Symbol("invalid-anchor");
  * - 有限数値 → その値（合流先の走行中の実効 endTime）。
  * - それ以外（非有限数・文字列等）→ 壊れたデータ（INVALID_ANCHOR）。
  *
- * **v10 の一片は h_i の窓で推定しない。** design は「移行時に h_i の窓で推定して埋める・推定できなければ null」と
- * 置くが、h_i = 茹で時間 × toleranceRatio / 100 の toleranceRatio は StoreConfig にあって永続には無く、移行は
- * 設定を要求しない（revivePendingOrder と同じ規律——永続層を設定に依存させない）。ゆえに推定できず null へ畳む。
- * 代償は軽い——採用済み一片は合成（committedSchedule）が現在の走行中で毎回再検証する導出の入口であり、
- * 所属を失った合流分は 1 品の単位として、押し出しなら切られて自前解が置き直し、そうでなければ後続の batch
- * として維持される。どちらも v11 の合成の正常動作で、走行中の計時には一切触れない。
+ * **v10 の一片は h_i の窓で推定しない（AC 9.9・レビュー追記で仕様を揃えた）。** h_i = 茹で時間 × toleranceRatio / 100
+ * の toleranceRatio は StoreConfig にあって永続には無く、移行は設定を要求しない（revivePendingOrder と同じ規律——
+ * 永続層を設定に依存させない）。ゆえに推定できず null へ畳む。代償は、採用済み一片は合成（committedSchedule）が
+ * 現在の走行中で毎回再検証する導出の入口であり、所属を失った合流分は 1 品の単位として、押し出しなら切られて
+ * 自前解が置き直し、そうでなければ後続の batch として維持される——後者は次の再計画（外部計画の採用・品目の開始・
+ * 錨の Timer の茹で上がり）まで client で「開始済み」に見えない（docs/persisted-schema-rollback.md の v11 行）。
+ * どちらも v11 の合成の正常動作で、走行中の計時には一切触れない。
  */
 function reviveAnchor(value: unknown): EpochMillis | null | typeof INVALID_ANCHOR {
   if (value === undefined || value === null) return null;

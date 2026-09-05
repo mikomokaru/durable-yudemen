@@ -15,9 +15,10 @@
 //      index 最小 / 最大の両方を置く（発火後の再計画が残りを boiled の釜へ置き直すか否かは釜の割当に依る）。
 //   2. 容量分割（6 釜・同卓 4 品・各 2 釜）の到達可能な続き (i)(ii)——(ii) は再統合後に濃いのは先頭 arms 2 本で、
 //      残る 1 品は後続（判断 21）。
-//   3. keepsAnchor の帰結——採用済みの合流一片の錨が Boil_Sync で動いたとき、一片が残る限り推奨は配置時の錨
-//      （`Placement.anchor`・AC 9.9）を運び、群は started のまま。錨の所属を時刻から推定し直さない
-//      （21.6 の (a) が現在の錨と等しくない一片を切るまでの、21.4 時点の形）。
+//   3. keepsAnchor の帰結——採用済みの合流一片の錨が Boil_Sync で動いたとき、配置の `anchor`（AC 9.9）は現在の
+//      仲間の実効 endTime に無くなるので合成が一片を切り（AC 9.10 (a)・判断 17）、自前解が現在の錨で置き直す。
+//      推奨は嘘の錨を運ばない——運ぶ錨は常に走行中の Timer の実効 endTime に等しく、client はその等号を持たずに
+//      `anchor > Corrected_Now` を読むだけでよい。
 //
 // 時刻はすべて T0 からの秒で読む（serveAt / startAt / anchor の期待値も秒）。receivedAt を serverTime に揃えるので
 // offset は 0 で、Corrected_Now はサーバ時刻そのものである。群の識別子は snapshot 内で閉じた記号なので、その文字列
@@ -543,8 +544,9 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
    * 守る。採点は待ち時間が 300 秒増える一方、最遅（900 秒）から見た卓の遅れが錨に残る本数の分だけ減る
    * （S を含めて 3 本 × 300 秒 → 2 本 × 300 秒・重み 2）ので、合成後の総和が真に小さく改善として採用される。
    *
-   * Q（Short 300 秒）の合流の窓 h_i は 30 秒。S の実効 endTime が Boil_Sync で動いたとき、Q の serveAt 600 秒から
-   * 30 秒の内側に留まる限り一片は合流のまま残り（錨だけが動く）、外へ出れば合流でなくなる。
+   * Q（Short 300 秒）の合流の窓 h_i は 30 秒。S の実効 endTime が Boil_Sync で動いたとき、Q の `anchor: 600` は
+   * もう現在の仲間の実効 endTime に無い——動きが h_i の内側でも外でも同じ——ので、合成は一片を切り、自前解が現在の
+   * 錨で置き直す（AC 9.10 (a)・判断 17）。永続の `acceptedSlices` は書き換えない（合成は導出）。
    */
   const S = order("s", { noodleType: "Long", tableId: "t-a", arrivalTime: at(-200) });
   const P = [0, 1].map((itemIndex) =>
@@ -613,70 +615,76 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
     expect(ids.get("q#0")).not.toBe(ids.get("p#0"));
   });
 
-  it("錨が後ろへ h_i の内側で動く：S の実効 endTime が 605 秒になっても採用済み一片は残り、Q の群は配置時の錨 600 秒を運んだまま started", () => {
+  it("錨が後ろへ h_i の内側で動く：S の実効 endTime が 605 秒になると Q の錨 600 秒は仲間に無く、一片は切られて自前解が錨 605 秒で置き直す", () => {
     // 釜 1 でアドホック麺茹で（600 秒・10 秒遅れて開始）。Boil_Sync が S と U を 605 秒へ揃える（S は +5 秒）。
     const shifted = step(accepted.state, startAdhoc("u", 1, 600, at(10)));
     expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 605]);
-    // Q の serveAt 600 秒は錨 605 秒から h_i（30 秒）の内側——合流分は錨に一致していなくてよい（判断 18）ので、
-    // 採用済み一片は keepsAnchor を守って残る。推奨が運ぶ錨は配置の事実（`Placement.anchor`・AC 9.9）で、
-    // 走行中の実効 endTime が動いても配置時の 600 秒のまま——時刻からの推定ではない。
-    // 21.6（AC 9.10 (a)）はこの一片を「錨が現在の仲間の実効 endTime に等しくない」として切り、自前解が現在の錨で
-    // 置き直す予定である（その時点でこの例示は期待値を改める）。
+    // Q の serveAt 600 秒は錨 605 秒から h_i（30 秒）の内側だが、配置の `anchor: 600` は現在の仲間の実効 endTime
+    // （605 秒）に等しくない——錨は等号で運ぶ約束（AC 9.10 (a)・判断 17）なので合成は一片を切る。永続の一片は
+    // そのまま（合成は導出で、永続を書き換えない）。
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
+    // 自前解の置き直し：空いている釜は 0 だけ（釜 1 は U が 605 秒まで占める）。正準順の P#0 が錨 605 秒に合流し
+    // （305 秒に始める）、P#1 と Q（2 釜）は釜が空く 605 秒に始める後続の batch（合流の窓に届かない）。
     expect(planOf(shifted.snapshot)).toEqual([
-      ["q#0", ["0", "1"], 300, 600],
-      ["p#0", ["0"], 600, null],
-      ["p#1", ["1"], 600, null],
+      ["p#0", ["0"], 305, 605],
+      ["p#1", ["0"], 605, null],
+      ["q#0", ["1", "5"], 605, null],
     ]);
-    // client は serveAt と anchor の等号を見ない——anchor が未来なら started（AC 1.7）。
+    // 運ぶ錨は現在の実効 endTime そのもの。client は `anchor > Corrected_Now` で started を読む（AC 1.7）。
     expect(groupsAt(shifted.snapshot, at(10))).toEqual([
-      { anchor: 600, items: ["q#0"], started: true },
-      { anchor: null, items: ["p#0", "p#1"], started: false },
+      { anchor: 605, items: ["p#0"], started: true },
+      { anchor: null, items: ["p#1", "q#0"], started: false },
     ]);
-    expect(visibleAt(shifted.snapshot, at(10))).toEqual([["q#0"], ["p#0", "p#1"]]);
+    expect(visibleAt(shifted.snapshot, at(10))).toEqual([["p#0"], ["p#1", "q#0"]]);
+    // P#0 の Prep_Lead はまだ来ていない（305 秒に始める）ので提案は出ない。
+    expect(suggestionsAt(shifted.snapshot, at(10))).toEqual([]);
   });
 
-  it("錨が前へ h_i の内側で動く：S の実効 endTime が 570 秒になっても一片は届き、Q の群は配置時の錨 600 秒を運んだまま started", () => {
+  it("錨が前へ h_i の内側で動く：S の実効 endTime が 570 秒になると Q の錨 600 秒は仲間に無く、一片は切られて自前解が錨 570 秒で置き直す", () => {
     // 290 秒に釜 1 でアドホック麺茹で（280 秒）。Boil_Sync が S と U を 570 秒へ揃える（S は −30 秒）。
-    // Q の serveAt 600 秒は錨 570 秒からちょうど h_i（30 秒）——窓の縁で合流のまま残る。運ぶ錨は配置時の 600 秒。
+    // Q の serveAt 600 秒は錨 570 秒からちょうど h_i（30 秒）——窓の縁だが、`anchor: 600` は現在の仲間の実効
+    // endTime（570 秒）に等しくないので一片は切られる（AC 9.10 (a)）。永続の一片はそのまま。
     const shifted = step(accepted.state, startAdhoc("u", 1, 280, at(290)));
     expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 570]);
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
+    // 自前解の置き直し：空いている釜は 0 だけ。P#0 の earliest 590 秒は錨 570 秒から h_i の内側なので earliest に
+    // 置いて（いま始める・判断 18）錨は 570 秒。P#1 と Q は釜が空いてからの後続の batch（590 秒に始めて 890 秒）。
     expect(planOf(shifted.snapshot)).toEqual([
-      ["q#0", ["0", "1"], 300, 600],
-      ["p#0", ["0"], 600, null],
-      ["p#1", ["1"], 600, null],
+      ["p#0", ["0"], 290, 570],
+      ["p#1", ["1"], 590, null],
+      ["q#0", ["5", "0"], 590, null],
     ]);
     expect(groupsAt(shifted.snapshot, at(290))).toEqual([
-      { anchor: 600, items: ["q#0"], started: true },
-      { anchor: null, items: ["p#0", "p#1"], started: false },
+      { anchor: 570, items: ["p#0"], started: true },
+      { anchor: null, items: ["p#1", "q#0"], started: false },
     ]);
-    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["q#0"], ["p#0", "p#1"]]);
-    // Q の Prep_Lead は来ている（290 ≥ 240）が、指す釜 1 をアドホック麺茹でが占めたので提案は出ない（AC 2.7）。
-    expect(suggestionsAt(shifted.snapshot, at(290))).toEqual([]);
+    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["p#0"], ["p#1", "q#0"]]);
+    // P#0 は今（290 秒）始める配置で、指す釜 0 は空いている——濃い提案が出る。
+    expect(suggestionsAt(shifted.snapshot, at(290))).toEqual([[0, ["p#0 now"]]]);
   });
 
-  it("錨が前へ h_i の外まで動く：S の実効 endTime が 547 秒になり一片が届かなくなっても、一片が残る限り推奨は配置時の錨 600 秒を運ぶ", () => {
+  it("錨が前へ h_i の外まで動く：S の実効 endTime が 547 秒になると一片は切られ、もう届かない卓は錨を持たない後続の batch になる", () => {
     // 290 秒に釜 1 でアドホック麺茹で（240 秒）。Boil_Sync が S と U を 547 秒へ揃える（S は −53 秒）。
-    // Q の serveAt 600 秒は錨 547 秒から 53 秒——h_i（30 秒）の外で、serveAt からはもう合流と推定できない。採用済み
-    // 一片の Q（startAt 300 秒）はまだ過ぎておらず、押し出しでもない（間に合う釜が 2 つ空いていない）ので、
-    // 21.4 時点の合成（serveAt からの推定で押し出しだけを見る）は一片をそのまま残す。合流の所属は配置の事実
-    // （AC 9.9）なので、推奨は 600 秒の錨を運び、群は started のまま——「一片は残るが合流ではない」という状態は
-    // 所属を時刻から推定していたときの産物で、配置が所属を持つ今は起こらない。21.6（AC 9.10 (a)）はこの一片を
-    // 「錨 600 秒は現在の仲間の実効 endTime 547 秒に等しくない」として切り、自前解が置き直す。
+    // Q の serveAt 600 秒は錨 547 秒から 53 秒——h_i（30 秒）の外。採用済み一片の Q（startAt 300 秒）はまだ過ぎて
+    // おらず押し出しでもないが、`anchor: 600` は現在の仲間の実効 endTime（547 秒）に等しくないので一片は切られる
+    // （AC 9.10 (a)・判断 17）。切らなければ推奨が 600 秒の錨を運び、client は S が 547 秒に上がった後も 600 秒
+    // まで「開始済み」を見せ続ける——それが判断 17 の「主張が黙って嘘になる」回帰である。
     const shifted = step(accepted.state, startAdhoc("u", 1, 240, at(290)));
     expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 547]);
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
+    // 自前解の置き直し：P#0 の earliest 590 秒は錨 547 秒から 43 秒——h_i の外で、後の走行中も無いので卓の誰も
+    // 合流できない。3 品（4 釜分）は一つの batch として最遅の earliest に揃う（判断 4——揃えは採点の帰結）：
+    // 1620 秒まで空く釜は 0・1・5 の 3 つで 4 釜分に足りず、4 つ目の釜（2）が空く 1620 秒に全員が始める。
     expect(planOf(shifted.snapshot)).toEqual([
-      ["q#0", ["0", "1"], 300, 600],
-      ["p#0", ["0"], 600, null],
-      ["p#1", ["1"], 600, null],
+      ["p#0", ["0"], 1620, null],
+      ["p#1", ["1"], 1620, null],
+      ["q#0", ["2", "3"], 1620, null],
     ]);
+    // 錨を持たない群は started でない（判断 17：もう届かない品目の一片は「開始済み」を要求しない）。
     expect(groupsAt(shifted.snapshot, at(290))).toEqual([
-      { anchor: 600, items: ["q#0"], started: true },
-      { anchor: null, items: ["p#0", "p#1"], started: false },
+      { anchor: null, items: ["p#0", "p#1", "q#0"], started: false },
     ]);
-    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["q#0"], ["p#0", "p#1"]]);
+    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["p#0", "p#1", "q#0"]]);
     expect(suggestionsAt(shifted.snapshot, at(290))).toEqual([]);
   });
 });
