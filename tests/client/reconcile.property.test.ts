@@ -99,6 +99,7 @@ function genTimerFacts(idPool: readonly string[]): fc.Arbitrary<readonly TimerFa
             firmness: firmnesses[i]!,
             startTime: startTimes[i]!,
             endTime: endTimes[i]!,
+            orderItem: null,
           });
         }
         return facts;

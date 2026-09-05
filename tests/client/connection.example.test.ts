@@ -30,6 +30,7 @@ function makeTimer(id: string, endTime = START_NOW + 180_000): TimerFact {
     firmness: "normal",
     startTime: START_NOW,
     endTime,
+    orderItem: null,
   };
 }
 
@@ -247,6 +248,7 @@ describe("client/connection — 占有ゲートは degraded の畳み込みに�
       firmness: "normal",
       startTime: START_NOW,
       endTime: START_NOW + 120_000,
+      orderItem: null,
     };
     receiveSnapshot([occupant]);
     expect(mode(connection.getView())).toBe("live");

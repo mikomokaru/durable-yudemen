@@ -8,14 +8,15 @@
   - `OrderItemOrigin` / `TimerFact.orderItem` / `PREP_LEAD_MS` / `LiftGroup` / `GroupItem` / `liftGroups` / `visibleGroups` / `headOf` / `slotSuggestions` / `pairSlots` / `SlotSuggestion`（`role` / `phase`）/ `SuggestionView` / `RadialQueueItem` / `RadialMenu.queue` / `onSelectItem` / `ClientView.unitOrigins` / `slotOffsets` / `affinityToleranceDistance` / `slotDistance`（移設）。撤去：`suggestionTiming` / `SuggestionTiming` / `planAnchor` / `nextForSlot` / `itemOf` / engine の `Ordered`。
   - ユーザー承認を得てから task 1 へ。
 
-- [ ] 1. ワイヤと engine — `TimerFact.orderItem`
-  - [ ] 1.1 `src/domain/timer.ts` に `OrderItemOrigin` を定義し、`TimerFact.orderItem: OrderItemOrigin | null` を足す（doc は engine の `Ordered` から移す）
-  - [ ] 1.2 `src/engine/timer.ts` の `Ordered` を削除。`Timer` は `TimerFact` から継承。`createTimer` の入力型を `TimerFact["orderItem"]` へ。`migrate.ts` / `start.ts` / `src/domain/order.ts` の注記 / `tests/core/{timer.example,sync.p4.property}.test.ts` の型参照を追随
-  - [ ] 1.3 `src/engine/project.ts` の `toWireTimer` が `orderItem` を写す。`tests/core/to-wire-timer-adjustment.example.test.ts` を「`orderItem` を運ぶ」形へ（`WIRE_TIMER_KEYS` に加え、`toHaveProperty("orderItem", timer.orderItem)`）
-  - [ ] 1.4 `src/domain/wire.ts` に `toOrderItemOrigin` を書いて export し、`toTimerFact` が読む（欠如 / null → null、非 null は `externalOrderId` 非空・`itemIndex` 非負整数・`tableId` null か非空文字列、逸脱は失敗）。`tests/domain/wireGenerators.ts` の `genTimerFact` に `orderItem` を足し、`wire.example` に欠如 → null と不正 → 失敗の例を足す
-  - [ ] 1.5 `src/client/persistence.ts` の `toClientTimer` が `toOrderItemOrigin` で `orderItem` を復元する（永続は不正値も null に畳む・旧ブロブの優雅な移行）。`tests/client/persistenceCodec.property.test.ts` と `generators.ts` の Timer 生成器に `orderItem` を足す
-  - [ ] 1.6 `src/client/connection.ts` の `decideLocalStart` が作る Provisional_Timer（`ClientTimer`）に `orderItem: null` を足す（永続からの復元とは別の生成経路。アドホック開始ゆえ常に null）。`tests/client/localAuthority.property.test.ts` / `decideView.property.test.ts` の期待値を追随
-  - [ ] 1.7 チェックポイント（engine の遷移・計画・採点・永続のテストが変更なしに通ること＝Property 13）
+- [x] 1. ワイヤと engine — `TimerFact.orderItem`
+  - [x] 1.1 `src/domain/timer.ts` に `OrderItemOrigin` を定義し、`TimerFact.orderItem: OrderItemOrigin | null` を足す（doc は engine の `Ordered` から移す）
+  - [x] 1.2 `src/engine/timer.ts` の `Ordered` を削除。`Timer` は `TimerFact` から継承。`createTimer` の入力型を `TimerFact["orderItem"]` へ。`migrate.ts` / `start.ts` / `src/domain/order.ts` の注記 / `tests/core/{timer.example,sync.p4.property}.test.ts` の型参照を追随
+  - [x] 1.3 `src/engine/project.ts` の `toWireTimer` が `orderItem` を写す。`tests/core/to-wire-timer-adjustment.example.test.ts` を「`orderItem` を運ぶ」形へ（`WIRE_TIMER_KEYS` に加え、`toHaveProperty("orderItem", timer.orderItem)`）
+  - [x] 1.4 `src/domain/wire.ts` に `toOrderItemOrigin` を書いて export し、`toTimerFact` が読む（欠如 / null → null、非 null は `externalOrderId` 非空・`itemIndex` 非負整数・`tableId` null か非空文字列、逸脱は失敗）。`tests/domain/wireGenerators.ts` の `genTimerFact` に `orderItem` を足し、`wire.example` に欠如 → null と不正 → 失敗の例を足す
+  - [x] 1.5 `src/client/persistence.ts` の `toClientTimer` が `toOrderItemOrigin` で `orderItem` を復元する（永続は不正値も null に畳む・旧ブロブの優雅な移行）。`tests/client/persistenceCodec.property.test.ts` と `generators.ts` の Timer 生成器に `orderItem` を足す
+  - [x] 1.6 `src/client/connection.ts` の `decideLocalStart` が作る Provisional_Timer（`ClientTimer`）に `orderItem: null` を足す（永続からの復元とは別の生成経路。アドホック開始ゆえ常に null）。`tests/client/localAuthority.property.test.ts` / `decideView.property.test.ts` の期待値を追随
+  - [x] 1.7 チェックポイント（engine の遷移・計画・採点・永続のテストが変更なしに通ること＝Property 13）
+  - 実測・2026-09-05: `OrderItemOrigin` を `src/domain/timer.ts` に立て、engine の `Ordered` を削除（doc は `OrderItemOrigin` へ移し、engine 側には「共有事実になった」旨だけ残す）。`toOrderItemOrigin` は三値（欠如 / null → null・逸脱 → undefined）で、ワイヤは undefined を Decode_Failure に、永続は `?? null` に畳む——同じ関門を両方が使い、処置だけを呼び出し側の義務で分けた。`tableId` の判定は `toDeclaredName`（null か非空文字列）を共用。engine の遷移・計画・採点・永続のテストは変更なしに通った（Property 13）。**計画からの逸脱 2 点**：(1) `tests/core/sync.p4.property.test.ts` に `Ordered` の参照は無く（`canonicalOrderedSets` は別語）、`tests/client/decideView.property.test.ts` も生成器経由で期待値を組むため、いずれも追随は不要だった。(2) `TimerFact` に必須項目を足すため、tasks に挙げた以外の Timer リテラル 19 ファイル（`tests/client` の example / property・`tests/core/settle.property`・`audioGenerators`）に `orderItem: null` を足し、`TimerFact` のキー集合を固定する静的検査 2 本（`tests/operation-history/timer-model.static`・`tests/sync-set-batch-complete.static`）を 7 項目へ改めた（それぞれの眼目「Operation History / 一括完了が芯へ足さない」は保ち、他 spec の正当な拡張として追随）。`persistenceCodec.property` に旧ブロブ（`orderItem` 欠如 / 不正）の優雅な移行の Property を足した。typecheck 0（`worker-configuration.d.ts` を除く）・lint エラー 0・fmt:check 通過・226 ファイル 1408 件通過。
   - _Requirements: 5.1, 5.2, 5.3_
 
 - [ ] 2. domain — `PREP_LEAD_MS` と `slotDistance` の移設

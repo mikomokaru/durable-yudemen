@@ -11,6 +11,7 @@ const WIRE_TIMER_KEYS = [
   "firmness",
   "id",
   "noodleType",
+  "orderItem",
   "slotIds",
   "startTime",
 ] as const satisfies readonly (keyof TimerFact)[];
@@ -40,7 +41,8 @@ function expectWireProjection(timer: Timer): void {
   expect(wire).not.toHaveProperty("adjustment");
   expect(wire).not.toHaveProperty("seq");
   expect(wire).not.toHaveProperty("boiledAt");
-  expect(wire).not.toHaveProperty("orderItem");
+  // orderItem は共有事実として運ぶ（lift-group-display 判断 16）。engine 専用の 3 項目とは扱いが違う。
+  expect(wire).toHaveProperty("orderItem", timer.orderItem);
   expect(timer.endTime).toBe(originalEndTime);
 }
 

@@ -41,6 +41,7 @@ function serverTimer(id: string, endTime: number, slotId = `slot-${id}`): TimerF
     firmness: "normal",
     startTime: START_NOW,
     endTime,
+    orderItem: null,
   };
 }
 

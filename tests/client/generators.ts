@@ -26,7 +26,7 @@
 import * as fc from "fast-check";
 import type { CookRecommendation, ServerMessage } from "../../src/domain/messages";
 import type { PendingOrder } from "../../src/domain/order";
-import type { TimerFact, NonEmptyArray } from "../../src/domain/timer";
+import type { TimerFact, NonEmptyArray, OrderItemOrigin } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import { EMPTY_VIEW } from "../../src/client/connection";
 import type {
@@ -200,6 +200,20 @@ const genRecommendations: fc.Arbitrary<readonly CookRecommendation[]> = fc.array
 
 // ── Timer / View 生成器 ────────────────────────────────────────────────────────────────────────
 
+/**
+ * Timer の由来。null（アドホック）と、待ち行列と同じプールから引く品目参照（卓あり / 卓なし）を分布する。
+ * 同じプールを使うのは、走行中 Timer と未着手の品目が同じ卓を持つ盤面（群の開始の判定・lift-group-display
+ * 判断 16）を密に生むためである。
+ */
+export const genOrderItemOrigin: fc.Arbitrary<OrderItemOrigin | null> = fc.option(
+  fc.record({
+    externalOrderId: fc.constantFrom(...EXTERNAL_ORDER_ID_POOL),
+    itemIndex: fc.integer({ min: 0, max: 2 }),
+    tableId: fc.oneof(fc.constant<string | null>(null), fc.constantFrom(...TABLE_ID_POOL)),
+  }),
+  { nil: null },
+);
+
 /** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。 */
 export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
@@ -208,6 +222,7 @@ export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
+  orderItem: genOrderItemOrigin,
   origin: genTimerOrigin,
 });
 
@@ -305,6 +320,7 @@ const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
+  orderItem: genOrderItemOrigin,
 });
 
 /** TimerFact 集合（id 一意・全置換 snapshot / Reconcile の入力）。空集合も含む。 */

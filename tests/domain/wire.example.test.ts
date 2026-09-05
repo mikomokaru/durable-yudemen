@@ -125,11 +125,63 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
           firmness: "normal",
           startTime: 0,
           endTime: 1,
+          orderItem: null,
         },
       ],
       recommendations: [{ externalOrderId: "o-1", itemIndex: 0, slotIds: [], startAt: 1 }],
     };
     expect(toServerMessage(JSON.stringify(withEmpty))).toBeNull();
+  });
+
+  // Feature: lift-group-display, Example: TimerFact.orderItem の復号（要件 5.2）
+  describe("Timer の orderItem——欠如 / null は null、逸脱は Decode_Failure", () => {
+    const timer = {
+      id: "T",
+      slotIds: ["0"],
+      noodleType: "Thin",
+      firmness: "normal",
+      startTime: 0,
+      endTime: 1,
+    } as const;
+
+    function decodedOrderItem(orderItem: unknown): unknown {
+      const raw = orderItem === undefined ? timer : { ...timer, orderItem };
+      const message = toServerMessage(JSON.stringify({ ...snapshot, timers: [raw] }));
+      return message?.type === "snapshot" ? message.timers[0]?.orderItem : message;
+    }
+
+    it("欠如と null はアドホック（null）に畳む", () => {
+      expect(decodedOrderItem(undefined)).toBeNull();
+      expect(decodedOrderItem(null)).toBeNull();
+    });
+
+    it("卓あり / 卓なしの品目参照はそのまま通る（余剰は落とす）", () => {
+      expect(decodedOrderItem({ externalOrderId: "o-1", itemIndex: 2, tableId: "t-1" })).toEqual({
+        externalOrderId: "o-1",
+        itemIndex: 2,
+        tableId: "t-1",
+      });
+      expect(decodedOrderItem({ externalOrderId: "o-1", itemIndex: 0, extra: 1 })).toEqual({
+        externalOrderId: "o-1",
+        itemIndex: 0,
+        tableId: null,
+      });
+    });
+
+    it("空の externalOrderId・負 / 非整数の itemIndex・空文字 / 数値の tableId は snapshot 全体を落とす", () => {
+      const invalid: readonly unknown[] = [
+        { externalOrderId: "", itemIndex: 0, tableId: null },
+        { externalOrderId: "o-1", itemIndex: -1, tableId: null },
+        { externalOrderId: "o-1", itemIndex: 1.5, tableId: null },
+        { externalOrderId: "o-1", itemIndex: 0, tableId: "" },
+        { externalOrderId: "o-1", itemIndex: 0, tableId: 7 },
+        { itemIndex: 0, tableId: null },
+        "o-1",
+      ];
+      for (const orderItem of invalid) {
+        expect(decodedOrderItem(orderItem)).toBeNull();
+      }
+    });
   });
 
   it("余剰フィールドは落として正規化する（要素検証の共有の帰結）", () => {

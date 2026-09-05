@@ -94,6 +94,7 @@ function toWireTimer(timer: ClientTimer): TimerFact {
     firmness: timer.firmness,
     startTime: timer.startTime,
     endTime: timer.endTime,
+    orderItem: timer.orderItem,
   };
 }
 

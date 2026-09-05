@@ -65,8 +65,12 @@ const SLOT_DISPLAY_FILE = "src/client/components/slotDisplay.ts";
 const UI_FILES = [SLOT_CARD_FILE, SLOT_BOARD_FILE, SLOT_DISPLAY_FILE] as const;
 
 /**
- * TimerFact の事実フィールド（要件10.1）。id / slotIds / noodleType / firmness / startTime / endTime の 6 つ。
- * 群の識別は実効 endTime の等値のみで行うため、群 id・membership を運ぶフィールドを足さない。
+ * TimerFact の事実フィールド（要件10.1）。id / slotIds / noodleType / firmness / startTime / endTime の 6 つに、
+ * lift-group-display が足した orderItem（由来する注文品目と卓）を加えた 7 つ。
+ * 群の識別は実効 endTime の等値のみで行うため、群 id・membership を運ぶフィールドを足さない。orderItem は
+ * 群の id ではない——engine 専用だった注文への紐づけを client が読む共有事実へ移したもので、本機能（一括完了）
+ * 由来の差分ではない。この主張の眼目は「一括完了が群の識別子を芯へ足さないこと」であり、他 spec の正当な
+ * 拡張は追随させる（tests/operation-history/timer-model.static.test.ts と同じ規律）。
  */
 const TIMER_FACT_FIELDS = new Set([
   "id",
@@ -75,6 +79,7 @@ const TIMER_FACT_FIELDS = new Set([
   "firmness",
   "startTime",
   "endTime",
+  "orderItem",
 ]);
 
 /**
@@ -363,7 +368,7 @@ describe("(a) engine / domain / shell に一括完了由来の差分が無い（
     expect(SERVER_SIDE_FILES.length).toBeGreaterThan(0);
   });
 
-  it("TimerFact が 6 事実フィールドのみを宣言する（群 id・membership を足していない・要件10.1）", () => {
+  it("TimerFact が 7 事実フィールドのみを宣言する（群 id・membership を足していない・要件10.1）", () => {
     // 群の識別は実効 endTime の等値だけで行う。ゆえに Timer という事実の芯は 1 フィールドも増えない。
     // 数える範囲は TimerFact の宣言ブロックだけに閉じる（TimerFact はファイル末尾の宣言ゆえ
     // sliceBetween の終端アンカーが無く、sliceDeclaration で閉じ波括弧を終端に採る）。
@@ -374,7 +379,7 @@ describe("(a) engine / domain / shell に一括完了由来の差分が無い（
     );
     const fields = [...declaration.matchAll(/\breadonly\s+(\w+)\s*:/g)].map((match) => match[1]);
     expect(new Set(fields)).toEqual(TIMER_FACT_FIELDS);
-    expect(fields.length, "TimerFact のフィールド数が 6 でない").toBe(TIMER_FACT_FIELDS.size);
+    expect(fields.length, "TimerFact のフィールド数が 7 でない").toBe(TIMER_FACT_FIELDS.size);
   });
 
   it("ClientMessage / ServerMessage の種別集合が既存 7 種と一致する（complete が在り一括用の新種別が無い・要件10.3）", () => {

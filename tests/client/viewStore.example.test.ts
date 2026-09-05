@@ -101,6 +101,7 @@ const SAVED_VIEW: ClientView = {
       firmness: "normal",
       startTime: 1_000,
       endTime: 61_000,
+      orderItem: null,
       origin: "server",
     },
   ],
