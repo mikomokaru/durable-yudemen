@@ -92,6 +92,10 @@
 | `TimerFact.orderItem` | `src/domain/timer.ts`（ワイヤ） | 走行中 Timer の由来する注文品目と卓。engine の `Ordered.orderItem` をそのまま domain へ移す（形も語も同じ）。群の開始の判定にだけ読む |
 | `Group_Head` / `Visible_Groups` / `All_Idle` | 要件語彙（識別子は design） | 押せる先頭・表示できる群・全釜が空き |
 
+### design への申し送り（検証の場面）
+
+- 茹で上がりの転移は **2 つの場面に分けて**検証する。(1) 同じ snapshot のまま Corrected_Now が 599 秒 → 600 秒を跨ぐ：走行中の仲間が茹で上がりに転じ、G1 が Group_Started でなくなり、G2 の提案が消える（Requirement 6.3 の例外・AC 1.10 の Corrected_Now 依存）。(2) その後に発火の snapshot を受け取る：G1 の残りが新しい `serveAt`（走行中の `endTime` と不一致）で届き、G2 は引き続き隠れ、G1 の残りが先頭として濃く出る。(1) と (2) で見え方が食い違わないことを性質にする。
+
 ### `lift-group-planning` からの申し送り
 
 - **群の中で押す順は `startAt` 順である。** 自前解は茹で時間の長い品目から順に開始時刻を置くため、現れた順（濃くなった順）に押せば必ず走行中の錨に届く。順を違えて短い品目を先に入れると、残りの品目は錨に届かず、計画側の採点の帰結として群ごと遅い方へずれる（`lift-group-planning` 判断 5）。薄い品目が同時に複数見えるとき（茹で時間の差が 60 秒未満）、この順を表示が伝えない限り事故が日常化する。**→ 判断 17 で解決した（押せるのは群の先頭だけ・薄濃を問わず）。**
@@ -126,7 +130,7 @@
 7. THE client SHALL 群の Group_Started を、群の卓が非 null で、かつ snapshot の現在も走行中（`endTime > Corrected_Now`・茹で上がりを含めない）の `TimerFact` に `orderItem.tableId` が群の卓に等しく `endTime` が群の `serveAt` に等しいものが在ることで判定する。卓の一致だけ・`endTime` の一致だけでは判定しない。端末ごとの履歴・過去の描画・推奨の消失を判定に用いない
 8. THE client SHALL Visible_Groups を、群を最早 `startAt` 順に並べたときの先頭の群と、それより前の群がすべて Group_Started である群の集合として導く
 9. THE client SHALL 各群の Group_Head を、群の未着手のうち `startAt` 最小の品目（同値は全部）として導く
-10. THE Group_Started / Visible_Groups / Group_Head の導出 SHALL 担当範囲・端末に依らず、同じ snapshot からは同じ結果を返す
+10. THE Group_Started / Visible_Groups / Group_Head の導出 SHALL 担当範囲・端末に依らず、同じ snapshot と同じ Corrected_Now からは同じ結果を返す（Group_Started は走行中の判定に Corrected_Now を読む）
 
 _出所: 判断 1・2・8・16・17・19, 観測事実 9・10・13_
 
@@ -219,7 +223,7 @@ _出所: 判断 11・12・13・16_
 7. **距離の一致** — client が用いる `slotDistance` は engine の目的関数が用いるものと同一の関数である
 8. **全釜 idle** — 表示される提案の `slotIds` の全釜は idle である（一部の釜が走行中の推奨は、どの釜にも表示されない）
 9. **先頭の一意** — 任意の snapshot と時刻で、押せる提案（丸ボタンを持つ）は各群につき `startAt` 最小の品目（同値は全部）だけである。放置して全品の `startAt` が過ぎても変わらない
-10. **開始の事実の一意** — Group_Started は snapshot（走行中の `orderItem.tableId` と `endTime`、群の `serveAt`）だけから決まり、途中接続した端末と接続し続けた端末で一致する。同じ卓の後の batch（`serveAt` が走行中の `endTime` と異なる群）は開始済みにならない
+10. **開始の事実の一意** — Group_Started は snapshot（走行中の `orderItem.tableId` と `endTime`、群の `serveAt`）と Corrected_Now から決まり、途中接続した端末と接続し続けた端末で一致する。同じ卓の後の batch（`serveAt` が走行中の `endTime` と異なる群）は開始済みにならない
 11. **非 live の沈黙** — degraded では、提案もラジアルの待ち行列も表示されず、`startOrderItem` が呼ばれることがない
 
 _出所: 判断 1・2・3・4・7・8・12・15・16・17・18・19_
