@@ -442,22 +442,33 @@ liftOverflow(lifts, L, arms):
 
 ```
 placeWithLifts(batch, t0, release, lifts, siblingsEnds, params):
+  # batch の順は配置の対応づけと同じ（茹で時間の長い順・同値は正準順序）。品目は不可分。
+  # 1 品で arms + HELPER を超える品目は列に入れない（AC 9.12・toBoiling の隣で落ちている）。
   S = Σ span
-  if S > arms + HELPER: 先頭から arms + HELPER 本までを一つの列、残りを次の列にして再帰   # 1 品で超える品目は列に入れない（AC 9.12）
+  if S > arms + HELPER:
+    head = Σ span ≤ arms + HELPER に収まる最長の非空の接頭辞   # 先頭の品目は必ず収まる（AC 9.12）
+    return placeWithLifts(head, …) ++ placeWithLifts(残り, その表の上で t0 以降, …)
   pack  = 全員を firstFit(lifts, t0, S) に置く配置
   if S ≤ arms: return pack
-  split = 先頭 arms 本を firstFit(lifts, t0, arms) に置き、残りをその表の上で再帰した配置
+  prefix = Σ span ≤ arms に収まる最長の非空の接頭辞
+  if prefix が空: return pack                                            # split は候補にならない（例：arms 1 の大盛）
+  split = prefix を firstFit(lifts, t0, Σ span(prefix)) に置き、残りをその表の上で再帰した配置
   cost(c) = Σ_i (serve_i − arrival_i)                                   # 待ち（候補を後ろへ動かした分を含む）
           + w_table × Σ_{m ∈ 卓の成員（走行中の仲間を含む）} (max serve − serve_m)   # 卓の遅れ
-          + L × (liftOverflow(lifts + c) − liftOverflow(lifts))          # 手伝いの費用の差分
+          + (liftOverflow(lifts + c) − liftOverflow(lifts))              # 手伝いの費用の差分（liftOverflow は秒相当を返す・L を重ねて掛けない）
   return cost(pack) ≤ cost(split) ? pack : split                         # 同点は pack
 ```
 
-両候補を同じ既存の表に対して**実際に作って**比べる。pack が既存の上がりを避けて 135 秒後ろへ動くなら、その待ちと遅れは cost(pack) に入る。split が既存の走行中と重なれば手伝いの費用は cost(split) に入る。4 人家族（arms 2・L 45・表が空）：pack 90、split 270 → pack。9 本：先頭 4 本の列で pack（90 < 270）、残り 5 本は次の窓で 4 + 1。
+両候補を同じ既存の表に対して**実際に作って**比べる。pack が既存の上がりを避けて 135 秒後ろへ動くなら、その待ちと遅れは cost(pack) に入る。split が既存の走行中と重なれば手伝いの費用は cost(split) に入る。4 人家族（arms 2・L 45・表が空）：pack 90、split 270 → pack。9 本：先頭 4 本の列で pack（90 < 270）、残り 5 本は次の窓で 4 + 1。arms 1 の大盛（span 2 ≤ 上限 3）は split の接頭辞が空なので pack で単独に置く。
 
 **`Placement.anchor`（AC 9.9・9.10・レビュー 1）。** 合流先の走行中の実効 endTime を配置の時点で決めて `Placement` に持ち、窓で `serveAt` が動いても変えない。`recommend` はそれを運ぶ（`joinedAnchor` の ±h_i 推定は撤去）。`AcceptedSlice` も持つので永続 v11（v10 の一片は移行時に h_i の窓で推定して埋める・推定できなければ null）。
 
-**(e) の契約の改訂（レビュー 1）。** `keepsAnchor` は次の 2 つ：(1) 合流の判定は `anchor` で行う——`anchor` は現在の走行中の仲間の実効 endTime のいずれかに等しく、`serveAt ≥ anchor − h_i`（手前に散らさない）。外部計画の `anchor` の主張は、この 2 条件で検証する（成員に無い錨は不正）。(2) 押し出しは「合流していない配置が、合流分で進めた解放表と上げ表の下で **`firstFit`（釜の解放と上げ窓の両方を満たす最早）**より後ろに置かれている」こと。窓による必要な延期は押し出しではなく、走行中 4 本が 60 秒に上がる表で残りを 105 秒に置く一片は守っている。
+**(e) の契約の改訂（レビュー 1・2 回目の 1 と 2）。** `keepsAnchor` は次の 2 つ：
+
+1. **合流の判定は `anchor` で行い、3 条件で検証する**——(a) `anchor` は現在の走行中の仲間の実効 endTime のいずれかに等しい、(b) `serveAt ≥ anchor − h_i`（手前に散らさない）、(c) **窓を当てる前に合流できた**：その配置が使う釜が、当該一片を置く前の解放表で `anchor + h_i − 茹で時間` までに空いていた（`earliest ≤ anchor + h_i`・判断 18 の合流の条件そのもの）。(c) が無ければ、仲間 60 秒・茹で 600 秒・h 60 秒の品目（最早 600 秒・合流不能）が `{anchor: 60, serveAt: 600}` を名乗れ、client が未開始の群を開始済みと読む。
+2. **押し出しは、窓を当てる前に合流できた品目に限って判定する**——合流していない配置のうち、合流分で進めた解放表の下でいずれかの仲間に合流できた（`earliest ≤ 最遅の仲間 + h_i`）ものが、判断 18 の候補時刻（`joinedServeAt`）から `firstFit`（釜の解放と上げ窓の両方）で得た最早の時刻より後ろに置かれていれば押し出し。合流できない品目は保護の対象外なので、仲間 60 秒・残りが茹で 300 秒と 600 秒（どちらも合流不能）を後の batch で 600 秒に揃える配置は押し出しではない（業務をまとめる意図そのもの）。窓による必要な延期も押し出しではなく、走行中 4 本が 60 秒に上がる表で残りを 105 秒に置く一片は守っている。
+
+**貪欲採点の近似（レビュー 2 回目の注意・AC 9.15）。** `liftOverflow` の割当は起点を上がり時刻に限る。arms 2・L 45 で {60:1, 104:1, 105:2} は割当 [60,105) / [105,150) で超過 0 だが、窓 [104,149) には 3 本ある。「手伝いが要る窓には必ず費用が付く」定義ではないことを採点の判断として記す。ハード上限（`loadWith`）は t を含むすべての窓を見るので近似ではない。
 
 **ゲート（`feasibleRelease`）。** 解放表と同じく `lifts` を一片ごとに進め、各配置について `loadWith(lifts_so_far, serveAt, span) > arms + HELPER_ARMS` なら feasible と認めない（(f)）。span 単独で超える配置も同じ経路で落ちる。
 

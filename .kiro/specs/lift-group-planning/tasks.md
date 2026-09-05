@@ -301,10 +301,10 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
 - [ ] 21. 上げ窓（Lift_Window）——判断 20・ADR-0009・Requirement 9（design レビュー 6 件を反映済み）
   - [ ] 21.1 domain：`LIFT_INTERVAL_SECONDS_{MIN,MAX}`・`DEFAULT_LIFT_INTERVAL_SECONDS = 45`・`HELPER_ARMS = 2`・`toLiftIntervalSeconds`・`StoreConfig.liftIntervalSeconds`。config ワイヤ（`toStoreConfig`）は欠如を既定に畳む。registry の compose と store DO の `adoptProjectionConfig` も欠如 → 既定
   - [ ] 21.2 `ScheduleParams.liftIntervalSeconds`（DO・test 既定・`digest` に畳む・`RequestPlan` 契約の doc）
-  - [ ] 21.3 `src/engine/lift.ts`：`initialLifts` / `advanceLifts` / `loadWith`（半開窓・t を含む窓だけ）/ `firstFit`（span > cap は null・停止性）/ `liftOverflow`（一意な貪欲）。`lift.property`：firstFit の結果は候補以上で条件を満たす最小、ちょうど L 離れた上がりは同じ窓に入らない、走行中だけの過負荷は firstFit を動かさない、liftOverflow は重ならない割当で外部再現できる（例：{60:2, 63:2, 105:2} → 90）
+  - [ ] 21.3 `src/engine/lift.ts`：`initialLifts` / `advanceLifts` / `loadWith`（半開窓・t を含む窓だけ）/ `firstFit`（span > cap は null・停止性）/ `liftOverflow`（一意な貪欲・秒相当を返す・近似の例 {60:1,104:1,105:2} → 0 を Example に）。`lift.property`：firstFit の結果は候補以上で条件を満たす最小、ちょうど L 離れた上がりは同じ窓に入らない、走行中だけの過負荷は firstFit を動かさない、liftOverflow は重ならない割当で外部再現できる（例：{60:2, 63:2, 105:2} → 90）
   - [ ] 21.4 `Placement.anchor` と永続 v11（`AcceptedSlice` の配置に `anchor`・v10 は h_i の窓で推定・`migrate.property` の二方向）。`recommend` は `Placement.anchor` を運び、`joinedAnchor` の推定を撤去
-  - [ ] 21.5 `schedule.ts`：`placeWithLifts`（pack / split を同じ表の上で実際に作って局所費用で比べる・S > cap は分割・1 品で超える品目は配置しない）。`placeGroup` / `placeJoined` / `placeBatch` が `lifts` を受けて群を跨いで進める
-  - [ ] 21.6 `keepsAnchor` / `isPushedOut`：合流は `anchor` で判定（成員に在る・`serveAt ≥ anchor − h_i`）、押し出しは「firstFit（釜と窓）より後ろ」。走行中 4 本が 60 秒・残りを 105 秒に置く一片は守る（回帰）
+  - [ ] 21.5 `schedule.ts`：`placeWithLifts`（pack / split を同じ表の上で実際に作って局所費用で比べる・S > cap は非空の最長接頭辞で分割・split の接頭辞が空なら pack・1 品で超える品目は配置しない・費用に L を重ねない）。`placeGroup` / `placeJoined` / `placeBatch` が `lifts` を受けて群を跨いで進める。例示：arms 1 の大盛は単独で pack
+  - [ ] 21.6 `keepsAnchor` / `isPushedOut`：合流は `anchor` の 3 条件（成員に在る・`serveAt ≥ anchor − h_i`・窓を当てる前に合流できた）で検証、押し出しは「窓を当てる前に合流できた品目」に限り「候補時刻からの firstFit（釜と窓）より後ろ」。回帰：走行中 4 本が 60 秒・残りを 105 秒に置く一片は守る／合流不能の品目の `{anchor: 60, serveAt: 600}` は棄却／仲間 60 秒・茹で 300 と 600 を 600 秒に揃える後続 batch は守る
   - [ ] 21.7 `objective.ts`：Arms_Overflow → Lift_Overflow（`total` にだけ）。`armsOverflowWeight` 撤去。Property 2 の同値条件（arms 超過による同値）を見直す
   - [ ] 21.8 `admit.ts` / `commit.ts`：`lifts` を一片ごとに進め、当該配置を含む窓の上限超過を (f) として落とす／陳腐化と見なす。走行中だけで超えている窓は無関係な一片を落とさない（回帰）
   - [ ] 21.9 テスト：`schedule.example`（4 人家族は同時・9 本は 4・4・1・大盛は 2 本分・slotSpan 4 / arms 1 は配置されない）、`continuous-input.example` の期待値を「上限を満たす最初の時刻」へ、`admit.example`（上限超過の外部計画は棄却・arms 超過は採点・`anchor` の不正な主張は棄却）、`objective.*`、`digest.example`、`solver` の契約テスト
