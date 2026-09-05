@@ -169,6 +169,43 @@ describe("scoreSchedule — 確定式の内訳", () => {
     });
   });
 
+  // Feature: lift-group-planning, AC 7.2 の但し書き — 上げ表に走行中が在れば Σ span ≤ arms でも total は下がりうる
+  it("揃えた 2 本を散らして total が下がる形は走行中の上がりが窓に在るときだけ起こり、部分和は真に悪い（AC 7.2・段 1 (d) の棄却対象）", () => {
+    // 卓 1 に 2 本を 100 秒に揃える（Σ span 2 ≤ arms 2）。別卓の走行中 1 本が 140 秒に上がる。
+    const aligned: PlanSlice = {
+      tableKey: "table-1",
+      placements: [
+        placement({ orderId: "A", itemIndex: 0, slot: 0, serveAtMillis: T0 + 100_000 }),
+        placement({ orderId: "B", itemIndex: 0, slot: 1, serveAtMillis: T0 + 100_000 }),
+      ],
+    };
+    // 1 本を 10 秒早めて散らす。
+    const scattered: PlanSlice = {
+      tableKey: "table-1",
+      placements: [
+        placement({ orderId: "A", itemIndex: 0, slot: 0, serveAtMillis: T0 + 90_000 }),
+        placement({ orderId: "B", itemIndex: 0, slot: 1, serveAtMillis: T0 + 100_000 }),
+      ],
+    };
+    const arrivals = [pendingItem("A", 0, T0), pendingItem("B", 0, T0)];
+    const running = advanceLifts([], [{ at: (T0 + 140_000) as EpochMillis, span: 1 }]);
+    // 揃え：Σ Wait 200・遅れ 0 → 部分和 200。窓 [100,145) に 3 本で超過 1 × 45 → total 245。
+    expect(scoreSchedule([aligned], arrivals, new Map(), running, PARAMS)).toEqual({
+      total: 245,
+      bySlice: [200],
+    });
+    // 散らし：Σ Wait 190・遅れ 10 秒 × w_table 2 = 20 → 部分和 210（真に悪い）。窓は [90,135) に 2 本・[140,185) に
+    // 1 本で超過 0 → total 210（真に良い）。1 本を手前の窓へ逃がして手伝いの費用 45 が消える——pack / split の費用比較
+    // そのもので、目的関数が意図して払う差。段 1 (d) は部分和を比べるので、この計画はゲートを通らない。
+    expect(scoreSchedule([scattered], arrivals, new Map(), running, PARAMS)).toEqual({
+      total: 210,
+      bySlice: [210],
+    });
+    // 上げ表が空なら（AC 7.10 の前提）Lift_Overflow は両方 0 で、total も真に悪い。
+    expect(scoreSchedule([aligned], arrivals, new Map(), NO_LIFTS, PARAMS).total).toBe(200);
+    expect(scoreSchedule([scattered], arrivals, new Map(), NO_LIFTS, PARAMS).total).toBe(210);
+  });
+
   it("重みを 0 にした項は消える（Σ Wait_Time だけが残る）", () => {
     const noSoftConstraints = {
       ...PARAMS,

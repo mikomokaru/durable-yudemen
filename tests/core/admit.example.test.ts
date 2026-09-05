@@ -366,6 +366,69 @@ describe("admit — 揃った群を 1 ms 崩した外部計画は通らない（
     expect(after).toBeGreaterThan(before);
     expect(gateTwin(nudged)).toEqual([]);
   });
+
+  // Feature: lift-group-planning, AC 7.2 の但し書き（21.7 レビュー P2）
+  // **Validates: Requirements 7.2, 9.6, 9.7**
+  it("走行中が窓の境界に在り 1 ms 早めた計画の total が真に下がっても、部分和が悪いので段 1 (d) で棄却される", () => {
+    // 釜 2・3 は遠い未来まで塞ぎ、釜 4 は T − L（15 秒）・釜 5 は T + 1 秒（61 秒）に上がる卓なしの走行中。
+    // 釜 0・1 が空くので自前解は 2 本を T = 60 秒に揃える（Σ span 2 ≤ arms 2）。
+    const running: readonly Timer[] = [
+      ["t-blocked-2", 2, 10_000],
+      ["t-blocked-3", 3, 10_000],
+      ["t-before-window", 4, 60 - PARAMS.liftIntervalSeconds],
+      ["t-after-window", 5, 61],
+    ].map(([id, slot, endSeconds], seq) =>
+      createTimer({
+        id: id as TimerId,
+        slotIds: nonEmpty([String(slot) as SlotId]),
+        noodleType: "Long" as NoodleType,
+        firmness: "normal",
+        startTime: NOW,
+        endTime: (NOW + (endSeconds as number) * SECOND) as EpochMillis,
+        seq,
+      }),
+    );
+    const aligned = committedSchedule([], twin, running, NOW, PRESETS, PARAMS);
+    const [first, second] = aligned.slices[0]!.placements;
+    expect(first!.serveAt).toBe(NOW + 60 * SECOND);
+    expect(second!.serveAt).toBe(NOW + 60 * SECOND);
+    const nudged: CookSchedule = {
+      slices: [
+        {
+          tableKey: "t-x",
+          placements: [
+            first!,
+            {
+              ...second!,
+              startAt: (second!.startAt - 1) as EpochMillis,
+              serveAt: (second!.serveAt - 1) as EpochMillis,
+            },
+          ],
+        },
+      ],
+    };
+    // 揃え：窓 [60,105) に 60・60・61 の 3 本で Lift_Overflow 45 → total 120 + 45。散らし：[15,60) に 15・59.999 の
+    // 2 本・[60,105) に 60・61 の 2 本で 0 → total 121。部分和は 120 → 121 と真に悪い（lag 2 − wait 1）が total は下がる。
+    const before = scoreSchedule(
+      aligned.slices,
+      twin,
+      tableMembers(running),
+      initialLifts(running),
+      PARAMS,
+    );
+    const after = scoreSchedule(
+      nudged.slices,
+      twin,
+      tableMembers(running),
+      initialLifts(running),
+      PARAMS,
+    );
+    expect(before).toEqual({ total: 165, bySlice: [120] });
+    expect(after).toEqual({ total: 121, bySlice: [121] });
+    expect(after.total).toBeLessThan(before.total);
+    // それでも通らない——段 1 (d) が比べるのは部分和であり、ADR-0006 の「1 ms 崩した計画は通らない」はここが担う。
+    expect(admit(nudged, aligned, twin, running, NOW, PRESETS, PARAMS)).toEqual([]);
+  });
 });
 
 describe("admit — 始めたまとまりを崩す計画は feasible ではない（判断 16・ADR-0007・ハード制約 (e)）", () => {
