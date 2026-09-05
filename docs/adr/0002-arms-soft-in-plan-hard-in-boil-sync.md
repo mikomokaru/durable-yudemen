@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: partly superseded by 0009（arms は計画でも上げ窓としてハード制約になった。slotSpan ハードは維持）
 date: 2026-09-04
 specs: lift-group-planning
 ---
