@@ -35,7 +35,12 @@ import {
   type TimerOrigin,
 } from "../../src/client/connection";
 import type { Firmness } from "../../src/domain/firmness";
-import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+} from "../../src/domain/store";
 import { nonEmpty } from "../nonEmpty";
 import { genBoilSeconds } from "./generators";
 
@@ -187,6 +192,9 @@ function genViewWith(
       error: null,
       unitCount: record.unitCount,
       noodlePresets: DEFAULT_NOODLE_PRESETS,
+      unitOrigins: defaultUnitOrigins(record.unitCount),
+      slotOffsets: DEFAULT_SLOT_OFFSETS,
+      affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
     }));
 }
 

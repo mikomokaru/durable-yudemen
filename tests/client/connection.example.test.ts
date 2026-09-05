@@ -12,8 +12,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { remainingMs } from "../../src/client/clock";
-import { mode } from "../../src/client/connection";
+import { EMPTY_VIEW, mode } from "../../src/client/connection";
+import type { SlotOffsets, UnitOrigin } from "../../src/domain/store";
+import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import type { TimerFact } from "../../src/domain/timer";
+import { configResidualDefaults } from "../storeConfigDefaults";
 import {
   openConnectionWithFakeSockets,
   openConnectionWithFakeWatch,
@@ -162,6 +165,50 @@ describe("client/connection — 状態同期と切断継続", () => {
     expect(disconnected.send).not.toHaveBeenCalled();
 
     unsubscribe();
+    connection.close();
+  });
+});
+
+describe("client/connection — config 受信で釜の組に要る 3 項目が写る（lift-group-display 要件4.7）", () => {
+  it("unitOrigins / slotOffsets / affinityToleranceDistance をサーバの値のまま持ち、重み・許容幅は持たない", () => {
+    const { connection, receiveMessage } = openConnectionWithFakeWatch();
+
+    // 既定と見分けのつく値を置く。既定のまま送ると「写した」と「EMPTY_VIEW の既定が残った」が同じ観測になる。
+    const unitOrigins: readonly UnitOrigin[] = [
+      { x: 0, y: 0 },
+      { x: 0, y: 5 },
+    ];
+    const slotOffsets: SlotOffsets = [
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 0, y: 1 },
+      { x: 2, y: 1 },
+      { x: 0, y: 2 },
+      { x: 2, y: 2 },
+    ];
+    receiveMessage(
+      {
+        type: "config",
+        serverTime: START_NOW,
+        ...configResidualDefaults(2),
+        unitCount: 2,
+        arms: 2,
+        toleranceRatio: 10,
+        noodlePresets: DEFAULT_NOODLE_PRESETS,
+        unitOrigins,
+        slotOffsets,
+        affinityToleranceDistance: 24,
+      },
+      START_NOW,
+    );
+
+    const view = connection.getView();
+    expect(view.unitOrigins).toEqual(unitOrigins);
+    expect(view.slotOffsets).toEqual(slotOffsets);
+    expect(view.affinityToleranceDistance).toBe(24);
+    // 写すのは読み手のできた 3 項目だけ。重み・許容幅（秒）・POS の対応表はキーそのものを持たない。
+    expect(Object.keys(view).sort()).toEqual(Object.keys(EMPTY_VIEW).sort());
+
     connection.close();
   });
 });

@@ -269,6 +269,8 @@ const genLastResults: fc.Arbitrary<ClientView["lastResults"]> = fc.oneof(
  * のみ・server のみ・両混在を境界として含む（要件13.3）。offset は負/0/正、processedIds は空/timers と一致/
  * 無関係、lastResults は空/占有スロット上/空きスロット上、connectivity は up/down、unreachableReason は 3 値、
  * pendingOrders / recommendations は空/複数、unitCount / noodlePresets はサーバ権威の写しとして 2 種以上を踏む。
+ * レイアウト（unitOrigins / slotOffsets）と許容距離は既定に固定する（振らせても畳み込みの主張は強まらない）が、
+ * unitOrigins だけは生成した unitCount と整合させる（config の生成器と同じ規律・要素数が unitCount に依存する）。
  */
 export const genClientView: fc.Arbitrary<ClientView> = fc
   .uniqueArray(genClientTimer, { selector: (t) => t.id, maxLength: TIMER_ID_POOL.length })
@@ -288,7 +290,12 @@ export const genClientView: fc.Arbitrary<ClientView> = fc
         noodlePresets: genNoodlePresets,
       })
       // EMPTY_VIEW を基点にするのは、公開型がフィールドを増やしたとき生成器を壊さず既定値で追随させるため。
-      .map((rest): ClientView => ({ ...EMPTY_VIEW, ...rest, timers })),
+      .map((rest): ClientView => ({
+        ...EMPTY_VIEW,
+        ...rest,
+        timers,
+        unitOrigins: defaultUnitOrigins(rest.unitCount),
+      })),
   );
 
 /**

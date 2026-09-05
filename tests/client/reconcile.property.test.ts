@@ -20,7 +20,12 @@ import {
   type ClientTimer,
 } from "../../src/client/connection";
 import { clockOffset } from "../../src/client/clock";
-import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+} from "../../src/domain/store";
 import type { TimerFact } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import { nonEmpty } from "../nonEmpty";
@@ -173,6 +178,9 @@ const genView: fc.Arbitrary<ClientView> = genTimerFacts(SERVER_ID_POOL).chain((s
           error: r.error,
           unitCount: r.unitCount,
           noodlePresets: DEFAULT_NOODLE_PRESETS,
+          unitOrigins: defaultUnitOrigins(r.unitCount),
+          slotOffsets: DEFAULT_SLOT_OFFSETS,
+          affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
         };
       });
   }),

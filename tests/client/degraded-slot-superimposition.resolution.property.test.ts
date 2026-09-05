@@ -22,7 +22,12 @@ import {
   type ClientTimer,
   type ClientView,
 } from "../../src/client/connection";
-import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+} from "../../src/domain/store";
 import type { TimerFact } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import { nonEmpty } from "../nonEmpty";
@@ -173,6 +178,9 @@ function genScene(
               error: null,
               unitCount: drawn.unitCount,
               noodlePresets: DEFAULT_NOODLE_PRESETS,
+              unitOrigins: defaultUnitOrigins(drawn.unitCount),
+              slotOffsets: DEFAULT_SLOT_OFFSETS,
+              affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
             },
             serverTimers: drawn.serverTimers,
             at: drawn.correctedNowMs - drawn.offset,

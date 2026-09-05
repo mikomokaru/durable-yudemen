@@ -9,7 +9,12 @@
 
 import { describe, expect, it } from "vitest";
 import type { ClientTimer, ClientView } from "../../src/client/connection";
-import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+} from "../../src/domain/store";
 import { slotsOfUnits, unitsForCount } from "../../src/client/assignment";
 import { assignedSlotDisplays, type SlotDisplay } from "../../src/client/components/slotDisplay";
 
@@ -60,6 +65,9 @@ function syncedView(timers: readonly ClientTimer[]): ClientView {
     error: null,
     unitCount: 4,
     noodlePresets: DEFAULT_NOODLE_PRESETS,
+    unitOrigins: defaultUnitOrigins(4),
+    slotOffsets: DEFAULT_SLOT_OFFSETS,
+    affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   };
 }
 

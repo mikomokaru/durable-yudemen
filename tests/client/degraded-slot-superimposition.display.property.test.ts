@@ -44,7 +44,13 @@ import {
 import { assignedSlotDisplays } from "../../src/client/components/slotDisplay";
 import { correctedNow, remainingMs } from "../../src/client/clock";
 import { slotsOfUnits } from "../../src/client/assignment";
-import { DEFAULT_NOODLE_PRESETS, slotOf } from "../../src/domain/store";
+import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+  slotOf,
+} from "../../src/domain/store";
 import type { TimerFact } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import { nonEmpty } from "../nonEmpty";
@@ -220,6 +226,9 @@ const genScenario: fc.Arbitrary<DisplayScenario> = fc
             error: null,
             unitCount: 4,
             noodlePresets: DEFAULT_NOODLE_PRESETS,
+            unitOrigins: defaultUnitOrigins(4),
+            slotOffsets: DEFAULT_SLOT_OFFSETS,
+            affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
           },
         };
       });
