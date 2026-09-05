@@ -463,10 +463,32 @@ placeWithLifts(batch, t0, release, lifts, siblingsEnds, params):
 
 **`Placement.anchor`（AC 9.9・9.10・レビュー 1）。** 合流先の走行中の実効 endTime を配置の時点で決めて `Placement` に持ち、窓で `serveAt` が動いても変えない。`recommend` はそれを運ぶ（`joinedAnchor` の ±h_i 推定は撤去）。`AcceptedSlice` も持つので永続 v11（v10 の一片は移行時に h_i の窓で推定して埋める・推定できなければ null）。
 
-**(e) の契約の改訂（レビュー 1・2 回目の 1 と 2）。** `keepsAnchor` は次の 2 つ：
+**(e) の契約（レビュー 3 回で確定）。** `keepsAnchor` は一片の配置を `startAt` 昇順（同値は代表釜の番号）に一つずつ、解放表と上げ表へ載せながら検査する。載せる順があるのは「集合として成り立つか」を見るためで、外部解が選ぶ合流の部分集合を自前解と同じにする必要はない。
 
-1. **合流の判定は `anchor` で行い、3 条件で検証する**——(a) `anchor` は現在の走行中の仲間の実効 endTime のいずれかに等しい、(b) `serveAt ≥ anchor − h_i`（手前に散らさない）、(c) **窓を当てる前に合流できた**：その配置が使う釜が、当該一片を置く前の解放表で `anchor + h_i − 茹で時間` までに空いていた（`earliest ≤ anchor + h_i`・判断 18 の合流の条件そのもの）。(c) が無ければ、仲間 60 秒・茹で 600 秒・h 60 秒の品目（最早 600 秒・合流不能）が `{anchor: 60, serveAt: 600}` を名乗れ、client が未開始の群を開始済みと読む。
-2. **押し出しは、窓を当てる前に合流できた品目に限って判定する**——合流していない配置のうち、合流分で進めた解放表の下でいずれかの仲間に合流できた（`earliest ≤ 最遅の仲間 + h_i`）ものが、判断 18 の候補時刻（`joinedServeAt`）から `firstFit`（釜の解放と上げ窓の両方）で得た最早の時刻より後ろに置かれていれば押し出し。合流できない品目は保護の対象外なので、仲間 60 秒・残りが茹で 300 秒と 600 秒（どちらも合流不能）を後の batch で 600 秒に揃える配置は押し出しではない（業務をまとめる意図そのもの）。窓による必要な延期も押し出しではなく、走行中 4 本が 60 秒に上がる表で残りを 105 秒に置く一片は守っている。
+```
+release = 一片を置く前の解放表, lifts = 一片を置く前の上げ表
+for p in placements（startAt 昇順・同値は slotOf(slotIds[0])）:
+  boil = boilMillisOf(p の品目), h = joinWindowMillis(boil), span = slotSpan
+  earliestOwn = max(release[s] for s in p.slotIds) + boil          # その配置の釜での最早
+  if p.anchor !== null:
+    (a) p.anchor ∈ siblings                                        # 現在の走行中の仲間の実効 endTime
+    (b) p.serveAt ≥ p.anchor − h                                   # 手前に散らさない
+    (c) earliestOwn ≤ p.anchor + h                                 # 集合として合流できた（手前の配置で進めた表で）
+    (d) p.serveAt === firstFit(lifts, joinedServeAt(earliestOwn, siblings, boil), span)   # 延期の理由は窓だけ
+    いずれか偽なら守っていない
+  else:
+    earliestAny = 手前の配置で進めた解放表で span 個の釜が最も早く空く時刻 + boil
+    if earliestAny ≤ latest(siblings) + h:                         # 窓を当てる前に合流できた品目だけを保護
+      expected = firstFit(lifts, joinedServeAt(earliestAny, siblings, boil), span)
+      if p.serveAt > expected: 押し出し（守っていない）
+  loadWith(lifts, p.serveAt, span) ≤ arms + HELPER でなければ (f)
+  release = advanceRelease(release, [p]); lifts = advanceLifts(lifts, [p])
+```
+
+- **(c) は集合の検査になる。** 空きが 1 釜だけ・仲間 60 秒で、その釜に Thin を [0,60]・[60,120] と順に置いて両方に `anchor: 60` を付けた計画は、2 品目の earliestOwn が 120 秒（手前の配置で釜が 60 秒まで埋まる）ゆえ (c) で落ちる。個々の初期解放時刻では通ってしまう。
+- **(d) は延期の理由の検査になる。** 仲間 60 秒・残りが Thin 60 秒と茹で 600 秒で、両方を 600 秒に置き Thin に `anchor: 60` を付けた計画は、Thin の firstFit が 60 秒（釜も窓も空いている）なので (d) で落ちる。以前 (e) が防いだ「長い品目のために合流分まで遅らせる計画」が anchor を名乗って免れる経路を閉じる。(d) は (b) を含意するが、読み手のために (b) も書く。
+- **押し出しは、窓を当てる前に合流できた品目に限って判定する。** 合流できない品目は保護の対象外なので、仲間 60 秒・残りが茹で 300 秒と 600 秒（どちらも合流不能）を後の batch で 600 秒に揃える配置は押し出しではない（業務をまとめる意図そのもの）。窓による必要な延期も押し出しではなく、走行中 4 本が 60 秒に上がる表で残りを 105 秒に置く一片は守っている。
+- 自前解は構成からこの契約を満たす（joinable → joinedServeAt → firstFit の順に置き、anchor を配置の時点で持つ）。Property 17 を「一片ごとに `keepsAnchor` が真」のまま保つ。
 
 **貪欲採点の近似（レビュー 2 回目の注意・AC 9.15）。** `liftOverflow` の割当は起点を上がり時刻に限る。arms 2・L 45 で {60:1, 104:1, 105:2} は割当 [60,105) / [105,150) で超過 0 だが、窓 [104,149) には 3 本ある。「手伝いが要る窓には必ず費用が付く」定義ではないことを採点の判断として記す。ハード上限（`loadWith`）は t を含むすべての窓を見るので近似ではない。
 
