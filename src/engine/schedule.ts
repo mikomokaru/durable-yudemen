@@ -11,7 +11,15 @@ import type { EpochMillis, SlotId } from "./types";
 import type { Timer } from "./timer";
 import { adjustedEndTime, type TableMembers } from "./project";
 import type { ScheduleParams } from "./objective";
-import { advanceLifts, firstFit, liftCap, liftOverflow, liftsOf, type LiftTable } from "./lift";
+import {
+  advanceLifts,
+  firstFit,
+  liftCap,
+  liftOverflow,
+  liftsOf,
+  loadWith,
+  type LiftTable,
+} from "./lift";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
 import type { PendingOrder } from "../domain/order";
 import { slotDistance, slotOf, type NoodlePreset } from "../domain/store";
@@ -984,8 +992,9 @@ const MILLIS_PER_SECOND = 1000;
  *
  * 候補 t0（合流の規則か batch の錨）以降で、列を含むすべての窓の負荷が arms + HELPER_ARMS 以下になる最初の
  * 時刻へ置く（`firstFit`・AC 9.4）。Σ span = S について：
- *   - S > arms + HELPER_ARMS：どの時刻にも入らない列なので、上限に収まる**最長の非空の接頭辞**と残りに割って
- *     再帰する（先頭の品目は必ず収まる——1 品で超える品目は placeGroup が列に入れない・AC 9.12）。
+ *   - S > arms + HELPER_ARMS：どの時刻にも入らない列なので、**候補の窓の残り容量**（上限 − 既存の負荷。残りが
+ *     先頭の品目に足りなければ上限）に収まる最長の非空の接頭辞と残りに割って再帰する（先頭の品目は必ず上限に
+ *     収まる——1 品で超える品目は placeGroup が列に入れない・AC 9.12）。
  *   - S ≤ arms：手伝いが要らないので pack（全員を firstFit の時刻へ）。
  *   - その間：pack（全員を同じ窓へ・手伝いを頼む）と split（arms に収まる最長の非空の接頭辞を先に、残りを
  *     進めた表の上で再帰）の**両方を同じ既存の表に対して実際に作り**、局所の費用で安い方を置く。同点は pack。
@@ -1013,7 +1022,13 @@ function placeWithLifts(
   const cap = liftCap(params);
   const total = spanOf(column);
   if (total > cap) {
-    const head = longestPrefixWithin(column, cap);
+    // 先頭の塊は**候補の窓の残り容量**（上限 − t0 を含む窓の既存の負荷）で切る。上限そのもので切ると、走行中が
+    // 既に窓の一部を占めているとき先頭の塊が次の窓へ押され、余りの品目だけが今の窓に入る（実測：走行中 1 本の
+    // 錨に 5 本が合流する列で、先頭 4 本が 45 秒後・余りの 1 本だけが now）。残りが先頭の品目に足りなければ
+    // 今の窓には誰も入らないので、上限で切る。
+    const room = cap - loadWith(lifts, t0, 0, params);
+    const first = column[0]!.boiling.order.slotSpan;
+    const head = longestPrefixWithin(column, room >= first ? room : cap);
     const placedHead = placeWithLifts(head, t0, lifts, members, params);
     const placedRest = placeWithLifts(
       column.slice(head.length),

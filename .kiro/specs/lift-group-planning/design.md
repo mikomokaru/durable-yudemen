@@ -446,7 +446,8 @@ placeWithLifts(batch, t0, release, lifts, siblingsEnds, params):
   # 1 品で arms + HELPER を超える品目は列に入れない（AC 9.12・toBoiling の隣で落ちている）。
   S = Σ span
   if S > arms + HELPER:
-    head = Σ span ≤ arms + HELPER に収まる最長の非空の接頭辞   # 先頭の品目は必ず収まる（AC 9.12）
+    room = (arms + HELPER) − loadWith(lifts, t0, 0)                 # 候補の窓の残り容量
+    head = Σ span ≤ (room ≥ 先頭の span ? room : arms + HELPER) に収まる最長の非空の接頭辞   # 先頭の品目は必ず上限に収まる（AC 9.12）
     return placeWithLifts(head, …) ++ placeWithLifts(残り, その表の上で t0 以降, …)
   pack  = 全員を firstFit(lifts, t0, S) に置く配置
   if S ≤ arms: return pack
