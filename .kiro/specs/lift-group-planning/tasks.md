@@ -298,14 +298,15 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
 - [x] 20. 実機の差し戻し——合流の窓を h_i に、群と Sync_Set を分け、群の所属と合流を engine がワイヤで運ぶ（判断 18・19・ADR-0008）
   - 実測・2026-09-05: `ScheduleParams.toleranceRatio`（指紋に畳む・DO と test 既定に配線）、`joinWindowMillis` / `catchable` / `joinedServeAt` / `placeJoined`、`keepsAnchor` と `isPushedOut` を走行中の列（siblings）で判定する形へ、`joinedAnchor` を export、`recommend` が `group` / `anchor` を導く（`CookRecommendation` と wire 復号に追加）。実装中に 2 つ分かった——(1) 錨を最遅（max）に取ると arms のセット分割の後に新しい品目が最後のセットへ揃い、投入のたびに startAt が未来へずれる（3 本目で 6 秒）。(2) 窓の内側で走行中に揃えるために待つのも同じ帰結を生む。ゆえに「窓の内側なら earliest に置く・外なら後の最早の走行中に揃える」で確定した。`continuous-input.example`（12 場面）で固定。全体 227 ファイル 1417 件通過。
 
-- [ ] 21. 上げ窓（Lift_Window）——判断 20・ADR-0009・Requirement 9
-  - [ ] 21.1 domain：`LIFT_INTERVAL_SECONDS_{MIN,MAX}`・`DEFAULT_LIFT_INTERVAL_SECONDS = 45`・`HELPER_ARMS = 2`・`toLiftIntervalSeconds`・`StoreConfig.liftIntervalSeconds`。config ワイヤ（`toStoreConfig`）は欠如を既定に畳む（他の採点パラメータと同じ）。registry の compose と store DO の `adoptProjectionConfig` も欠如 → 既定
+- [ ] 21. 上げ窓（Lift_Window）——判断 20・ADR-0009・Requirement 9（design レビュー 6 件を反映済み）
+  - [ ] 21.1 domain：`LIFT_INTERVAL_SECONDS_{MIN,MAX}`・`DEFAULT_LIFT_INTERVAL_SECONDS = 45`・`HELPER_ARMS = 2`・`toLiftIntervalSeconds`・`StoreConfig.liftIntervalSeconds`。config ワイヤ（`toStoreConfig`）は欠如を既定に畳む。registry の compose と store DO の `adoptProjectionConfig` も欠如 → 既定
   - [ ] 21.2 `ScheduleParams.liftIntervalSeconds`（DO・test 既定・`digest` に畳む・`RequestPlan` 契約の doc）
-  - [ ] 21.3 `src/engine/lift.ts`：`Lift` / `LiftTable` / `initialLifts` / `advanceLifts` / `loadAround` / `firstFit` / `exceedsLiftCap`（性質：`firstFit` の結果は上限を破らず、t 以上で最小）
-  - [ ] 21.4 `schedule.ts`：`placeGroup` / `placeJoined` / `placeBatch` が `lifts` を受けて候補を窓へ写し、pack / split を局所比較で決める。`Placement.anchor` の持ち方を決める（`recommend` が窓でずれた合流を読めるように）
-  - [ ] 21.5 `objective.ts`：Arms_Overflow → Lift_Overflow（`total` にだけ足す）。`armsOverflowWeight` を撤去。Requirement 2.9 の例外を doc に
-  - [ ] 21.6 `admit.ts` / `commit.ts`：`lifts` を一片ごとに進め、上限超過を (f) として落とす／陳腐化と見なす
-  - [ ] 21.7 テスト：`lift.property`（窓の数え方・firstFit の最小性）、`schedule.example`（4 人家族は同時・9 本は 4・4・1・大盛は 2 本分）、`continuous-input.example` の期待値を「上限を満たす最初の時刻」へ、`admit.example`（上限超過の外部計画は棄却・arms 超過は採点）、`objective.*`（Lift_Overflow・Property 2 の同値条件の見直し）、`digest.example`
-  - [ ] 21.8 文書：design Component 10（済）、`online-cook-scheduling` の Requirement 3・4 と目的関数の注記、ADR-0002 の status（済）、`per-store-provisioning` / registry の config 項目一覧に `liftIntervalSeconds`
-  - [ ] 21.9 チェックポイント
-
+  - [ ] 21.3 `src/engine/lift.ts`：`initialLifts` / `advanceLifts` / `loadWith`（半開窓・t を含む窓だけ）/ `firstFit`（span > cap は null・停止性）/ `liftOverflow`（一意な貪欲）。`lift.property`：firstFit の結果は候補以上で条件を満たす最小、ちょうど L 離れた上がりは同じ窓に入らない、走行中だけの過負荷は firstFit を動かさない、liftOverflow は重ならない割当で外部再現できる（例：{60:2, 63:2, 105:2} → 90）
+  - [ ] 21.4 `Placement.anchor` と永続 v11（`AcceptedSlice` の配置に `anchor`・v10 は h_i の窓で推定・`migrate.property` の二方向）。`recommend` は `Placement.anchor` を運び、`joinedAnchor` の推定を撤去
+  - [ ] 21.5 `schedule.ts`：`placeWithLifts`（pack / split を同じ表の上で実際に作って局所費用で比べる・S > cap は分割・1 品で超える品目は配置しない）。`placeGroup` / `placeJoined` / `placeBatch` が `lifts` を受けて群を跨いで進める
+  - [ ] 21.6 `keepsAnchor` / `isPushedOut`：合流は `anchor` で判定（成員に在る・`serveAt ≥ anchor − h_i`）、押し出しは「firstFit（釜と窓）より後ろ」。走行中 4 本が 60 秒・残りを 105 秒に置く一片は守る（回帰）
+  - [ ] 21.7 `objective.ts`：Arms_Overflow → Lift_Overflow（`total` にだけ）。`armsOverflowWeight` 撤去。Property 2 の同値条件（arms 超過による同値）を見直す
+  - [ ] 21.8 `admit.ts` / `commit.ts`：`lifts` を一片ごとに進め、当該配置を含む窓の上限超過を (f) として落とす／陳腐化と見なす。走行中だけで超えている窓は無関係な一片を落とさない（回帰）
+  - [ ] 21.9 テスト：`schedule.example`（4 人家族は同時・9 本は 4・4・1・大盛は 2 本分・slotSpan 4 / arms 1 は配置されない）、`continuous-input.example` の期待値を「上限を満たす最初の時刻」へ、`admit.example`（上限超過の外部計画は棄却・arms 超過は採点・`anchor` の不正な主張は棄却）、`objective.*`、`digest.example`、`solver` の契約テスト
+  - [ ] 21.10 文書：design Component 10（済）、`online-cook-scheduling` の Requirement 3・4 と目的関数の注記（2.9 の例外）、`per-store-provisioning` / registry の config 項目一覧に `liftIntervalSeconds`、`docs/persisted-schema-rollback.md` に v11 の行
+  - [ ] 21.11 チェックポイント
