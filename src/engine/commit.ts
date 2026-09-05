@@ -78,7 +78,9 @@ export function committedSchedule(
  * 採用済み列のうち、計画順に見て最初に陳腐化した一片の手前まで（design の合成手順 1）。
  *
  * 陳腐化は 2 つの理由で立つ。**判定を分けているのは概念が違うから**である。
- *   - `isStale` — 対象品目が計画対象と食い違った（陳腐化A・B）。`admit` と共有する述語（schedule.ts）。
+ *   - `isStale` — 対象品目が計画対象と食い違った（陳腐化A・B）、または配置が品目の現在の slotSpan を
+ *     満たさない（v9 で採用された 1 釜の配置は v10 の制約で再検証され、ここで切れる）。`admit` と共有する
+ *     述語（schedule.ts）。
  *   - `hasLapsedStart` — 推奨開始時刻を過ぎた。合成側だけの関心事ゆえここに置く。
  */
 function livePrefix(

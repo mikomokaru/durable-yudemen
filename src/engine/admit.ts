@@ -25,6 +25,7 @@ import {
   advanceRelease,
   initialRelease,
   isStale,
+  occupiesSlotSpan,
   planTargets,
   refersTo,
   type AcceptedSlice,
@@ -167,7 +168,9 @@ function prune(
  *
  * **(d) slotSpan を検査する。** 配置の釜は当該品目の slotSpan 個で、かつ相異なること。本数だけを見ると
  * `["3","3"]` が本数 2 を満たしながら 1 釜しか占めず、advanceRelease が重複を吸収するので解放表にも現れない。
- * 本数で容量を数える設計（lift-group-planning AC 4.5）が開けた穴を、同じ場所で閉じる。
+ * 本数で容量を数える設計（lift-group-planning AC 4.5）が開けた穴を、同じ場所で閉じる。述語は schedule.ts の
+ * occupiesSlotSpan ただ一つ（相異なるかは釜番号で比べる。`["0","00"]` は 1 釜）。isStale も同じ述語を
+ * 読むので (a)(b) で既に落ちているが、feasibility の側にも書くのは「解放表に置ける配置か」がここの主張だから。
  *
  * **serveAt = startAt ＋ 当該品目の茹で時間 を検査する（design の (a)(b)(c) への追加）。** 外部計画は
  * startAt と serveAt の両方を主張してくるが、両者を結ぶのは品目の茹で時間ただ一つである。検査しないと
@@ -195,8 +198,7 @@ function feasibleRelease(
     const boilMillis = boilMillisOf(order, presets);
     if (boilMillis === null) return null;
     if (placement.serveAt - placement.startAt !== boilMillis) return null;
-    if (placement.slotIds.length !== order.slotSpan) return null;
-    if (new Set(placement.slotIds).size !== placement.slotIds.length) return null;
+    if (!occupiesSlotSpan(placement, order)) return null;
     for (const slotId of placement.slotIds) {
       const at = free[slotOf(slotId)];
       // 表の外を指す slot は存在しない釜であり、置き場所ではない。

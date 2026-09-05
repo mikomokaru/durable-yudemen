@@ -341,7 +341,26 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
   // 本数が違えば集合は一致しない。以降の走査で「計画対象 ⊆ 一片」だけを見れば足りる形にする
   // （本数が等しく計画対象を覆うなら、一片の側に余りも重複も残らない）。
   if (group.length !== slice.placements.length) return true;
-  return group.some((order) => !slice.placements.some((placement) => refersTo(placement, order)));
+  // 品目が在るだけでなく、配置がその品目の**現在の** slotSpan を満たしていること。採用済み一片は
+  // 採用時の slotSpan の上に組まれており、品目が同じでも要る釜数が変われば（v9 の採用済み計画は
+  // slotSpan を読まずに 1 釜で組まれている・サイズ変更の再送）配置はもうその品目の計画ではない。
+  return group.some((order) => {
+    const placement = slice.placements.find((candidate) => refersTo(candidate, order));
+    return placement === undefined || !occupiesSlotSpan(placement, order);
+  });
+}
+
+/**
+ * 配置が当該品目の slotSpan を満たしているか——`slotIds` の本数が `slotSpan` に等しく、かつ釜が相異なる
+ * （lift-group-planning AC 4.2）。
+ *
+ * 相異なるかは **釜番号（slotOf）** で比べる。文字列で比べると `["0","00"]` が別の釜に見えるが、解放表を
+ * 引く側は両方を釜 0 に写すので、1 釜しか空いていない釜に 2 釜の品目が置ける穴になる。
+ * Acceptance_Gate（admit.ts）と確定計画の合成（commit.ts・isStale 経由）が同じ述語を読む。
+ */
+export function occupiesSlotSpan(placement: Placement, order: PendingOrder): boolean {
+  if (placement.slotIds.length !== order.slotSpan) return false;
+  return new Set(placement.slotIds.map(slotOf)).size === placement.slotIds.length;
 }
 
 /**

@@ -168,10 +168,11 @@ _出所: 判断 5・6, 観測事実 2・3・19・22_
 #### Acceptance Criteria
 
 1. THE 計画 SHALL 品目に `slotSpan` 個の釜を割り当て、その全部が空くまで開始時刻を置かない（ハード制約）
-2. THE Acceptance_Gate SHALL `slotSpan` を満たさない外部計画を feasible と認めない。満たすとは `slotIds` の本数が `slotSpan` に等しく、かつ釜が相異なることである（`["3","3"]` は本数 2 で 1 釜しか占めない）
+2. THE Acceptance_Gate SHALL `slotSpan` を満たさない外部計画を feasible と認めない。満たすとは `slotIds` の本数が `slotSpan` に等しく、かつ釜が相異なることである（`["3","3"]` は本数 2 で 1 釜しか占めない）。相異なるかは**釜番号**で比べる（`["0","00"]` は表記が違うだけの 1 釜）
 3. THE 自前解 SHALL 釜の選択の第一基準を「`slotSpan` 個すべてが空く最早時刻の最小化」とし、同点が余るときだけ釜距離で断つ（既存 `chooseSlots` の優先順位を変えない）
 4. THE `Placement.slotIds` SHALL 割り当てた釜すべてを持つ（`Timer.slotIds` と同じ基数）
 5. THE 計画 SHALL 釜容量を `slotSpan` の合計で数える（batch の分割の単位）
+6. THE 確定計画の合成 SHALL 採用済み一片の配置が品目の**現在の** `slotSpan` を満たさなければ陳腐化と見なし、そこから先を自前解で置き換える（v9 で採用された 1 釜の配置は v10 の制約で再検証される。永続は書き換えない。述語は Acceptance_Gate と同じ一つ）
 
 _出所: 判断 11, 観測事実 8・9・12_
 

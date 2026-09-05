@@ -260,3 +260,8 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 「**永続スキーマの版を上げたときの巻き戻し**」を 1 本の手順書として書く。版に依らない手順（`migrate.ts:65-66` は上限だけを見るため、旧コードは新データを読めない。Worker を戻すなら永続も戻す）と、版ごとの差（v9 で足した `itemName` / `sizeName`、v10 で足した `tableId` と落とした `score`）を表で持つ。
     - 本 spec がその 1 本を書き、`slot-suggested-start` の task 10.2 は**それを指すだけ**に書き換える（`docs/access-enablement/rollback-runbook.md` という存在しないファイルへの参照も同時に解消する）。
     - _Requirements: 3.7_
+
+- [x] 16. コードレビュー対応（2026-09-05・main の分岐点からのレビュー）
+  - 実測: 規約面は指摘なし、仕様面 2 件。(1) v9 の採用済み一片（slotSpan 2 に `slotIds: ["0"]`）が合成で維持され続けた——`isStale` が品目集合しか見なかった。`occupiesSlotSpan`（本数一致・釜番号で相異なる）を schedule.ts に置き、`isStale` と `feasibleRelease` の両方がそれを読む形にした（AC 4.6 を追加）。(2) `new Set(slotIds)` は `["0","00"]` を別の釜に数えた——同じ述語で釜番号に写してから数える（AC 4.2 に追記）。例示は `commit.example.test.ts`（新規）と `admit.example.test.ts`。
+  - 差分外の既存問題として `pending.ts` の同一性判定が `slotSpan` を比べない指摘があった。本対応では触っていないが、`isStale` が現在の `slotSpan` を見るようになったため、サイズだけ変わった再送でも採用済み一片は陳腐化する（待ち行列の側の同一性は据え置き）。
+

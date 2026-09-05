@@ -214,6 +214,50 @@ describe("admit — 外部の申告を検証する", () => {
   });
 });
 
+describe("admit — slotSpan は釜番号で数える（レビュー指摘・AC 4.2）", () => {
+  /** 2 釜を要する短い麺。空いている釜は 0 番だけなので、正しく数えれば今は置けない。 */
+  const WIDE: PendingOrder = { ...SHORT, slotSpan: 2 };
+  const PENDING_WIDE: readonly PendingOrder[] = [LONG, WIDE];
+  const COMMITTED_WIDE = committedSchedule([], PENDING_WIDE, BLOCKED, NOW, PRESETS, PARAMS);
+
+  function wide(slotIds: readonly SlotId[]): CookSchedule {
+    return {
+      slices: [
+        {
+          tableKey: "t-b",
+          placements: [
+            {
+              externalOrderId: WIDE.externalOrderId,
+              itemIndex: 0,
+              slotIds: nonEmpty([...slotIds]),
+              startAt: NOW,
+              serveAt: (NOW + 60 * SECOND) as EpochMillis,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("場面の前提: 自前解は 2 釜目が空くまで待つ", () => {
+    const placement = COMMITTED_WIDE.slices
+      .flatMap((slice) => slice.placements)
+      .find((candidate) => candidate.externalOrderId === WIDE.externalOrderId)!;
+    expect(placement.slotIds).toHaveLength(2);
+    expect(placement.startAt).toBeGreaterThan(NOW);
+  });
+
+  it('["0","00"] は表記が違うだけの同じ釜であり、2 釜を満たさない', () => {
+    const arrived = wide(["0" as SlotId, "00" as SlotId]);
+    expect(admit(arrived, COMMITTED_WIDE, PENDING_WIDE, BLOCKED, NOW, PRESETS, PARAMS)).toEqual([]);
+  });
+
+  it('["0","0"] も同じく棄却される', () => {
+    const arrived = wide(["0" as SlotId, "0" as SlotId]);
+    expect(admit(arrived, COMMITTED_WIDE, PENDING_WIDE, BLOCKED, NOW, PRESETS, PARAMS)).toEqual([]);
+  });
+});
+
 describe("admit — 同値と空", () => {
   it("現行 Committed_Plan をそのまま渡すと空の採用列を返す（同値は棄却）", () => {
     expect(gate(COMMITTED)).toEqual([]);
