@@ -246,7 +246,7 @@ const genRunningDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
 const genIdleDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
   kind: fc.constant("idle" as const),
   slot: genSlot,
-  next: fc.constant(null),
+  next: fc.constant([]),
 });
 const genUnreceivedDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
   kind: fc.constant("unreceived" as const),

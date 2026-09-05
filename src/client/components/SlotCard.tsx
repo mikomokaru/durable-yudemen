@@ -12,7 +12,7 @@ import { remainingParts } from "../format";
 import { cn } from "../cn";
 import type { TimerFact } from "../../domain/timer";
 import type { SlotDisplay } from "./slotDisplay";
-import type { QueueSuggestion } from "./queueDisplay";
+import type { GroupItem, SlotSuggestion } from "./liftGroups";
 import type { NoodleColor } from "./noodleColor";
 import { PlayIcon, StopIcon, LiftIcon } from "./icons";
 import { FirmnessCornerControl } from "./FirmnessCornerControl";
@@ -26,6 +26,28 @@ import type { Firmness } from "../../domain/firmness";
 
 /** ラジアルメニューを開く中心座標（ビューポート）。 */
 type Center = { readonly x: number; readonly y: number };
+
+/**
+ * 提案の見え方（ラベル・aria-label・塗り）。
+ *
+ * `role` の判別は導出（`SlotSuggestion`）から落とさない——「押せないのに濃い」を表示側でも表現不能にする。
+ * 丸ボタンを描くのは `head` の分岐だけで、`member` の分岐にはボタンの JSX が無い（lift-group-display AC 3.6）。
+ * 濃い塗りは `head` かつ `solid` にだけ現れ、`member` は常に薄い（AC 2.4）。
+ */
+export type SuggestionView =
+  | {
+      readonly role: "head";
+      readonly phase: "faint" | "solid";
+      readonly label: string;
+      readonly ariaLabel: string;
+      readonly tint: string;
+    }
+  | {
+      readonly role: "member";
+      readonly label: string;
+      readonly ariaLabel: string;
+      readonly tint: string;
+    };
 
 interface SlotCardProps {
   readonly display: SlotDisplay;
@@ -41,17 +63,16 @@ interface SlotCardProps {
   /** 走行中の茹で加減変更（boiling のみ）。サーバが endTime を引き直す。 */
   readonly onAdjust: (timerId: string, firmness: Firmness) => void;
   /**
-   * idle の提案の見え方（`display.next` があるときだけ渡される）。
+   * idle の提案（`display.next` の各件）の見え方を引く resolver。
    *
    * ラベルと aria-label は**呼び出し側が組む**。商品名の代替（`itemName ?? noodleType`）・NFKC 正規化・
-   * 時期の整形はいずれも待ち行列と同じ語で書く必要があり、その語を持つのは `SlotBoard` 側である。
-   * カードは受け取った文字列を描くだけにして、表示語彙を二箇所に散らさない。
+   * 語（`now` / `soon` / `queued`）はいずれも待ち行列と同じ語で書く必要があり、その語を持つのは `SlotBoard`
+   * 側である。カードは受け取った文字列を描くだけにして、表示語彙を二箇所に散らさない。`noodleColor` と同じ
+   * 形の resolver にするのは、`display.next` と並行する配列を受ければ長さの食い違いが表現できてしまうため。
    */
-  readonly suggestionOf?:
-    | { readonly label: string; readonly ariaLabel: string; readonly tint: string }
-    | undefined;
-  /** 提案からの開始。押せば即開始する（ラジアルを開かない）。 */
-  readonly onStartSuggested?: ((suggestion: QueueSuggestion) => void) | undefined;
+  readonly suggestionOf: (suggestion: SlotSuggestion) => SuggestionView;
+  /** 提案からの開始。押せば即開始する（ラジアルを開かない）。品目を指し、釜は推奨の slotIds 全体（AC 3.1）。 */
+  readonly onStartSuggested: (item: GroupItem) => void;
 }
 
 /** 要素の矩形中心（ビューポート座標）を返す。ラジアルの展開中心に使う。 */
@@ -313,8 +334,6 @@ export function SlotCard({
 
   // 空きスロット。Play ピクトグラムの真円ボタン（他状態と同じ右下位置）でラジアルを開く。直前結果があれば併記。
   if (display.kind === "idle") {
-    // 判別後にローカルへ束ねる（non-null assertion を書かず、型で絞り込んだ値をそのまま使う）。
-    const next = display.next;
     return (
       <article
         aria-label={`Slot ${slot}`}
@@ -334,27 +353,43 @@ export function SlotCard({
           </div>
         )}
         <div className={actionRow}>
-          {display.next !== null &&
-            suggestionOf !== undefined && (
-              // 提案からの開始。押せば即開始（ラジアルを開かない・要件 2.7）。区別は形ではなく塗り
-              // （麺種の色＝identity の既存規約）で付ける。
-              <div className={actionStack}>
+          {display.next.map((suggestion) => {
+            const shown = suggestionOf(suggestion);
+            const { externalOrderId, itemIndex } = suggestion.item.order;
+            // 濃いのは押せる先頭が startAt を迎えたときだけ。薄は opacity で沈め、塗り（麺種の色＝identity の
+            // 既存規約）は変えない——「同じ群」を色や縁で示さない（AC 3.2）。
+            const solid = shown.role === "head" && shown.phase === "solid";
+            return (
+              // 提案は複数並びうる（上限なし・AC 2.11）。actionRow が折り返し、Start は右下に留まる（AC 3.5）。
+              <div
+                key={`${externalOrderId}#${itemIndex}`}
+                data-phase={solid ? "solid" : "faint"}
+                className={cn(actionStack, !solid && "opacity-60")}
+              >
                 <div className={actionSlot}>
-                  <button
-                    type="button"
-                    aria-label={suggestionOf.ariaLabel}
-                    onClick={() => {
-                      if (next !== null) onStartSuggested?.(next);
-                    }}
-                    className={cn(actionBtn, "text-[#15120c] hover:brightness-95")}
-                    style={{ backgroundColor: suggestionOf.tint }}
-                  >
-                    <PlayIcon className={actionIcon} />
-                  </button>
+                  {shown.role === "head" && (
+                    // 提案からの開始。押せば即開始（ラジアルを開かない・要件 2.7）。押せるのは先頭だけで、
+                    // 薄くても押せる（判断 5・17）。member の分岐にはボタンが無く、枠だけ残してラベルの位置を揃える。
+                    <button
+                      type="button"
+                      aria-label={shown.ariaLabel}
+                      onClick={() => onStartSuggested(suggestion.item)}
+                      className={cn(actionBtn, "text-[#15120c] hover:brightness-95")}
+                      style={{ backgroundColor: shown.tint }}
+                    >
+                      <PlayIcon className={actionIcon} />
+                    </button>
+                  )}
                 </div>
-                <span className={suggestionLabel}>{suggestionOf.label}</span>
+                <span
+                  className={suggestionLabel}
+                  aria-label={shown.role === "member" ? shown.ariaLabel : undefined}
+                >
+                  {shown.label}
+                </span>
               </div>
-            )}
+            );
+          })}
           <div className={actionStack}>
             <div className={actionSlot}>
               <button

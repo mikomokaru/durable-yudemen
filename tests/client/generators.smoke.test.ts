@@ -240,9 +240,13 @@ describe("client/generators 群を作る場面（lift-group-display）のスモ�
     ).toBe(true);
     expect(scenes.some((s) => s.groups.some((g) => g.tableId === null))).toBe(true);
     // 先頭の群より後ろに、started でない群を挟んで隠れる群（群の境界・Requirement 6.5 の主語）。
-    expect(scenes.some((s) => s.groups.findIndex((g) => !g.started) < s.groups.length - 1)).toBe(
-      true,
-    );
+    // 「started でない群が在り、かつその後ろに群が続く」——findIndex の −1（全群 started）は主語を欠くので数えない。
+    expect(
+      scenes.some((s) => {
+        const stop = s.groups.findIndex((g) => !g.started);
+        return stop !== -1 && stop < s.groups.length - 1;
+      }),
+    ).toBe(true);
   });
 
   it("genLiftScene の仲間は match / mismatch / stray / foreign と boiled を踏み、群に入らない推奨も混ざる", () => {

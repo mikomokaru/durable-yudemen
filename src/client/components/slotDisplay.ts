@@ -4,11 +4,11 @@
 // clock.ts の remainingMs に now を渡して描画のたびに算出する（要件10.1 の思想をクライアントへ延長）。
 
 import type { TimerFact } from "../../domain/timer";
-import { mode, type ClientTimer, type ClientView } from "../connection";
+import type { ClientTimer, ClientView } from "../connection";
 import { correctedNow, remainingMs } from "../clock";
 import { assignedTimers, slotsOfUnits } from "../assignment";
 import { slotOf } from "../../domain/store";
-import type { QueueEntry, QueueSuggestion } from "./queueDisplay";
+import type { SlotSuggestion } from "./liftGroups";
 
 /**
  * 担当スロット 1 つの表示状態。
@@ -38,15 +38,19 @@ export type SlotDisplay =
       readonly kind: "idle";
       readonly slot: number;
       /**
-       * この釜に次に入る提案 1 件（無ければ null）。
+       * この釜に出す提案（startAt 昇順・空配列は提案なし）。
        *
-       * ビューに保持しない導出値である。当該釜を slotIds に含む担当範囲内の提案のうち startAt 最小の 1 件で、
-       * QueueSuggestion をそのまま載せる——「開始に要る事実が揃った提案」は queueDisplay が既に定義しており、
-       * 同じ概念を二度定義しない。degraded では常に null（押しても送られない操作を出さない・要件 1.3 / 2.12）。
+       * ビューに保持しない導出値である。表示できる群の品目のうち当該釜を slotIds に含み、全釜が idle で
+       * Prep_Lead が来たもの——その判定は liftGroups の slotSuggestions が店舗全体で行い、ここは釜ごとの結果を
+       * 載せるだけである（同じ概念を二度定義しない）。degraded で空なのも slotSuggestions が担う
+       * （押しても送られない操作を出さない・lift-group-display AC 2.13）。上限は置かない（AC 2.11）。
        */
-      readonly next: QueueSuggestion | null;
+      readonly next: readonly SlotSuggestion[];
     }
   | { readonly kind: "unreceived"; readonly slot: number };
+
+/** 提案を持たない釜の組。音の判定など、提案を読まない呼び出し側は第 4 引数を落とすだけでよい。 */
+const NO_SUGGESTIONS: ReadonlyMap<number, readonly SlotSuggestion[]> = new Map();
 
 /**
  * 担当スロットの全件について表示状態を昇順で導出する。
@@ -55,12 +59,15 @@ export type SlotDisplay =
  * boiled / running は endTime（事実）と now からの導出で切り分ける（remaining > 0 は走行中、≤ 0 は茹で上がり）。
  * 走行中（remaining > 0）があればそれを最優先で秒読み表示し、無ければ茹で上がり（明示完了待ち）を示す。
  * completed / cancelled で除去された Timer は view.timers から消えているため、空きスロットは idle になる。
+ *
+ * bySlot は釜ごとの提案（slotSuggestions の結果）。担当範囲で絞るのはここだけで、群・開始・連鎖・全釜 idle は
+ * 店舗全体で判定済みである（lift-group-display AC 1.6 / 2.12）——idle の釜は自分の番号で引くだけになる。
  */
 export function assignedSlotDisplays(
   view: ClientView,
   units: readonly number[],
   now: number,
-  entries: readonly QueueEntry[],
+  bySlot: ReadonlyMap<number, readonly SlotSuggestion[]> = NO_SUGGESTIONS,
 ): readonly SlotDisplay[] {
   const assignedSet = slotsOfUnits(units);
   const slots = [...assignedSet].sort((a, b) => a - b);
@@ -102,38 +109,10 @@ export function assignedSlotDisplays(
       return { kind: "boiled", slot, timer: earliest, overdueMs };
     }
     if (view.sync === "synced") {
-      // 同期済みで Timer が無い＝アイドル。開始操作と次の提案を提示する（直前結果の表示は UI 層が担う）。
-      return { kind: "idle", slot, next: nextForSlot(entries, slot, view) };
+      // 同期済みで Timer が無い＝アイドル。開始操作と提案を提示する（直前結果の表示は UI 層が担う）。
+      return { kind: "idle", slot, next: bySlot.get(slot) ?? [] };
     }
     // 未同期（connecting / syncFailed）で endTime 未受信 → 残り時間未受信（要件5.5）。
     return { kind: "unreceived", slot };
   });
-}
-
-/**
- * ある釜に次に入る提案を導く。無ければ null。
- *
- * 候補は entries が既に絞り込んでいる——担当範囲（assignedBySlots）と、開始に要る茹で秒が引けること
- * （boilSecondsOf）はあちらの条件であり、ここで書き直さない（要件 1.4）。
- *
- * 同値の startAt では entries の順（到着順・orderQueueEntries が決定的）の先着を採る。`<` で比較すれば
- * 先着が残るため、端末間・再描画間で並びが揺れない。
- *
- * degraded では常に null を返す。判定をここに閉じ、SlotCard に「degraded なら出さない」という条件を
- * 書かせない（表示の判断を 1 箇所に集める）。
- */
-function nextForSlot(
-  entries: readonly QueueEntry[],
-  slot: number,
-  view: ClientView,
-): QueueSuggestion | null {
-  if (mode(view) !== "live") return null;
-  let next: QueueSuggestion | null = null;
-  for (const entry of entries) {
-    const suggestion = entry.suggestion;
-    if (suggestion === null) continue;
-    if (!suggestion.slotIds.some((slotId) => slotOf(slotId) === slot)) continue;
-    if (next === null || suggestion.startAt < next.startAt) next = suggestion;
-  }
-  return next;
 }

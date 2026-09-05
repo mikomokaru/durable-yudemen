@@ -313,7 +313,7 @@ describe("client/connection × slotDisplay — degraded-slot-superimposition Pro
         // 表示は解決結果に対して導出する。時刻は生のローカル読み `at` を渡す——`assignedSlotDisplays` は
         // 内部で correctedNow(view.offset, now) を掛けるため、解決が使った補正後時刻と同じ瞬間になる
         // （補正後時刻をそのまま渡すと offset が二重に足される）。
-        const displays = assignedSlotDisplays(result, units, at, []);
+        const displays = assignedSlotDisplays(result, units, at);
         const displayedSlots = new Set(displays.map((display) => display.slot));
 
         // 担当射影が黙って落としていないこと — 在席する全 Timer の全スロットが表示対象に含まれる。

@@ -1,64 +1,94 @@
-// tests/client/slot-card.example.test.tsx — 釜カードの提案操作の実描画テスト（slot-suggested-start 8.8）。
+// tests/client/slot-card.example.test.tsx — 釜カードの提案の実描画テスト（lift-group-display）。
 //
-// **Validates: Requirements 2.1, 2.6, 2.7, 2.9, 2.10**
+// **Validates: Requirements 2.2, 2.3, 2.4, 2.5, 2.11, 3.1, 3.3〜3.7, 6.4**
 //
 // 描くのは SlotCard 単体である。SlotBoard を丸ごと描けば WS 接続の作り物が要るが、ここで立てる主張は
-// カードの DOM にしかない。表示語彙（商品名の代替・NFKC・時期の整形）は SlotBoard が組んで prop で渡す
-// 設計ゆえ、ここでは渡した文字列がそのまま名として出ることを問う。
+// カードの DOM にしかない。表示語彙（商品名の代替・NFKC・`now` / `soon` / `queued`）は SlotBoard が組んで
+// resolver で渡す設計ゆえ、ここでは渡した文字列がそのまま名として出ることと、`role` で分岐した形——`head` に
+// だけ丸ボタン・`member` は薄いラベルだけ——を問う。
 //
-// **レイアウトの実効は問えない。** render プロジェクトは happy-dom（`vitest.config.ts:134`）で CSS を
-// 計算せず、`flex-wrap` が実際に折り返すかは観測できない。問えるのは DOM 順（`[提案, Start]`）と親の
-// クラス（`flex-wrap` / `justify-end` / `absolute right/bottom`）までである。折り返しの実際と可触寸法は
-// 静的検査と実機確認が受ける。
+// 「member にボタンが無い」「member が濃くない」は型が強制しない（JSX の分岐は型の外にある）。導出の
+// `SlotSuggestion` と見え方の `SuggestionView` の両方が判別共用体でも、描画側の分岐が崩れれば「押せないのに
+// 押せる」経路が生まれる。ゆえに AC 3.6 は型とこの Example の両方で担う（design Component 5）。
+//
+// **レイアウトの実効は問えない。** render プロジェクトは happy-dom（`vitest.config.ts`）で CSS を計算せず、
+// `flex-wrap` が実際に折り返すかは観測できない。問えるのは DOM 順（`[提案…, Start]`）と親のクラス
+// （`flex-wrap` / `justify-end` / `absolute right/bottom`）までである。折り返しの実際と可触寸法は静的検査と
+// 実機確認が受ける。
 
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { SlotCard } from "../../src/client/components/SlotCard";
-import type { QueueSuggestion } from "../../src/client/components/queueDisplay";
+import { SlotCard, type SuggestionView } from "../../src/client/components/SlotCard";
+import type { GroupItem, SlotSuggestion } from "../../src/client/components/liftGroups";
 import type { SlotDisplay } from "../../src/client/components/slotDisplay";
 import { noodleColors } from "../../src/client/components/noodleColor";
-import { isNonEmpty, type NonEmptyArray } from "../../src/domain/timer";
+import type { PendingOrder } from "../../src/domain/order";
+import { nonEmpty } from "../nonEmpty";
 
 afterEach(cleanup);
 
 const noodleColor = noodleColors(["Thin", "Medium", "Thick"]);
+const T0 = 1_700_000_000_000;
 
-function nonEmpty<T>(values: readonly T[]): NonEmptyArray<T> {
-  if (!isNonEmpty(values)) throw new Error("テストの前提違反：非空のはず");
-  return values;
-}
-
-function suggestion(overrides: Partial<QueueSuggestion> = {}): QueueSuggestion {
+function item(externalOrderId: string, overrides: Partial<PendingOrder> = {}): GroupItem {
   return {
-    slotIds: nonEmpty(["0"]),
-    startAt: 1_700_000_000_000,
-    boilSeconds: 60,
-    serveAt: 1_700_000_060_000,
-    ...overrides,
+    order: {
+      externalOrderId,
+      itemIndex: 0,
+      noodleType: "Thin",
+      firmness: "hard",
+      tableId: "12",
+      arrivalTime: T0 - 60_000,
+      slotSpan: 1,
+      itemName: "プレ塩",
+      sizeName: "中盛",
+      ...overrides,
+    },
+    suggestion: { slotIds: nonEmpty(["0"]), startAt: T0, boilSeconds: 60, serveAt: T0 + 60_000 },
   };
 }
 
-function idle(next: QueueSuggestion | null): SlotDisplay {
-  return { kind: "idle", slot: 0, next };
+/** 導出の 3 形（薄い先頭・濃い先頭・仲間）。 */
+const FAINT_HEAD: SlotSuggestion = { role: "head", phase: "faint", item: item("faint") };
+const SOLID_HEAD: SlotSuggestion = { role: "head", phase: "solid", item: item("solid") };
+const MEMBER: SlotSuggestion = { role: "member", item: item("member") };
+
+/**
+ * 見え方の resolver。SlotBoard が組む形（ラベル・aria-label・塗り）をテストから直接与える。語は SlotBoard の
+ * 語彙をなぞる——可視の語は空か `now`、aria-label の末尾だけが `now` / `soon` / `queued`。
+ */
+function suggestionOf(suggestion: SlotSuggestion): SuggestionView {
+  const name = suggestion.item.order.externalOrderId;
+  const tint = "oklch(0.7 0.1 40)";
+  if (suggestion.role === "member") {
+    return {
+      role: "member",
+      label: `${name} 中盛 · かため · Table 12`,
+      ariaLabel: `Suggested — ${name} · Slot 0 · queued`,
+      tint,
+    };
+  }
+  const solid = suggestion.phase === "solid";
+  return {
+    role: "head",
+    phase: suggestion.phase,
+    label: `${name} 中盛 · かため · Table 12${solid ? " · now" : ""}`,
+    ariaLabel: `Suggested — ${name} · Slot 0 · ${solid ? "now" : "soon"}`,
+    tint,
+  };
 }
 
-/** 提案の見え方。SlotBoard が組む形（ラベル・aria-label・塗り）をテストから直接与える。 */
-const SUGGESTION_OF = {
-  label: "プレ塩 中盛 · かため · Table 12 · in 01:20",
-  ariaLabel: "Suggested — プレ塩 · Slot 0 · in 01:20",
-  tint: "oklch(0.7 0.1 40)",
-} as const;
+function idle(next: readonly SlotSuggestion[]): SlotDisplay {
+  return { kind: "idle", slot: 0, next };
+}
 
 function cardElement(
   display: SlotDisplay,
   handlers: {
     // 型は実装の prop から引く（テスト側で関数型を書き直せば、署名が変わっても追随しない）。
     readonly onStart?: Mock<ComponentProps<typeof SlotCard>["onStart"]>;
-    readonly onStartSuggested?: Mock<
-      NonNullable<ComponentProps<typeof SlotCard>["onStartSuggested"]>
-    >;
-    readonly suggestionOf?: typeof SUGGESTION_OF | undefined;
+    readonly onStartSuggested?: Mock<ComponentProps<typeof SlotCard>["onStartSuggested"]>;
   } = {},
 ) {
   return (
@@ -69,103 +99,170 @@ function cardElement(
       onComplete={vi.fn()}
       onAdjust={vi.fn()}
       noodleColor={noodleColor}
-      suggestionOf={handlers.suggestionOf}
+      suggestionOf={suggestionOf}
       onStartSuggested={handlers.onStartSuggested ?? vi.fn()}
     />
   );
 }
 
-describe("提案の操作が idle カードに現れる（R2.1・R2.10）", () => {
-  it("提案があると 2 つのボタンが並び、DOM 順は [提案, Start] である", () => {
-    render(cardElement(idle(suggestion()), { suggestionOf: SUGGESTION_OF }));
+/** 提案の操作スタック（`data-phase` を持つ要素）。Start のスタックは持たない。 */
+function suggestionStacks(): readonly HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>("[data-phase]")];
+}
+
+describe("head は丸ボタンを持ち、薄・濃を aria-label が語る（R2.2・R2.3・R3.4・R3.7）", () => {
+  it("薄い先頭：丸ボタンがあり、語は無く、aria-label は soon", () => {
+    render(cardElement(idle([FAINT_HEAD])));
 
     const buttons = screen.getAllByRole("button");
     expect(buttons).toHaveLength(2);
-    // 折り返したとき 1 行目（上）が提案・2 行目（下）が Start になるのは、この DOM 順と
-    // 親の下端固定の組み合わせによる（要件 2.9 の根拠）。
-    expect(buttons[0]?.getAttribute("aria-label")).toBe(SUGGESTION_OF.ariaLabel);
+    expect(buttons[0]?.getAttribute("aria-label")).toBe("Suggested — faint · Slot 0 · soon");
     expect(buttons[1]?.getAttribute("aria-label")).toBe("Slot 0 — Start");
+    expect(screen.getByText("faint 中盛 · かため · Table 12")).toBeDefined();
+    expect(suggestionStacks().map((stack) => stack.dataset["phase"])).toEqual(["faint"]);
   });
 
-  it("提案が無いと Start だけが残る（R2.9 — 位置の基準が変わらない）", () => {
-    render(cardElement(idle(null)));
+  it("濃い先頭：丸ボタンがあり、語は now、aria-label も now（可視の語と食い違わない）", () => {
+    render(cardElement(idle([SOLID_HEAD])));
+
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.getAttribute("aria-label")).toBe("Suggested — solid · Slot 0 · now");
+    expect(screen.getByText("solid 中盛 · かため · Table 12 · now")).toBeDefined();
+    expect(suggestionStacks().map((stack) => stack.dataset["phase"])).toEqual(["solid"]);
+  });
+
+  it("aria-label は提案であることを先に語り、命令形と自動開始の示唆を持たない（R3.3）", () => {
+    render(cardElement(idle([FAINT_HEAD, SOLID_HEAD])));
+
+    for (const button of screen.getAllByRole("button").slice(0, 2)) {
+      const name = button.getAttribute("aria-label") ?? "";
+      expect(name).toContain("Suggested");
+      expect(name).not.toMatch(/\bgo\b/i);
+      expect(name).not.toMatch(/automatic/i);
+      expect(name).toContain("Slot 0");
+    }
+  });
+});
+
+describe("member はラベルだけで、ボタンを持たず、濃くならない（R2.4・R3.6）", () => {
+  it("member だけの idle：ボタンは Start の 1 つ、ラベルと aria-label（queued）は出る", () => {
+    render(cardElement(idle([MEMBER])));
 
     const buttons = screen.getAllByRole("button");
     expect(buttons).toHaveLength(1);
     expect(buttons[0]?.getAttribute("aria-label")).toBe("Slot 0 — Start");
+    expect(screen.getByText("member 中盛 · かため · Table 12")).toBeDefined();
+    expect(screen.getByLabelText("Suggested — member · Slot 0 · queued")).toBeDefined();
+    // 濃くない（startAt が過ぎていても導出が member なら solid の相を持たない・AC 2.4）。
+    expect(suggestionStacks().map((stack) => stack.dataset["phase"])).toEqual(["faint"]);
   });
 
-  it("aria-label は SlotBoard が組んだ語をそのまま用い、命令形と自動開始の示唆を持たない", () => {
-    render(cardElement(idle(suggestion()), { suggestionOf: SUGGESTION_OF }));
+  it("head と member が並ぶとき、押せるのは head だけで、member のスタックにボタンが無い", () => {
+    const onStartSuggested = vi.fn<ComponentProps<typeof SlotCard>["onStartSuggested"]>();
+    render(cardElement(idle([SOLID_HEAD, MEMBER]), { onStartSuggested }));
 
-    const name = screen.getAllByRole("button")[0]?.getAttribute("aria-label") ?? "";
-    // 機械は開始を指示しない（AC 8.2）。「Suggested」で提案であることを先に語る。
-    expect(name).toContain("Suggested");
-    expect(name).not.toMatch(/\bgo\b/i);
-    expect(name).not.toMatch(/automatic/i);
-    // 品目・釜・時期を含む（要件 2.10）。
-    expect(name).toContain("プレ塩");
-    expect(name).toContain("Slot 0");
-    expect(name).toContain("in 01:20");
-  });
-
-  it("ラベルは渡された文字列をそのまま描く（表示語彙をカードで組み直さない）", () => {
-    render(cardElement(idle(suggestion()), { suggestionOf: SUGGESTION_OF }));
-    expect(screen.getByText(SUGGESTION_OF.label)).toBeDefined();
+    const stacks = suggestionStacks();
+    expect(stacks).toHaveLength(2);
+    expect(stacks[0]?.querySelectorAll("button")).toHaveLength(1);
+    expect(stacks[1]?.querySelectorAll("button")).toHaveLength(0);
+    expect(stacks.map((stack) => stack.dataset["phase"])).toEqual(["solid", "faint"]);
+    // member のラベルを押しても何も起きない（押す口が構造から無い）。
+    fireEvent.click(screen.getByText("member 中盛 · かため · Table 12"));
+    expect(onStartSuggested).not.toHaveBeenCalled();
   });
 });
 
-describe("提案の押下（R2.6・R2.7）", () => {
-  it("押すと提案そのものが渡り、ラジアル（onStart）は開かない", () => {
+describe("提案の押下（R3.1）", () => {
+  it("薄い先頭を押すと品目（GroupItem）が渡り、ラジアル（onStart）は開かない", () => {
     const onStart = vi.fn<ComponentProps<typeof SlotCard>["onStart"]>();
-    const onStartSuggested =
-      vi.fn<NonNullable<ComponentProps<typeof SlotCard>["onStartSuggested"]>>();
-    const next = suggestion({ slotIds: nonEmpty(["0", "2"]) });
-    render(cardElement(idle(next), { onStart, onStartSuggested, suggestionOf: SUGGESTION_OF }));
+    const onStartSuggested = vi.fn<ComponentProps<typeof SlotCard>["onStartSuggested"]>();
+    render(cardElement(idle([FAINT_HEAD]), { onStart, onStartSuggested }));
 
     fireEvent.click(screen.getAllByRole("button")[0]!);
 
-    // 推奨の slotIds 全体で開始する（釜ごとに切り出さない・要件 2.6）。深い等価ではなく同一性で問う
-    // ——SlotBoard は参照の一致で品目の鍵を引くため、別物を渡せばその経路が壊れる。
+    // 品目を指して開始する。推奨の slotIds 全体は item.suggestion が運ぶ（釜ごとに切り出さない）。
+    // 同一性で問う——SlotBoard は order から鍵を取り suggestion.slotIds を送るため、別物を渡せば経路が壊れる。
     expect(onStartSuggested).toHaveBeenCalledTimes(1);
-    expect(onStartSuggested.mock.calls[0]?.[0]).toBe(next);
-    // ラジアルは開かない（押せば即開始・要件 2.7）。
+    expect(onStartSuggested.mock.calls[0]?.[0]).toBe(FAINT_HEAD.item);
     expect(onStart).not.toHaveBeenCalled();
   });
 
   it("Start を押すとラジアルが開き、提案は送られない", () => {
     const onStart = vi.fn<ComponentProps<typeof SlotCard>["onStart"]>();
-    const onStartSuggested =
-      vi.fn<NonNullable<ComponentProps<typeof SlotCard>["onStartSuggested"]>>();
-    render(
-      cardElement(idle(suggestion()), { onStart, onStartSuggested, suggestionOf: SUGGESTION_OF }),
-    );
+    const onStartSuggested = vi.fn<ComponentProps<typeof SlotCard>["onStartSuggested"]>();
+    render(cardElement(idle([SOLID_HEAD]), { onStart, onStartSuggested }));
 
-    fireEvent.click(screen.getAllByRole("button")[1]!);
+    fireEvent.click(screen.getByLabelText("Slot 0 — Start"));
 
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStartSuggested).not.toHaveBeenCalled();
   });
 });
 
-describe("提案と直前結果は同居する（design Component 2）", () => {
+describe("複数の提案と Start の配置（R2.11・R3.5）", () => {
+  it("提案が無いと Start だけが残る（位置の基準が変わらない）", () => {
+    render(cardElement(idle([])));
+
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]?.getAttribute("aria-label")).toBe("Slot 0 — Start");
+    expect(suggestionStacks()).toHaveLength(0);
+  });
+
+  it("提案が複数並んでも DOM 順は [提案…, Start] で、親は下端固定・折り返し・右寄せのまま", () => {
+    render(cardElement(idle([FAINT_HEAD, MEMBER, SOLID_HEAD])));
+
+    const start = screen.getByLabelText("Slot 0 — Start");
+    const row = start.closest(".flex-wrap");
+    expect(row).not.toBeNull();
+    // 折り返したとき上の行が提案・下の行が Start になるのは、DOM 順と下端固定の組み合わせによる。
+    const children = [...row!.children];
+    expect(children).toHaveLength(4);
+    expect(children.slice(0, 3).every((child) => child.hasAttribute("data-phase"))).toBe(true);
+    expect(children[3]?.contains(start)).toBe(true);
+    for (const cls of ["flex-wrap", "justify-end", "items-end", "absolute"]) {
+      expect(row!.classList.contains(cls)).toBe(true);
+    }
+    expect([...row!.classList].some((cls) => cls.startsWith("right-["))).toBe(true);
+    expect([...row!.classList].some((cls) => cls.startsWith("bottom-["))).toBe(true);
+  });
+});
+
+describe("時刻の語を持たない（R2.5・R6.4）", () => {
+  it("提案の可視の語は空か now だけで、in / + / mm:ss は現れない", () => {
+    render(cardElement(idle([FAINT_HEAD, MEMBER, SOLID_HEAD])));
+
+    for (const stack of suggestionStacks()) {
+      const text = stack.textContent ?? "";
+      const tail = text.split(" · ").at(-1) ?? "";
+      // ラベルの末尾は卓（語なし）か now。
+      expect(tail === "now" || tail === "Table 12").toBe(true);
+      expect(text).not.toMatch(/\bin\b/);
+      expect(text).not.toMatch(/\+\d/);
+      expect(text).not.toMatch(/\d{1,2}:\d{2}/);
+    }
+  });
+});
+
+describe("提案と直前結果は同居する（slot-suggested-start design Component 2）", () => {
   it("直前結果のバッジと提案が同時に出る（場所を取り合わない）", () => {
     render(
       <SlotCard
-        display={idle(suggestion())}
+        display={idle([SOLID_HEAD])}
         onStart={vi.fn()}
         onCancel={vi.fn()}
         onComplete={vi.fn()}
         onAdjust={vi.fn()}
         noodleColor={noodleColor}
         lastResultNoodle="Medium"
-        suggestionOf={SUGGESTION_OF}
+        suggestionOf={suggestionOf}
         onStartSuggested={vi.fn()}
       />,
     );
 
     // バッジはカード上部、提案は下部。優先も排他も要らない。
     expect(screen.getByText("Medium")).toBeDefined();
-    expect(screen.getByText(SUGGESTION_OF.label)).toBeDefined();
+    expect(screen.getByText("solid 中盛 · かため · Table 12 · now")).toBeDefined();
   });
 });

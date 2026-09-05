@@ -42,7 +42,7 @@ describe("client/audioCue 純粋判定", () => {
         const processedBefore = sorted(view.processedIds);
 
         const evalOnce = () => {
-          const displays = assignedSlotDisplays(view, units, now, []);
+          const displays = assignedSlotDisplays(view, units, now);
           const boiled = boiledTimerIds(displays);
           const due = dueDoneCue(boiled, now, lastRingAt);
           const assigned = assignedTimers(view.timers, units);
@@ -149,12 +149,12 @@ describe("client/audioCue 純粋判定", () => {
   });
 
   // Feature: audio-cues, Property 5: boiled 集合は担当かつ remaining ≤ 0 の Timer のみを含む（視覚正本との一致）
-  // boiledTimerIds(assignedSlotDisplays(view, units, now, [])) の各 id は担当範囲に属し remaining = 0。
+  // boiledTimerIds(assignedSlotDisplays(view, units, now)) の各 id は担当範囲に属し remaining = 0。
   // 走行中（remaining > 0）・担当外・view から除去済みの Timer は決して含まれない。音声設定や Audio_Session 状態は入力に取らない。
   it("Property 5: boiled は担当かつ remaining = 0 のみ（走行中・担当外・除去済みを含まない）", () => {
     fc.assert(
       fc.property(genAudioCase, ({ view, units, now }) => {
-        const displays = assignedSlotDisplays(view, units, now, []);
+        const displays = assignedSlotDisplays(view, units, now);
         const boiled = boiledTimerIds(displays);
         const assigned = assignedTimers(view.timers, units);
         const assignedIds = new Set(assigned.map((t) => t.id));

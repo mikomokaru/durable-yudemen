@@ -41,6 +41,11 @@ function slotCardMarkup(display: SlotDisplay): string {
       onComplete: () => undefined,
       noodleColor: () => "#ffffff",
       onAdjust: () => undefined,
+      // ここで描く idle は提案を持たない（next: []）ので resolver は呼ばれない。呼ばれたら前提違反。
+      suggestionOf: () => {
+        throw new Error("テストの前提違反：提案は無いはず");
+      },
+      onStartSuggested: () => undefined,
     }),
   );
 }
@@ -70,7 +75,7 @@ describe("SlotCard — Complete の実描画境界", () => {
       remainingMs: 30_000,
       unconfirmed: false,
     });
-    const idle = slotCardMarkup({ kind: "idle", slot: 0, next: null });
+    const idle = slotCardMarkup({ kind: "idle", slot: 0, next: [] });
 
     expect(completeButtonCount(boiled)).toBe(1);
     expect(completeButtonCount(running)).toBe(0);
@@ -107,7 +112,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
     // boiled として在席し、表示導出も boiled（Complete 対象 timer を保持）になる。
     const view1 = connection.getView();
     expect(view1.timers.map((t) => t.id)).toEqual(["T"]);
-    const displays1 = assignedSlotDisplays(view1, [0], START_NOW, []);
+    const displays1 = assignedSlotDisplays(view1, [0], START_NOW);
     const slot3 = displays1.find((d) => d.slot === 3);
     expect(slot3?.kind).toBe("boiled");
     expect(slot3 && slot3.kind === "boiled" ? slot3.timer.noodleType : null).toBe("Medium");
@@ -127,7 +132,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
     });
     const view2 = connection.getView();
     expect(view2.timers.some((t) => t.id === "T")).toBe(false);
-    const displays2 = assignedSlotDisplays(view2, [0], START_NOW, []);
+    const displays2 = assignedSlotDisplays(view2, [0], START_NOW);
     expect(displays2.find((d) => d.slot === 3)?.kind).toBe("idle");
     // 直前結果（残滓）が当該スロット（slotId "3"）に記録されている。at は client 受信時刻（receivedAt = now()）。
     expect(view2.lastResults.get("3")).toEqual({ noodleType: "Medium", at: START_NOW });
@@ -344,7 +349,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     setConnectivity("up");
     // OUT は slot 11（unit 1）を駆動する。押下者の担当は unit 0（slot 0..5）ゆえ盤面には現れない。
     receiveSnapshot([timerAt("IN", "3", BOILED_AT), timerAt("OUT", "11", BOILED_AT)]);
-    const displays = assignedSlotDisplays(connection.getView(), [0], START_NOW, []);
+    const displays = assignedSlotDisplays(connection.getView(), [0], START_NOW);
     expect(displays.find((d) => d.slot === 3)?.kind).toBe("boiled");
     expect(displays.some((d) => d.slot === 11)).toBe(false); // 担当外＝操作口も表示も持たない
 
@@ -373,7 +378,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       const after = connection.getView();
       expect(after.timers).toEqual([]);
       expect(after.sync).toBe("synced");
-      const displays = assignedSlotDisplays(after, [0], START_NOW, []);
+      const displays = assignedSlotDisplays(after, [0], START_NOW);
       // 両スロットとも駆動 Timer が残らない → 同期済みゆえ idle（開始操作を提示できる状態）。
       expect(displays.find((d) => d.slot === 0)?.kind).toBe("idle");
       expect(displays.find((d) => d.slot === 1)?.kind).toBe("idle");
@@ -396,7 +401,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       const after = connection.getView();
       expect(send).not.toHaveBeenCalled();
       expect(after.timers).toEqual([]);
-      const displays = assignedSlotDisplays(after, [0], START_NOW, []);
+      const displays = assignedSlotDisplays(after, [0], START_NOW);
       // 要件2.5 と同じ盤面（駆動 Timer が残らない）でも、未受信を idle と偽らない。idle は同期済みを要する。
       expect(displays.find((d) => d.slot === 0)?.kind).toBe("unreceived");
       expect(displays.find((d) => d.slot === 1)?.kind).toBe("unreceived");
@@ -432,7 +437,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
         "OLDEST",
       ]);
 
-      const displays = assignedSlotDisplays(after, [0], START_NOW, []);
+      const displays = assignedSlotDisplays(after, [0], START_NOW);
       const slot0 = displays.find((d) => d.slot === 0);
       // slot 0 は走行中が残る → boiled（STALE）より走行中を優先し、走行中が複数なら最早 endTime を採る。
       expect(slot0?.kind).toBe("running");
@@ -509,7 +514,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       // 占有が実在することを表示導出で確かめる（slot 0 は idle にならず HOLD で running）。この観測が要るのは、
       // 「占有していないから記録された」という別の説明を排すためである。占有していても記録される——
       // recordLastResults は占有を見ない。live 経路との非対称がここに現れる。
-      const displays = assignedSlotDisplays(after, [0], START_NOW, []);
+      const displays = assignedSlotDisplays(after, [0], START_NOW);
       expect(displays.find((d) => d.slot === 0)?.kind).toBe("running");
       expect(after.lastResults.get("0")).toEqual({ noodleType: "noodle-T1", at: START_NOW });
       expect(after.lastResults.get("1")).toEqual({ noodleType: "noodle-T2", at: START_NOW });
@@ -737,7 +742,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
 
       // 除去を運ぶ snapshot は届いていない。局所ビューが動かないため両スロットは boiled のまま導出され、
       // ゆえに Complete の操作口も残る（`assignedSlotDisplays` が boiled を返す＝SlotCard がボタンを描く）。
-      const displays = assignedSlotDisplays(connection.getView(), [0], START_NOW, []);
+      const displays = assignedSlotDisplays(connection.getView(), [0], START_NOW);
       expect(displays.find((d) => d.slot === 0)?.kind).toBe("boiled");
       expect(displays.find((d) => d.slot === 1)?.kind).toBe("boiled");
 
