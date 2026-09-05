@@ -7,6 +7,8 @@
 // error として要求元へ返る経路が無音の破棄に変わるため、例示で楔を打つ。
 
 import { describe, expect, it } from "vitest";
+import type { ServerMessage } from "../../src/domain/messages";
+import type { OrderItemOrigin } from "../../src/domain/timer";
 import { toClientMessage, toServerMessage } from "../../src/domain/wire";
 import { RETIRED_MESSAGE_TYPES } from "./wireGenerators";
 
@@ -144,13 +146,29 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
       endTime: 1,
     } as const;
 
-    function decodedOrderItem(orderItem: unknown): unknown {
+    /** orderItem だけを差し替えた 1 件の snapshot を復号する。undefined は鍵ごと欠かす。 */
+    function decodeSnapshotTimer(orderItem: unknown): ServerMessage | null {
       const raw = orderItem === undefined ? timer : { ...timer, orderItem };
-      const message = toServerMessage(JSON.stringify({ ...snapshot, timers: [raw] }));
-      return message?.type === "snapshot" ? message.timers[0]?.orderItem : message;
+      return toServerMessage(JSON.stringify({ ...snapshot, timers: [raw] }));
     }
 
-    it("欠如と null はアドホック（null）に畳む", () => {
+    /**
+     * 復号が通ったことを主張してから orderItem を取り出す。「復号が落ちて null」と「復号が通って
+     * orderItem が null」は別の結果であり、一つの null に潰すと欠如 → null の例が Decode_Failure を
+     * 反証できなくなる。通す側の例はすべてここを経る。
+     */
+    function decodedOrderItem(orderItem: unknown): OrderItemOrigin | null {
+      const message = decodeSnapshotTimer(orderItem);
+      expect(message).not.toBeNull();
+      expect(message?.type).toBe("snapshot");
+      if (message?.type !== "snapshot") throw new Error("unreachable: asserted above");
+      const [decoded] = message.timers;
+      expect(decoded).toBeDefined();
+      if (decoded === undefined) throw new Error("unreachable: asserted above");
+      return decoded.orderItem;
+    }
+
+    it("欠如と null はアドホック（null）に畳む（復号は通る）", () => {
       expect(decodedOrderItem(undefined)).toBeNull();
       expect(decodedOrderItem(null)).toBeNull();
     });
@@ -179,7 +197,7 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
         "o-1",
       ];
       for (const orderItem of invalid) {
-        expect(decodedOrderItem(orderItem)).toBeNull();
+        expect(decodeSnapshotTimer(orderItem)).toBeNull();
       }
     });
   });
