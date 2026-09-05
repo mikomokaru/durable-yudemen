@@ -23,7 +23,7 @@ specs: lift-group-planning, lift-group-display
 - 揃える方が点が良くなるのは w_table > 1 のときで、既定 2 では成り立つ。w_table ≤ 1 の店は「卓を揃えない」を選んだ店であり、妥当域は変えない。
 - 採点が走行中を読むため、`scoreSchedule` は `running` を受け、Boil_Sync の調整が採点を動かす。これは「Boil_Sync の出力を所与の事実として読む」既存の立場（AC 9.3）の適用である。
 - 永続された `AcceptedSlice.score` は走行中や重みの変化とずれるため、改善判定は比較の時点で Committed_Plan と外部解の両方を再採点する。**`PlanSlice`（したがって `AcceptedSlice`）と `CookSchedule` から `score` を落とす**（採点は placements からの導出値。`baselineSchedule` / `committedSchedule` は採点を呼ばなくなり、配置と採点が分離される。`settle` の等価判定は placements の比較で足り、移行は v9 の余剰 score を捨てる）。基準は Committed_Plan のままで、自前解へ移さない。
-- 一致が成り立つのは群が釜容量（`slotSpan` の合計）に収まるときで、超える群は batch に割れ、差は減点される。錨は batch ごとに取り直す。
+- 一致が成り立つのは群が釜容量（`slotSpan` の合計）に収まるときで、超える群は batch に割れ、差は減点される。錨は batch ごとに取り直す。走行中の仲間が在る卓では、その錨に合流できる品目だけで最初の batch を組む（ADR-0007）。
 - 最適性の主張は「釜の割当と batch の分割を所与として」に限る。割当を変えた外部解が自前解に勝つことは正当にありえ、それが外部ソルバを残す理由である。
 - 卓同期項の秒換算は切り上げにする（ADR-0006）。切り捨てで揃えると 1 ms ずらした外部計画がゲートを通り、client の等号による群が割れる。
 - `tableSyncToleranceSeconds` は計画で使われなくなり、`orderSync*` は減点項としてだけ残る。設定・ワイヤ・外部契約に及ぶため撤去は別の判断とし、撤去候補として記録する。

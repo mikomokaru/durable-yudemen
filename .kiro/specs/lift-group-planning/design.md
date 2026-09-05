@@ -206,6 +206,43 @@ placeGroup(items, release, members, presets, params):
 
 `slotSpan ≤ SLOT_SPAN_MAX = SLOTS_PER_UNIT = 6 ≤ capacity`（`UNIT_COUNT_MIN = 1`）なので、**1 品目が単独で容量を超えることは構造上ありえない**。「置けない品目」の分岐を書かない根拠はここにある（起こり得ないものに防御を置かない）。
 
+#### `placeGroup` の前段 — 走行中の仲間が在る卓は、合流できる品目で最初の batch を組む（判断 16・ADR-0007）
+
+上の詰め方は容量を `release.length`（釜の総数）で数えるため、走行中が占めている釜まで容量に入る。群の 1 本目を始めた直後、残りが「Σ slotSpan ≤ 容量」で一つの batch に入り、走行中の釜が空くまで**全員が**錨ごと後ろへずれる（6 釜・同卓 4 品・各 2 釜・茹で 6 分：開始前は 3 品が今、1 本を始めると残り 3 品が 6 分後）。始めたまとまりを後続品のために崩している。
+
+規則は**走行中の仲間が在る卓に限って**足す。走行中が無い卓は上の詰め方のまま（待つことも含めてまとめる・AC 1.8）。
+
+```
+placeGroup(items, release, runningAnchor, presets, params):
+  boilings = 茹で時間が引ける品目（正準順序）
+  free = release
+  if runningAnchor !== null:
+    joined = joinable(boilings, free, runningAnchor, params)
+    if joined が非空:
+      placed = placeBatch(joined, free, runningAnchor, params)   # 錨 = runningAnchor（下記）
+      free = advanceRelease(free, placed); 収集
+      boilings = boilings から joined を除く（正準順序を保つ）
+  残りは上の詰め方（容量で貪欲に batch へ・錨は max(earliest, runningAnchor)）
+
+joinable(boilings, free, anchor, params):
+  joined = []
+  for b in boilings:                                   # 正準順序
+    if fits([...joined, b], free, anchor, params): joined.push(b)
+  return joined
+
+fits(candidate, free, anchor, params):
+  totalSpan = Σ span;  if totalSpan > free.length: return false
+  slotsOf = placeBatch と同じ対応づけ（chooseSlots → byRelease 昇順 → byBoil 降順で連続 span 個）
+  return ∀ i: max(free[s] for s in slotsOf[i]) ≤ anchor − boilMillis_i
+```
+
+- **合流の判定は投入時刻で閉じる。** 「いま空いている釜」ではなく、`slotSpan` 個すべてが `anchor − boil_i`（逆算した投入時刻）までに空くか。錨 510 秒・茹で 330 秒なら 30 秒後に空く釜でも 180 秒に投入でき、合流できる（AC 1.9）。時間の許容幅は置かない。
+- **`placeBatch(joined, free, runningAnchor)` の錨は `runningAnchor` になる。** `fits` が placeBatch と同じ対応づけで `earliest_i ≤ anchor` を確かめているので、`max(max(earliest), runningAnchor) = runningAnchor`。合流した品目は走行中と同じ `serveAt` を持つ（AC 1.4 の走行中版）。
+- **3 つの場合。** (a) 全釜使用中——解放表だけが語る。投入時刻までに空く釜が `slotSpan` 個あれば合流する。(b) 茹で時間が混在——判定は品目ごとの投入時刻 `anchor − boil_i` で行い、対応づけは長い茹でに早く空く釜を与える。錨までの残りより茹で時間が長い品目（`anchor − boil_i < now`）は解放表の下限が now ゆえ合流できず、残りへ回る。(c) 1 品が複数釜——`slotSpan` 個の相異なる釜すべてが投入時刻までに空くこと。連続 span 個の対応づけで最後（最も遅く空く）の釜が判定を決める。
+- **誰も合流できなければ残りは従来どおり**（AC 1.10）。走行中が boiled だけで錨が過去なら `anchor − boil_i < now` で全員が外れ、既存の `max(earliest, runningAnchor)` に落ちる（ADR-0003「錨は過去へ落ちない」と整合）。
+- **貪欲は正準順序で、合流の本数を最大化しない。** 先の品目が合流を確定させると後の品目の釜が減る。最適な部分集合の選択は外部ソルバの役目で、自前解に要求するのは決定性（正準順序と placeBatch の全順序から従う）だけ。
+- **採点もゲートも変えない。** 変わるのは自前解の batch の組み方だけで、ゲートは feasibility と改善で判定する。全員を後ろへずらす配置と 2＋1 に割る配置は目的関数の上で近い（前者は wait、後者は lag に同じ秒数が乗る）ので、外部解がどちらを出しても採点は嘘にならない。
+
 #### `placeBatch` — 錨へ一致させる
 
 許容幅の床（`tableFloor` / `orderFloor`）を撤去し、錨ひとつへ置き換える。**引き算だけで済む。**
