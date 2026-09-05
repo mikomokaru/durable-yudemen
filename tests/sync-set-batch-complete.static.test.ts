@@ -545,7 +545,9 @@ describe("(c) UI が群を知らず一括専用の操作要素を持たない（
       /\bmodal\b/i,
       /\bbatch\b/i,
       /\bbulk\b/i,
-      /\bgroup\b/i,
+      // ARIA の role 値 `role="group"` は除く——lift-group-display の提案（1 件＝group 1 つ・aria-label の
+      // 置き場・AC 3.4 / 3.7）で、一括を示す操作要素ではない。語としての group は引き続き拒む。
+      /(?<!role=")\bgroup\b/i,
       /Complete\s+All/i,
       /All\s+at\s+once/i,
     ]) {

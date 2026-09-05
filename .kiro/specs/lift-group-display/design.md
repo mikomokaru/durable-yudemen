@@ -250,6 +250,7 @@ function suggestionOf(s: SlotSuggestion, slot, colorOf): SuggestionView
 ```
 
 - 可視の語は空か `now`（AC 3.3・6.4）。aria-label だけが `soon` / `queued` で薄・押せないを語る（AC 3.4・3.7）。
+- **実装注記（task 5・レビューで確定）**：`SlotCard` は `SuggestionView[]` を対で受けず、`noodleColor` と同じ形の resolver `suggestionOf: (SlotSuggestion) => SuggestionView` で受ける（並行する 2 配列は長さの食い違いを表現できる）。この形では上の判別共用体は**両立しない**——resolver が `member` に `role: "head"` を返せば「押せないのにボタン」が描け、`SuggestionView` の判別が二つ目の真実になる。ゆえに `SuggestionView` は `{ label, ariaLabel, tint }` の 1 形（判別を持たない）とし、丸ボタン・塗り・`data-phase` はすべて導出 `SlotSuggestion` の `role` / `phase` から取る。可視の `now` は aria-label の相の語（`now` / `soon` / `queued`）から導き、「可視の語と食い違わない」（AC 3.4）を構造にする。提案 1 件は `role="group"`（aria-label はここ。素の span/div は generic で aria-label が効かない）で、`head` のボタンは自分の aria-label を別に持つ。以下の「対で受け」「両方が判別共用体」はこの注記で読み替える。
 - `SlotCard` は `display.next` と `SuggestionView[]` を対で受け、`role` で分岐する。`head` の分岐だけが丸ボタンを描き `onStartSuggested(item)` を呼ぶ。`member` の分岐にはボタンの JSX が無い（`actionStack` の丸ボタンの位置に何も置かず、ラベルの位置を揃える）。濃い塗りは `head` かつ `solid` の分岐にだけ現れ、`member` は常に薄い。**保証の所在**：導出（`SlotSuggestion`）と見え方（`SuggestionView`）の両方が判別共用体で、描画は `role` の分岐だけを持つ。それでも JSX の分岐は型が強制しないので、「`member` にボタンが無い」「`member` が濃くない」は `slot-card.example` が固定する（AC 3.6 は型と Example の両方で担う）。
 - `Start` ボタンと配置は変えない（AC 3.5）。
 

@@ -1,15 +1,17 @@
 // tests/client/slot-card.example.test.tsx — 釜カードの提案の実描画テスト（lift-group-display）。
 //
-// **Validates: Requirements 2.2, 2.3, 2.4, 2.5, 2.11, 3.1, 3.3〜3.7, 6.4**
+// **Validates: Requirements 2.2, 2.3, 2.4, 2.11, 3.1, 3.3〜3.7**
 //
-// 描くのは SlotCard 単体である。SlotBoard を丸ごと描けば WS 接続の作り物が要るが、ここで立てる主張は
-// カードの DOM にしかない。表示語彙（商品名の代替・NFKC・`now` / `soon` / `queued`）は SlotBoard が組んで
-// resolver で渡す設計ゆえ、ここでは渡した文字列がそのまま名として出ることと、`role` で分岐した形——`head` に
-// だけ丸ボタン・`member` は薄いラベルだけ——を問う。
+// 描くのは SlotCard 単体である。表示語彙（商品名の代替・NFKC・`now` / `soon` / `queued`）は SlotBoard が組んで
+// resolver で渡す設計ゆえ、ここでは渡した文字列がそのまま名として出ることと、導出の `role` で分岐した形——`head`
+// にだけ丸ボタン・`member` は薄いラベルだけ——を問う。本物の `suggestionOf` の語と `startOrderItem` への配線は
+// `slot-board-suggestions.example.test.tsx` が SlotBoard を実描画して固定する（時刻の語の不在・Requirement 6.4
+// もそちら）。
 //
-// 「member にボタンが無い」「member が濃くない」は型が強制しない（JSX の分岐は型の外にある）。導出の
-// `SlotSuggestion` と見え方の `SuggestionView` の両方が判別共用体でも、描画側の分岐が崩れれば「押せないのに
-// 押せる」経路が生まれる。ゆえに AC 3.6 は型とこの Example の両方で担う（design Component 5）。
+// 「member にボタンが無い」「member が濃くない」は型が強制しない（JSX の分岐は型の外にある）。見え方の
+// `SuggestionView` は判別を持たず（文字列と色だけ）、分岐は導出の `SlotSuggestion` からしか取れないが、描画側の
+// 分岐が崩れれば「押せないのに押せる」経路が生まれる。ゆえに AC 3.6 は型とこの Example の両方で担う
+// （design Component 5・実装注記）。
 //
 // **レイアウトの実効は問えない。** render プロジェクトは happy-dom（`vitest.config.ts`）で CSS を計算せず、
 // `flex-wrap` が実際に折り返すかは観測できない。問えるのは DOM 順（`[提案…, Start]`）と親のクラス
@@ -54,28 +56,27 @@ const FAINT_HEAD: SlotSuggestion = { role: "head", phase: "faint", item: item("f
 const SOLID_HEAD: SlotSuggestion = { role: "head", phase: "solid", item: item("solid") };
 const MEMBER: SlotSuggestion = { role: "member", item: item("member") };
 
+const TINT = "oklch(0.7 0.1 40)";
+
 /**
  * 見え方の resolver。SlotBoard が組む形（ラベル・aria-label・塗り）をテストから直接与える。語は SlotBoard の
- * 語彙をなぞる——可視の語は空か `now`、aria-label の末尾だけが `now` / `soon` / `queued`。
+ * 語彙をなぞる——可視の語は空か `now`、aria-label の末尾だけが `now` / `soon` / `queued`。判別は返せない
+ * （`SuggestionView` に無い）。
  */
 function suggestionOf(suggestion: SlotSuggestion): SuggestionView {
   const name = suggestion.item.order.externalOrderId;
-  const tint = "oklch(0.7 0.1 40)";
   if (suggestion.role === "member") {
     return {
-      role: "member",
       label: `${name} 中盛 · かため · Table 12`,
       ariaLabel: `Suggested — ${name} · Slot 0 · queued`,
-      tint,
+      tint: TINT,
     };
   }
   const solid = suggestion.phase === "solid";
   return {
-    role: "head",
-    phase: suggestion.phase,
     label: `${name} 中盛 · かため · Table 12${solid ? " · now" : ""}`,
     ariaLabel: `Suggested — ${name} · Slot 0 · ${solid ? "now" : "soon"}`,
-    tint,
+    tint: TINT,
   };
 }
 
@@ -105,9 +106,9 @@ function cardElement(
   );
 }
 
-/** 提案の操作スタック（`data-phase` を持つ要素）。Start のスタックは持たない。 */
+/** 提案の操作スタック（提案 1 件＝group 1 つ・`data-phase` を持つ）。Start のスタックは持たない。 */
 function suggestionStacks(): readonly HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>("[data-phase]")];
+  return screen.queryAllByRole("group");
 }
 
 describe("head は丸ボタンを持ち、薄・濃を aria-label が語る（R2.2・R2.3・R3.4・R3.7）", () => {
@@ -119,6 +120,9 @@ describe("head は丸ボタンを持ち、薄・濃を aria-label が語る（R2
     expect(buttons[0]?.getAttribute("aria-label")).toBe("Suggested — faint · Slot 0 · soon");
     expect(buttons[1]?.getAttribute("aria-label")).toBe("Slot 0 — Start");
     expect(screen.getByText("faint 中盛 · かため · Table 12")).toBeDefined();
+    // 提案 1 件は group 1 つ。ボタンと同じ名を持ち、ボタンはその中に在る。
+    const group = screen.getByRole("group", { name: "Suggested — faint · Slot 0 · soon" });
+    expect(group.contains(buttons[0]!)).toBe(true);
     expect(suggestionStacks().map((stack) => stack.dataset["phase"])).toEqual(["faint"]);
   });
 
@@ -153,9 +157,38 @@ describe("member はラベルだけで、ボタンを持たず、濃くならな
     expect(buttons).toHaveLength(1);
     expect(buttons[0]?.getAttribute("aria-label")).toBe("Slot 0 — Start");
     expect(screen.getByText("member 中盛 · かため · Table 12")).toBeDefined();
-    expect(screen.getByLabelText("Suggested — member · Slot 0 · queued")).toBeDefined();
+    // aria-label は role を持つ要素（group）に置く。素の span に置けば generic role で支援技術が無視する。
+    expect(
+      screen.getByRole("group", { name: "Suggested — member · Slot 0 · queued" }),
+    ).toBeDefined();
     // 濃くない（startAt が過ぎていても導出が member なら solid の相を持たない・AC 2.4）。
     expect(suggestionStacks().map((stack) => stack.dataset["phase"])).toEqual(["faint"]);
+  });
+
+  it("見え方の resolver は押せる・濃いを決められない（判別は導出にだけ在る）", () => {
+    // resolver が member に head の語（`now`）を返しても、ボタンは現れず薄いまま——見え方は文字列と色だけで、
+    // 分岐は導出の role / phase からしか取れない（二つ目の真実を持たない）。
+    render(
+      <SlotCard
+        display={idle([MEMBER])}
+        onStart={vi.fn()}
+        onCancel={vi.fn()}
+        onComplete={vi.fn()}
+        onAdjust={vi.fn()}
+        noodleColor={noodleColor}
+        suggestionOf={() => ({
+          label: "member · now",
+          ariaLabel: "Suggested — member · now",
+          tint: TINT,
+        })}
+        onStartSuggested={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("group", { name: "Suggested — member · now" }).dataset["phase"]).toBe(
+      "faint",
+    );
   });
 
   it("head と member が並ぶとき、押せるのは head だけで、member のスタックにボタンが無い", () => {
@@ -226,22 +259,6 @@ describe("複数の提案と Start の配置（R2.11・R3.5）", () => {
     }
     expect([...row!.classList].some((cls) => cls.startsWith("right-["))).toBe(true);
     expect([...row!.classList].some((cls) => cls.startsWith("bottom-["))).toBe(true);
-  });
-});
-
-describe("時刻の語を持たない（R2.5・R6.4）", () => {
-  it("提案の可視の語は空か now だけで、in / + / mm:ss は現れない", () => {
-    render(cardElement(idle([FAINT_HEAD, MEMBER, SOLID_HEAD])));
-
-    for (const stack of suggestionStacks()) {
-      const text = stack.textContent ?? "";
-      const tail = text.split(" · ").at(-1) ?? "";
-      // ラベルの末尾は卓（語なし）か now。
-      expect(tail === "now" || tail === "Table 12").toBe(true);
-      expect(text).not.toMatch(/\bin\b/);
-      expect(text).not.toMatch(/\+\d/);
-      expect(text).not.toMatch(/\d{1,2}:\d{2}/);
-    }
   });
 });
 

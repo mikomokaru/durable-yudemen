@@ -204,10 +204,13 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
  * 表示語彙をここに集める。商品名の代替（`itemName ?? noodleType`）・NFKC 正規化はレールと同じ語で書く必要が
  * あり、カードへ散らすと二つの真実になる。カードは受け取った文字列を描くだけである。
  *
- * 時期を組まず、判別を表示まで運ぶ。可視の語は空か `now` の 2 つだけで、時刻（`in m:ss` / `+m:ss` / 壁時計 /
+ * 時期を組まず、語だけを組む。可視の語は空か `now` の 2 つだけで、時刻（`in m:ss` / `+m:ss` / 壁時計 /
  * 秒読み）は描かない（lift-group-display AC 2.5 / 3.3 / 6.4）——順序は出現の順が語り、押せる先頭は薄くても
  * 押せる。aria-label だけが `soon`（薄い先頭）/ `queued`（押せない仲間）で薄・押せないを語る（AC 3.4 / 3.7）。
- * `now` は可視の語と食い違わない。
+ * 可視の `now` は aria-label の相の語から導く——同じ一語から二つの文を組むので、食い違う状態が表現できない。
+ *
+ * 返すのは文字列と色だけで、判別（`role` / `phase`）は返さない。押せるか・濃いかは `SlotCard` が導出の
+ * 判別から直接読む（見え方に写せば二つ目の真実になる・`SuggestionView` の doc）。
  *
  * 固定文言は英語（`now` / `Table {n}`）。#24 がレールの固定文言を英語に固定し、カードの操作ラベルも
  * `Start` / `Cancel` / `Complete` である——調理母語は硬さだけが `FIRMNESS_LABEL` 経由で入る。
@@ -222,19 +225,17 @@ function suggestionOf(
   const size = order.sizeName?.normalize("NFKC");
   const firmness = FIRMNESS_LABEL[order.firmness];
   const table = order.tableId === null ? undefined : `Table ${order.tableId}`;
-  const solid = suggestion.role === "head" && suggestion.phase === "solid";
+  // 相の語。先頭は startAt を迎えたら `now`・手前は `soon`、仲間は常に `queued`（startAt が過ぎても・AC 2.4）。
+  const phrase =
+    suggestion.role === "head" ? (suggestion.phase === "solid" ? "now" : "soon") : "queued";
   const parts = [
     size === undefined ? name : `${name} ${size}`,
     firmness,
     table,
-    solid ? "now" : undefined,
+    phrase === "now" ? phrase : undefined,
   ];
   const label = parts.filter((part) => part !== undefined).join(" · ");
   // 命令形を用いない（AC 3.3）。提案であること・品目・釜・相をこの順で語る。
-  const phrase = suggestion.role === "head" ? (solid ? "now" : "soon") : "queued";
   const ariaLabel = `Suggested — ${name} · Slot ${slot} · ${phrase}`;
-  const tint = colorOf(order.noodleType);
-  return suggestion.role === "head"
-    ? { role: "head", phase: suggestion.phase, label, ariaLabel, tint }
-    : { role: "member", label, ariaLabel, tint };
+  return { label, ariaLabel, tint: colorOf(order.noodleType) };
 }

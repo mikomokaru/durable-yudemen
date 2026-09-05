@@ -28,26 +28,21 @@ import type { Firmness } from "../../domain/firmness";
 type Center = { readonly x: number; readonly y: number };
 
 /**
- * 提案の見え方（ラベル・aria-label・塗り）。
+ * 提案の見え方（ラベル・aria-label・塗り）。文字列と色だけで、判別を持たない。
  *
- * `role` の判別は導出（`SlotSuggestion`）から落とさない——「押せないのに濃い」を表示側でも表現不能にする。
- * 丸ボタンを描くのは `head` の分岐だけで、`member` の分岐にはボタンの JSX が無い（lift-group-display AC 3.6）。
- * 濃い塗りは `head` かつ `solid` にだけ現れ、`member` は常に薄い（AC 2.4）。
+ * `role` / `phase` の判別は導出（`SlotSuggestion`）にだけ在る。design Component 5 は `SuggestionView` にも
+ * 判別を写す形を示したが、それは「`SlotSuggestion[]` と `SuggestionView[]` を対で受ける」前提のもので、
+ * resolver で受ける本実装では二つ目の真実になる——resolver が member に `head` を返せば「押せないのに
+ * ボタン」が描けてしまう。ゆえに見え方は判別を持たず、丸ボタン・塗り・`data-*` はすべて導出の判別から
+ * 取る（design-philosophy「同じ概念は一箇所」）。丸ボタンを描くのは `head` の分岐だけで、`member` の分岐には
+ * ボタンの JSX が無い（lift-group-display AC 3.6）。濃い塗りは `head` かつ `solid` にだけ現れ、`member` は
+ * 常に薄い（AC 2.4）。
  */
-export type SuggestionView =
-  | {
-      readonly role: "head";
-      readonly phase: "faint" | "solid";
-      readonly label: string;
-      readonly ariaLabel: string;
-      readonly tint: string;
-    }
-  | {
-      readonly role: "member";
-      readonly label: string;
-      readonly ariaLabel: string;
-      readonly tint: string;
-    };
+export interface SuggestionView {
+  readonly label: string;
+  readonly ariaLabel: string;
+  readonly tint: string;
+}
 
 interface SlotCardProps {
   readonly display: SlotDisplay;
@@ -357,17 +352,23 @@ export function SlotCard({
             const shown = suggestionOf(suggestion);
             const { externalOrderId, itemIndex } = suggestion.item.order;
             // 濃いのは押せる先頭が startAt を迎えたときだけ。薄は opacity で沈め、塗り（麺種の色＝identity の
-            // 既存規約）は変えない——「同じ群」を色や縁で示さない（AC 3.2）。
-            const solid = shown.role === "head" && shown.phase === "solid";
+            // 既存規約）は変えない——「同じ群」を色や縁で示さない（AC 3.2）。判別は導出から読む（見え方は
+            // 文字列と色だけで、押せるか・濃いかを言えない）。
+            const solid = suggestion.role === "head" && suggestion.phase === "solid";
             return (
               // 提案は複数並びうる（上限なし・AC 2.11）。actionRow が折り返し、Start は右下に留まる（AC 3.5）。
+              // 提案 1 件＝group 1 つ。aria-label は role を持つ要素にしか効かない（素の span/div は generic
+              // で、ARIA 1.2 が aria-label を禁じ、支援技術が無視する）ため、head / member とも同形にここへ
+              // 置く。head のボタンは自分の aria-label を別に持つ（押す口として単独で読まれる・AC 3.4 / 3.7）。
               <div
                 key={`${externalOrderId}#${itemIndex}`}
+                role="group"
+                aria-label={shown.ariaLabel}
                 data-phase={solid ? "solid" : "faint"}
                 className={cn(actionStack, !solid && "opacity-60")}
               >
                 <div className={actionSlot}>
-                  {shown.role === "head" && (
+                  {suggestion.role === "head" && (
                     // 提案からの開始。押せば即開始（ラジアルを開かない・要件 2.7）。押せるのは先頭だけで、
                     // 薄くても押せる（判断 5・17）。member の分岐にはボタンが無く、枠だけ残してラベルの位置を揃える。
                     <button
@@ -381,12 +382,7 @@ export function SlotCard({
                     </button>
                   )}
                 </div>
-                <span
-                  className={suggestionLabel}
-                  aria-label={shown.role === "member" ? shown.ariaLabel : undefined}
-                >
-                  {shown.label}
-                </span>
+                <span className={suggestionLabel}>{shown.label}</span>
               </div>
             );
           })}
