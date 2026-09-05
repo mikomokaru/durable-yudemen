@@ -90,6 +90,8 @@ function slice(
       slotIds: nonEmpty(["0" as SlotId]),
       startAt: item.startAt as EpochMillis,
       serveAt: item.serveAt as EpochMillis,
+      // 走行中の仲間が居ない卓の計画。合流の所属は無い（AC 9.9）。
+      anchor: null,
     })),
   };
 }
@@ -204,6 +206,7 @@ describe("admit — 外部の申告を検証する", () => {
               slotIds: nonEmpty(["1" as SlotId]),
               startAt: NOW,
               serveAt: (NOW + 60 * SECOND) as EpochMillis,
+              anchor: null,
             },
           ],
         },
@@ -232,6 +235,7 @@ describe("admit — slotSpan は釜番号で数える（レビュー指摘・AC 
               slotIds: nonEmpty([...slotIds]),
               startAt: NOW,
               serveAt: (NOW + 60 * SECOND) as EpochMillis,
+              anchor: null,
             },
           ],
         },
@@ -365,6 +369,8 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
       slotIds: nonEmpty(slots.map((slot) => slot as SlotId)),
       startAt: (NOW + startSeconds * SECOND) as EpochMillis,
       serveAt: (NOW + (startSeconds + SIX_MINUTES) * SECOND) as EpochMillis,
+      // 今始める配置は走行中の 1 本目（360 秒に上がる）へ合流する。後ろに置く配置は合流ではない。
+      anchor: startSeconds === 0 ? FIRST.endTime : null,
     };
   }
   /** 旧挙動：残り 3 品を全員 360 秒後へ遅らせる（走行中の釜 0・1 が空くのを待つ）。feasible ではある。 */

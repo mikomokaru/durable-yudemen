@@ -185,9 +185,13 @@ describe("core/migrate — v7 → v8 の面", () => {
             ({ slotSpan: _span, itemName: _item, sizeName: _size, ...rest }) => rest,
           ),
         ).toEqual(v7.pendingOrders);
-        // v10 で一片は点数を持たない。v7 の score は余剰として捨てられ、それ以外は写しである。
+        // v10 で一片は点数を持たない。v7 の score は余剰として捨てられ、v11 が配置に埋める anchor（null）を
+        // 除けば写しである。
         expect(result.snapshot.acceptedSlices).toEqual(
-          v7.acceptedSlices.map(({ score: _score, ...rest }) => rest),
+          v7.acceptedSlices.map(({ score: _score, ...rest }) => ({
+            ...rest,
+            placements: rest.placements.map((placement) => ({ ...placement, anchor: null })),
+          })),
         );
         expect(result.snapshot.requestedDigest).toBe(v7.requestedDigest);
         expect(result.snapshot.nextSeq).toBe(v7.nextSeq);
@@ -391,7 +395,10 @@ describe("core/migrate — v9 → v10 の面（lift-group-planning）", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         expect(result.snapshot.acceptedSlices).toEqual(
-          v9.acceptedSlices.map(({ score: _score, ...rest }) => rest),
+          v9.acceptedSlices.map(({ score: _score, ...rest }) => ({
+            ...rest,
+            placements: rest.placements.map((placement) => ({ ...placement, anchor: null })),
+          })),
         );
         for (const slice of result.snapshot.acceptedSlices) {
           expect(slice).not.toHaveProperty("score");
@@ -413,6 +420,107 @@ describe("core/migrate — v9 → v10 の面（lift-group-planning）", () => {
         expect(result.ok).toBe(true);
       }),
       { numRuns: 100 },
+    );
+  });
+});
+
+// ── lift-group-planning — v11 の移行は二方向（v10 の配置に anchor を埋める・v11 の anchor を保つ） ──────────
+
+/** v10 の採用済み一片。配置は anchor を持たない（それが v10 であることの定義）。 */
+const genV10AcceptedSlice = fc.record({
+  tableKey: fc.string({ minLength: 1, maxLength: 6 }),
+  placements: fc.array(
+    fc.record({
+      externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+      itemIndex: fc.nat({ max: 9 }),
+      slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 2 }),
+      startAt: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+      serveAt: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+    }),
+    { maxLength: 3 },
+  ),
+});
+
+const genV10Snapshot = fc.record({
+  version: fc.constant(10),
+  timers: fc.array(genV9Timer, { maxLength: 3 }),
+  nextSeq: fc.nat({ max: 1000 }),
+  pendingOrders: fc.constant([]),
+  acceptedSlices: fc.array(genV10AcceptedSlice, { maxLength: 3 }),
+  requestedDigest: fc.constant(null),
+  lastSequenceByTerminal: fc.constant({}),
+});
+
+/** v11 の anchor。合流していない（null）と合流先の実効 endTime（数値）の双方を踏む。 */
+const genAnchor = fc.option(fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }), {
+  nil: null,
+});
+
+describe("core/migrate — v10 → v11 の面（lift-group-planning 判断 20）", () => {
+  // Feature: lift-group-planning, Property 12 — 移行（追加）
+  // **Validates: Requirements 9.9, 7.5**
+  //
+  // v10 の配置は合流の所属を持たない。移行は設定（toleranceRatio）を持たず h_i の窓を引けないので推定せず、
+  // null で埋める（design Component 10「推定できなければ null」）。埋めた anchor 以外は写しで、計時の事実に触れない。
+  it("Property 12: 任意の v10 スナップショットで配置の anchor は null になり、それ以外は写しである", () => {
+    fc.assert(
+      fc.property(genV10Snapshot, (v10) => {
+        // 生成器が v11 の語彙を混ぜていないことを先に確かめる。
+        expect(
+          v10.acceptedSlices.some((slice) => slice.placements.some((p) => "anchor" in p)),
+        ).toBe(false);
+
+        const raw = structuredClone(v10) as unknown;
+        const result = migrate(raw);
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+        expect(result.snapshot.acceptedSlices).toEqual(
+          v10.acceptedSlices.map((slice) => ({
+            ...slice,
+            placements: slice.placements.map((placement) => ({ ...placement, anchor: null })),
+          })),
+        );
+        expect(result.snapshot.timers.map(boilFacts)).toEqual(v10.timers.map(boilFacts));
+        expect(raw).toEqual(v10);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  // Feature: lift-group-planning, Property 12 — 移行（現行の往復）
+  // **Validates: Requirements 9.9, 7.5**
+  //
+  // v11 が書いた anchor（null も数値も）はそのまま読み戻る。所属を失えば合成が合流分を 1 品の単位として
+  // 再検証し直すことになり、採用の事実が黙って書き換わる。
+  it("Property 12: v11 の永続値の anchor は null も数値もそのまま保たれる", () => {
+    fc.assert(
+      fc.property(
+        genV10Snapshot,
+        fc.array(fc.array(genAnchor, { minLength: 3, maxLength: 3 }), {
+          minLength: 3,
+          maxLength: 3,
+        }),
+        (v10, anchors) => {
+          const v11 = {
+            ...v10,
+            version: 11,
+            acceptedSlices: v10.acceptedSlices.map((slice, sliceIndex) => ({
+              ...slice,
+              placements: slice.placements.map((placement, index) => ({
+                ...placement,
+                anchor: anchors[sliceIndex]![index]!,
+              })),
+            })),
+          };
+          const result = migrate(structuredClone(v11));
+          expect(result.ok).toBe(true);
+          if (!result.ok) return;
+          expect(result.snapshot.acceptedSlices).toEqual(v11.acceptedSlices);
+        },
+      ),
+      { numRuns: 200 },
     );
   });
 });

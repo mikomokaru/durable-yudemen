@@ -195,13 +195,7 @@ function recommendationsOf(state: TimerState, scene: AlarmScene) {
     DEFAULT_NOODLE_PRESETS,
     scene.params,
   );
-  return recommend(
-    committed,
-    state.pendingOrders,
-    state.timers,
-    DEFAULT_NOODLE_PRESETS,
-    scene.params,
-  );
+  return recommend(committed);
 }
 
 describe("engine/recommend — 推奨と Alarm の独立", () => {

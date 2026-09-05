@@ -191,6 +191,7 @@ const genPlan: fc.Arbitrary<PlanSeed> = fc
             // startAt は採点に寄与しない（目的関数は提供時刻だけを見る）。整合する値を置く。
             startAt: (serveAt - 60_000) as EpochMillis,
             serveAt: serveAt as EpochMillis,
+            anchor: null,
           };
         });
       });

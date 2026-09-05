@@ -18,7 +18,7 @@ import type { PendingOrder } from "../domain/order";
  * 世代管理は version が担い、キー名は永続層の内部詳細で外に漏れていない（design.md）。
  */
 export interface StoreSnapshot {
-  /** スキーマバージョン。現行は v10（CURRENT_SCHEMA_VERSION）。 */
+  /** スキーマバージョン。現行は v11（CURRENT_SCHEMA_VERSION）。 */
   readonly version: typeof CURRENT_SCHEMA_VERSION;
   /** アクティブな全 Timer。engine 専用の adjustment / orderItem を含む（欠如は migrate が埋める）。 */
   readonly timers: readonly Timer[];
@@ -26,7 +26,7 @@ export interface StoreSnapshot {
   readonly nextSeq: number;
   /** 未着手オーダーの品目集合（正本・v7）。 */
   readonly pendingOrders: readonly PendingOrder[];
-  /** 採用済み外部計画の一片（再計算では復元できない事実・v7）。 */
+  /** 採用済み外部計画の一片（再計算では復元できない事実・v7。配置の anchor は v11）。 */
   readonly acceptedSlices: readonly AcceptedSlice[];
   /** 直前に外部計画を要求した時点の入力の指紋（v7）。null は未要求。 */
   readonly requestedDigest: InputDigest | null;

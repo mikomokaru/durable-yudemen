@@ -342,6 +342,7 @@ describe("toCookSchedule — 外部計画の生値の検証", () => {
               slotIds: ["0"],
               startAt: NOW,
               serveAt: NOW + 60_000,
+              anchor: null,
             },
           ],
         },
@@ -355,6 +356,8 @@ describe("toCookSchedule — 外部計画の生値の検証", () => {
               slotIds: ["1", "2"],
               startAt: NOW,
               serveAt: NOW + 90_000,
+              // 走行中の仲間 90 秒に合流したという主張（真偽はここでは見ない・admit の (e)）。
+              anchor: NOW + 90_000,
             },
           ],
         },
@@ -378,7 +381,28 @@ describe("toCookSchedule — 外部計画の生値の検証", () => {
       slotIds: ["0"],
       startAt: NOW,
       serveAt: NOW + 60_000,
+      anchor: null,
     });
+    expect(plan!.slices[1]!.placements[0]!.anchor).toBe(NOW + 90_000);
+  });
+
+  it("anchor は明示の主張を要る——欠如・非整数は全体を落とし、null は合流無しとして通る（AC 9.9）", () => {
+    // 欠如を「合流していない」と読み替えれば、契約を知らない外部解が黙って合流無しの計画として通る。
+    const missing = rawPlan() as { slices: { placements: Record<string, unknown>[] }[] };
+    delete missing.slices[1]!.placements[0]!.anchor;
+    expect(toCookSchedule(missing)).toBeNull();
+
+    const fractional = rawPlan() as { slices: { placements: { anchor: unknown }[] }[] };
+    fractional.slices[1]!.placements[0]!.anchor = NOW + 90_000.5;
+    expect(toCookSchedule(fractional)).toBeNull();
+
+    const text = rawPlan() as { slices: { placements: { anchor: unknown }[] }[] };
+    text.slices[1]!.placements[0]!.anchor = "600";
+    expect(toCookSchedule(text)).toBeNull();
+
+    const none = rawPlan() as { slices: { placements: { anchor: unknown }[] }[] };
+    none.slices[1]!.placements[0]!.anchor = null;
+    expect(toCookSchedule(none)!.slices[1]!.placements[0]!.anchor).toBeNull();
   });
 
   it("slotIds が空の配置は全体を落とす（Placement は非空を型で要求する）", () => {
@@ -425,6 +449,30 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
       { item: "A#1", slots: ["0"], startSeconds: 140, serveSeconds: 200 },
     ]);
+    // 合流の所属は配置が持つ（AC 9.9）——錨は合流先の走行中の実効 endTime。
+    expect(schedule.slices[0]!.placements[0]!.anchor).toBe(NOW + 200_000);
+  });
+
+  it("走行中が earliest から h_i 以内なら earliest に置き、錨はその走行中（判断 18・AC 9.9）", () => {
+    // 仲間は 65 秒後に上がる。Thin（60 秒・h_i = 6 秒）は今始めれば 60 秒——5 秒の差は窓の内側なので待たずに
+    // 始め、serveAt は 60 秒のまま、所属（anchor）は 65 秒の走行中になる。
+    const running = [timerOn({ id: "t-first", slot: "5", endTime: NOW + 65_000, tableId: "t-1" })];
+    const pending = [
+      pendingItem({ orderId: "A", itemIndex: 1, noodleType: "Thin", tableId: "t-1" }),
+    ];
+
+    const schedule = baselineSchedule(
+      pending,
+      initialRelease(running, NOW, 6),
+      tableMembers(running),
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+    );
+
+    expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+      { item: "A#1", slots: ["0"], startSeconds: 0, serveSeconds: 60 },
+    ]);
+    expect(schedule.slices[0]!.placements[0]!.anchor).toBe(NOW + 65_000);
   });
 
   it("届かない品目があれば群ごと錨より後ろへずれる（走行中との差は減点として残る・AC 3.4）", () => {
@@ -443,11 +491,12 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       PARAMS,
     );
 
-    // 未着手の 2 本は互いに揃い（120 秒）、走行中の 30 秒には届かない。
+    // 未着手の 2 本は互いに揃い（120 秒）、走行中の 30 秒には届かない。届かない batch は合流ではない（anchor null）。
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
       { item: "A#1", slots: ["0"], startSeconds: 0, serveSeconds: 120 },
       { item: "A#2", slots: ["1"], startSeconds: 60, serveSeconds: 120 },
     ]);
+    expect(schedule.slices[0]!.placements.map((p) => p.anchor)).toEqual([null, null]);
   });
 
   it("boiled の仲間（実効 endTime が過去）は錨を過去へ引き下げない", () => {
@@ -592,6 +641,12 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         { item: "A#2", slots: ["4", "5"], startSeconds: 0, serveSeconds: 60 },
         { item: "A#3", slots: ["0", "1"], startSeconds: 60, serveSeconds: 120 },
       ]);
+      // 合流分は走行中の錨（60 秒）を所属に持ち、後続の batch は持たない（AC 9.9）。
+      expect(after.slices[0]!.placements.map((p) => p.anchor)).toEqual([
+        NOW + 60_000,
+        NOW + 60_000,
+        null,
+      ]);
     });
 
     it("(a) 全釜使用中: 錨 510 秒・茹で 330 秒なら、30 秒後に空く釜でも 180 秒に投入できて合流する", () => {
@@ -644,6 +699,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         { item: "A#2", slots: ["0"], startSeconds: 40, serveSeconds: 100 },
         { item: "A#1", slots: ["1"], startSeconds: 0, serveSeconds: 120 },
       ]);
+      expect(schedule.slices[0]!.placements.map((p) => p.anchor)).toEqual([NOW + 100_000, null]);
     });
 
     it("(c) 1 品が複数釜: 2 釜のうち片方が投入時刻までに空かなければ合流しない", () => {

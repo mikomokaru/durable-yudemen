@@ -282,6 +282,8 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           const siblings = members.get(slice.tableKey);
           if (siblings === undefined) {
             expect(serveTimes).toHaveLength(1);
+            // 走行中の仲間が居なければ合流の所属は無い（AC 9.9）。
+            for (const placement of slice.placements) expect(placement.anchor).toBeNull();
           } else {
             const earliestSibling = siblings[0];
             const latestSibling = siblings[siblings.length - 1]!;
@@ -290,6 +292,12 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             for (const placement of slice.placements) {
               const window = joinWindowMillis(placement.serveAt - placement.startAt, params);
               expect(placement.serveAt).toBeGreaterThanOrEqual(earliestSibling - window);
+              // 合流の所属は配置が持つ（AC 9.9）：錨は走行中の仲間の実効 endTime のいずれかで、上げ窓を当てる前
+              // （21.4 時点）の serveAt は錨そのものか、錨から h_i 以内の earliest である（判断 18）。
+              if (placement.anchor !== null) {
+                expect(siblings).toContain(placement.anchor);
+                expect(Math.abs(placement.serveAt - placement.anchor)).toBeLessThanOrEqual(window);
+              }
             }
             const beyond = new Set(
               slice.placements

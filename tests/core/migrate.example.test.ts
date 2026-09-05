@@ -177,8 +177,12 @@ describe("migrate — v7 → v8", () => {
       { ...v7Raw.pendingOrders[0], slotSpan: 1, itemName: null, sizeName: null },
     ]);
     // v10 で一片は点数を持たない。v7 の score（140）は余剰として捨てられ、鍵と配置は写しである。
+    // v11 で配置は合流の所属（anchor）を持つ。v7 の配置は持たないので null で埋まる。
     expect(result.snapshot.acceptedSlices).toEqual(
-      v7Raw.acceptedSlices.map(({ score: _score, ...rest }) => rest),
+      v7Raw.acceptedSlices.map(({ score: _score, ...rest }) => ({
+        ...rest,
+        placements: rest.placements.map((placement) => ({ ...placement, anchor: null })),
+      })),
     );
     expect(result.snapshot.requestedDigest).toBe(123_456);
     // v7 以前は取り込み経路が存在せず、判定材料を持つ端末が無い。空から始めれば最初の Record が必ず受理される。
@@ -316,5 +320,81 @@ describe("migrate — v8 の往復", () => {
     if (!notRecord.ok || !badValue.ok) return;
     expect(notRecord.snapshot.lastSequenceByTerminal).toEqual({});
     expect(badValue.snapshot.lastSequenceByTerminal).toEqual({});
+  });
+});
+
+describe("migrate — v10 → v11（lift-group-planning 判断 20・AC 9.9）", () => {
+  /** v10 で採用された一片の配置（合流の所属 anchor を持たない）。 */
+  const v10Placement = {
+    externalOrderId: "order-11",
+    itemIndex: 0,
+    slotIds: ["0"],
+    startAt: 1_700_000_540_000,
+    serveAt: 1_700_000_600_000,
+  } as const;
+  const v10Raw = {
+    version: 10,
+    timers: [],
+    nextSeq: 0,
+    pendingOrders: [],
+    acceptedSlices: [{ tableKey: "t-1", placements: [v10Placement] }],
+    requestedDigest: null,
+    lastSequenceByTerminal: {},
+  } as const;
+
+  it("v10 の一片の配置は anchor = null で読み戻す（移行は設定を持たず h_i の窓を引けない）", () => {
+    // 錨 600 秒に合流していた配置でも、toleranceRatio が永続に無い以上 h_i は引けず、所属は推定しない。
+    // 合成（committedSchedule）が現在の走行中で再検証し、1 品の単位として切るか維持する。
+    const result = migrate(structuredClone(v10Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+    expect(result.snapshot.acceptedSlices).toEqual([
+      { tableKey: "t-1", placements: [{ ...v10Placement, anchor: null }] },
+    ]);
+  });
+
+  it("v11 の永続値は anchor（数値・null）をそのまま読み戻す", () => {
+    const v11Raw = {
+      ...v10Raw,
+      version: 11,
+      acceptedSlices: [
+        {
+          tableKey: "t-1",
+          placements: [
+            { ...v10Placement, anchor: 1_700_000_600_000 },
+            { ...v10Placement, itemIndex: 1, slotIds: ["1"], anchor: null },
+          ],
+        },
+      ],
+    };
+
+    const result = migrate(structuredClone(v11Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.acceptedSlices).toEqual(v11Raw.acceptedSlices);
+  });
+
+  it("形を満たさない anchor（文字列・非有限数）は全体を移行失敗にする（自分が書いた値の形が違う）", () => {
+    // 採用は再計算で復元できない事実。壊れた一片を黙って落とせば「この店が採用した計画」が書き換わる。
+    const text = migrate({
+      ...structuredClone(v10Raw),
+      version: 11,
+      acceptedSlices: [{ tableKey: "t-1", placements: [{ ...v10Placement, anchor: "600" }] }],
+    });
+    const infinite = migrate({
+      ...structuredClone(v10Raw),
+      version: 11,
+      acceptedSlices: [
+        { tableKey: "t-1", placements: [{ ...v10Placement, anchor: Number.POSITIVE_INFINITY }] },
+      ],
+    });
+
+    expect([text.ok, infinite.ok]).toEqual([false, false]);
+    if (text.ok || infinite.ok) return;
+    expect(text.failure.code).toBe("MigrationFailed");
+    expect(infinite.failure.code).toBe("MigrationFailed");
   });
 });

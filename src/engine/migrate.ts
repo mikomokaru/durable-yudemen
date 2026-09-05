@@ -237,7 +237,12 @@ function reviveAcceptedSlice(value: unknown): AcceptedSlice | null {
   return { tableKey: s.tableKey, placements };
 }
 
-/** 一件の raw を Placement へ写す。slotIds は Timer と同じ非空配列の規律に従う。 */
+/**
+ * 一件の raw を Placement へ写す。slotIds は Timer と同じ非空配列の規律に従う。
+ *
+ * anchor（合流先の走行中の実効 endTime）は v11 で追加。欠如 / null は null（v10 以前の一片は所属を持たない）、
+ * 有限数値はその値、それ以外は壊れたデータ（呼び出し側が全体を移行失敗にする）。
+ */
 function revivePlacement(value: unknown): Placement | null {
   if (typeof value !== "object" || value === null) return null;
   const p = value as Record<string, unknown>;
@@ -247,13 +252,38 @@ function revivePlacement(value: unknown): Placement | null {
   if (slotIds === null) return null;
   if (typeof p.startAt !== "number" || !Number.isFinite(p.startAt)) return null;
   if (typeof p.serveAt !== "number" || !Number.isFinite(p.serveAt)) return null;
+  const anchor = reviveAnchor(p.anchor);
+  if (anchor === INVALID_ANCHOR) return null;
   return {
     externalOrderId: p.externalOrderId,
     itemIndex: p.itemIndex,
     slotIds: slotIds as NonEmptyArray<SlotId>,
     startAt: p.startAt as EpochMillis,
     serveAt: p.serveAt as EpochMillis,
+    anchor,
   };
+}
+
+/** reviveAnchor の「壊れたデータ」標識（null は正当な値ゆえ別の番兵が要る・reviveBoiledAt と同じ形）。 */
+const INVALID_ANCHOR = Symbol("invalid-anchor");
+
+/**
+ * 永続の anchor 表現を現行 v11 形へ写す（v11 で追加・lift-group-planning AC 9.9）。
+ * - 欠如 / null（v10 以前の一片は合流の所属を持たない）→ null。
+ * - 有限数値 → その値（合流先の走行中の実効 endTime）。
+ * - それ以外（非有限数・文字列等）→ 壊れたデータ（INVALID_ANCHOR）。
+ *
+ * **v10 の一片は h_i の窓で推定しない。** design は「移行時に h_i の窓で推定して埋める・推定できなければ null」と
+ * 置くが、h_i = 茹で時間 × toleranceRatio / 100 の toleranceRatio は StoreConfig にあって永続には無く、移行は
+ * 設定を要求しない（revivePendingOrder と同じ規律——永続層を設定に依存させない）。ゆえに推定できず null へ畳む。
+ * 代償は軽い——採用済み一片は合成（committedSchedule）が現在の走行中で毎回再検証する導出の入口であり、
+ * 所属を失った合流分は 1 品の単位として、押し出しなら切られて自前解が置き直し、そうでなければ後続の batch
+ * として維持される。どちらも v11 の合成の正常動作で、走行中の計時には一切触れない。
+ */
+function reviveAnchor(value: unknown): EpochMillis | null | typeof INVALID_ANCHOR {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value as EpochMillis;
+  return INVALID_ANCHOR;
 }
 
 /**

@@ -257,6 +257,7 @@ function acceptedSliceFor(order: PendingOrder, slotId: string, boilMillis: numbe
         slotIds: [slotId as SlotId],
         startAt: order.arrivalTime as EpochMillis,
         serveAt: (order.arrivalTime + boilMillis) as EpochMillis,
+        anchor: null,
       },
     ],
   };
@@ -667,6 +668,8 @@ function improvingPlan(startAt: number) {
             slotIds: ["0"],
             startAt,
             serveAt: startAt + PLAN_SHORT_BOIL_SECONDS * 1000,
+            // 合流の所属は外部が主張する（欠如は形の不正として計画ごと落ちる・toPlacement）。
+            anchor: null,
           },
         ],
         // 外部が主張する部分和は嘘（0）。採点は engine の scoreSchedule ただ一つで、admit が差し替える。

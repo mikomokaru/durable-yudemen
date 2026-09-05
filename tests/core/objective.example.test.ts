@@ -79,6 +79,8 @@ function placement(input: {
     slotIds: nonEmpty([String(input.slot) as SlotId]),
     startAt: (input.serveAtMillis - 60_000) as EpochMillis,
     serveAt: input.serveAtMillis as EpochMillis,
+    // 合流の所属も採点に寄与しない（目的関数は提供時刻だけを見る）。
+    anchor: null,
   };
 }
 

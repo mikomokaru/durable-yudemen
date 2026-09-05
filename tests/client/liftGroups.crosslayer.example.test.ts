@@ -15,8 +15,9 @@
 //      index 最小 / 最大の両方を置く（発火後の再計画が残りを boiled の釜へ置き直すか否かは釜の割当に依る）。
 //   2. 容量分割（6 釜・同卓 4 品・各 2 釜）の到達可能な続き (i)(ii)——(ii) は再統合後に濃いのは先頭 arms 2 本で、
 //      残る 1 品は後続（判断 21）。
-//   3. keepsAnchor の帰結——採用済みの合流一片の錨が Boil_Sync で動いたとき、h_i の内側なら一片は残って群は
-//      動いた錨に合流したまま started、h_i の外へ動けば一片は残っても合流でなくなり started でない。
+//   3. keepsAnchor の帰結——採用済みの合流一片の錨が Boil_Sync で動いたとき、一片が残る限り推奨は配置時の錨
+//      （`Placement.anchor`・AC 9.9）を運び、群は started のまま。錨の所属を時刻から推定し直さない
+//      （21.6 の (a) が現在の錨と等しくない一片を切るまでの、21.4 時点の形）。
 //
 // 時刻はすべて T0 からの秒で読む（serveAt / startAt / anchor の期待値も秒）。receivedAt を serverTime に揃えるので
 // offset は 0 で、Corrected_Now はサーバ時刻そのものである。群の識別子は snapshot 内で閉じた記号なので、その文字列
@@ -562,6 +563,8 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
             slotIds: nonEmpty(["0" as SlotId, "1" as SlotId]),
             startAt: at(300),
             serveAt: at(600),
+            // 走行中の S（600 秒）への合流を主張する（AC 9.9）。
+            anchor: at(600),
           },
           {
             externalOrderId: "p",
@@ -569,6 +572,7 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
             slotIds: nonEmpty(["0" as SlotId]),
             startAt: at(600),
             serveAt: at(900),
+            anchor: null,
           },
           {
             externalOrderId: "p",
@@ -576,6 +580,7 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
             slotIds: nonEmpty(["1" as SlotId]),
             startAt: at(600),
             serveAt: at(900),
+            anchor: null,
           },
         ],
       },
@@ -608,39 +613,42 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
     expect(ids.get("q#0")).not.toBe(ids.get("p#0"));
   });
 
-  it("錨が後ろへ h_i の内側で動く：S の実効 endTime が 605 秒になっても採用済み一片は残り、Q の群は動いた錨 605 秒に合流したまま started", () => {
+  it("錨が後ろへ h_i の内側で動く：S の実効 endTime が 605 秒になっても採用済み一片は残り、Q の群は配置時の錨 600 秒を運んだまま started", () => {
     // 釜 1 でアドホック麺茹で（600 秒・10 秒遅れて開始）。Boil_Sync が S と U を 605 秒へ揃える（S は +5 秒）。
     const shifted = step(accepted.state, startAdhoc("u", 1, 600, at(10)));
     expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 605]);
     // Q の serveAt 600 秒は錨 605 秒から h_i（30 秒）の内側——合流分は錨に一致していなくてよい（判断 18）ので、
-    // 採用済み一片は keepsAnchor を守って残り、推奨は serveAt をそのままに錨だけを 605 秒へ更新して運ぶ。
+    // 採用済み一片は keepsAnchor を守って残る。推奨が運ぶ錨は配置の事実（`Placement.anchor`・AC 9.9）で、
+    // 走行中の実効 endTime が動いても配置時の 600 秒のまま——時刻からの推定ではない。
+    // 21.6（AC 9.10 (a)）はこの一片を「錨が現在の仲間の実効 endTime に等しくない」として切り、自前解が現在の錨で
+    // 置き直す予定である（その時点でこの例示は期待値を改める）。
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
     expect(planOf(shifted.snapshot)).toEqual([
-      ["q#0", ["0", "1"], 300, 605],
+      ["q#0", ["0", "1"], 300, 600],
       ["p#0", ["0"], 600, null],
       ["p#1", ["1"], 600, null],
     ]);
-    // client は serveAt（600 秒）と anchor（605 秒）の等号を見ない——anchor が未来なら started（AC 1.7）。
+    // client は serveAt と anchor の等号を見ない——anchor が未来なら started（AC 1.7）。
     expect(groupsAt(shifted.snapshot, at(10))).toEqual([
-      { anchor: 605, items: ["q#0"], started: true },
+      { anchor: 600, items: ["q#0"], started: true },
       { anchor: null, items: ["p#0", "p#1"], started: false },
     ]);
     expect(visibleAt(shifted.snapshot, at(10))).toEqual([["q#0"], ["p#0", "p#1"]]);
   });
 
-  it("錨が前へ h_i の内側で動く：S の実効 endTime が 570 秒になっても一片は届き、Q の群は錨 570 秒に合流したまま started", () => {
+  it("錨が前へ h_i の内側で動く：S の実効 endTime が 570 秒になっても一片は届き、Q の群は配置時の錨 600 秒を運んだまま started", () => {
     // 290 秒に釜 1 でアドホック麺茹で（280 秒）。Boil_Sync が S と U を 570 秒へ揃える（S は −30 秒）。
-    // Q の serveAt 600 秒は錨 570 秒からちょうど h_i（30 秒）——窓の縁で合流のまま残る。
+    // Q の serveAt 600 秒は錨 570 秒からちょうど h_i（30 秒）——窓の縁で合流のまま残る。運ぶ錨は配置時の 600 秒。
     const shifted = step(accepted.state, startAdhoc("u", 1, 280, at(290)));
     expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 570]);
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
     expect(planOf(shifted.snapshot)).toEqual([
-      ["q#0", ["0", "1"], 300, 570],
+      ["q#0", ["0", "1"], 300, 600],
       ["p#0", ["0"], 600, null],
       ["p#1", ["1"], 600, null],
     ]);
     expect(groupsAt(shifted.snapshot, at(290))).toEqual([
-      { anchor: 570, items: ["q#0"], started: true },
+      { anchor: 600, items: ["q#0"], started: true },
       { anchor: null, items: ["p#0", "p#1"], started: false },
     ]);
     expect(visibleAt(shifted.snapshot, at(290))).toEqual([["q#0"], ["p#0", "p#1"]]);
@@ -648,24 +656,27 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
     expect(suggestionsAt(shifted.snapshot, at(290))).toEqual([]);
   });
 
-  it("錨が前へ h_i の外まで動く：S の実効 endTime が 547 秒になり一片が届かなくなると、その一片は残るが合流ではなく（anchor null）、群は started でない（正当な後続の batch）", () => {
+  it("錨が前へ h_i の外まで動く：S の実効 endTime が 547 秒になり一片が届かなくなっても、一片が残る限り推奨は配置時の錨 600 秒を運ぶ", () => {
     // 290 秒に釜 1 でアドホック麺茹で（240 秒）。Boil_Sync が S と U を 547 秒へ揃える（S は −53 秒）。
-    // Q の serveAt 600 秒は錨 547 秒から 53 秒——h_i（30 秒）の外で、もう合流ではない。採用済み一片の Q（startAt
-    // 300 秒）はまだ過ぎておらず、押し出しでもない（間に合う釜が 2 つ空いていない）ので一片はそのまま残る。
+    // Q の serveAt 600 秒は錨 547 秒から 53 秒——h_i（30 秒）の外で、serveAt からはもう合流と推定できない。採用済み
+    // 一片の Q（startAt 300 秒）はまだ過ぎておらず、押し出しでもない（間に合う釜が 2 つ空いていない）ので、
+    // 21.4 時点の合成（serveAt からの推定で押し出しだけを見る）は一片をそのまま残す。合流の所属は配置の事実
+    // （AC 9.9）なので、推奨は 600 秒の錨を運び、群は started のまま——「一片は残るが合流ではない」という状態は
+    // 所属を時刻から推定していたときの産物で、配置が所属を持つ今は起こらない。21.6（AC 9.10 (a)）はこの一片を
+    // 「錨 600 秒は現在の仲間の実効 endTime 547 秒に等しくない」として切り、自前解が置き直す。
     const shifted = step(accepted.state, startAdhoc("u", 1, 240, at(290)));
     expect(endTimesOf(shifted.snapshot)).toContainEqual(["timer-s#0", 547]);
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
     expect(planOf(shifted.snapshot)).toEqual([
-      ["q#0", ["0", "1"], 300, null],
+      ["q#0", ["0", "1"], 300, 600],
       ["p#0", ["0"], 600, null],
       ["p#1", ["1"], 600, null],
     ]);
-    // 合流していない群は started でない。表示は開始済みを要求しない——先頭の群として見えるが、後続の P は解禁されない。
     expect(groupsAt(shifted.snapshot, at(290))).toEqual([
-      { anchor: null, items: ["q#0"], started: false },
+      { anchor: 600, items: ["q#0"], started: true },
       { anchor: null, items: ["p#0", "p#1"], started: false },
     ]);
-    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["q#0"]]);
+    expect(visibleAt(shifted.snapshot, at(290))).toEqual([["q#0"], ["p#0", "p#1"]]);
     expect(suggestionsAt(shifted.snapshot, at(290))).toEqual([]);
   });
 });

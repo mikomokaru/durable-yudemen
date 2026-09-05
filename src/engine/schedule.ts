@@ -34,6 +34,15 @@ export interface Placement {
   readonly startAt: EpochMillis;
   /** 提供時刻＝startAt ＋ 茹で時間。Wait_Time の終点であり同時提供の差を測る点。 */
   readonly serveAt: EpochMillis;
+  /**
+   * 合流先の走行中の実効 endTime（錨）。合流でなければ null。
+   *
+   * **配置の時点で決めて以後変えない**（lift-group-planning AC 9.9・判断 20）。上げ窓が `serveAt` を錨より後ろへ
+   * 動かしても（21.5）、群の所属は合流の判定で決まった事実であって時刻からは逆算できなくなる。ゆえに
+   * `serveAt` と錨の近さ（±h_i）から推定する形（旧 `joinedAnchor` を読む `recommend`）をやめ、配置が持つ。
+   * 外部計画も主張する（`toPlacement`）。ゲートと合成は 21.6 でこの主張を pack の単位で検証する（AC 9.10）。
+   */
+  readonly anchor: EpochMillis | null;
 }
 
 /**
@@ -121,7 +130,14 @@ function toPlanSlice(value: unknown): PlanSlice | null {
   return { tableKey: candidate.tableKey, placements };
 }
 
-/** 生値を 1 配置へ写す。対象品目・釜・開始と提供の時刻のいずれかが不正なら null。 */
+/**
+ * 生値を 1 配置へ写す。対象品目・釜・開始と提供の時刻・錨の主張のいずれかが不正なら null。
+ *
+ * **`anchor` は明示の主張を要る（null か整数）。** 欠如を「合流していない」と読み替えれば、契約を知らない
+ * 外部解が黙って合流無しの計画として通る。合流の所属は配置の事実であり（AC 9.9）、主張しない計画は形を
+ * 満たしていない。主張の真偽（現在の走行中の仲間の実効 endTime に等しいか）はここでは見ない——`admit` の
+ * ハード制約 (e) が pack の単位で検証する（AC 9.10・21.6）。
+ */
 function toPlacement(value: unknown): Placement | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
@@ -130,6 +146,7 @@ function toPlacement(value: unknown): Placement | null {
     return null;
   if (!isInteger(candidate.itemIndex) || candidate.itemIndex < 0) return null;
   if (!isInteger(candidate.startAt) || !isInteger(candidate.serveAt)) return null;
+  if (candidate.anchor !== null && !isInteger(candidate.anchor)) return null;
   if (!Array.isArray(candidate.slotIds)) return null;
   // slotId は非空文字列。番号への写像（slotOf）は非数値を NaN へ落とし、表のどの index にも一致しない
   // ——存在しない釜を指す計画は admit のハード制約で落ちるため、ここで番号の範囲は見ない。
@@ -144,6 +161,7 @@ function toPlacement(value: unknown): Placement | null {
     slotIds: slotIds as NonEmptyArray<SlotId>,
     startAt: candidate.startAt as EpochMillis,
     serveAt: candidate.serveAt as EpochMillis,
+    anchor: candidate.anchor === null ? null : (candidate.anchor as EpochMillis),
   };
 }
 
@@ -385,11 +403,15 @@ export function keepsAnchor(
 }
 
 /**
- * 配置が合流している走行中の提供時刻（錨）——走行中の仲間のうち `|serveAt − A| ≤ h_i` を満たす最も近いもの
- * （判断 18）。無ければ null（合流していない）。合成（isPushedOut）と推奨の射影（recommend の `anchor`）が
- * 同じ判定を読む。
+ * 配置が合流している走行中の提供時刻（錨）を `serveAt` から**推定**する——走行中の仲間のうち `|serveAt − A| ≤ h_i`
+ * を満たす最も近いもの（判断 18）。無ければ null（合流していない）。
+ *
+ * **推奨の射影はもう読まない。** 合流の所属は配置の事実として `Placement.anchor` が持ち（AC 9.9）、`recommend` は
+ * それを運ぶ。上げ窓（21.5）が `serveAt` を錨より後ろへ動かすと、この推定は合流した配置を「合流していない」と
+ * 読み違える。残る読み手は押し出しの判定（isPushedOut）だけで、それも 21.6 で `Placement.anchor` の単位検査
+ * （AC 9.10）へ置き換わる——それまでの過渡として module 内に留める（export しない）。
  */
-export function joinedAnchor(
+function joinedAnchor(
   placement: Placement,
   siblings: readonly EpochMillis[],
   boilMillis: number,
@@ -636,28 +658,44 @@ function catchable(
 }
 
 /**
- * 合流した品目の提供時刻。
- *   - いずれかの走行中の提供時刻が earliest から h_i 以内（前後どちらでも）に在れば **earliest**——待たずに
+ * 合流した品目の置き先——提供時刻と、合流先の走行中（錨）の組。
+ *   - いずれかの走行中の提供時刻が earliest から h_i 以内（前後どちらでも）に在れば **earliest** に置く——待たずに
  *     いま始める。数秒の差は Boil_Sync の範囲であり、揃えるために待てば投入のたびに startAt が未来へずれる
- *     （実測：3 本目で Boil_Sync が新しい仲間を別のセットへ 6 秒遅らせ、残りがそれを追いかけた）。
+ *     （実測：3 本目で Boil_Sync が新しい仲間を別のセットへ 6 秒遅らせ、残りがそれを追いかけた）。錨はその
+ *     h_i 以内の走行中のうち最も近いもの（同距離なら早いほう・表は昇順）。
  *   - そうでなければ、earliest より後の最早の走行中に揃える（短い茹での品目が仲間を待って一緒に上がる）。
+ *     錨はその走行中そのもの。
  *   - どちらも無ければ null（最遅の仲間にも h_i 以内で届かない＝合流できない）。
+ *
+ * 錨を提供時刻と一緒に返すのは、`Placement.anchor` を配置の時点で決めるため（AC 9.9）。置いた後に
+ * `serveAt` から錨を逆算する形（joinedAnchor）は、上げ窓が `serveAt` を動かすと成り立たない。
  */
-function joinedServeAt(
+function joinTarget(
   earliest: number,
   siblings: readonly EpochMillis[],
   boilMillis: number,
   params: ScheduleParams,
-): EpochMillis | null {
+): { readonly serveAt: EpochMillis; readonly anchor: EpochMillis } | null {
   const window = joinWindowMillis(boilMillis, params);
-  if (siblings.some((end) => Math.abs(end - earliest) <= window)) return earliest as EpochMillis;
-  return siblings.find((end) => end > earliest) ?? null;
+  let nearest: EpochMillis | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  for (const end of siblings) {
+    const gap = Math.abs(end - earliest);
+    if (gap <= window && gap < distance) {
+      nearest = end;
+      distance = gap;
+    }
+  }
+  if (nearest !== null) return { serveAt: earliest as EpochMillis, anchor: nearest };
+  const next = siblings.find((end) => end > earliest);
+  return next === undefined ? null : { serveAt: next, anchor: next };
 }
 
 /**
  * 合流した品目群を置く。各品目の serveAt は max(錨, earliest)——錨に届く品目は錨に一致し、窓の内側で届かない
  * 品目は最早に置く（判断 18）。錨に届く品目を届かない品目の earliest まで遅らせない（placeBatch の
  * 「全員を max(earliest) に揃える」を合流分には使わない——揃える相手は走行中の錨である）。
+ * 合流先の錨は配置に載せる（`Placement.anchor`・AC 9.9）。
  */
 function placeJoined(
   batch: readonly Boiling[],
@@ -668,7 +706,7 @@ function placeJoined(
   const { slotsOfItem, earliest } = assignSlots(batch, release, params);
   return batch.map((boiling, index) => {
     // fits が全員の合流先の存在を確かめているので、ここで null は起こらない（起こらないものに防御を置かない）。
-    const serveAt = joinedServeAt(earliest[index]!, siblings, boiling.boilMillis, params)!;
+    const target = joinTarget(earliest[index]!, siblings, boiling.boilMillis, params)!;
     const [head, ...tail] = slotsOfItem[index]!;
     const slotIds: NonEmptyArray<SlotId> = [
       String(head!) as SlotId,
@@ -678,8 +716,9 @@ function placeJoined(
       externalOrderId: boiling.order.externalOrderId,
       itemIndex: boiling.order.itemIndex,
       slotIds,
-      startAt: (serveAt - boiling.boilMillis) as EpochMillis,
-      serveAt,
+      startAt: (target.serveAt - boiling.boilMillis) as EpochMillis,
+      serveAt: target.serveAt,
+      anchor: target.anchor,
     };
   });
 }
@@ -775,6 +814,9 @@ function placeBatch(
       slotIds,
       startAt: (anchor - boiling.boilMillis) as EpochMillis,
       serveAt: anchor as EpochMillis,
+      // batch は合流ではない。Group_Anchor（走行中の最遅）に揃う場合もそれは下限であって合流先ではなく、
+      // 群の所属（`Placement.anchor`）は placeJoined だけが与える（判断 18・AC 9.9）。
+      anchor: null,
     };
   });
 }

@@ -95,6 +95,7 @@ const IMPROVING: CookSchedule = {
           slotIds: nonEmpty(["0" as SlotId]),
           startAt: NOW,
           serveAt: (NOW + 60 * SECOND) as EpochMillis,
+          anchor: null,
         },
       ],
     },
@@ -188,6 +189,7 @@ describe("receivePlan — 全棄却（AC 6.6）", () => {
               slotIds: nonEmpty(["0" as SlotId]),
               startAt: (NOW + 500 * SECOND) as EpochMillis,
               serveAt: (NOW + 560 * SECOND) as EpochMillis,
+              anchor: null,
             },
           ],
         },
@@ -254,6 +256,7 @@ describe("receivePlan — 採否は採用後に確定する走行中と同じ実
           slotIds: nonEmpty(["0" as SlotId]),
           startAt: (NOW + startSeconds * SECOND) as EpochMillis,
           serveAt: (NOW + (startSeconds + 600) * SECOND) as EpochMillis,
+          anchor: null,
         },
       ],
     };

@@ -48,6 +48,7 @@ const FROM_V9: AcceptedSlice = {
       slotIds: nonEmpty(["0" as SlotId]),
       startAt: (NOW + 30 * SECOND) as EpochMillis,
       serveAt: (NOW + 90 * SECOND) as EpochMillis,
+      anchor: null,
     },
   ],
 };
@@ -108,6 +109,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
         slotIds: nonEmpty(["0" as SlotId]),
         startAt: (NOW + 540 * SECS) as EpochMillis,
         serveAt: (NOW + 600 * SECS) as EpochMillis,
+        anchor: (NOW + 600 * SECS) as EpochMillis,
       },
     ],
   };
@@ -142,6 +144,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
           ...JOINED_AT_600.placements[0]!,
           startAt: (NOW + 30 * SECS) as EpochMillis,
           serveAt: (NOW + 90 * SECS) as EpochMillis,
+          anchor: null,
         },
       ],
     };
@@ -171,6 +174,8 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
       slotIds: nonEmpty([slot as SlotId]),
       startAt: (NOW + startSeconds * SECS) as EpochMillis,
       serveAt: (NOW + (startSeconds + 60) * SECS) as EpochMillis,
+      // 600 秒に上がる配置は仲間（600 秒）へ合流。釜が空いてから始める 5 本目は合流ではない。
+      anchor: startSeconds + 60 === 600 ? ((NOW + 600 * SECS) as EpochMillis) : null,
     });
     const split: AcceptedSlice = {
       tableKey: "t-a",
@@ -215,6 +220,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
           slotIds: nonEmpty(["0" as SlotId]),
           startAt: (NOW + 540 * SECS) as EpochMillis,
           serveAt: (NOW + 600 * SECS) as EpochMillis,
+          anchor: (NOW + 600 * SECS) as EpochMillis,
         },
         {
           externalOrderId: "o-A",
@@ -222,6 +228,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
           slotIds: nonEmpty(["5" as SlotId]),
           startAt: (NOW + 600 * SECS) as EpochMillis,
           serveAt: (NOW + 660 * SECS) as EpochMillis,
+          anchor: null,
         },
       ],
     };
