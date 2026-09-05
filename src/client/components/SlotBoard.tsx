@@ -235,7 +235,7 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
  * 押せる。aria-label だけが `soon`（薄い先頭）/ `queued`（押せない仲間）で薄・押せないを語る（AC 3.4 / 3.7）。
  * 可視の `now` は aria-label の相の語から導く——同じ一語から二つの文を組むので、食い違う状態が表現できない。
  *
- * 返すのは文字列と色だけで、判別（`role` / `phase`）は返さない。押せるか・濃いかは `SlotCard` が導出の
+ * 返すのは文字列と色だけで、判別（`role`）は返さない。押せるか・濃いかは `SlotCard` が導出の
  * 判別から直接読む（見え方に写せば二つ目の真実になる・`SuggestionView` の doc）。
  *
  * 固定文言は英語（`now` / `Table {n}`）。#24 がレールの固定文言を英語に固定し、カードの操作ラベルも
@@ -250,9 +250,8 @@ function suggestionOf(
   const name = displayName(order);
   const firmness = FIRMNESS_LABEL[order.firmness];
   const table = order.tableId === null ? undefined : `Table ${order.tableId}`;
-  // 相の語。先頭は startAt を迎えたら `now`・手前は `soon`、仲間は常に `queued`（startAt が過ぎても・AC 2.4）。
-  const phrase =
-    suggestion.role === "head" ? (suggestion.phase === "solid" ? "now" : "soon") : "queued";
+  // 相の語。先頭（店舗全体で先頭 arms 本・判断 21）は `now`、後続は常に `queued`（startAt が過ぎても・AC 2.4）。
+  const phrase = suggestion.role === "head" ? "now" : "queued";
   const parts = [name, firmness, table, phrase === "now" ? phrase : undefined];
   const label = parts.filter((part) => part !== undefined).join(" · ");
   // 命令形を用いない（AC 3.3）。提案であること・品目・釜・相をこの順で語る。

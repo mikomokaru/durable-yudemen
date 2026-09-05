@@ -30,7 +30,7 @@ type Center = { readonly x: number; readonly y: number };
 /**
  * 提案の見え方（ラベル・aria-label・塗り）。文字列と色だけで、判別を持たない。
  *
- * `role` / `phase` の判別は導出（`SlotSuggestion`）にだけ在る。design Component 5 は `SuggestionView` にも
+ * `role` の判別は導出（`SlotSuggestion`）にだけ在る。design Component 5 は `SuggestionView` にも
  * 判別を写す形を示したが、それは「`SlotSuggestion[]` と `SuggestionView[]` を対で受ける」前提のもので、
  * resolver で受ける本実装では二つ目の真実になる——resolver が member に `head` を返せば「押せないのに
  * ボタン」が描けてしまう。ゆえに見え方は判別を持たず、丸ボタン・塗り・`data-*` はすべて導出の判別から
@@ -354,7 +354,7 @@ export function SlotCard({
             // 濃いのは押せる先頭が startAt を迎えたときだけ。薄は opacity で沈め、塗り（麺種の色＝identity の
             // 既存規約）は変えない——「同じ群」を色や縁で示さない（AC 3.2）。判別は導出から読む（見え方は
             // 文字列と色だけで、押せるか・濃いかを言えない）。
-            const solid = suggestion.role === "head" && suggestion.phase === "solid";
+            const solid = suggestion.role === "head";
             return (
               // 提案は複数並びうる（上限なし・AC 2.11）。actionRow が折り返し、Start は右下に留まる（AC 3.5）。
               // 提案 1 件＝group 1 つ。aria-label は role を持つ要素にしか効かない（素の span/div は generic
@@ -364,7 +364,7 @@ export function SlotCard({
                 key={`${externalOrderId}#${itemIndex}`}
                 role="group"
                 aria-label={shown.ariaLabel}
-                data-phase={solid ? "solid" : "faint"}
+                data-role={suggestion.role}
                 className={cn(actionStack, !solid && "opacity-60")}
               >
                 <div className={actionSlot}>

@@ -22,6 +22,7 @@ import {
 import { clockOffset } from "../../src/client/clock";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_ARMS,
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_SLOT_OFFSETS,
   defaultUnitOrigins,
@@ -180,6 +181,7 @@ const genView: fc.Arbitrary<ClientView> = genTimerFacts(SERVER_ID_POOL).chain((s
           unitOrigins: defaultUnitOrigins(r.unitCount),
           slotOffsets: DEFAULT_SLOT_OFFSETS,
           affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+          arms: DEFAULT_ARMS,
         };
       });
   }),

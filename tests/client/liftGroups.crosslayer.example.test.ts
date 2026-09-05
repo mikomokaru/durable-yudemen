@@ -1,7 +1,7 @@
 // tests/client/liftGroups.crosslayer.example.test.ts — engine を実走させた snapshot を client の導出に通す横断 Example
 // （lift-group-display task 7）。
 //
-// **Validates: Requirements 1.7, 6.3, 6.10**
+// **Validates: Requirements 1.7, 2.4, 6.3, 6.9, 6.10**
 //
 // liftGroups.example は snapshot を手書きして線を固定した。ここは snapshot を一切書かない——engine の唯一の遷移
 // `decide`（品目からの開始・アドホック開始・発火・完了・計画受領）が実際に出した Broadcast の snapshot を、client の
@@ -13,7 +13,8 @@
 // 場面は design「Testing Strategy」が名指しで求めた 3 つ。
 //   1. 茹で上がりの 2 場面——同じ snapshot で 599 → 600 秒を跨ぐ転移と、その後の発火 snapshot。boiled の釜が
 //      index 最小 / 最大の両方を置く（発火後の再計画が残りを boiled の釜へ置き直すか否かは釜の割当に依る）。
-//   2. 容量分割（6 釜・同卓 4 品・各 2 釜）の到達可能な続き (i)(ii)——(ii) は再統合後に 3 品とも head。
+//   2. 容量分割（6 釜・同卓 4 品・各 2 釜）の到達可能な続き (i)(ii)——(ii) は再統合後に濃いのは先頭 arms 2 本で、
+//      残る 1 品は後続（判断 21）。
 //   3. keepsAnchor の帰結——採用済みの合流一片の錨が Boil_Sync で動いたとき、h_i の内側なら一片は残って群は
 //      動いた錨に合流したまま started、h_i の外へ動けば一片は残っても合流でなくなり started でない。
 //
@@ -30,7 +31,6 @@ import type { CookSchedule } from "../../src/engine/schedule";
 import type { EpochMillis, SlotId, TimerId } from "../../src/engine/types";
 import { decideView, EMPTY_VIEW, type ClientView } from "../../src/client/connection";
 import {
-  headOf,
   liftGroups,
   slotSuggestions,
   visibleGroups,
@@ -202,15 +202,19 @@ function visibleAt(snapshot: Snapshot, corrected: number) {
   );
 }
 
-/** 各群の先頭の名。 */
+/** 店舗全体の先頭（濃・押せる）の名——釜を跨いで一つに数え、名の順に並べる（arms 本以下・判断 21）。 */
 function headsAt(snapshot: Snapshot, corrected: number) {
-  return liftGroups(viewOf(snapshot), corrected).map((group) =>
-    headOf(group).map((item) => nameOf(item.order)),
-  );
+  const view = viewOf(snapshot);
+  const bySlot = slotSuggestions(visibleGroups(liftGroups(view, corrected)), view, corrected);
+  const heads = [...bySlot.values()]
+    .flat()
+    .filter((suggestion) => suggestion.role === "head")
+    .map((suggestion) => nameOf(suggestion.item.order));
+  return [...new Set(heads)].sort();
 }
 
 /**
- * 釜ごとの提案の要約——釜番号の昇順に `[釜, ["名 solid" | "名 faint" | "名 member", …]]`。
+ * 釜ごとの提案の要約——釜番号の昇順に `[釜, ["名 now" | "名 queued", …]]`（now は先頭・queued は後続）。
  * 空の Map は `[]`（提案が一つも出ていない）。
  */
 function suggestionsAt(snapshot: Snapshot, corrected: number) {
@@ -223,7 +227,7 @@ function suggestionsAt(snapshot: Snapshot, corrected: number) {
 
 function phraseOf(suggestion: SlotSuggestion): string {
   const name = nameOf(suggestion.item.order);
-  return suggestion.role === "head" ? `${name} ${suggestion.phase}` : `${name} member`;
+  return suggestion.role === "head" ? `${name} now` : `${name} queued`;
 }
 
 /**
@@ -275,7 +279,7 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
     readonly pressed: number;
     /** A を始めた直後の計画（B と C の釜・startAt・錨）。C の釜の並びは engine の解放時刻順（先に空く釜が先）。 */
     readonly plan: readonly (readonly [string, readonly string[], number, number | null])[];
-    /** 599 秒の提案（G1 の B が濃く、G2 の C が薄く、C の 2 釜に同じ提案）。 */
+    /** 599 秒の提案（G1 の B が濃く、G2 の C は startAt 600 秒の前で薄く、C の 2 釜に同じ提案）。 */
     readonly at599: readonly (readonly [number, readonly string[]])[];
     /** 600 秒の提案（同じ snapshot・C が消え、B だけが残る）。 */
     readonly at600: readonly (readonly [number, readonly string[]])[];
@@ -301,10 +305,10 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
         ["c#0", ["5", "4"], 600, null],
       ],
       at599: [
-        [4, ["b#0 solid", "c#0 faint"]],
-        [5, ["c#0 faint"]],
+        [4, ["b#0 now", "c#0 queued"]],
+        [5, ["c#0 queued"]],
       ],
-      at600: [[4, ["b#0 solid"]]],
+      at600: [[4, ["b#0 now"]]],
       // 再計画は 600 秒に空く釜（boiled の 0・計画上の 4・空きの 5）のうち index 最小の釜 0 へ B を置き直す。
       // 釜 0 は Complete 待ちで埋まっているので、B の提案はどこにも出ない（Error Handling「Complete までは残りの
       // 提案が出ないことがある」）。
@@ -313,7 +317,7 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
         ["c#0", ["4", "5"], 600, null],
       ],
       fired: [],
-      completed: [[0, ["b#0 solid"]]],
+      completed: [[0, ["b#0 now"]]],
     },
     {
       name: "boiled の釜が index 最大（釜 5 で始めた・残りは釜 2・別卓は釜 2・4）",
@@ -328,17 +332,17 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
         ["c#0", ["4", "2"], 600, null],
       ],
       at599: [
-        [2, ["b#0 solid", "c#0 faint"]],
-        [4, ["c#0 faint"]],
+        [2, ["b#0 now", "c#0 queued"]],
+        [4, ["c#0 queued"]],
       ],
-      at600: [[2, ["b#0 solid"]]],
+      at600: [[2, ["b#0 now"]]],
       // index 最小は B 自身の釜 2 なので B はそこに留まり、釜 2 は idle ゆえ濃く出る。
       firedPlan: [
         ["b#0", ["2"], 600, null],
         ["c#0", ["4", "5"], 600, null],
       ],
-      fired: [[2, ["b#0 solid"]]],
-      completed: [[2, ["b#0 solid"]]],
+      fired: [[2, ["b#0 now"]]],
+      completed: [[2, ["b#0 now"]]],
     },
   ];
 
@@ -439,29 +443,30 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
     ]);
   });
 
-  it("1 本目を始めた後：合流する 2 品が G1（started・anchor ＝ 走行中の endTime）で今、item4 は G2 の唯一の head", () => {
+  it("1 本目を始めた後：合流する 2 品が G1（started・anchor ＝ 走行中の endTime）で今（先頭 arms 2 本）、G2 の item4 は釜 0・1 が走行中の間は出ない", () => {
     expect(groupsAt(firstStarted.snapshot, at(0))).toEqual([
       { anchor: 360, items: ["o#1", "o#2"], started: true },
       { anchor: null, items: ["o#3"], started: false },
     ]);
     // 同じ卓でも後の batch の G2 は合流しておらず（anchor null）started にならない（AC 1.7 / 6.10）。
-    expect(headsAt(firstStarted.snapshot, at(0))).toEqual([["o#1", "o#2"], ["o#3"]]);
+    // 濃いのは店舗全体で arms 2 本——G1 の 2 品でちょうど埋まる。
+    expect(headsAt(firstStarted.snapshot, at(0))).toEqual(["o#1", "o#2"]);
     expect(suggestionsAt(firstStarted.snapshot, at(0))).toEqual([
-      [2, ["o#1 solid"]],
-      [3, ["o#1 solid"]],
-      [4, ["o#2 solid"]],
-      [5, ["o#2 solid"]],
+      [2, ["o#1 now"]],
+      [3, ["o#1 now"]],
+      [4, ["o#2 now"]],
+      [5, ["o#2 now"]],
     ]);
     // item4 の Prep_Lead（300 秒）が来ても、釜 0・1 が走行中の間は全釜 idle を満たさず提案自体が出ない（AC 2.7）。
     expect(suggestionsAt(firstStarted.snapshot, at(300))).toEqual([
-      [2, ["o#1 solid"]],
-      [3, ["o#1 solid"]],
-      [4, ["o#2 solid"]],
-      [5, ["o#2 solid"]],
+      [2, ["o#1 now"]],
+      [3, ["o#1 now"]],
+      [4, ["o#2 now"]],
+      [5, ["o#2 now"]],
     ]);
   });
 
-  it("(i) 2 品を始め、360 秒に 3 本が boiled、1 本目を Complete → G2 が先頭の群として現れ、item4 が釜 0・1 に head・solid", () => {
+  it("(i) 2 品を始め、360 秒に 3 本が boiled、1 本目を Complete → G2 が先頭の群として現れ、item4 が釜 0・1 に head・now", () => {
     const allStarted = advance(firstStarted.state, [
       startItem(ITEM2, [2, 3], at(0)),
       startItem(ITEM3, [4, 5], at(0)),
@@ -483,15 +488,15 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
     expect(suggestionsAt(fired.snapshot, at(360))).toEqual([]);
 
     const completed = step(fired.state, complete(ITEM1, at(360)));
-    // item2 / item3 の釜が boiled のままでも、釜 0・1 は idle なので item4 が head・solid で現れる。
+    // item2 / item3 の釜が boiled のままでも、釜 0・1 は idle なので item4 が head・now で現れる。
     expect(planOf(completed.snapshot)).toEqual([["o#3", ["0", "1"], 360, null]]);
     expect(suggestionsAt(completed.snapshot, at(360))).toEqual([
-      [0, ["o#3 solid"]],
-      [1, ["o#3 solid"]],
+      [0, ["o#3 now"]],
+      [1, ["o#3 now"]],
     ]);
   });
 
-  it("(ii) 2 品を始めないまま 360 秒に 1 本目が発火 → 残り 3 品が一群に再統合され、3 品とも head。item4 は空いている釜 4・5 に置かれ Complete 前から見える", () => {
+  it("(ii) 2 品を始めないまま 360 秒に 1 本目が発火 → 残り 3 品が一群に再統合され、濃いのは先頭 arms 2 本。item4 は空いている釜 4・5 に置かれ Complete 前から見える", () => {
     const fired = step(firstStarted.state, fire(at(360)));
     // 走行中の錨（360 秒）は過去ゆえ誰も合流できず、3 品が startAt 360 秒 / serveAt 720 秒の同じ batch（錨なし）になる。
     expect(planOf(fired.snapshot)).toEqual([
@@ -502,23 +507,27 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
     expect(groupsAt(fired.snapshot, at(360))).toEqual([
       { anchor: null, items: ["o#1", "o#2", "o#3"], started: false },
     ]);
-    expect(headsAt(fired.snapshot, at(360))).toEqual([["o#1", "o#2", "o#3"]]);
-    // 釜 0・1 は boiled で item2 は出ないが、item3 / item4 の釜はそこではない。
+    // 釜 0・1 は boiled で item2 は出ないが、item3 / item4 の釜はそこではない。表示できる 2 品が arms 2 の内側で
+    // どちらも濃い。
+    expect(headsAt(fired.snapshot, at(360))).toEqual(["o#2", "o#3"]);
     expect(suggestionsAt(fired.snapshot, at(360))).toEqual([
-      [2, ["o#2 solid"]],
-      [3, ["o#2 solid"]],
-      [4, ["o#3 solid"]],
-      [5, ["o#3 solid"]],
+      [2, ["o#2 now"]],
+      [3, ["o#2 now"]],
+      [4, ["o#3 now"]],
+      [5, ["o#3 now"]],
     ]);
 
+    // Complete で item2 の釜が空くと、並び（同じ startAt・正準順序）の先頭 2 本 item2・item3 が濃く、item4 は後続へ
+    // 退く——濃いのは店舗全体で arms 本（判断 21・AC 2.4）。表示は 3 品とも残る（AC 2.11）。
     const completed = step(fired.state, complete(ITEM1, at(360)));
+    expect(headsAt(completed.snapshot, at(360))).toEqual(["o#1", "o#2"]);
     expect(suggestionsAt(completed.snapshot, at(360))).toEqual([
-      [0, ["o#1 solid"]],
-      [1, ["o#1 solid"]],
-      [2, ["o#2 solid"]],
-      [3, ["o#2 solid"]],
-      [4, ["o#3 solid"]],
-      [5, ["o#3 solid"]],
+      [0, ["o#1 now"]],
+      [1, ["o#1 now"]],
+      [2, ["o#2 now"]],
+      [3, ["o#2 now"]],
+      [4, ["o#3 queued"]],
+      [5, ["o#3 queued"]],
     ]);
   });
 });

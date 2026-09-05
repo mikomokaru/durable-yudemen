@@ -96,3 +96,13 @@
   - [x] 11.5 チェックポイント
   - _Requirements: 1.2, 1.7, 5.1〜5.3, 6.1, 6.3, 6.10, 6.12_
 
+- [x] 12. 実機の差し戻し（判断 21）——濃く出すのは店舗全体で先頭 arms 本、後続は薄く
+  - 実測・2026-09-06: `ClientView.arms`、`SlotSuggestion` から `phase` を落とし `headOf` を撤去、`slotSuggestions` が表示できる品目のうち開始推奨時刻が来たものを**開始推奨時刻の順**で並べて先頭 arms 本を `head` にする。テストの追随で「群の順で数えると、同じ snapshot で時刻が進んだだけで前の群の後の品目が後の群の先頭を押しのける（6.3 に反する）」ことが分かり、時刻順に改めた（要件・design も同じ語へ）。Property 3 に「一度先頭になった品目は始めるまで先頭のまま」を足した。`sync-config-server-authority.example` は「view に arms が無い」を主張していたので「arms は写す・toleranceRatio は写さない」へ。全体 230 ファイル 1472 件通過（本体で再実行）。
+  - [x] 12.1 `ClientView.arms`（config 受信で写す・`EMPTY_VIEW` は `DEFAULT_ARMS`）
+  - [x] 12.2 `liftGroups.ts`：`SlotSuggestion` から `phase` を落とし、`headOf` を撤去。`slotSuggestions` が表示できる品目を（群の順, 品目の順）で集め、`startAt ≤ corrected` のうち先頭 `arms` 本を `head`、残りを `member` にする
+  - [x] 12.3 `SlotBoard` の相の語は `now` / `queued`、`SlotCard` は `data-role`
+  - [x] 12.4 テストの追随（先頭の上限・9 品で 2 本だけ濃い・薄いものは押せない）
+  - [x] 12.5 design・requirements（判断 21・AC 1.9 / 2.2〜2.4 / 2.11 / 3.1 / 3.6 / 3.7 / 6.9）
+  - [x] 12.6 チェックポイント
+  - _Requirements: 1.9, 2.2〜2.4, 2.11, 3.1, 3.6, 3.7, 6.9_
+

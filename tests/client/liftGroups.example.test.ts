@@ -3,15 +3,15 @@
 // **Validates: Requirements 1.3, 1.7, 1.8, 1.9, 2.1〜2.4, 2.7, 2.9, 2.10, 4.3〜4.5, 4.7, 4.9**
 //
 // 性質テストは「全域でこうなる」を言うが、線がどこに引かれているかは言わない。ここは線そのものを名指しで
-// 固定する——レビューの再現（茹で 510 / 360 / 330 秒の同卓 3 品）で先頭だけが押せること、連鎖が「1 本目が
-// 始まった」（`anchor` が未来）で解禁されること、錨の茹で上がりの転移で後続が隠れること、釜の組が距離と index で
-// 断たれること。群の所属（`group`）と錨（`anchor`）は engine が推奨に載せる値で、ここではそれを手書きする
-// （判断 20）。client は卓も serveAt も Timer も群の判定に読まない。
+// 固定する——レビューの再現（茹で 510 / 360 / 330 秒の同卓 3 品）で濃く押せるのが店舗全体で先頭 arms 本だけで
+// あること（判断 21・実機の 9 品の差し戻しを含む）、連鎖が「1 本目が始まった」（`anchor` が未来）で解禁される
+// こと、錨の茹で上がりの転移で後続が隠れること、釜の組が距離と index で断たれること。群の所属（`group`）と錨
+// （`anchor`）は engine が推奨に載せる値で、ここではそれを手書きする（判断 20）。client は卓も serveAt も Timer も
+// 群の判定に読まない。腕の本数 `arms` は既定の 2（EMPTY_VIEW）で、場面ごとに 1 や 3 へ振る。
 
 import { describe, expect, it } from "vitest";
 import { EMPTY_VIEW, type ClientTimer, type ClientView } from "../../src/client/connection";
 import {
-  headOf,
   liftGroups,
   pairSlots,
   slotSuggestions,
@@ -97,10 +97,10 @@ function suggestionsAt(current: ClientView, corrected: number) {
   return slotSuggestions(visibleGroups(liftGroups(current, corrected)), current, corrected);
 }
 
-describe("Feature: lift-group-display — 同卓 3 品で押せるのは先頭だけ（判断 17・レビューの再現）", () => {
+describe("Feature: lift-group-display — 同卓 3 品で濃いのは店舗全体で先頭 arms 本だけ（判断 21・レビューの再現）", () => {
   const current = view({ pendingOrders: THREE, recommendations: THREE_PLAN });
 
-  it("3 品は一つの群 g1（serveAt は 510 秒で揃う）に束なり、先頭は 510 秒の品目だけ", () => {
+  it("3 品は一つの群 g1（serveAt は 510 秒で揃う）に束なり、0 秒では 510 秒の品目だけが head（他 2 品はまだ現れない）", () => {
     const groups = liftGroups(current, T0);
     expect(groups).toHaveLength(1);
     expect(groups[0]).toMatchObject({ group: "g1", anchor: null, started: false });
@@ -115,33 +115,96 @@ describe("Feature: lift-group-display — 同卓 3 品で押せるのは先頭�
       T0 + 510 * SECOND,
       T0 + 510 * SECOND,
     ]);
-    expect(headOf(groups[0]!).map((item) => item.order.externalOrderId)).toEqual(["long"]);
+    const bySlot = suggestionsAt(current, T0);
+    expect(bySlot.get(0)).toEqual([
+      { role: "head", item: expect.objectContaining({ order: THREE[0] }) },
+    ]);
+    // mid（150 秒）・short（180 秒）は Prep_Lead の前で、薄くも現れない。
+    expect(bySlot.has(1)).toBe(false);
+    expect(bySlot.has(2)).toBe(false);
   });
 
-  it("180 秒経って全品の startAt が過ぎても head は 510 秒の品目だけで、他 2 品は member（濃くならない）", () => {
+  it("180 秒経って全品の startAt が過ぎると head は先頭 arms 2 本（510 秒と 360 秒の品目）で、330 秒の品目は member（濃くならない）", () => {
     const bySlot = suggestionsAt(current, T0 + 180 * SECOND);
     expect(bySlot.get(0)).toEqual([
-      { role: "head", phase: "solid", item: expect.objectContaining({ order: THREE[0] }) },
+      { role: "head", item: expect.objectContaining({ order: THREE[0] }) },
     ]);
     expect(bySlot.get(1)).toEqual([
-      { role: "member", item: expect.objectContaining({ order: THREE[1] }) },
+      { role: "head", item: expect.objectContaining({ order: THREE[1] }) },
     ]);
     expect(bySlot.get(2)).toEqual([
       { role: "member", item: expect.objectContaining({ order: THREE[2] }) },
     ]);
   });
 
-  it("Prep_Lead の 60 秒前に薄く現れ、startAt で濃くなる（先頭）。仲間は 60 秒前まで現れない", () => {
-    expect(suggestionsAt(current, T0 - 61 * SECOND).size).toBe(0);
-    expect(suggestionsAt(current, T0 - 60 * SECOND).get(0)?.[0]).toMatchObject({
-      role: "head",
-      phase: "faint",
+  it("arms 1 なら head は 510 秒の品目だけで、startAt が過ぎた 360 秒の品目も member のまま", () => {
+    const bySlot = suggestionsAt({ ...current, arms: 1 }, T0 + 180 * SECOND);
+    expect(bySlot.get(0)?.[0]).toMatchObject({ role: "head" });
+    expect(bySlot.get(1)?.[0]).toMatchObject({ role: "member" });
+    expect(bySlot.get(2)?.[0]).toMatchObject({ role: "member" });
+  });
+
+  it("同じ startAt の 9 品（実機の差し戻し）は arms 2 で head 2 本・member 7 本。先頭は到着順で決まり、表示の数は arms に依らない", () => {
+    // 同卓の 9 品がすべて 0 秒に置かれ、各 1 釜（釜 0〜8・2 ユニット）。到着は 1 秒刻みで n0 が最初。
+    const nine = Array.from({ length: 9 }, (_, index) =>
+      order({ externalOrderId: `n${index}`, arrivalTime: T0 - 60 * SECOND + index * SECOND }),
+    );
+    const plan = nine.map((each, index) =>
+      recommendation(each.externalOrderId, [String(index)], T0, "g1"),
+    );
+    const crowded = view({
+      unitCount: 2,
+      unitOrigins: defaultUnitOrigins(2),
+      pendingOrders: nine,
+      recommendations: plan,
     });
-    expect(suggestionsAt(current, T0 - SECOND).get(0)?.[0]).toMatchObject({ phase: "faint" });
-    expect(suggestionsAt(current, T0).get(0)?.[0]).toMatchObject({ phase: "solid" });
-    // mid の startAt は 150 秒。89 秒では現れず、90 秒で member として現れる。
+    const rolesOf = (bySlot: ReturnType<typeof suggestionsAt>) =>
+      [...bySlot.entries()]
+        .sort(([slot], [other]) => slot - other)
+        .map(([, list]) => list.map((suggestion) => suggestion.role));
+    expect(rolesOf(suggestionsAt(crowded, T0))).toEqual([
+      ["head"],
+      ["head"],
+      ["member"],
+      ["member"],
+      ["member"],
+      ["member"],
+      ["member"],
+      ["member"],
+      ["member"],
+    ]);
+    // 放置して時間が経っても 2 本のまま（後続は startAt が過ぎても濃くならない・AC 2.3 / 2.4）。
+    expect(rolesOf(suggestionsAt(crowded, T0 + 600 * SECOND))).toEqual(
+      rolesOf(suggestionsAt(crowded, T0)),
+    );
+    // arms 3 なら 3 本、arms 1 なら 1 本。9 件の表示は変わらない（AC 2.11）。
+    expect(rolesOf(suggestionsAt({ ...crowded, arms: 3 }, T0)).flat()).toEqual([
+      ...Array<"head">(3).fill("head"),
+      ...Array<"member">(6).fill("member"),
+    ]);
+    expect(rolesOf(suggestionsAt({ ...crowded, arms: 1 }, T0)).flat()).toEqual([
+      "head",
+      ...Array<"member">(8).fill("member"),
+    ]);
+  });
+
+  it("Prep_Lead の 60 秒前に薄く（member）現れ、startAt が来て枠が空いていれば head になる。仲間は 60 秒前まで現れない", () => {
+    expect(suggestionsAt(current, T0 - 61 * SECOND).size).toBe(0);
+    // 最早の品目でも startAt の前は member——薄いものは押せない（判断 5 は撤回・判断 21）。
+    expect(suggestionsAt(current, T0 - 60 * SECOND).get(0)?.[0]).toMatchObject({ role: "member" });
+    expect(suggestionsAt(current, T0 - SECOND).get(0)?.[0]).toMatchObject({ role: "member" });
+    expect(suggestionsAt(current, T0).get(0)?.[0]).toMatchObject({ role: "head" });
+    // mid の startAt は 150 秒。89 秒では現れず、90 秒で member として現れ、150 秒に arms 2 の 2 本目の枠が
+    // 空いているので head になる。arms 1 なら枠が無く、150 秒でも member のまま。
     expect(suggestionsAt(current, T0 + 89 * SECOND).has(1)).toBe(false);
     expect(suggestionsAt(current, T0 + 90 * SECOND).get(1)?.[0]).toMatchObject({ role: "member" });
+    expect(suggestionsAt(current, T0 + 149 * SECOND).get(1)?.[0]).toMatchObject({ role: "member" });
+    expect(suggestionsAt(current, T0 + 150 * SECOND).get(1)?.[0]).toMatchObject({ role: "head" });
+    expect(suggestionsAt({ ...current, arms: 1 }, T0 + 150 * SECOND).get(1)?.[0]).toMatchObject({
+      role: "member",
+    });
+    // short（180 秒）は arms 2 の枠が埋まっているので、startAt が来ても member。
+    expect(suggestionsAt(current, T0 + 180 * SECOND).get(2)?.[0]).toMatchObject({ role: "member" });
   });
 });
 
@@ -161,7 +224,7 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
     expect(suggestionsAt(current, T0 + 180 * SECOND).has(3)).toBe(false);
   });
 
-  it("1 本目を始める（残りが走行中の錨 510 秒に合流した snapshot）と群は started になり、次の先頭が濃くなり、後の群も出る", () => {
+  it("1 本目を始める（残りが走行中の錨 510 秒に合流した snapshot）と群は started になり、次の先頭 arms 本が濃くなり、後の群も薄く出る", () => {
     // long を釜 0 で始めた snapshot：推奨から消え、残り 2 品は錨（走行中の実効 endTime 510 秒）に合流して届く。
     // G2（t-2・serveAt 560 秒）にはもう 1 品 extra（Short・開始予定 230 秒）が在り、その推奨は走行中の釜 0 を指す。
     const anchor = T0 + 510 * SECOND;
@@ -179,14 +242,15 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
     });
     const groups = liftGroups(current, T0 + 180 * SECOND);
     expect(groups[0]).toMatchObject({ group: "g1", anchor, started: true });
-    expect(headOf(groups[0]!).map((item) => item.order.externalOrderId)).toEqual(["mid"]);
     expect(visibleGroups(groups).map((group) => group.group)).toEqual(["g1", "g2"]);
     // extra は表示できる群 G2 の品目である（釜 0 に出ないのが「群に無い」ことの帰結でないと言うため）。
     expect(groups[1]!.items.map((item) => item.order.externalOrderId)).toEqual(["other", "extra"]);
     const bySlot = suggestionsAt(current, T0 + 180 * SECOND);
-    expect(bySlot.get(1)?.[0]).toMatchObject({ role: "head", phase: "solid" });
-    expect(bySlot.get(2)?.[0]).toMatchObject({ role: "member" });
-    expect(bySlot.get(3)?.[0]).toMatchObject({ role: "head", phase: "faint" });
+    // 180 秒には mid（150 秒）・short（180 秒）の startAt が来ており、店舗全体の先頭 arms 2 本として濃い。
+    // G2 の other（200 秒）は Prep_Lead（140 秒）が来て薄く現れるが、startAt の前なので後続（AC 2.3）。
+    expect(bySlot.get(1)?.[0]).toMatchObject({ role: "head" });
+    expect(bySlot.get(2)?.[0]).toMatchObject({ role: "head" });
+    expect(bySlot.get(3)?.[0]).toMatchObject({ role: "member" });
     // extra の Prep_Lead（170 秒）は来ているが、指す釜 0 は走行中——占有された釜には導出の段で何も出ない
     // （slotDisplay が idle でない釜に載せないこととは別に、全釜 idle の判定が推奨そのものを落とす・AC 2.7）。
     expect(bySlot.has(0)).toBe(false);
@@ -219,8 +283,16 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
       T0 + 270 * SECOND,
       T0 + 300 * SECOND,
     ]);
-    // 押せるのは各群の先頭だけ——G1 は rest1、G2 は g2。rest2 は仲間で、startAt が過ぎても濃くならない。
-    expect(onSlot1.map((suggestion) => suggestion.role)).toEqual(["head", "member", "head"]);
+    // 濃いのは店舗全体で先頭 arms 2 本——並び（群の順・品目の順）の先頭の rest1・rest2。G2 の g2 は startAt が
+    // 過ぎていても 3 本目で後続（判断 21）。arms 1 なら rest1 だけ。
+    expect(onSlot1.map((suggestion) => suggestion.role)).toEqual(["head", "head", "member"]);
+    const onSlot1WithOneArm =
+      suggestionsAt({ ...current, arms: 1 }, T0 + 300 * SECOND).get(1) ?? [];
+    expect(onSlot1WithOneArm.map((suggestion) => suggestion.role)).toEqual([
+      "head",
+      "member",
+      "member",
+    ]);
   });
 
   it("started は anchor と Corrected_Now だけで決まる——anchor null・anchor が過去・anchor ちょうどは偽で、Timer の一致は読まない", () => {
@@ -261,12 +333,13 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
       ],
       timers: [timer({ id: "mate", endTime: anchor })],
     });
+    // 599 秒には rest（240 秒）と g2（300 秒）の両方の startAt が来ており、2 本とも arms 2 の内側で濃い。
     const at599 = suggestionsAt(current, T0 + 599 * SECOND);
-    expect(at599.get(1)?.[0]).toMatchObject({ role: "head", phase: "solid" });
-    expect(at599.get(2)?.[0]).toMatchObject({ role: "head", phase: "solid" });
+    expect(at599.get(1)?.[0]).toMatchObject({ role: "head" });
+    expect(at599.get(2)?.[0]).toMatchObject({ role: "head" });
     const at600 = suggestionsAt(current, T0 + 600 * SECOND);
     expect(liftGroups(current, T0 + 600 * SECOND)[0]!.started).toBe(false);
-    expect(at600.get(1)?.[0]).toMatchObject({ role: "head", phase: "solid" });
+    expect(at600.get(1)?.[0]).toMatchObject({ role: "head" });
     expect(at600.has(2)).toBe(false);
   });
 });

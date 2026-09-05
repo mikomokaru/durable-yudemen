@@ -101,24 +101,14 @@ export function visibleGroups(groups: readonly LiftGroup[]): readonly LiftGroup[
 }
 
 /**
- * 群の先頭（Group_Head）——未着手のうち startAt 最小の品目（同値は全部・判断 17・AC 1.9）。
+ * 釜の提案。いま押せる先頭（濃・`now`）と、押せない後続（薄）の判別共用体。
  *
- * 群の品目はすべて未着手（推奨は未着手にしか付かない）なので、items の先頭と同じ startAt を持つものが先頭である。
- * 押せるのは先頭だけ。先頭を始めると計画が残りを走行中の錨へ組み直し、次の先頭が決まる。
- */
-export function headOf(group: LiftGroup): readonly GroupItem[] {
-  const earliest = group.items[0].suggestion.startAt;
-  return group.items.filter((item) => item.suggestion.startAt === earliest);
-}
-
-/**
- * 釜の提案。押せる先頭（薄 / 濃）と、押せない仲間（薄）の判別共用体。
- *
- * `member` に `phase` は無い。先頭でない品目は startAt が過ぎても濃くならない（AC 2.4）——「押せる」と「濃い」は
- * 先頭にだけ在り、`member` にボタンを描く経路が構造から無い（AC 3.6）。
+ * 先頭は「開始推奨時刻が来ていて、店舗全体で先頭 arms 本」（判断 21）。後続は開始推奨時刻の 60 秒前が来た
+ * 準備の合図で、startAt が過ぎても濃くならず押せない（AC 2.4）——「押せる」と「濃い」は先頭にだけ在り、
+ * `member` にボタンを描く経路が構造から無い（AC 3.6）。薄いものを早く始めたければラジアルが残る。
  */
 export type SlotSuggestion =
-  | { readonly role: "head"; readonly phase: "faint" | "solid"; readonly item: GroupItem }
+  | { readonly role: "head"; readonly item: GroupItem }
   | { readonly role: "member"; readonly item: GroupItem };
 
 /**
@@ -128,8 +118,9 @@ export type SlotSuggestion =
  * 判定する（AC 2.7）。engine は開始時に釜の占有を検査しない（観測事実 12）ので、一部の釜が埋まった複数釜の
  * 提案をどの釜にも出さないことが、走行中の釜へ重ねて開始する事故への唯一の防御である。
  *
- * 各釜の配列は startAt 昇順（同値は群の順）。上限は置かない（AC 2.11）。1 件の推奨は含まれる各釜に同じ提案として
- * 現れる（AC 2.14）。degraded で空なのはここが担う（判定を一箇所に・slotDisplay は結果を載せるだけ）。
+ * 各釜の配列は startAt 昇順（同値は群の順）。表示する数に上限は置かず、濃い（押せる）ものだけを店舗全体で
+ * arms 本に限る（AC 2.11・判断 21）。1 件の推奨は含まれる各釜に同じ提案として現れる（AC 2.14）。degraded で空なのは
+ * ここが担う（判定を一箇所に・slotDisplay は結果を載せるだけ）。
  */
 export function slotSuggestions(
   visible: readonly LiftGroup[],
@@ -139,21 +130,36 @@ export function slotSuggestions(
   const bySlot = new Map<number, SlotSuggestion[]>();
   if (mode(view) !== "live") return bySlot;
   const occupied = occupiedSlots(view);
+  // 表示できる品目を（群の順, 群の中の順）で集める——全釜 idle と Prep_Lead を満たすもの。
+  const shown: GroupItem[] = [];
   for (const group of visible) {
-    const heads = headOf(group);
     for (const item of group.items) {
       const { slotIds, startAt } = item.suggestion;
       if (slotIds.some((slotId) => occupied.has(slotOf(slotId)))) continue; // 全釜 idle（AC 2.7）
       if (corrected < startAt - PREP_LEAD_MS) continue; // Prep_Lead（AC 2.1）
-      const suggestion: SlotSuggestion = heads.includes(item)
-        ? { role: "head", phase: corrected >= startAt ? "solid" : "faint", item }
-        : { role: "member", item };
-      for (const slotId of slotIds) {
-        const slot = slotOf(slotId);
-        const bucket = bySlot.get(slot);
-        if (bucket) bucket.push(suggestion);
-        else bySlot.set(slot, [suggestion]);
-      }
+      shown.push(item);
+    }
+  }
+  // 先頭（濃・押せる）は、開始推奨時刻が来たもののうち店舗全体で先頭 arms 本（判断 21）。腕で扱える分だけを
+  // 「今」と言い、残りは薄い後続に留める。先頭を始めれば計画が残りを合流させ直し、次の arms 本が先頭になる。
+  // 並びは**開始推奨時刻の順**（同値は群の順・品目の順＝shown の順）。群の順で数えると、同じ snapshot で時間が
+  // 進んだだけで前の群の後の品目が後の群の先頭を押しのけ、濃さが消える（6.3 の単調性に反する）。時刻順なら
+  // 新たに時刻が来た品目は既存の先頭より後ろに並ぶので、先頭は始めるまで先頭のままである。
+  const startable = shown
+    .map((item, order) => ({ item, order }))
+    .filter(({ item }) => corrected >= item.suggestion.startAt)
+    .sort((a, b) => a.item.suggestion.startAt - b.item.suggestion.startAt || a.order - b.order)
+    .map(({ item }) => item);
+  const heads = new Set(startable.slice(0, Math.max(0, view.arms)));
+  for (const item of shown) {
+    const suggestion: SlotSuggestion = heads.has(item)
+      ? { role: "head", item }
+      : { role: "member", item };
+    for (const slotId of item.suggestion.slotIds) {
+      const slot = slotOf(slotId);
+      const bucket = bySlot.get(slot);
+      if (bucket) bucket.push(suggestion);
+      else bySlot.set(slot, [suggestion]);
     }
   }
   // 挿入順は（群の順, 群の中の順）ゆえ、startAt の安定ソートで「同値は群の順」が保たれる。

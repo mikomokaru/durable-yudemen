@@ -29,13 +29,13 @@
 
 ### 確定した設計判断（すべて本要件へ演繹する・2026-09-04 の対話で確定）
 
-1. **出すのは店舗全体で最早の群だけ。** 群の順序は群の中で最も早い `startAt`。群の全員を出す（arms を超えていても）。他の群は出さない。**判断 19 が Visible_Groups へ広げた（2026-09-05・レビュー）**——最早の群の前がすべて Group_Started（判断 16）なら、その群も出す（AC 2.8）。「他の群は出さない」は、前に Group_Started でない群が在る群について残る（AC 2.9）。
+1. **出すのは店舗全体で最早の群だけ。** 群の順序は群の中で最も早い `startAt`。群の全員を出す（arms を超えていても）。他の群は出さない。**判断 19 が Visible_Groups へ広げた（2026-09-05・レビュー）**——最早の群の前がすべて Group_Started（判断 16）なら、その群も出す（AC 2.8）。「他の群は出さない」は、前に Group_Started でない群が在る群について残る（AC 2.9）。 **判断 21**：全員を出すが、濃く（押せる）出すのは店舗全体で先頭 arms 本に限る。
 2. **群の識別は client の再計算。** `serveAt = startAt + 茹で秒` を計算し、**同じ卓（`tableId`）で** `serveAt` が等しいものを一群とする。卓を持たない品目は 1 品で 1 群（計画側の Lift_Group と同じ単位・`lift-group-planning` AC 1.2）。許容幅で「近い」を判定しない。揃っていない品目は別の群になり、揃っていないものを揃っていると言う経路を持たない。**改訂（2026-09-05・レビュー）**: 当初は `serveAt` の等号だけで束ねていたが、それでは別の卓が偶然同じ `serveAt` を持つと一群になり、卓なし 2 品も一群になって「群の開始」が定義できない（判断 16）。卓を鍵に足すことで、client の群は計画側の Lift_Group（同じ卓）を batch で割った単位に一致する。**再改訂（2026-09-05・実機の差し戻し・判断 20）**: client は群を計算しない。engine が `CookRecommendation.group` で群の所属を運び、client はそれで束ねるだけにする。`serveAt` の再計算は `startAt + 茹で秒` の表示用（AC 1.1）に残るが、群の鍵には使わない。
 3. **提案は startAt の 60 秒前に薄く現れる。語は無い。** 60 秒は麺を準備する猶予であり、domain の定数とする。店舗差が実在するまで設定にしない。
 4. **startAt が来たら濃くなり `now` と描く。** 時刻（`in mm:ss` / 壁時計 / 秒読み）は描かない。
-5. **薄くても押せる。** 提案は指示ではない。早く入れれば Boil_Sync が吸収する。**判断 17 で「押せるのは群の先頭だけ」に絞った**——先頭は薄くても押せるが、先頭でない品目は薄くても濃くても押せない。
+5. **薄くても押せる。** 提案は指示ではない。早く入れれば Boil_Sync が吸収する。**判断 17 で「押せるのは群の先頭だけ」に絞った**——先頭は薄くても押せるが、先頭でない品目は薄くても濃くても押せない。 **判断 21 で撤回**：薄いものは押せない。濃い（先頭 arms 本）だけが押せる。
 6. **走行中・茹で上がりのカードには何も出さない。** 釜が埋まっていて 60 秒前が走行中に来た品目は、釜が空いた（Complete された）時点で現れる。薄い段階が無いことがある。
-7. **次の群は「現在の群の最初の 1 本が始まった」かつ「自身の 60 秒前が来た」で現れる。** 両方を満たす。同時に見える提案の数に上限を置かない。**「始まった」の事実は判断 16 で定める（ワイヤの `TimerFact.tableId`）。表示できる群の集合は判断 19 の Visible_Groups。**
+7. **次の群は「現在の群の最初の 1 本が始まった」かつ「自身の 60 秒前が来た」で現れる。** 両方を満たす。同時に見える提案の数に上限を置かない。**「始まった」の事実は判断 16 で定める（ワイヤの `TimerFact.tableId`）。表示できる群の集合は判断 19 の Visible_Groups。** **判断 21**：見える数に上限は無いが、濃いのは店舗全体で先頭 arms 本。
 8. **担当外の端末は空白。** Visible_Groups（判断 19）のどの品目も担当範囲の釜に無い端末には何も出ない。端末間の一致を単端末の可読性より上に置く。端末同士の同期機構は要らない——全端末が同じ snapshot から同じ集合を導く。
 9. **群は可視化しない。** 同じ群であることを色や縁で示さない。出た順に入れれば結果として同時に上がる。
 10. **ラジアルに店舗全体の待ち行列を足す。** 到着順に列挙し、選べば品目として開始する（待ち行列から消える）。`slotSpan` 2 の品目は押した釜と、そこから `affinityToleranceDistance` の内側で最も近い空き釜を自動で組にし、内側に無ければ選べない。麺種プリセットのアドホック開始は残す。
@@ -68,6 +68,13 @@
     - **`TimerFact.orderItem` は撤去する。** 本 spec が Group_Started のために足したが、`anchor` が同じ事実を運ぶので client に読み手が無い。読み手の無い写しをワイヤに残さない（`timer-model.md`「god type にしない」）。engine の `Ordered` を戻し、ADR-0003 の Consequences を再改訂する。永続 v10 の `orderItem.tableId` は engine の事実として残る。
     - **群と Sync_Set は別**（`lift-group-planning` 判断 18）。合流した群を全員始めた後、Boil_Sync が arms で複数のセットに分けても、表示は群を可視化しないので矛盾は表に出ない（判断 9）。
     - 検証の中心は、8 品を数秒間隔で順に投入し続ける一連の操作に置く。各投入の直後に、空いている釜の提案が「now」の先頭として残り続けること。
+
+21. **濃く（now・押せる）出すのは店舗全体で先頭 arms 本。後続は開始推奨時刻の 60 秒前から薄く出す（実機の差し戻し・2026-09-05）。** 実機で初期状態に同じ卓の 9 品が全部 now で並んだ。判断 1・7・17 は「最早の群の全員を出す（arms を超えていても）」「上限を置かない」「先頭（startAt 最小・同値は全部）は押せる」で、9 本すべてが先頭だった。現場の感覚は「now は腕で扱える分（arms 本）」であり、残りは準備の合図に留めたい。
+    - **Head（先頭・濃・押せる）**：表示できる群の品目のうち表示の条件（全釜 idle・Prep_Lead）を満たし、かつ開始推奨時刻が来ている（`startAt ≤ Corrected_Now`）ものを**開始推奨時刻の順**（同値は群の順・品目の順）に並べ、**店舗全体で先頭 arms 本**。群ごとではなく店舗全体で数える（腕は店に arms 本）。群の順で数えない——同じ snapshot で時間が進んだだけで前の群の後の品目が後の群の先頭を押しのけ、濃さが消える（Requirement 6.3 に反する・実装時の発見）。時刻順なら、新たに時刻が来た品目は既存の先頭より後ろに並び、先頭は始めるまで先頭のまま。
+    - **後続（薄・押せない）**：それ以外で表示の条件を満たすもの。開始推奨時刻が過ぎていても濃くならない。先頭を始めれば計画が残りを合流させ直し、次の arms 本が先頭になる。
+    - **判断 5「薄くても押せる」は撤回する。** 薄いものは準備の合図であり、押す口を持たない。順を変えたいときはラジアルの待ち行列で品目を選ぶ（判断 10・AC 4.2）。判断 17 の「先頭だけ押せる」はそのまま、先頭の定義を「startAt 最小」から上の Head へ改める。
+    - **順序の事故（観測事実 14）の残り**：先頭 arms 本の中で startAt の違う品目（例：510 秒の品目と 360 秒の品目）が同時に濃くなることはある（両方の開始推奨時刻が過ぎたとき）。arms 本の中の順は表示が伝えない——arms 本を超えては濃くならないので、残余は有界として受け入れる。
+    - `ClientView` に `arms` を写す（config 受信・AC 4.7 と同じ扱い）。ワイヤ・engine は変えない。
 
 ### スコープ外
 
@@ -113,9 +120,10 @@
 - **Lift_Group（同時に上げる群）**: `CookRecommendation.group` が等しい提案の集合（engine が確定計画から決める・snapshot 内の識別子）。client は群を計算しない（判断 20）。
 - **Next_Group（次の群）**: 受信した推奨の全量から組んだ群のうち、最も早い `startAt` を持つ群。店舗全体で一つ。
 - **Prep_Lead（準備の猶予）**: 提案が薄く現れる、`startAt` までの時間。60 秒。domain の定数。
-- **Faint / Solid（薄 / 濃）**: 提案の二相。薄は `startAt − Prep_Lead ≤ now < startAt`、濃は `startAt ≤ now`。薄には語が無く、濃は `now`。
+- **Faint / Solid（薄 / 濃）**: 提案の二相。濃は Head（`now`・押せる）、薄は後続（語も押す口も無い）。判断 21 以前は薄＝Prep_Lead の内側の先頭だった。
 - **Group_Started（群の開始）**: 群の `anchor`（合流した走行中の錨の実効 endTime・engine が運ぶ）が非 null で、かつ `anchor > Corrected_Now` の状態。茹で上がり後は保持しない。合流していない群（`anchor` null）には無い状態。次の群が現れる条件の一つ。
-- **Group_Head（群の先頭）**: 群の未着手のうち `startAt` 最小の品目（同値は全部）。押せるのは先頭だけ。
+- **Head（先頭）**: 表示できる群の品目を群の順・品目の順に並べ、表示の条件（All_Idle・Prep_Lead）を満たし開始推奨時刻が来ているもののうち、店舗全体で先頭 arms 本（判断 21）。濃く `now` と描き、押せるのは Head だけ。
+- **後続（member）**: 表示の条件を満たすが Head でない品目。薄く描き、語も押す口も無い。
 - **Visible_Groups（表示できる群）**: 群を最早 `startAt` 順に並べたとき、先頭の群と、それより前の群がすべて Group_Started である群の集合。
 - **All_Idle（全釜が空き）**: 推奨の `slotIds` の全釜が idle（走行中・茹で上がり・unreceived でない）である状態。snapshot の全 Timer（担当外を含む）から判定する。
 - **Corrected_Now**: client の実時刻にサーバとのオフセットを加えた時刻。
@@ -137,7 +145,7 @@
 6. THE Next_Group の導出 SHALL 担当範囲・端末に依らず、同じ推奨の全量からは同じ群を返す
 7. THE client SHALL 群の Group_Started を、群の推奨が運ぶ `anchor` が非 null で、かつ `anchor > Corrected_Now` であることで判定する（判断 20）。走行中 Timer の照合・端末ごとの履歴・過去の描画・推奨の消失を判定に用いない
 8. THE client SHALL Visible_Groups を、群を最早 `startAt` 順に並べたときの先頭の群と、それより前の群がすべて Group_Started である群の集合として導く
-9. THE client SHALL 各群の Group_Head を、群の未着手のうち `startAt` 最小の品目（同値は全部）として導く
+9. THE client SHALL Head を、表示の条件（All_Idle・Prep_Lead）を満たし `startAt ≤ Corrected_Now` である品目を開始推奨時刻の順（同値は群の順・品目の順）に並べ、店舗全体で先頭 `arms` 本として導く（判断 21）
 10. THE Group_Started / Visible_Groups / Group_Head の導出 SHALL 担当範囲・端末に依らず、同じ snapshot と同じ Corrected_Now からは同じ結果を返す（Group_Started は `anchor` と Corrected_Now だけを読む）
 
 _出所: 判断 1・2・8・16・17・19, 観測事実 9・10・13_
@@ -149,16 +157,16 @@ _出所: 判断 1・2・8・16・17・19, 観測事実 9・10・13_
 #### Acceptance Criteria
 
 1. WHEN 担当スロットが idle で、Visible_Groups の品目がその釜を `slotIds` に含み、当該推奨の `slotIds` の全釜が idle（All_Idle）で、`Corrected_Now ≥ startAt − Prep_Lead` である, THE Slot_Card SHALL 当該品目を提案として表示する
-2. WHILE 提案が Group_Head で、`startAt − Prep_Lead ≤ Corrected_Now < startAt`, THE Slot_Card SHALL 提案を薄く描き、語を添えず、丸ボタンを描く
-3. WHILE 提案が Group_Head で、`Corrected_Now ≥ startAt`, THE Slot_Card SHALL 提案を濃く描き、`now` と添え、丸ボタンを描く
-4. WHILE 提案が Group_Head でない, THE Slot_Card SHALL 提案を薄く描き、語を添えず、丸ボタンを描かない（`Corrected_Now ≥ startAt` でも濃くしない）
+2. WHILE 提案が Head である, THE Slot_Card SHALL 提案を濃く描き、`now` と添え、丸ボタンを描く
+3. WHILE 提案が Head でない, THE Slot_Card SHALL 提案を薄く描き、語を添えず、丸ボタンを描かない（`Corrected_Now ≥ startAt` でも濃くしない）
+4. THE client SHALL 濃く描く提案を店舗全体で `arms` 本以下に保つ（判断 21）
 5. THE Slot_Card SHALL 提案に時刻（`in mm:ss`・壁時計・秒読み・`+mm:ss`）を添えない
 6. WHILE 担当スロットが running / boiled / unreceived である, THE Slot_Card SHALL 提案を一切表示しない
 7. WHILE 推奨の `slotIds` のいずれかの釜が idle でない, THE Slot_Card SHALL 当該推奨をどの釜にも表示しない（一部の釜が空いていても出さない）
 8. WHEN 釜が埋まっている間に `startAt − Prep_Lead` が過ぎた品目の全釜が idle になる, THE Slot_Card SHALL その時点で提案を表示する（薄い段階が無いことがある）
 9. WHILE ある群より前の群に Group_Started でないものが在る, THE Slot_Card SHALL その群の品目を表示しない
 10. WHEN ある群より前の群がすべて Group_Started になり、かつ 当該群の品目の `startAt − Prep_Lead` が来た, THE Slot_Card SHALL 当該群の品目を表示する
-11. THE client SHALL 同時に表示する提案の数に上限を置かない
+11. THE client SHALL 同時に表示する提案の数に上限を置かない（濃いものだけを `arms` 本に限る・AC 2.4）
 12. WHEN Visible_Groups のどの品目も端末の担当範囲の釜に無い, THE Slot_Board SHALL 提案を一切表示しない
 13. WHILE Timer_Connection が degraded Mode である, THE Slot_Card SHALL 提案を表示しない
 14. WHERE 1 件の推奨が複数の釜を含み All_Idle である, THE Slot_Card SHALL 含まれる各釜に同じ提案を表示する
@@ -171,13 +179,13 @@ _出所: 判断 3・4・6・7・8・15・17・19, 観測事実 1・3・12_
 
 #### Acceptance Criteria
 
-1. WHEN ユーザーが Group_Head の提案（薄・濃を問わず）を押す, THE Timer_Connection SHALL 当該品目の鍵と推奨の `slotIds` 全体で Order_Item_Start を要求する
+1. WHEN ユーザーが Head の提案（濃）を押す, THE Timer_Connection SHALL 当該品目の鍵と推奨の `slotIds` 全体で Order_Item_Start を要求する
 2. THE Slot_Card SHALL 提案が同じ群に属することを色・縁・番号で示さない
 3. THE Slot_Card SHALL 提案の語に命令形を用いない。濃の語は `now` のみ
 4. THE Slot_Card SHALL 提案の aria-label に品目・釜と、薄か濃かを含める。可視の語と食い違わない
 5. THE Slot_Card SHALL 提案の丸ボタン・ラベル（商品名・麺量・茹で加減・卓）・Start の配置を `slot-suggested-start` の形のまま保つ
-6. THE Slot_Card SHALL Group_Head でない提案に押す口を持たない（丸ボタンを描かない）。ラベルは Group_Head と同じ形で描く
-7. THE Slot_Card SHALL 提案の aria-label に、押せる（Group_Head）か否かを含める
+6. THE Slot_Card SHALL Head でない提案に押す口を持たない（丸ボタンを描かない）。ラベルは Head と同じ形で描く
+7. THE Slot_Card SHALL 提案の aria-label に、押せる（Head・`now`）か否か（`queued`）を含める
 
 _出所: 判断 5・9・17, 観測事実 3・4・14_
 
@@ -193,7 +201,7 @@ _出所: 判断 5・9・17, 観測事実 3・4・14_
 4. WHEN 選んだ品目の `slotSpan` が 2 以上, THE client SHALL 押した釜と、そこから `affinityToleranceDistance` の内側で最も近い idle の釜を `slotSpan` 個になるまで組にする
 5. IF `affinityToleranceDistance` の内側に足りる idle の釜が無い, THEN THE Radial_Menu SHALL 当該品目を選べない状態で示す
 6. THE Radial_Menu SHALL 麺種プリセット（アドホック開始）を残す
-7. THE client SHALL 釜の距離を domain の `slotDistance` と config の `unitOrigins` / `slotOffsets` から導く
+7. THE client SHALL 釜の距離を domain の `slotDistance` と config の `unitOrigins` / `slotOffsets` から導く。`arms` も config から写す（判断 21）
 8. WHILE Timer_Connection が degraded Mode である, THE Radial_Menu SHALL 待ち行列の品目を列挙しない（麺種プリセットは列挙する）
 9. THE Radial_Menu SHALL 選んでも開始されない品目を選べる形で示さない（非 live・釜が足りない、のいずれも）
 
@@ -230,7 +238,7 @@ _出所: 判断 11・12・13・16_
 6. **担当外の空白** — Visible_Groups の全品目が担当外の釜にあるとき、表示される提案は 0 件である
 7. **距離の一致** — client が用いる `slotDistance` は engine の目的関数が用いるものと同一の関数である
 8. **全釜 idle** — 表示される提案の `slotIds` の全釜は idle である（一部の釜が走行中の推奨は、どの釜にも表示されない）
-9. **先頭の一意** — 任意の snapshot と時刻で、押せる提案（丸ボタンを持つ）は各群につき `startAt` 最小の品目（同値は全部）だけである。放置して全品の `startAt` が過ぎても変わらない
+9. **先頭の上限** — 任意の snapshot と時刻で、押せる提案（丸ボタンを持つ）は店舗全体で `arms` 本以下で、いずれも `startAt ≤ Corrected_Now` を満たし、開始推奨時刻の順（同値は群の順・品目の順）の先頭から取られている。放置して全品の `startAt` が過ぎても `arms` 本を超えず、同じ snapshot で時刻が進むだけでは先頭が後続に戻らない
 10. **開始の事実の一意** — Group_Started は snapshot（群の `anchor`）と Corrected_Now だけから決まり、途中接続した端末と接続し続けた端末で一致する。同じ卓の後の batch（`anchor` null）は開始済みにならない
 12. **連続投入の見え方** — 同じ卓の同じ茹で時間の品目 8 本が「now」で並ぶ状態から 1 本ずつ数秒間隔で投入し続けるとき、各投入の直後の snapshot で、空いている釜の提案は消えず、`now` の先頭として残る（engine を実走させた横断 Example・`lift-group-planning` Requirement 7.6 の表示側）
 11. **非 live の沈黙** — degraded では、提案もラジアルの待ち行列も表示されず、`startOrderItem` が呼ばれることがない
