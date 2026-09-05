@@ -18,7 +18,7 @@
 1. **卓同期の項を Table_Lag の和にし、走行中 Timer を動かせない成員として同じ和に入れる**（判断 5）。これで「全員を Group_Anchor に揃える」が目的関数の唯一の最適点になり、自前解と外部解が同じ物差しに乗る。
 2. **走行中 Timer が卓の事実を持つ**（判断 6）。群の 1 本目を入れた後も、残りが 1 本目に揃う。
 3. **`slotSpan` 個の釜を割り当てる**（判断 11）。釜容量は本数ではなく `slotSpan` の合計で数える。
-4. **`arms` 超過をソフト制約として加える**。重みは `max(0, tableSyncWeight − 1)` の導出値で、設定も定数も足さない（判断 8・9）。
+4. ~~**`arms` 超過をソフト制約として加える**。重みは `max(0, tableSyncWeight − 1)` の導出値で、設定も定数も足さない（判断 8・9）。~~ **改訂（判断 20・Component 10）**：`arms` はソフトのまま、店舗全体の上げ窓で `arms` を超えた本数を Lift_Overflow（1 本 `liftIntervalSeconds` 秒相当・`total` にだけ）で減点し、`arms + HELPER_ARMS` をハード制約 (f) に置く。導出値の重みは消えた。
 5. **`score` を計画の型から落とす**（判断 7）。採点は比較の時点だけの導出になり、配置（`baselineSchedule` / `committedSchedule`）と採点（`admit`）が分離する。
 6. **要求の入力を engine 側へ一元化する**。`RequestPlan` が `noodlePresets` を運び、shell は Effect の写しを送るだけになる。
 
@@ -525,16 +525,18 @@ for u in units:
 
 ### 目的関数（一片）
 
+> **改訂（判断 20・21.7）**：下の `over` の行と `max(0, tableSyncWeight − 1) * over` の項は撤去済みで、履歴として残す。一片の部分和 `bySlice` は wait + w_table × lag + w_order × … + w_affinity × … の 4 項に閉じ、Lift_Overflow は店舗全体の項として `total` にだけ足す（Component 10・`scoreSchedule` の doc・AC 9.6 / 9.7）。
+
 ```
 scoreSlice(placements, arrivals, memberEnds, params):
   serveTimes = placements.map(serveAt) ++ memberEnds
   wait  = Σ_{p ∈ placements, arrivals にある} floor((p.serveAt − arrival(p)) / 1000)
   latest = max(serveTimes)                                   # 空なら 0 を返して終わり
   lag   = Σ_{t ∈ serveTimes} ceil((latest − t) / 1000)          # 逸脱の罰ゆえ切り上げ
-  over  = Σ_{t ∈ distinct(serveTimes)} max(0, count(t) − params.arms)
+  over  = Σ_{t ∈ distinct(serveTimes)} max(0, count(t) − params.arms)   # 撤去（判断 20）
   return wait
        + params.tableSyncWeight * lag
-       + max(0, params.tableSyncWeight − 1) * over
+       + max(0, params.tableSyncWeight − 1) * over                    # 撤去（判断 20）
        + params.orderSyncWeight * orderExcessSeconds(placements, params.orderSyncToleranceSeconds)
        + params.affinityWeight * affinityExcess(placements, params)
 ```

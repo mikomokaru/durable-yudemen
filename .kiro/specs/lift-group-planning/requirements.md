@@ -209,7 +209,7 @@ _出所: 判断 11, 観測事実 8・9・12_
 
 #### Acceptance Criteria
 
-1. THE `RequestPlan` SHALL 改めた目的関数に要る値（重み・`arms`・`toleranceRatio`（合流の窓）・レイアウト）と `noodlePresets` を運び、使われなくなった許容幅に依存しない。外部ソルバは arms 超過の重みを `max(0, tableSyncWeight − 1)` で導く（契約として明記し、別の重みで採点した外部解が同じ物差しに乗らないことを防ぐ）
+1. THE `RequestPlan` SHALL 改めた目的関数に要る値（重み・`arms`・`toleranceRatio`（合流の窓）・レイアウト）と `noodlePresets` を運び、使われなくなった許容幅に依存しない。~~外部ソルバは arms 超過の重みを `max(0, tableSyncWeight − 1)` で導く（契約として明記し、別の重みで採点した外部解が同じ物差しに乗らないことを防ぐ）~~ **改訂（判断 20）**：`RequestPlan` は `liftIntervalSeconds` も運ぶ（AC 9.1・`ScheduleParams` の 11 値・`PlanRequest.params` も同じ）。外部ソルバは Lift_Overflow を AC 9.6 の一意な貪欲（上がる時刻を昇順に走査し、未割当の最早の時刻 e を起点に窓 `[e, e + L)` の負荷から `max(0, 負荷 − arms)` を足して窓の内側を割当済みにする・重みは L = `liftIntervalSeconds` 秒/本・`total` にだけ（AC 9.7））で再現し、ハード制約 (f)（当該配置を含む窓の負荷 ≤ `arms + HELPER_ARMS`・HELPER_ARMS = 2・AC 9.5）を守る。`max(0, tableSyncWeight − 1)` の導出は消えた。契約として明記する目的——別の物差しで採点した外部解が同じ物差しに乗らないことを防ぐ——は変わらない（レビュー追記・2026-09-06）
 2. THE `RequestPlan` の `running` SHALL `Timer.tableId` を含む（錨の再現に要る）
 7. THE `CookRecommendation` SHALL `group: string`（snapshot 内で群を識別する。同じ確定計画の同じ群の品目は同じ値・永続しない）と `anchor: number | null`（合流した走行中の錨の実効 endTime。合流していなければ null）を運ぶ。`recommend` が確定計画（自前解・採用済み外部解とも）から導く（判断 19）
 8. THE `recommend` SHALL 群を次で決める——一片の中で、走行中の仲間 A に `|serveAt − A| ≤ h_i` で続く配置は「合流」で、同じ A に続くものが一つの群（`anchor = A`・複数が該当すれば最も近い A）。それ以外は `serveAt` の等しい配置ごとに一つの群（`anchor = null`）。卓を持たない品目は 1 品 1 群
