@@ -30,7 +30,13 @@ function nonEmpty<T>(values: readonly T[]): NonEmptyArray<T> {
 }
 
 function suggestion(overrides: Partial<QueueSuggestion> = {}): QueueSuggestion {
-  return { slotIds: nonEmpty(["0"]), startAt: 1_700_000_000_000, boilSeconds: 60, ...overrides };
+  return {
+    slotIds: nonEmpty(["0"]),
+    startAt: 1_700_000_000_000,
+    boilSeconds: 60,
+    serveAt: 1_700_000_060_000,
+    ...overrides,
+  };
 }
 
 function idle(next: QueueSuggestion | null): SlotDisplay {

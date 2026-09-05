@@ -193,7 +193,12 @@ describe("待ち行列の表示導出（AC 8.1 / 8.2 / 8.5）", () => {
     );
     const entries = orderQueueEntries(view, [0], T);
     expect(entries).toHaveLength(3);
-    expect(entries[0]?.suggestion).toEqual({ slotIds: ["3"], startAt: T + 5_000, boilSeconds: 60 });
+    expect(entries[0]?.suggestion).toEqual({
+      slotIds: ["3"],
+      startAt: T + 5_000,
+      boilSeconds: 60,
+      serveAt: T + 65_000,
+    });
     expect(entries[1]?.suggestion).toBeNull();
     expect(entries[2]?.suggestion).toBeNull();
   });

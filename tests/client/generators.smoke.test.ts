@@ -14,6 +14,7 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { EMPTY_VIEW, type ClientEvent, type ClientView } from "../../src/client/connection";
+import { liftGroups } from "../../src/client/components/liftGroups";
 import {
   genBoilSeconds,
   genClientTimer,
@@ -21,6 +22,7 @@ import {
   genCorrectedNow,
   genEvent,
   genEventStream,
+  genLiftScene,
   genPersistedBlob,
   genServerMessage,
   genValidPersistedBlob,
@@ -213,5 +215,62 @@ describe("client/generators 生成器土台のスモーク", () => {
     };
     expect(samples.some((b) => isValid(b))).toBe(true); // 妥当
     expect(samples.some((b) => b !== null && !isValid(b))).toBe(true); // 不正
+  });
+});
+
+describe("client/generators 群を作る場面（lift-group-display）のスモーク", () => {
+  it("genLiftScene は複数品の群・started の群・started でない同卓の群・卓なしの群を踏む", () => {
+    const scenes = fc.sample(genLiftScene, 300).map(({ view, corrected }) => ({
+      view,
+      corrected,
+      groups: liftGroups(view, corrected),
+    }));
+    expect(scenes.some((s) => s.groups.some((g) => g.items.length >= 2))).toBe(true);
+    expect(scenes.some((s) => s.groups.some((g) => g.started))).toBe(true);
+    // 同じ卓の走行中が在るのに started でない群（endTime の不一致・boiled）。
+    expect(
+      scenes.some((s) =>
+        s.groups.some(
+          (g) =>
+            !g.started &&
+            g.tableId !== null &&
+            s.view.timers.some((t) => t.orderItem?.tableId === g.tableId),
+        ),
+      ),
+    ).toBe(true);
+    expect(scenes.some((s) => s.groups.some((g) => g.tableId === null))).toBe(true);
+    // 先頭の群より後ろに、started でない群を挟んで隠れる群（群の境界・Requirement 6.5 の主語）。
+    expect(scenes.some((s) => s.groups.findIndex((g) => !g.started) < s.groups.length - 1)).toBe(
+      true,
+    );
+  });
+
+  it("genLiftScene の仲間は match / mismatch / stray / foreign と boiled を踏み、群に入らない推奨も混ざる", () => {
+    const scenes = fc.sample(genLiftScene, 300);
+    const timers = scenes.flatMap((s) => s.view.timers.map((t) => ({ t, s })));
+    expect(timers.some(({ t }) => t.orderItem === null)).toBe(true);
+    expect(timers.some(({ t }) => t.orderItem !== null && t.orderItem.tableId !== null)).toBe(true);
+    // boiled（endTime ≤ corrected）と走行中（endTime > corrected）の双方。
+    expect(timers.some(({ t, s }) => t.endTime <= s.corrected)).toBe(true);
+    expect(timers.some(({ t, s }) => t.endTime > s.corrected)).toBe(true);
+    // 群に入らない推奨（待ち行列に無い・麺種がプリセットに無い）が在るのに、推奨の総数より群の品目が少ない場面。
+    expect(
+      scenes.some(
+        (s) =>
+          s.view.recommendations.length >
+          liftGroups(s.view, s.corrected).reduce((n, g) => n + g.items.length, 0),
+      ),
+    ).toBe(true);
+    // 複数釜の推奨と、推奨の釜と仲間の釜が重なる盤面（全釜 idle を破る）。
+    expect(scenes.some((s) => s.view.recommendations.some((r) => r.slotIds.length >= 2))).toBe(
+      true,
+    );
+    expect(
+      scenes.some((s) =>
+        s.view.recommendations.some((r) =>
+          s.view.timers.some((t) => t.slotIds.some((id) => r.slotIds.includes(id))),
+        ),
+      ),
+    ).toBe(true);
   });
 });

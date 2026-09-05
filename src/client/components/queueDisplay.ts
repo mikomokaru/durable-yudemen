@@ -26,6 +26,15 @@ export interface QueueSuggestion {
   readonly startAt: number;
   /** 開始に用いる茹で秒。noodleType × firmness で麺種プリセットから引いた導出値。 */
   readonly boilSeconds: number;
+  /**
+   * 上がる時刻（`startAt + boilSeconds × 1000`・導出値）。
+   *
+   * 計画は同じ卓の品目の serveAt を揃えて出す（lift-group-planning）が、ワイヤは startAt しか運ばない
+   * （観測事実 10）。client は茹で秒を引いた時点でこの等号の左辺を得るので、ここで一度だけ再計算し、
+   * 群の鍵（同じ卓で serveAt が等しい・lift-group-display AC 1.1 / 1.2）はこの値で組む。
+   * 注文への参照は足さない——注文を指すのは GroupItem.order / QueueEntry.order で、提案は釜と時刻だけを語る。
+   */
+  readonly serveAt: number;
 }
 
 /**
@@ -89,8 +98,7 @@ export interface QueueEntry {
 /**
  * 待ち行列の全件について表示状態を到着順で導出する。
  *
- * 並びは（arrivalTime 昇順, externalOrderId 昇順, itemIndex 昇順）。第 2・第 3 の鍵はサーバ側の計画対象の
- * 整列と同じで、同時到着でも端末間・再描画間で並びが揺れない（同じ事実からは同じ見え方）。
+ * 並びは到着順の全順序 compareArrival（同じ事実からは同じ見え方）。
  *
  * 件数は絞らない。計画対象の上限を超える分も待ち行列には現れ、提案が付かないだけである（AC 2.4 / 8.1）。
  * 提案は担当スロット範囲で絞る（assignedBySlots の any-overlap＝Timer の担当絞り込みと同一判定）。
@@ -105,51 +113,73 @@ export function orderQueueEntries(
   const suggested = new Map<string, QueueSuggestion>();
   for (const recommendation of assignedBySlots(view.recommendations, units)) {
     const slotIds = recommendation.slotIds; // 非空はワイヤ境界（domain/wire.ts）が確立済み
-    const boilSeconds = boilSecondsOf(view.noodlePresets, recommendation, view.pendingOrders);
-    if (boilSeconds === null) continue; // 茹で秒を引けない提案は開始できない＝提案として成立しない
+    const order = pendingItemOf(view.pendingOrders, recommendation);
+    if (order === undefined) continue; // 対象品目が待ち行列に無い提案は開始できない＝提案として成立しない
+    const boilSeconds = boilSecondsOf(view.noodlePresets, order);
+    if (boilSeconds === null) continue; // 茹で秒を引けない提案も同じ
     suggested.set(itemKey(recommendation.externalOrderId, recommendation.itemIndex), {
       slotIds,
       startAt: recommendation.startAt,
       boilSeconds,
+      serveAt: recommendation.startAt + boilSeconds * 1000,
     });
   }
 
-  return [...view.pendingOrders]
-    .sort(
-      (a, b) =>
-        a.arrivalTime - b.arrivalTime ||
-        compareText(a.externalOrderId, b.externalOrderId) ||
-        a.itemIndex - b.itemIndex,
-    )
-    .map((order) => ({
-      order,
-      waitingMs: Math.max(0, corrected - order.arrivalTime),
-      suggestion: suggested.get(itemKey(order.externalOrderId, order.itemIndex)) ?? null,
-    }));
+  return [...view.pendingOrders].sort(compareArrival).map((order) => ({
+    order,
+    waitingMs: Math.max(0, corrected - order.arrivalTime),
+    suggestion: suggested.get(itemKey(order.externalOrderId, order.itemIndex)) ?? null,
+  }));
 }
 
-/** 品目の鍵（externalOrderId と itemIndex の組）。推奨と Pending_Order を突き合わせる唯一の同定手段。 */
+/**
+ * 到着順の全順序（arrivalTime 昇順, externalOrderId 昇順, itemIndex 昇順）。
+ *
+ * 待ち行列の並びと、群の中で startAt が同値の品目の並び（lift-group-display AC 1.4）は同じ順序を要る。
+ * 第 2・第 3 の鍵はサーバ側の計画対象の整列と同じで、同時到着でも端末間・再描画間で並びが揺れない。
+ */
+export function compareArrival(a: PendingOrder, b: PendingOrder): number {
+  return (
+    a.arrivalTime - b.arrivalTime ||
+    compareText(a.externalOrderId, b.externalOrderId) ||
+    a.itemIndex - b.itemIndex
+  );
+}
+
+/** 品目の鍵（externalOrderId と itemIndex の組）。推奨と Pending_Order を突き合わせる同定手段（pendingItemOf と同じ組）。 */
 function itemKey(externalOrderId: string, itemIndex: number): string {
   return `${externalOrderId}\u0000${itemIndex}`;
 }
 
 /**
- * 推奨の対象品目の茹で秒を麺種プリセットから引く（noodleType × firmness）。
+ * 推奨が指す品目を待ち行列から引く（品目の鍵の組で 1 品目を指す）。無ければ undefined。
  *
- * 茹で秒は Pending_Order も推奨も持たない導出値ゆえ、開始の直前にここで引く。対象品目が待ち行列に無い、
- * または麺種が現在のプリセットに無い（設定差し替えの過渡）ときは null——開始できない提案は出さない。
+ * レール（担当範囲の提案）と群（推奨の全量）はどちらも「推奨 → 品目 → 茹で秒」の順に辿る。突き合わせを
+ * 一箇所に置き、鍵の比較を二度書かない。
  */
-function boilSecondsOf(
-  presets: readonly NoodlePreset[],
-  recommendation: { readonly externalOrderId: string; readonly itemIndex: number },
+export function pendingItemOf(
   pending: readonly PendingOrder[],
-): number | null {
-  const order = pending.find(
+  recommendation: { readonly externalOrderId: string; readonly itemIndex: number },
+): PendingOrder | undefined {
+  return pending.find(
     (candidate) =>
       candidate.externalOrderId === recommendation.externalOrderId &&
       candidate.itemIndex === recommendation.itemIndex,
   );
-  if (order === undefined) return null;
+}
+
+/**
+ * 品目の茹で秒を麺種プリセットから引く（noodleType × firmness）。
+ *
+ * 茹で秒は Pending_Order も推奨も持たない導出値ゆえ、開始の直前にここで引く。麺種が現在のプリセットに無い
+ * （設定差し替えの過渡）ときは null——開始できない提案は出さない。計画側（schedule.ts の toBoiling）と同じ
+ * 引き方で、startAt + 茹で秒 は両端で整数ミリ秒として一致する（lift-group-display 観測事実 9）。群の導出
+ * （liftGroups）も同じ関数で serveAt を再計算する——等号の左辺と右辺を別の式で作らない。
+ */
+export function boilSecondsOf(
+  presets: readonly NoodlePreset[],
+  order: PendingOrder,
+): number | null {
   const preset = presets.find((candidate) => candidate.noodleType === order.noodleType);
   if (preset === undefined) return null;
   return preset.boilSeconds[order.firmness];
