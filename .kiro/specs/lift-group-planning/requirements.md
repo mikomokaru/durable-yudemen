@@ -173,6 +173,7 @@ _出所: 判断 5・6, 観測事実 2・3・19・22_
 4. THE `Placement.slotIds` SHALL 割り当てた釜すべてを持つ（`Timer.slotIds` と同じ基数）
 5. THE 計画 SHALL 釜容量を `slotSpan` の合計で数える（batch の分割の単位）
 6. THE 確定計画の合成 SHALL 採用済み一片の配置が品目の**現在の** `slotSpan` を満たさなければ陳腐化と見なし、そこから先を自前解で置き換える（v9 で採用された 1 釜の配置は v10 の制約で再検証される。永続は書き換えない。述語は Acceptance_Gate と同じ一つ）
+7. THE Acceptance_Gate SHALL 走行中の実効 endTime を、採用後に確定する Boil_Sync の同期結果（現行の設定で同期し直した値）で読む。設定の差し替えを跨いだ状態の古い adjustment で採点しない（判定の錨と確定の錨を一つにする）
 
 _出所: 判断 11, 観測事実 8・9・12_
 

@@ -79,10 +79,7 @@ export function settle(
   mayRequestPlan: boolean,
 ): Outcome {
   // running のみ再同期し、boiled は据え置いて元の並び順のまま合成する。
-  const running = moved.timers.filter((t) => t.boiledAt === null);
-  const synced = synchronize(running, params);
-  const nextTimers = mergeBoiled(moved.timers, synced);
-  const nextState: TimerState = { ...moved, timers: nextTimers };
+  const nextState: TimerState = { ...moved, timers: resynchronize(moved.timers, params) };
 
   // no-op 検出（要件7.7）：確定結果が prev と同一なら put も broadcast もしない。状態も prev を返す。
   if (isSameConfirmedResult(prev, nextState)) {
@@ -145,6 +142,20 @@ function requestPlan(
     noodlePresets: params.noodlePresets,
     digest,
   };
+}
+
+/**
+ * 現在のパラメータで running を再同期した Timer 列（boiled は据え置き・並び順はそのまま）。
+ *
+ * settle が確定する Timer 列はこれである。**確定の前に走行中の実効 endTime を読む判定は、同じ列を読まなければ
+ * ならない**——受領（plan.ts）の採否は走行中の仲間を群の錨として採点するが、設定（arms / toleranceRatio）の
+ * 差し替えを跨いだ状態の adjustment は旧設定の同期結果であり、settle が新設定で同期し直した瞬間に錨が
+ * 動く。判定と確定が別の錨を見れば、旧錨に揃える計画が「改善」として通り、確定後には悪化している。
+ * synchronize は基底の endTime から窓を組む（adjustment を読まない）ので、二度掛けても結果は変わらない。
+ */
+export function resynchronize(timers: readonly Timer[], params: SyncParams): readonly Timer[] {
+  const running = timers.filter((t) => t.boiledAt === null);
+  return mergeBoiled(timers, synchronize(running, params));
 }
 
 /**

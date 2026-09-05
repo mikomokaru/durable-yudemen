@@ -224,3 +224,84 @@ describe("decide — PlanArrived の配線", () => {
     expect(outcome.effects).toEqual([]);
   });
 });
+
+describe("receivePlan — 採否は採用後に確定する走行中と同じ実効 endTime で判定する（レビュー指摘・2026-09-05）", () => {
+  // 設定の差し替えを跨いだ状態を作る。走行中の仲間 T（卓 t-a・基底 endTime は 600 秒後）は旧設定の同期で
+  // +60 秒の adjustment を持ったままだが、現行設定（許容 1%・単独クラスタ）で同期し直せば 0 に戻る。
+  // 判定が旧錨（660 秒）を見て、確定が新錨（600 秒）を見れば、両者は食い違う。
+  const SIBLING: Timer = createTimer({
+    id: "t-sibling" as TimerId,
+    slotIds: nonEmpty(["1" as SlotId]),
+    noodleType: "Long" as NoodleType,
+    firmness: "normal",
+    startTime: NOW,
+    endTime: (NOW + 600 * SECOND) as EpochMillis,
+    seq: 10,
+    adjustment: 60 * SECOND,
+    orderItem: { externalOrderId: "o-sibling", itemIndex: 0, tableId: "t-a" },
+  });
+  /** 釜 2〜5 を塞ぎ、釜 1 は仲間が使う。空いているのは釜 0 だけ。 */
+  const TIMERS: readonly Timer[] = [...BLOCKED.filter((t) => t.slotIds[0] !== "1"), SIBLING];
+
+  function slice(startSeconds: number) {
+    return {
+      tableKey: "t-a",
+      placements: [
+        {
+          externalOrderId: LONG.externalOrderId,
+          itemIndex: 0,
+          slotIds: nonEmpty(["0" as SlotId]),
+          startAt: (NOW + startSeconds * SECOND) as EpochMillis,
+          serveAt: (NOW + (startSeconds + 600) * SECOND) as EpochMillis,
+        },
+      ],
+    };
+  }
+  /** 新錨（600 秒）に揃う配置と、旧錨（660 秒）に揃う配置。 */
+  const AT_600 = slice(0);
+  const AT_660 = slice(60);
+
+  function stateWith(accepted: ReturnType<typeof slice>): TimerState {
+    return {
+      ...EMPTY_STATE,
+      timers: TIMERS,
+      nextSeq: 11,
+      pendingOrders: [LONG],
+      acceptedSlices: [accepted],
+    };
+  }
+
+  it("旧錨に揃える計画は「改善」にならず棄却される（状態も Effect も動かない）", () => {
+    // 旧錨で採点すれば 660 < 720（採用済みの 600 秒は 60 秒の遅れ）に見えるが、確定後の錨は 600 秒であり
+    // 660 秒へ遅らせる計画は 780 へ悪化する。
+    const state = stateWith(AT_600);
+    const outcome = receive(state, { slices: [AT_660] });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state).toBe(state);
+    expect(outcome.effects).toEqual([]);
+  });
+
+  it("新錨に揃える計画は採用され、確定した走行中も同じ錨を持つ", () => {
+    // 逆向き。旧錨で採点すれば 720 > 661 で棄却されるが、確定後の錨（600 秒）では 601 < 780 の改善である。
+    const state = stateWith(AT_660);
+    const outcome = receive(state, { slices: [AT_600] });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state.acceptedSlices).toEqual([AT_600]);
+    const sibling = outcome.state.timers.find((t) => t.id === SIBLING.id)!;
+    expect(sibling.adjustment).toBe(0);
+    // 確定計画は採用した一片そのもの——判定が前提した錨と確定した錨が一致している。
+    const committed = committedSchedule(
+      outcome.state.acceptedSlices,
+      outcome.state.pendingOrders,
+      outcome.state.timers,
+      NOW,
+      PARAMS.noodlePresets,
+      PARAMS,
+    );
+    expect(committed.slices).toEqual([AT_600]);
+  });
+});

@@ -24,7 +24,7 @@ import type { Event } from "./event";
 import type { Outcome } from "./effect";
 import { admit } from "./admit";
 import { committedSchedule } from "./commit";
-import { settle } from "./settle";
+import { resynchronize, settle } from "./settle";
 import type { SettleParams } from "./settle";
 
 /** PlanArrived イベントの本体。receivePlan はこの形だけを受け取る（event.ts の唯一の出所を再利用）。 */
@@ -48,16 +48,24 @@ type PlanArrivedEvent = Extract<Event, { type: "PlanArrived" }>;
  * 食い違い、棄却された受領が `Persist` と `Broadcast` を出しうる。AC 6.6（すべて棄却なら状態を変えず
  * Persist も Broadcast も行わない）は無条件の断言であり、`settle` の副次的な性質に委ねてよい主張ではない。
  * 返す状態が引数の `state` そのものであることが、「状態を変更しない」を構造で示す。
+ *
+ * **採否は、採用後に確定する走行中と同じ実効 endTime の上で判定する。** 走行中の仲間は群の錨であり
+ * （lift-group-planning 判断 4）、その実効 endTime は Boil_Sync の同期結果である。設定の差し替えを跨いだ
+ * 状態では `state.timers` の adjustment が旧設定のもので、`settle` は新設定で同期し直す。判定を旧錨で、
+ * 確定を新錨で行えば、旧錨に揃える計画が「改善」として通り、確定した途端に悪化する。ゆえに判定の前に
+ * 同じ `resynchronize` を通す（同期は基底の endTime から組むので、settle の再同期と同じ列になる）。
+ * 棄却時に返すのは同期前の `state` のまま——AC 6.6 の「状態を変えない」を保つ。
  */
 export function receivePlan(
   state: TimerState,
   args: PlanArrivedEvent,
   params: SettleParams,
 ): Outcome {
+  const timers = resynchronize(state.timers, params);
   const committed = committedSchedule(
     state.acceptedSlices,
     state.pendingOrders,
-    state.timers,
+    timers,
     args.now,
     params.noodlePresets,
     params,
@@ -66,7 +74,7 @@ export function receivePlan(
     args.plan,
     committed,
     state.pendingOrders,
-    state.timers,
+    timers,
     args.now,
     params.noodlePresets,
     params,
