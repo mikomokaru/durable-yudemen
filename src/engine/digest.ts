@@ -117,6 +117,7 @@ export function digestInput(
   fold(params.orderSyncToleranceSeconds);
   fold(params.tableSyncToleranceSeconds);
   fold(params.affinityToleranceDistance);
+  fold(params.liftIntervalSeconds); // 上げ窓の長さ L と手伝いの費用（判断 20）
   // レイアウトは距離の唯一の出所ゆえ座標そのものを畳む。原点の数は unitCount（釜の数）＝置ける場所の全体。
   fold(params.unitOrigins.length);
   for (const origin of params.unitOrigins) {

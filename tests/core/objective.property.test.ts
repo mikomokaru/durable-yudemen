@@ -19,6 +19,8 @@ import {
   AFFINITY_TOLERANCE_DISTANCE_MIN,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_SLOT_OFFSETS,
+  LIFT_INTERVAL_SECONDS_MAX,
+  LIFT_INTERVAL_SECONDS_MIN,
   GRID_COORDINATE_MIN,
   SLOTS_PER_UNIT,
   SYNC_TOLERANCE_SECONDS_MAX,
@@ -112,6 +114,10 @@ function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     affinityToleranceDistance: fc.integer({
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
       max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
+    }),
+    liftIntervalSeconds: fc.integer({
+      min: LIFT_INTERVAL_SECONDS_MIN,
+      max: LIFT_INTERVAL_SECONDS_MAX,
     }),
     unitOrigins: fc.oneof(
       fc.constant(defaultUnitOrigins(unitCount)),

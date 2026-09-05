@@ -33,7 +33,7 @@ export type Effect =
       readonly type: "RequestPlan";
       readonly pending: readonly PendingOrder[]; // 計画の対象集合（未着手品目）
       readonly running: readonly Timer[]; // 釜を占める Timer（slot 解放表の所与）
-      readonly params: ScheduleParams; // 重み 3・arms・許容幅 2・距離 1・レイアウト 2 の 9 値
+      readonly params: ScheduleParams; // 重み 3・arms・許容調整割合・許容幅 2・距離 1・上げの間隔・レイアウト 2 の 11 値
       readonly noodlePresets: readonly NoodlePreset[]; // 茹で時間の出所（外部解が serveAt = startAt + 茹で時間 を満たすために要る）
       readonly digest: InputDigest; // 要求時点の Input_Fingerprint（この要求がどの入力に対するものかの同定）
     };

@@ -102,6 +102,28 @@ export const AFFINITY_TOLERANCE_DISTANCE_MIN = 0;
  */
 export const DEFAULT_AFFINITY_TOLERANCE_DISTANCE = 14;
 
+/**
+ * 上げの間隔（liftIntervalSeconds）の下限（秒）。arms 本を上げて湯を切り、次を上げられるまでに要る時間の
+ * 妥当域。0 を許さないのは、間隔 0 は「上げ窓を持たない」と同義で、判断 20 が足した項そのものを消すためである。
+ */
+export const LIFT_INTERVAL_SECONDS_MIN = 5;
+
+/** 上げの間隔の上限（秒）。茹で時間より長い間隔は物理として在りえない（最短の麺でも 45 秒前後）。 */
+export const LIFT_INTERVAL_SECONDS_MAX = 120;
+
+/**
+ * 上げの間隔の既定（秒）。現場で測る物理の値であり、既存の許容幅（h_i・tableSyncToleranceSeconds）の転用ではない
+ * （lift-group-planning 判断 20・ADR-0009）。store DO は投影 config に無ければこの定数を採る（AC 9.1）。
+ */
+export const DEFAULT_LIFT_INTERVAL_SECONDS = 45;
+
+/**
+ * 手伝いで一時的に増える腕の本数。計画では arms はソフト（超えた分は手伝いを頼む費用）、arms + HELPER_ARMS は
+ * ハード（成立しない）。手伝えるのは物理的に 1 人なので定数に置き、店舗差が実在するまで設定にしない
+ * （lift-group-planning 判断 20・AC 9.2・ADR-0009）。
+ */
+export const HELPER_ARMS = 2;
+
 /** 格子座標の下限。座標は 0 以上の整数（上限は置かない——台の増設を設定側で縛らない）。 */
 export const GRID_COORDINATE_MIN = 0;
 
@@ -349,6 +371,11 @@ export interface StoreConfig {
   readonly tableSyncToleranceSeconds: number;
   /** 許容 slot 距離（既定 DEFAULT_AFFINITY_TOLERANCE_DISTANCE）。超過分のみ計上する。 */
   readonly affinityToleranceDistance: number;
+  /**
+   * 上げの間隔（秒・LIFT_INTERVAL_SECONDS_MIN〜MAX の整数・既定 DEFAULT_LIFT_INTERVAL_SECONDS）。
+   * 上げ窓の長さ L であり、arms を超えて同じ窓に上がる 1 本あたりの手伝いの費用（秒相当）でもある（判断 20）。
+   */
+  readonly liftIntervalSeconds: number;
   /** ユニット原点の列（unitCount 個・既定 defaultUnitOrigins）。slot 座標は原点とオフセットの合成で導く。 */
   readonly unitOrigins: readonly UnitOrigin[];
   /** ユニット内 slot のオフセット（全ユニット共通・既定 DEFAULT_SLOT_OFFSETS）。 */
@@ -493,7 +520,7 @@ export function toTableSyncToleranceSeconds(raw: unknown): number {
  * 任意の生値を、AFFINITY_TOLERANCE_DISTANCE_MIN 以上の整数 affinityToleranceDistance へ写す純粋関数。
  *
  * 整数でない・非有限・負値は DEFAULT_AFFINITY_TOLERANCE_DISTANCE へ畳む（当該パラメータのみ・要件 3.4）。
- * 9 個の設定のうちこれだけが上限を持たず、畳み込みも下限のみで閉じる（理由は
+ * 10 個の設定のうちこれだけが上限を持たず、畳み込みも下限のみで閉じる（理由は
  * AFFINITY_TOLERANCE_DISTANCE_MIN の傍に一度だけ記す）。
  */
 export function toAffinityToleranceDistance(raw: unknown): number {
@@ -501,6 +528,24 @@ export function toAffinityToleranceDistance(raw: unknown): number {
     raw,
     AFFINITY_TOLERANCE_DISTANCE_MIN,
     DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  );
+}
+
+/**
+ * 任意の生値（永続投影・ワイヤ・運用投入のボディ）を、妥当域内の整数秒 liftIntervalSeconds へ写す純粋関数。
+ *
+ * 整数でない・妥当域外・非有限・**欠如**（undefined）はすべて DEFAULT_LIFT_INTERVAL_SECONDS へ畳む
+ * （lift-group-planning AC 9.1）。域外を境界へ寄せず既定へ戻すのは toArms / toToleranceRatio と同じ規律——
+ * 現場で測る物理の値であり、域外は「強すぎる希望」ではなく計測の誤りだからである。欠如を既定へ畳むのは、
+ * この項目が足される前に永続された投影（registry の Effective_Config）が実在し、それを読む store DO と
+ * config ワイヤが黙って落ちてはならないためである（AC 9.1「store DO は投影 config に無ければ定数 45 を採る」）。
+ */
+export function toLiftIntervalSeconds(raw: unknown): number {
+  return toIntegerWithin(
+    raw,
+    LIFT_INTERVAL_SECONDS_MIN,
+    LIFT_INTERVAL_SECONDS_MAX,
+    DEFAULT_LIFT_INTERVAL_SECONDS,
   );
 }
 

@@ -6,7 +6,7 @@
 // ここは超過分を計上するだけ——client の釜の組も同じ尺度を要るため、engine には置かない
 // （lift-group-display Requirement 6.7）。
 //
-// 採点のパラメータ（ScheduleParams）もここに置く。計画の算出・合成・受け入れも同じ 9 値を要するが、
+// 採点のパラメータ（ScheduleParams）もここに置く。計画の算出・合成・受け入れも同じ 11 値を要するが、
 // それらは採点を経由して要求するのであって、値の意味を定めているのは目的関数である（sync.ts が
 // SyncParams を持つのと同じ置き方）。
 
@@ -22,7 +22,8 @@ import type { EpochMillis, SlotId } from "./types";
  *
  * engine は domain の設定型（StoreConfig）を知らない。StoreConfig をそのまま渡せば、麺プリセットのように
  * 採点と無関係な項目まで engine が引き連れることになる（SyncParams が arms / toleranceRatio だけを受けるのと
- * 同じ規律）。重み 3・arms 1・許容幅 2・距離 1・レイアウト 2 の 9 値が、この計算の全入力である。
+ * 同じ規律）。重み 3・arms 1・許容調整割合 1・許容幅 2・距離 1・上げの間隔 1・レイアウト 2 の 11 値が、この
+ * 計算の全入力である。
  * arms は本数であって重みではない。SyncParams も arms を持つが、SettleParams が両者を継承するので実体は一つで
  * 足りる——値の意味（同時に上がる本数の超過を数える）を定めるのは目的関数の側ゆえ、ここにも置く。
  */
@@ -51,6 +52,11 @@ export interface ScheduleParams {
   readonly tableSyncToleranceSeconds: number;
   /** 許容 slot 距離。超過分のみ計上する。 */
   readonly affinityToleranceDistance: number;
+  /**
+   * 上げの間隔（秒・整数）。上げ窓の長さ L であり、Lift_Overflow の 1 本あたりの費用（秒相当）でもある
+   * （lift-group-planning 判断 20・AC 9.3・9.6）。採点（Lift_Overflow）と配置（`firstFit`）の両方が読む。
+   */
+  readonly liftIntervalSeconds: number;
   /** ユニット原点の列。slot 座標は原点とオフセットの合成で導く。 */
   readonly unitOrigins: readonly UnitOrigin[];
   /** ユニット内 slot のオフセット（全ユニット共通）。 */

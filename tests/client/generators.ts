@@ -52,6 +52,7 @@ import {
   DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
   DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_LIFT_INTERVAL_SECONDS,
   DEFAULT_SLOT_OFFSETS,
   DEFAULT_FIRMNESS_CODES,
   DEFAULT_MENU_ITEMS,
@@ -357,6 +358,8 @@ export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
       orderSyncToleranceSeconds: fc.constant(DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS),
       tableSyncToleranceSeconds: fc.constant(DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS),
       affinityToleranceDistance: fc.constant(DEFAULT_AFFINITY_TOLERANCE_DISTANCE),
+      // 上げの間隔は client に読み手が無い（表示は計画の startAt に従う・lift-group-planning ADR-0009）。既定で固定する。
+      liftIntervalSeconds: fc.constant(DEFAULT_LIFT_INTERVAL_SECONDS),
       unitOrigins: fc.constant(defaultUnitOrigins(unitCount)),
       slotOffsets: fc.constant(DEFAULT_SLOT_OFFSETS),
       // POS の対応表 2 枚は client 側の読み手が無い（本 spec の範囲外）。要らない次元へ生成の分散を

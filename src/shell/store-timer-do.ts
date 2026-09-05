@@ -32,8 +32,10 @@ import {
   DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
   DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_LIFT_INTERVAL_SECONDS,
   DEFAULT_SLOT_OFFSETS,
   defaultUnitOrigins,
+  toLiftIntervalSeconds,
 } from "../domain/store";
 import type { ArrivalRecord } from "../ingress/batch";
 import { readDeclaredText } from "../ingress/declared-text";
@@ -398,10 +400,11 @@ export class StoreTimerDO extends DurableObject<Env> {
   private toleranceRatio: number = DEFAULT_TOLERANCE_RATIO;
 
   /**
-   * 計画の採点パラメータ（StoreConfig の重み 3・arms・許容幅 2・距離 1・レイアウト 2）。サーバ権威設定。
+   * 計画の採点パラメータ（StoreConfig の重み 3・arms・許容調整割合・許容幅 2・距離 1・上げの間隔・レイアウト 2）。
+   * サーバ権威設定。
    *
    * unitCount と同じ系統で投影 config から反映し、decide 呼び出し時に settleParams へ載せ、config として
-   * 配信する（全項目配信へ方針転換した・design の中心的判断 10）。9 値を個別フィールドに散らさず 1 つの
+   * 配信する（全項目配信へ方針転換した・design の中心的判断 10）。11 値を個別フィールドに散らさず 1 つの
    * 束で持つのは、これが engine の採点関数がちょうど要する入力の全体（ScheduleParams）であり、
    * 意味を定めているのが目的関数の側だからである。arms（腕の本数）もここに一つだけ持つ——同期
    * （SyncParams）と採点（ScheduleParams）の両方が読むが、SettleParams が両者を継承するので実体は一つで足りる。
@@ -416,6 +419,7 @@ export class StoreTimerDO extends DurableObject<Env> {
     orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
     tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
     affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+    liftIntervalSeconds: DEFAULT_LIFT_INTERVAL_SECONDS,
     unitOrigins: defaultUnitOrigins(DEFAULT_UNIT_COUNT),
     slotOffsets: DEFAULT_SLOT_OFFSETS,
   };
@@ -642,6 +646,9 @@ export class StoreTimerDO extends DurableObject<Env> {
       orderSyncToleranceSeconds: config.orderSyncToleranceSeconds,
       tableSyncToleranceSeconds: config.tableSyncToleranceSeconds,
       affinityToleranceDistance: config.affinityToleranceDistance,
+      // 例外は上げの間隔——項目が足される前に永続された投影は持たないので、欠如だけを既定へ畳む（AC 9.1
+      // 「store DO は投影 config に無ければ定数 45 を採る」）。型は number でも永続値は古い形でありうる。
+      liftIntervalSeconds: toLiftIntervalSeconds(config.liftIntervalSeconds),
       unitOrigins: config.unitOrigins,
       slotOffsets: config.slotOffsets,
     };

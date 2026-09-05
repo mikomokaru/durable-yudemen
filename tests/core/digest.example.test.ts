@@ -31,6 +31,7 @@ const PARAMS: SettleParams = {
   orderSyncToleranceSeconds: 30,
   tableSyncToleranceSeconds: 60,
   affinityToleranceDistance: 14,
+  liftIntervalSeconds: 45,
   unitOrigins: defaultUnitOrigins(2),
   slotOffsets: DEFAULT_SLOT_OFFSETS,
 };
@@ -172,6 +173,14 @@ describe("engine/digest — digestInput", () => {
     // が配置を動かすようになった。解放表が動かなくても合流の可否が変わる。
     const baseline = digestInput(PENDING, RUNNING, PARAMS);
     expect(digestInput(PENDING, RUNNING, { ...PARAMS, toleranceRatio: 25 })).not.toBe(baseline);
+  });
+
+  it("liftIntervalSeconds は上げ窓の長さ L と手伝いの費用を導くので指紋を変える（lift-group-planning 判断 20）", () => {
+    // 走行中の上がりが同じでも、窓の長さが変われば firstFit の置き場所も Lift_Overflow の値も動く（AC 9.3・9.6）。
+    const baseline = digestInput(PENDING, RUNNING, PARAMS);
+    expect(digestInput(PENDING, RUNNING, { ...PARAMS, liftIntervalSeconds: 60 })).not.toBe(
+      baseline,
+    );
   });
 
   it("計画が読む値には反応する（arms は Arms_Overflow で採点に効く・slotSpan は割当に効く）", () => {

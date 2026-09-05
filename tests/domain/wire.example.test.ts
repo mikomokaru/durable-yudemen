@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import { toClientMessage, toServerMessage } from "../../src/domain/wire";
+import { DEFAULT_LIFT_INTERVAL_SECONDS } from "../../src/domain/store";
 import { RETIRED_MESSAGE_TYPES } from "./wireGenerators";
 
 const START = { type: "start", slotIds: ["0"], noodleType: "Thin", boilSeconds: 60 } as const;
@@ -116,6 +117,7 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
       orderSyncToleranceSeconds: 10,
       tableSyncToleranceSeconds: 10,
       affinityToleranceDistance: 10,
+      liftIntervalSeconds: 45,
       unitOrigins: [{ x: 0, y: 0 }],
       slotOffsets: [
         { x: 0, y: 0 },
@@ -195,6 +197,7 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
       orderSyncToleranceSeconds: 10,
       tableSyncToleranceSeconds: 10,
       affinityToleranceDistance: 10,
+      liftIntervalSeconds: 45,
       unitOrigins: [{ x: 0, y: 0 }],
       slotOffsets: [
         { x: 0, y: 0 },
@@ -231,6 +234,7 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
       orderSyncToleranceSeconds: 10,
       tableSyncToleranceSeconds: 10,
       affinityToleranceDistance: 10,
+      liftIntervalSeconds: 45,
       unitOrigins: [{ x: 0, y: 0 }],
       slotOffsets: [
         { x: 0, y: 0 },
@@ -262,6 +266,7 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
       orderSyncToleranceSeconds: 10,
       tableSyncToleranceSeconds: 10,
       affinityToleranceDistance: 10,
+      liftIntervalSeconds: 45,
       unitOrigins: [{ x: 0, y: 0 }],
       slotOffsets: [
         { x: 0, y: 0 },
@@ -274,5 +279,49 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
       menuItems: [],
     };
     expect(toServerMessage(JSON.stringify(fiveOffsets))).toBeNull();
+  });
+
+  // lift-group-planning AC 9.1：liftIntervalSeconds は後から足された項目で、足される前に永続された投影を
+  // 載せた config は項目を持たずに届きうる。欠如は「壊れた形」ではなく「古い投影」なので既定へ畳む。
+  // 在れば他の数値項目と同じく形（数値）だけを確かめる。
+  it("liftIntervalSeconds を持たない config は既定 45 で復号し、数値でなければ落ちる（AC 9.1）", () => {
+    const withoutLift = {
+      type: "config",
+      serverTime: 1,
+      unitCount: 1,
+      arms: 2,
+      toleranceRatio: 10,
+      noodlePresets: [
+        { noodleType: "Thin", boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
+      ],
+      orderSyncWeight: 1,
+      tableSyncWeight: 1,
+      affinityWeight: 1,
+      orderSyncToleranceSeconds: 10,
+      tableSyncToleranceSeconds: 10,
+      affinityToleranceDistance: 10,
+      unitOrigins: [{ x: 0, y: 0 }],
+      slotOffsets: [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 1, y: 1 },
+        { x: 0, y: 2 },
+        { x: 1, y: 2 },
+      ],
+      firmnessCodes: [],
+      menuItems: [],
+    };
+    const message = toServerMessage(JSON.stringify(withoutLift));
+    expect(message?.type).toBe("config");
+    expect(message?.type === "config" ? message.liftIntervalSeconds : null).toBe(
+      DEFAULT_LIFT_INTERVAL_SECONDS,
+    );
+    expect(
+      toServerMessage(JSON.stringify({ ...withoutLift, liftIntervalSeconds: 30 })),
+    ).toMatchObject({ liftIntervalSeconds: 30 });
+    expect(
+      toServerMessage(JSON.stringify({ ...withoutLift, liftIntervalSeconds: "45" })),
+    ).toBeNull();
   });
 });

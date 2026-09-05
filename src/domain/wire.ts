@@ -24,6 +24,7 @@ import { isFirmness } from "./firmness";
 import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";
 import type { PendingOrder } from "./order";
 import {
+  DEFAULT_LIFT_INTERVAL_SECONDS,
   SLOTS_PER_UNIT,
   toFirmnessCode,
   toGridPoint,
@@ -238,7 +239,7 @@ function toRecommendation(value: unknown): CookRecommendation | null {
 }
 
 /**
- * config を確立する。StoreConfig の全 14 項目をここで検証する。
+ * config を確立する。StoreConfig の全 15 項目をここで検証する。
  *
  * 項目の一覧はこの関数にしか無い（型側は `& StoreConfig` ゆえ第二の一覧を持たない）。StoreConfig に
  * 項目が増えれば、この関数が組む値が型に足りずコンパイルエラーになる——忘却の検出器はこの一箇所である。
@@ -251,7 +252,14 @@ function toConfigMessage(
   return config === null ? null : { type: "config", serverTime, ...config };
 }
 
-/** 生値を StoreConfig へ。数値項目は域を見ない（サーバ権威の確定値であり、形だけを確かめる）。 */
+/**
+ * 生値を StoreConfig へ。数値項目は域を見ない（サーバ権威の確定値であり、形だけを確かめる）。
+ *
+ * liftIntervalSeconds だけは**欠如**を既定へ畳む（lift-group-planning AC 9.1）。他の数値項目は欠けば
+ * Decode_Failure だが、この項目は後から足された——足される前に永続された投影（registry の Effective_Config）
+ * を載せた config は項目を持たずに届きうるので、欠如は「壊れた形」ではなく「古い投影」である。形の検査は
+ * 他と同じ（在れば数値であること）で、域は見ない。
+ */
 function toStoreConfig(record: Record<string, unknown>): StoreConfig | null {
   const {
     unitCount,
@@ -264,6 +272,10 @@ function toStoreConfig(record: Record<string, unknown>): StoreConfig | null {
     tableSyncToleranceSeconds,
     affinityToleranceDistance,
   } = record;
+  const liftIntervalSeconds =
+    record.liftIntervalSeconds === undefined
+      ? DEFAULT_LIFT_INTERVAL_SECONDS
+      : record.liftIntervalSeconds;
   if (
     typeof unitCount !== "number" ||
     typeof arms !== "number" ||
@@ -273,7 +285,8 @@ function toStoreConfig(record: Record<string, unknown>): StoreConfig | null {
     typeof affinityWeight !== "number" ||
     typeof orderSyncToleranceSeconds !== "number" ||
     typeof tableSyncToleranceSeconds !== "number" ||
-    typeof affinityToleranceDistance !== "number"
+    typeof affinityToleranceDistance !== "number" ||
+    typeof liftIntervalSeconds !== "number"
   ) {
     return null;
   }
@@ -302,6 +315,7 @@ function toStoreConfig(record: Record<string, unknown>): StoreConfig | null {
     orderSyncToleranceSeconds,
     tableSyncToleranceSeconds,
     affinityToleranceDistance,
+    liftIntervalSeconds,
     unitOrigins,
     slotOffsets,
     firmnessCodes,
