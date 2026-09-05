@@ -21,7 +21,6 @@ import {
   type LiftGroup,
   type SlotSuggestion,
 } from "../../src/client/components/liftGroups";
-import { boilSecondsOf } from "../../src/client/components/queueDisplay";
 import { slotOf } from "../../src/domain/store";
 import { genConnectivity, genLiftScene, genUnreachableReason } from "./generators";
 
@@ -69,9 +68,11 @@ describe("Feature: lift-group-display, Property 1: 群の等号（片方向）",
             expect(item.order.tableId).toBe(group.tableId);
             expect(item.suggestion.serveAt).toBe(group.serveAt);
             // 等号の左辺は茹で秒の再計算（プリセット × 茹で加減）。引けない品目は群に入っていない。
-            const boilSeconds = boilSecondsOf(view.noodlePresets, item.order);
-            expect(boilSeconds).not.toBeNull();
-            expect(item.suggestion.serveAt).toBe(item.suggestion.startAt + boilSeconds! * 1000);
+            // 照合はプリセットから直に引く——導出側の関数を照合に使えば、同じ誤りを両辺に写して等式が空になる。
+            const preset = view.noodlePresets.find((p) => p.noodleType === item.order.noodleType);
+            expect(preset).toBeDefined();
+            const boilSeconds = preset!.boilSeconds[item.order.firmness];
+            expect(item.suggestion.serveAt).toBe(item.suggestion.startAt + boilSeconds * 1000);
             expect(view.pendingOrders).toContain(item.order);
           }
           // 卓なしは 1 品 1 群（同じ鍵の品目しか含まない）。
