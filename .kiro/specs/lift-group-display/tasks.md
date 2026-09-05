@@ -4,7 +4,8 @@
 
 進め方は `lift-group-planning` と同じ——各 task を `[-]` で始め、終えたら `[x]` と実測を残す。チェックポイントは `pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm fmt:check`。コミットは task ごと。
 
-- [ ] 0. naming ゲートの確認（design 末尾の表）
+- [x] 0. naming ゲートの確認（design 末尾の表）
+  - 実測・2026-09-05: 表の名前はユーザー承認済み（「名前承認」）。実装で表に無い公開関数が 2 つ増えた——`suggestedItemOf`（推奨 → 品目 → 茹で秒 → serveAt の一連。`boilSecondsOf` は非公開に戻した）と `compareArrival`（到着順の全順序。レールと群で一つの定義）。いずれも既存のインライン式に名を与えたもので新しい概念ではないが、規律上は事後承認を要る。
   - `OrderItemOrigin` / `TimerFact.orderItem` / `PREP_LEAD_MS` / `LiftGroup` / `GroupItem` / `liftGroups` / `visibleGroups` / `headOf` / `slotSuggestions` / `pairSlots` / `SlotSuggestion`（`role` / `phase`）/ `SuggestionView` / `RadialQueueItem` / `RadialMenu.queue` / `onSelectItem` / `ClientView.unitOrigins` / `slotOffsets` / `affinityToleranceDistance` / `slotDistance`（移設）。撤去：`suggestionTiming` / `SuggestionTiming` / `planAnchor` / `nextForSlot` / `itemOf` / engine の `Ordered`。
   - ユーザー承認を得てから task 1 へ。
 
