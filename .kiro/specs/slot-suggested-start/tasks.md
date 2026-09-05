@@ -205,7 +205,7 @@
     - `pending-order-list-left-rail` の要件 3.9（固定文言に `Suggested` / `Slot(s)` を挙げている）に、本 spec が両語をカードへ移した旨を追記する。`verified-wire-contract` 5.1 と同じ扱いで、spec 間が矛盾したまま残らないようにする。
     - _Requirements: 4.7, 4.8_
 
-  - [ ] 10.2 ロールバック手順を残す
-    - 版 9 へ上げた以上、Worker を巻き戻すなら永続も戻す必要がある（`migrate.ts:65-66` は上限だけを見るため v8 のコードは v9 のデータを読めない）。
-    - 書き先は `docs/access-enablement/rollback-runbook.md` を前例とする（既存の運用手順の置き場）。永続スキーマの巻き戻しは別の関心事なので、同じディレクトリに並べるか `docs/` 直下に置くかは実装時に決める。
+  - [x] 10.2 ロールバック手順を残す
+    - 手順書は `docs/persisted-schema-rollback.md`（版に依らない 1 本。`lift-group-planning` task 15.2 で作成）。v9 の下り移行は §3 の表の v9 行——`version` を 8 にするだけで、`itemName` / `sizeName` は v8 の reviver が読まないので放置してよい。
+    - spec ごとに手順書を増やさない。版を上げる spec は同書 §3 の表に 1 行足す。
     - _Requirements: 6.1_

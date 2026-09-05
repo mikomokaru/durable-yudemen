@@ -253,9 +253,9 @@ Boil_Sync（`sync.ts` / `settle.ts` の同期・arms 分割・`toleranceRatio`�
     - 本 spec 側で書き足すことは無い。実装時に文面が現状の判断と食い違っていないかだけを見る。
     - _Requirements: 3.4_
 
-  - [ ] 15.2 永続スキーマの巻き戻し手順を 1 本にまとめる
+  - [x] 15.2 永続スキーマの巻き戻し手順を 1 本にまとめる
+    - 実測・2026-09-05: `docs/persisted-schema-rollback.md` を書いた（版に依らない事実、下り移行を同梱した巻き戻しビルドの手順、店舗単位の空状態、版ごとの表に v9 / v10）。`slot-suggested-start` task 10.2 はそれを指すだけに書き換えた。**訂正**: 下の「存在しないファイル」は誤り——`docs/access-enablement/rollback-runbook.md` は在る。ただし `ACCESS_REQUIRED` の切戻し手順であり、永続スキーマとは別の関心事なので、並べずに `docs/` 直下へ置いた。v10 の下り移行は `acceptedSlices` を空にする必要がある（v9 の reviver は `score` を必須にする）ことを実コードで確かめて表に書いた。
     - **spec ごとに手順書を増やさない。** `slot-suggested-start` の task 10.2 が v9 で同じ手順を「置き場は実装時に決める」としたまま未了で、`docs/` に巻き戻しの手順書は 1 本も無い（実測）。版を上げる spec のたびに増えれば、次の巻き戻しでどれを読むべきか分からなくなる。
     - 「**永続スキーマの版を上げたときの巻き戻し**」を 1 本の手順書として書く。版に依らない手順（`migrate.ts:65-66` は上限だけを見るため、旧コードは新データを読めない。Worker を戻すなら永続も戻す）と、版ごとの差（v9 で足した `itemName` / `sizeName`、v10 で足した `tableId` と落とした `score`）を表で持つ。
     - 本 spec がその 1 本を書き、`slot-suggested-start` の task 10.2 は**それを指すだけ**に書き換える（`docs/access-enablement/rollback-runbook.md` という存在しないファイルへの参照も同時に解消する）。
-    - _Requirements: 3.7_
     - _Requirements: 3.7_
