@@ -87,7 +87,7 @@ export function validateStart(input: {
  *
  * **注文品目から始まったときは、その品目を待ち行列から除く**（AC 8.4）。`orderItem` は Timer にも写して
  * 「どの品目から始まったか」を残す——生きた Timer を持つ品目が modification の再送で待ち行列へ復活するのを
- * upsertOrder が防ぐための唯一の手掛かりである（domain/timer.ts の OrderItemOrigin）。
+ * upsertOrder が防ぐための唯一の手掛かりである（engine/timer.ts の Ordered）。
  * **アドホック経路（`start`）では拒否事由を増やさない**（AC 8.3）。推奨と異なる釜・タイミングで開始しても通す。
  * この経路は品目を指さないため「開始済みの品目を再び開始する」という事象自体が起きない。品目を指す開始
  * （`startOrderItemTimer`）は品目不在を拒否するが、それは推奨との一致を検査するからではなく、麺種を導けない

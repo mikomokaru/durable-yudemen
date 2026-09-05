@@ -44,7 +44,6 @@ function timerOnSlot(slot: number, id: string): ClientTimer {
     firmness: "normal",
     startTime: 0,
     endTime: 60_000,
-    orderItem: null,
     origin: "server",
   };
 }

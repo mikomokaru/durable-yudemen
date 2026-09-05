@@ -1,4 +1,4 @@
-// engine/timer の createTimer が TimerFact.orderItem（OrderItemOrigin）をどう確立するかの回帰テスト。
+// engine/timer の createTimer が Ordered.orderItem をどう確立するかの回帰テスト。
 //
 // orderItem は「どの注文品目から始まったか」の事実で、null はアドホック麺茹で（POS を経ない開始）。
 // 開始済み品目を Pending_Order の置換から除く判定がこの事実だけに依るため、構築の一点で

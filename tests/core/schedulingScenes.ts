@@ -168,9 +168,9 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
     const now = (NOW + seed.elapsed) as EpochMillis;
     const pending = toPending(seed.orders);
     const params: SettleParams = {
-      toleranceRatio: seed.toleranceRatio,
       noodlePresets: DEFAULT_NOODLE_PRESETS,
       ...seed.schedule,
+      toleranceRatio: seed.toleranceRatio,
       // arms は同期と採点で一つ（SettleParams の実体は一つ）。場面の arms を採点側にも通す。
       arms: seed.arms,
     };

@@ -9,15 +9,14 @@
   - `OrderItemOrigin` / `TimerFact.orderItem` / `PREP_LEAD_MS` / `LiftGroup` / `GroupItem` / `liftGroups` / `visibleGroups` / `headOf` / `slotSuggestions` / `pairSlots` / `SlotSuggestion`（`role` / `phase`）/ `SuggestionView` / `RadialQueueItem` / `RadialMenu.queue` / `onSelectItem` / `ClientView.unitOrigins` / `slotOffsets` / `affinityToleranceDistance` / `slotDistance`（移設）。撤去：`suggestionTiming` / `SuggestionTiming` / `planAnchor` / `nextForSlot` / `itemOf` / engine の `Ordered`。
   - ユーザー承認を得てから task 1 へ。
 
-- [x] 1. ワイヤと engine — `TimerFact.orderItem`
-  - [x] 1.1 `src/domain/timer.ts` に `OrderItemOrigin` を定義し、`TimerFact.orderItem: OrderItemOrigin | null` を足す（doc は engine の `Ordered` から移す）
-  - [x] 1.2 `src/engine/timer.ts` の `Ordered` を削除。`Timer` は `TimerFact` から継承。`createTimer` の入力型を `TimerFact["orderItem"]` へ。`migrate.ts` / `start.ts` / `src/domain/order.ts` の注記 / `tests/core/{timer.example,sync.p4.property}.test.ts` の型参照を追随
-  - [x] 1.3 `src/engine/project.ts` の `toWireTimer` が `orderItem` を写す。`tests/core/to-wire-timer-adjustment.example.test.ts` を「`orderItem` を運ぶ」形へ（`WIRE_TIMER_KEYS` に加え、`toHaveProperty("orderItem", timer.orderItem)`）
-  - [x] 1.4 `src/domain/wire.ts` に `toOrderItemOrigin` を書いて export し、`toTimerFact` が読む（欠如 / null → null、非 null は `externalOrderId` 非空・`itemIndex` 非負整数・`tableId` null か非空文字列、逸脱は失敗）。`tests/domain/wireGenerators.ts` の `genTimerFact` に `orderItem` を足し、`wire.example` に欠如 → null と不正 → 失敗の例を足す
-  - [x] 1.5 `src/client/persistence.ts` の `toClientTimer` が `toOrderItemOrigin` で `orderItem` を復元する（永続は不正値も null に畳む・旧ブロブの優雅な移行）。`tests/client/persistenceCodec.property.test.ts` と `generators.ts` の Timer 生成器に `orderItem` を足す
-  - [x] 1.6 `src/client/connection.ts` の `decideLocalStart` が作る Provisional_Timer（`ClientTimer`）に `orderItem: null` を足す（永続からの復元とは別の生成経路。アドホック開始ゆえ常に null）。`tests/client/localAuthority.property.test.ts` / `decideView.property.test.ts` の期待値を追随
-  - [x] 1.7 チェックポイント（engine の遷移・計画・採点・永続のテストが変更なしに通ること＝Property 13）
-  - 実測・2026-09-05: `OrderItemOrigin` を `src/domain/timer.ts` に立て、engine の `Ordered` を削除（doc は `OrderItemOrigin` へ移し、engine 側には「共有事実になった」旨だけ残す）。`toOrderItemOrigin` は三値（欠如 / null → null・逸脱 → undefined）で、ワイヤは undefined を Decode_Failure に、永続は `?? null` に畳む——同じ関門を両方が使い、処置だけを呼び出し側の義務で分けた。`tableId` の判定は `toDeclaredName`（null か非空文字列）を共用。engine の遷移・計画・採点・永続のテストは変更なしに通った（Property 13）。**計画からの逸脱 2 点**：(1) `tests/core/sync.p4.property.test.ts` に `Ordered` の参照は無く（`canonicalOrderedSets` は別語）、`tests/client/decideView.property.test.ts` も生成器経由で期待値を組むため、いずれも追随は不要だった。(2) `TimerFact` に必須項目を足すため、tasks に挙げた以外の Timer リテラル 19 ファイル（`tests/client` の example / property・`tests/core/settle.property`・`audioGenerators`）に `orderItem: null` を足し、`TimerFact` のキー集合を固定する静的検査 2 本（`tests/operation-history/timer-model.static`・`tests/sync-set-batch-complete.static`）を 7 項目へ改めた（それぞれの眼目「Operation History / 一括完了が芯へ足さない」は保ち、他 spec の正当な拡張として追随）。`persistenceCodec.property` に旧ブロブ（`orderItem` 欠如 / 不正）の優雅な移行の Property を足した。typecheck 0（`worker-configuration.d.ts` を除く）・lint エラー 0・fmt:check 通過・226 ファイル 1408 件通過。**レビュー追記**：`wire.example` の「欠如 → null」の例は、ヘルパが「復号が落ちて null」と「復号が通って orderItem が null」を一つの null に潰しており Decode_Failure を反証できなかった。`decodeSnapshotTimer`（メッセージを返す）と `decodedOrderItem`（復号が通ったことを主張してから orderItem を返す）に分け、不正側は前者で snapshot 全体が落ちることを見る。件数は変わらず 226 ファイル 1408 件通過。
+- [ ] 1. ワイヤと engine — `TimerFact.orderItem`
+  - [ ] 1.1 `src/domain/timer.ts` に `OrderItemOrigin` を定義し、`TimerFact.orderItem: OrderItemOrigin | null` を足す（doc は engine の `Ordered` から移す）
+  - [ ] 1.2 `src/engine/timer.ts` の `Ordered` を削除。`Timer` は `TimerFact` から継承。`createTimer` の入力型を `TimerFact["orderItem"]` へ。`migrate.ts` / `start.ts` / `src/domain/order.ts` の注記 / `tests/core/{timer.example,sync.p4.property}.test.ts` の型参照を追随
+  - [ ] 1.3 `src/engine/project.ts` の `toWireTimer` が `orderItem` を写す。`tests/core/to-wire-timer-adjustment.example.test.ts` を「`orderItem` を運ぶ」形へ（`WIRE_TIMER_KEYS` に加え、`toHaveProperty("orderItem", timer.orderItem)`）
+  - [ ] 1.4 `src/domain/wire.ts` に `toOrderItemOrigin` を書いて export し、`toTimerFact` が読む（欠如 / null → null、非 null は `externalOrderId` 非空・`itemIndex` 非負整数・`tableId` null か非空文字列、逸脱は失敗）。`tests/domain/wireGenerators.ts` の `genTimerFact` に `orderItem` を足し、`wire.example` に欠如 → null と不正 → 失敗の例を足す
+  - [ ] 1.5 `src/client/persistence.ts` の `toClientTimer` が `toOrderItemOrigin` で `orderItem` を復元する（永続は不正値も null に畳む・旧ブロブの優雅な移行）。`tests/client/persistenceCodec.property.test.ts` と `generators.ts` の Timer 生成器に `orderItem` を足す
+  - [ ] 1.6 `src/client/connection.ts` の `decideLocalStart` が作る Provisional_Timer（`ClientTimer`）に `orderItem: null` を足す（永続からの復元とは別の生成経路。アドホック開始ゆえ常に null）。`tests/client/localAuthority.property.test.ts` / `decideView.property.test.ts` の期待値を追随
+  - [ ] 1.7 チェックポイント（engine の遷移・計画・採点・永続のテストが変更なしに通ること＝Property 13）
   - _Requirements: 5.1, 5.2, 5.3_
 
 - [x] 2. domain — `PREP_LEAD_MS` と `slotDistance` の移設
@@ -87,3 +86,13 @@
   - 実測・2026-09-05: 下の 2 点に加え、実装で判明した事実を記す。(1) 容量分割 (i) で 3 本を同時に始めると Boil_Sync（arms 2）が 324 / 324 / 396 秒に散らすため、design の「360 秒に 3 本が boiled」は一度の発火では起きない（横断 Example は実際の発火の連鎖 324 → 360 に従う。client の結論は design どおり）。(2) 発火後の再計画は残りを startAt 同値で置くので、群の並びは到着順で決まる（AC 1.4 の同値規則）。(3) happy-dom は `getBoundingClientRect` が 0 を返すため、ラジアルの帯の左右配置は Example では通らず、`verticalColumn`（弧の上下の広い側）だけが描画される。左右配置は実機で確認する。
   - 麺種プリセットのアドホック開始（`connection.start`）は起点の釜の占有を検査しない既存経路のまま（design Component 3）。
   - 設定変更直後の hydration snapshot は旧 adjustment の錨で推奨を出す（`lift-group-planning` tasks の申し送り）。
+
+- [x] 11. 実機の差し戻し（判断 20・`lift-group-planning` 判断 18・19・ADR-0008）——群の所属と開始の事実を engine から読む
+  - 実測・2026-09-05: `liftGroups` は `group` で束ね `started = anchor > corrected`。`TimerFact.orderItem` の 2 コミットは衝突なく revert。生成器は batch ごとに `group` と `anchor`（同じ実効 endTime の走行中を併せて置く・skew 0 / −5 / +3 秒）を振り、`foreign` の仲間は意味を失ったので落とした。性質は「群は `group` 以外から導かない」「分割点は表示できる群の `anchor` だけ」「started は `anchor` と Corrected_Now だけの関数」へ。横断 Example の場面 3（keepsAnchor）は h_i（Short 300 秒 → 30 秒）の窓で意味が変わった——錨が 605 / 570 秒へ動いても一片は窓の内側で残り started のまま（client に `serveAt === anchor` が要らない実証）。届かなくなる場面は 547 秒（53 秒差）で別に置いた。ADR-0008 と `recommend` の doc の「A ≤ serveAt ≤ A + h_i」は実装（±h_i・判断 18「前後どちらでも」）に合わせて直した。230 ファイル 1467 件通過（本体で再実行）。
+  - [x] 11.1 `liftGroups.ts`：群は `recommendation.group` で束ね、`started = anchor !== null && anchor > corrected`。`LiftGroup` は `{ group, anchor, items, started }`
+  - [x] 11.2 `TimerFact.orderItem` の撤去（task 1 の 2 コミットを revert）。engine の `Ordered` は元のまま。ADR-0003・steering の記述を戻す
+  - [x] 11.3 テストの追随：`generators.ts`（batch ごとの `group` / `anchor`）、`liftGroups.{property,example,crosslayer.example}`、`generators.smoke`、`slot-board-suggestions.example`、`radial-queue.example`
+  - [x] 11.4 design の Component 1 / 2・判定表・性質表・naming 表を判断 20 へ
+  - [x] 11.5 チェックポイント
+  - _Requirements: 1.2, 1.7, 5.1〜5.3, 6.1, 6.3, 6.10, 6.12_
+

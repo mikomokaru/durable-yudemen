@@ -65,7 +65,6 @@ function timer(overrides: Partial<ClientTimer> & { id: string }): ClientTimer {
     firmness: "normal",
     startTime: T0 - 30 * SECOND,
     endTime: T0 + 480 * SECOND,
-    orderItem: null,
     origin: "server",
     ...overrides,
   };

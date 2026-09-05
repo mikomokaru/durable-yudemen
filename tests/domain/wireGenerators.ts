@@ -26,7 +26,7 @@
 import * as fc from "fast-check";
 import type { ClientMessage, CookRecommendation, ServerMessage } from "../../src/domain/messages";
 import type { PendingOrder } from "../../src/domain/order";
-import type { NonEmptyArray, OrderItemOrigin, TimerFact } from "../../src/domain/timer";
+import type { NonEmptyArray, TimerFact } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
@@ -48,16 +48,6 @@ const genSlotIds: fc.Arbitrary<NonEmptyArray<string>> = fc
   .subarray([...SLOT_ID_POOL], { minLength: 1 })
   .map((slots) => nonEmpty(slots));
 
-/** Timer の由来。null（アドホック）と、卓あり / 卓なしの品目参照を分布する（lift-group-display 要件 5.2）。 */
-const genOrderItemOrigin: fc.Arbitrary<OrderItemOrigin | null> = fc.option(
-  fc.record({
-    externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
-    itemIndex: fc.integer({ min: 0, max: 8 }),
-    tableId: fc.option(fc.string({ minLength: 1, maxLength: 6 }), { nil: null }),
-  }),
-  { nil: null },
-);
-
 const genTimerFact: fc.Arbitrary<TimerFact> = fc.record({
   id: fc.string({ minLength: 1, maxLength: 8 }),
   slotIds: genSlotIds,
@@ -65,7 +55,6 @@ const genTimerFact: fc.Arbitrary<TimerFact> = fc.record({
   firmness: genFirmness,
   startTime: genEpoch,
   endTime: genEpoch,
-  orderItem: genOrderItemOrigin,
 });
 
 const genPendingOrder: fc.Arbitrary<PendingOrder> = fc.record({
@@ -86,6 +75,8 @@ const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
   itemIndex: fc.integer({ min: 0, max: 8 }),
   slotIds: genSlotIds,
   startAt: genEpoch,
+  group: fc.string({ minLength: 1, maxLength: 8 }),
+  anchor: fc.option(genEpoch, { nil: null }),
 });
 
 /**

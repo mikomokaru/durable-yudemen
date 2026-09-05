@@ -35,6 +35,11 @@ export interface ScheduleParams {
   readonly affinityWeight: number;
   /** 同時に上げられる本数（腕の本数）。同じ時刻に上がる卓の成員がこれを超えた分を数える。 */
   readonly arms: number;
+  /**
+   * 許容調整割合（整数パーセント・Boil_Sync と同じ値）。計画では合流の窓 h_i = 茹で時間 × toleranceRatio / 100 を
+   * 導く（lift-group-planning 判断 18）。採点は読まない——配置（schedule.ts）と合成・ゲートの述語が読む。
+   */
+  readonly toleranceRatio: number;
   /** 同一オーダー内の提供時刻差の許容幅（秒）。超過分のみ計上する。 */
   readonly orderSyncToleranceSeconds: number;
   /**

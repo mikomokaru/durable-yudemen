@@ -15,6 +15,6 @@ specs: lift-group-planning, lift-group-display
 ## Consequences
 
 - 永続スキーマの版が上がる（v9 → v10）。v9 以前の Timer は `tableId = null` として移行する。同じ版で `AcceptedSlice.score` を落とす（ADR-0001）。
-- ~~`TimerFact`（client ワイヤ）には出さない。走行中カードに卓を表示する必要が生じたとき、その spec が判断する。~~ **（2026-09-05 改訂・`lift-group-display` 判断 16）** `lift-group-display` が `orderItem`（品目参照と `tableId`）を `TimerFact.orderItem: OrderItemOrigin | null`（`src/domain/timer.ts`）としてワイヤに載せた。用途は群の開始（Group_Started）の判定だけ——同じ卓の走行中 Timer のうち `endTime` が群の `serveAt` に等しいものが在るか——で、走行中カードに卓は表示しない。engine 専用の `Ordered` は消え、`Timer` は `TimerFact` から `orderItem` を継承する。ワイヤで不正（空文字・負の index）なら復号失敗、欠如は null に畳む。`RequestPlan` の `running` には従来どおり出る——外部ソルバが錨を再現するのに要る。
+- `TimerFact`（client ワイヤ）には出さない。`lift-group-display` は一度 `orderItem` をワイヤに出した（判断 16・群の開始の判定のため）が、実運用の差し戻しで群の所属と合流の錨を `CookRecommendation.group` / `anchor` として engine が運ぶ形（ADR-0008・同 spec 判断 20）になり、読み手が無くなったので撤去した。engine の `Ordered.orderItem.tableId` は永続 v10 の事実として残る。走行中カードに卓を表示する必要が生じたとき、その spec が改めて判断する。
 - modification で品目の卓が移っても、走行中 Timer の `tableId` は追随しない。その Timer は既に旧卓の群として茹でている事実であり、再送で届いた未着手の品目は新しい卓の群に入る。
 - 錨より earliest が遅い品目があれば群ごと錨より後ろへずれ、走行中との差は減点として残る。ADR-0001 の「一致は保証ではない」の一例である。

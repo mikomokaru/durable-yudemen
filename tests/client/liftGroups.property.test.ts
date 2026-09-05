@@ -3,8 +3,9 @@
 // **Validates: Requirements 1.10, 6.1, 6.2, 6.3, 6.5, 6.8, 6.9, 6.10, 6.11**
 //
 // 群も先頭も提案も状態ではない。snapshot（推奨・待ち行列・Timer の全量）と補正後現在時刻からの導出値であり、
-// ビューに保持しない。ここで問うのは導出の性質——群の等号・端末に依らない一意・時間に対する単調性・群の境界・
-// 全釜 idle・先頭の一意・開始の事実・degraded の沈黙——である。
+// ビューに保持しない。ここで問うのは導出の性質——群の所属（`group` だけで束ねる）・端末に依らない一意・時間に
+// 対する単調性（分割点は `anchor` だけ）・群の境界・全釜 idle・先頭の一意・開始の事実（`anchor` と Corrected_Now
+// だけ）・degraded の沈黙——である。
 //
 // 「提案は idle にしか現れない」「member にボタンが無い」は型で真になる（PBT で検査する内容が無い）。描画の
 // 見え方は slot-card の example が担う。時刻はすべて生成器が引数値として吐き、Date.now のスタブは用いない。
@@ -21,6 +22,8 @@ import {
   type LiftGroup,
   type SlotSuggestion,
 } from "../../src/client/components/liftGroups";
+import { suggestedItemOf } from "../../src/client/components/queueDisplay";
+import type { CookRecommendation } from "../../src/domain/messages";
 import { slotOf } from "../../src/domain/store";
 import { genConnectivity, genLiftScene, genUnreachableReason } from "./generators";
 
@@ -29,6 +32,11 @@ const NUM_RUNS = 300;
 /** 品目の鍵。群の品目と釜の提案を突き合わせる（参照ではなく鍵で比べ、別の導出どうしを比較できるようにする）。 */
 function keyOf(item: GroupItem): string {
   return `${item.order.externalOrderId}#${item.order.itemIndex}`;
+}
+
+/** 推奨の鍵（品目の鍵と同じ形）。 */
+function recommendationKeyOf(recommendation: CookRecommendation): string {
+  return `${recommendation.externalOrderId}#${recommendation.itemIndex}`;
 }
 
 /** 釜ごとの提案を平らにする（釜番号つき）。 */
@@ -52,22 +60,32 @@ function groupOf(groups: readonly LiftGroup[], item: GroupItem): LiftGroup {
   return found;
 }
 
+/** 群の形（識別子を除く）——anchor・品目の鍵の列・started。群の付け替えの前後で比べる。 */
+function shapeOf(group: LiftGroup) {
+  return { anchor: group.anchor, items: group.items.map(keyOf), started: group.started };
+}
+
 /** 配列の並べ替え（同じ要素の別順）。 */
 function permutationOf<T>(values: readonly T[]): fc.Arbitrary<readonly T[]> {
   return fc.shuffledSubarray([...values], { minLength: values.length, maxLength: values.length });
 }
 
-describe("Feature: lift-group-display, Property 1: 群の等号（片方向）", () => {
-  it("同じ群の任意の 2 品目は卓が同じで serveAt が等しく、serveAt は startAt + 茹で秒の再計算である", () => {
+describe("Feature: lift-group-display, Property 1: 群の所属", () => {
+  it("同じ群の任意の 2 品目は推奨の group が等しく、群の anchor はその推奨の anchor で、serveAt は startAt + 茹で秒の再計算である", () => {
     fc.assert(
       // Feature: lift-group-display, Property 1
       // Validates: Requirements 6.1, 1.1, 1.2, 1.3
       fc.property(genLiftScene, ({ view, corrected }) => {
-        for (const group of liftGroups(view, corrected)) {
+        const groups = liftGroups(view, corrected);
+        for (const group of groups) {
           for (const item of group.items) {
-            expect(item.order.tableId).toBe(group.tableId);
-            expect(item.suggestion.serveAt).toBe(group.serveAt);
-            // 等号の左辺は茹で秒の再計算（プリセット × 茹で加減）。引けない品目は群に入っていない。
+            const recommendation = view.recommendations.find(
+              (candidate) => recommendationKeyOf(candidate) === keyOf(item),
+            );
+            expect(recommendation).toBeDefined();
+            expect(recommendation!.group).toBe(group.group);
+            expect(recommendation!.anchor).toBe(group.anchor);
+            // serveAt は茹で秒の再計算（プリセット × 茹で加減・表示用・AC 1.1）。引けない品目は群に入っていない。
             // 照合はプリセットから直に引く——導出側の関数を照合に使えば、同じ誤りを両辺に写して等式が空になる。
             const preset = view.noodlePresets.find((p) => p.noodleType === item.order.noodleType);
             expect(preset).toBeDefined();
@@ -75,11 +93,74 @@ describe("Feature: lift-group-display, Property 1: 群の等号（片方向）",
             expect(item.suggestion.serveAt).toBe(item.suggestion.startAt + boilSeconds * 1000);
             expect(view.pendingOrders).toContain(item.order);
           }
-          // 卓なしは 1 品 1 群（同じ鍵の品目しか含まない）。
-          if (group.tableId === null) {
-            expect(new Set(group.items.map(keyOf)).size).toBe(1);
-          }
         }
+        // 逆向き：開始できる推奨（品目が待ち行列に在り、麺種がプリセットに在る）の group がそのまま群の集合である。
+        const startable = view.recommendations.filter(
+          (recommendation) => suggestedItemOf(view, recommendation) !== null,
+        );
+        expect(new Set(groups.map((group) => group.group))).toEqual(
+          new Set(startable.map((recommendation) => recommendation.group)),
+        );
+        expect(groups.reduce((n, group) => n + group.items.length, 0)).toBe(startable.length);
+      }),
+      { numRuns: NUM_RUNS },
+    );
+  });
+
+  it("client は group 以外から群を導かない——同じ卓・同じ serveAt でも group を分ければ別の群になり、group の付け替えは群の形を変えない", () => {
+    fc.assert(
+      // Feature: lift-group-display, Property 1（group だけが鍵）
+      // Validates: Requirements 6.1, 1.2
+      fc.property(genLiftScene, fc.nat(), ({ view, corrected }, seed) => {
+        fc.pre(view.recommendations.length > 0);
+        const groups = liftGroups(view, corrected);
+
+        // 1 件の推奨だけ group を分ける。卓も serveAt も anchor も変えない。
+        const picked = seed % view.recommendations.length;
+        const target = view.recommendations[picked]!;
+        const split: ClientView = {
+          ...view,
+          recommendations: view.recommendations.map((recommendation, index) =>
+            index === picked
+              ? { ...recommendation, group: `${recommendation.group}:split` }
+              : recommendation,
+          ),
+        };
+        const splitGroups = liftGroups(split, corrected);
+        const item = suggestedItemOf(view, target);
+        if (item === null) {
+          // 開始できない推奨は群に入らないので、group を分けても何も変わらない。
+          expect(splitGroups).toEqual(groups);
+        } else {
+          // 分けた推奨は 1 品だけの群になり、元の群からその品目が抜ける（他の群は形を保つ）。
+          const alone = splitGroups.find((group) => group.group === `${target.group}:split`);
+          expect(alone?.items.map(keyOf)).toEqual([recommendationKeyOf(target)]);
+          expect(alone?.anchor).toBe(target.anchor);
+          const before = groups.find((group) => group.group === target.group)!;
+          const rest = splitGroups.find((group) => group.group === target.group);
+          expect(rest?.items.map(keyOf) ?? []).toEqual(
+            before.items.map(keyOf).filter((key) => key !== recommendationKeyOf(target)),
+          );
+          expect(
+            splitGroups
+              .filter((group) => group.group !== target.group && group.group !== alone!.group)
+              .map(shapeOf),
+          ).toEqual(groups.filter((group) => group.group !== target.group).map(shapeOf));
+        }
+
+        // group を全部付け替えても（単射）、群は識別子を除いて同じ形である——識別子は snapshot 内で閉じた記号にすぎない。
+        const renamed: ClientView = {
+          ...view,
+          recommendations: view.recommendations.map((recommendation) => ({
+            ...recommendation,
+            group: `x:${recommendation.group}`,
+          })),
+        };
+        const renamedGroups = liftGroups(renamed, corrected);
+        expect(renamedGroups.map(shapeOf)).toEqual(groups.map(shapeOf));
+        expect(renamedGroups.map((group) => group.group)).toEqual(
+          groups.map((group) => `x:${group.group}`),
+        );
       }),
       { numRuns: NUM_RUNS },
     );
@@ -123,7 +204,7 @@ describe("Feature: lift-group-display, Property 2: 一意（担当範囲・端�
 });
 
 describe("Feature: lift-group-display, Property 3: 単調な出現（例外つき）", () => {
-  it("同じ snapshot で時刻を進めても、同卓の仲間の endTime を跨がない限り提案は消えず薄→濃だけである", () => {
+  it("同じ snapshot で時刻を進めても、表示できる群の anchor を跨がない限り群は変わらず、提案は消えず薄→濃だけである", () => {
     fc.assert(
       // Feature: lift-group-display, Property 3
       // Validates: Requirements 6.3
@@ -132,21 +213,16 @@ describe("Feature: lift-group-display, Property 3: 単調な出現（例外つ�
         fc.integer({ min: 0, max: 600_000 }),
         ({ view, corrected }, delta) => {
           const before = visibleGroups(liftGroups(view, corrected));
-          // 分割点は「可視の群の serveAt に等しい endTime を持つ同卓の走行中 Timer」の endTime だけ。
-          // 他卓・endTime 不一致・orderItem: null の Timer の endTime は分割点にならない（跨いでも破れない）。
-          const splits = view.timers
-            .filter((timer) =>
-              before.some(
-                (group) =>
-                  group.tableId !== null &&
-                  timer.orderItem?.tableId === group.tableId &&
-                  timer.endTime === group.serveAt,
-              ),
-            )
-            .map((timer) => timer.endTime)
-            .filter((endTime) => endTime > corrected);
+          // 分割点は「表示できる群の anchor」だけ。Timer の endTime（錨の Timer のものを含め）は client の判定に
+          // 現れないので分割点にならない——跨いでも何も変わらない（started は anchor だけで決まる・AC 1.7）。
+          const splits = before
+            .map((group) => group.anchor)
+            .filter((anchor): anchor is number => anchor !== null && anchor > corrected);
           // 次の分割点の手前までしか進めない（跨げば例外の場面になる）。
           const later = Math.min(corrected + delta, ...splits.map((split) => split - 1));
+
+          // 表示できる群は同じ（群・anchor・started・並びとも）。
+          expect(visibleGroups(liftGroups(view, later))).toEqual(before);
 
           const earlier = flatten(slotSuggestions(before, view, corrected));
           const after = flatten(
@@ -171,36 +247,26 @@ describe("Feature: lift-group-display, Property 3: 単調な出現（例外つ�
     );
   });
 
-  it("例外：同卓の仲間の endTime を跨ぐと、その群は started でなくなり後続の群の提案は消える", () => {
+  it("例外：表示できる群の anchor を跨ぐと、その群は started でなくなり後続の群の提案は消える", () => {
     fc.assert(
       // Feature: lift-group-display, Property 3（例外の側）
       // Validates: Requirements 6.3, 1.7
       fc.property(genLiftScene, ({ view, corrected }) => {
         const groups = liftGroups(view, corrected);
         const visible = visibleGroups(groups);
-        // 可視の群のうち started のものの、走行中の仲間の endTime（最小のもの）を跨ぐ。
+        // 表示できる群のうち started のものの anchor（最小のもの）を跨ぐ。started ⇒ anchor は非 null で corrected より後。
         const split = Math.min(
-          ...view.timers
-            .filter(
-              (timer) =>
-                timer.endTime > corrected &&
-                visible.some(
-                  (group) =>
-                    group.started &&
-                    timer.orderItem?.tableId === group.tableId &&
-                    timer.endTime === group.serveAt,
-                ),
-            )
-            .map((timer) => timer.endTime),
+          ...visible
+            .filter((group) => group.started)
+            .map((group) => group.anchor)
+            .filter((anchor): anchor is number => anchor !== null),
         );
         fc.pre(Number.isFinite(split));
         const afterGroups = liftGroups(view, split);
-        // 跨いだ時刻で、その仲間が始めていた群はもう started でない（endTime ≤ corrected は数えない）。
+        // 跨いだ時刻で、その錨に合流していた群はもう started でない（anchor ≤ corrected は数えない）。
         for (const group of visible) {
-          if (!group.started || group.serveAt !== split) continue;
-          const same = afterGroups.find(
-            (candidate) => candidate.tableId === group.tableId && candidate.serveAt === split,
-          );
+          if (!group.started || group.anchor !== split) continue;
+          const same = afterGroups.find((candidate) => candidate.group === group.group);
           expect(same?.started).toBe(false);
         }
         // 表示できる群は、跨ぐ前の連鎖の接頭辞に縮む（並びは時刻に依らない）。
@@ -298,37 +364,28 @@ describe("Feature: lift-group-display, Property 9: 先頭の一意", () => {
 });
 
 describe("Feature: lift-group-display, Property 10: 開始の事実の一意", () => {
-  it("started は同卓の走行中 Timer の endTime と群の serveAt の等号だけで決まり、同じ卓の後の batch は偽", () => {
+  it("started は anchor と corrected だけで決まる——anchor null は決して started でなく、anchor ≤ corrected も started でなく、Timer の有無に依らない", () => {
     fc.assert(
       // Feature: lift-group-display, Property 10
-      // Validates: Requirements 6.10, 1.7
+      // Validates: Requirements 6.10, 1.7, 1.10
       fc.property(genLiftScene, ({ view, corrected }) => {
         const groups = liftGroups(view, corrected);
         for (const group of groups) {
-          const mates = view.timers.filter(
-            (timer) =>
-              group.tableId !== null &&
-              timer.orderItem?.tableId === group.tableId &&
-              timer.endTime === group.serveAt,
-          );
-          // 卓の一致だけ・endTime の一致だけでは真にならず、boiled（endTime ≤ corrected）は数えない。
-          expect(group.started).toBe(mates.some((timer) => timer.endTime > corrected));
-          if (group.tableId === null) expect(group.started).toBe(false);
+          expect(group.started).toBe(group.anchor !== null && group.anchor > corrected);
+          // 合流していない群（同じ卓の後の batch を含む）は、錨に一致する Timer が在っても started でない。
+          if (group.anchor === null) expect(group.started).toBe(false);
+          // 錨が茹で上がり（anchor ≤ corrected）に転じた群は started でない（保持しない・判断 16）。
+          if (group.anchor !== null && group.anchor <= corrected) expect(group.started).toBe(false);
         }
-        // 同じ卓の別の batch（serveAt が違う群）は、自身の仲間が無ければ started でない。
-        for (const group of groups) {
-          if (!group.started) continue;
-          for (const sibling of groups) {
-            if (sibling.tableId !== group.tableId || sibling.serveAt === group.serveAt) continue;
-            const own = view.timers.some(
-              (timer) =>
-                timer.orderItem?.tableId === sibling.tableId &&
-                timer.endTime === sibling.serveAt &&
-                timer.endTime > corrected,
-            );
-            if (!own) expect(sibling.started).toBe(false);
-          }
-        }
+        // 途中接続した端末（Timer をまだ持たない）も、Timer の endTime が動いた snapshot も、同じ推奨からは同じ
+        // started に達する——走行中 Timer の照合を判定に用いない（AC 1.7）。
+        const withoutTimers: ClientView = { ...view, timers: [] };
+        expect(liftGroups(withoutTimers, corrected)).toEqual(groups);
+        const shifted: ClientView = {
+          ...view,
+          timers: view.timers.map((timer) => ({ ...timer, endTime: timer.endTime + 1 })),
+        };
+        expect(liftGroups(shifted, corrected)).toEqual(groups);
       }),
       { numRuns: NUM_RUNS },
     );

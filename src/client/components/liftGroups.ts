@@ -27,22 +27,23 @@ export interface GroupItem {
 }
 
 /**
- * 同時に上げる群（Lift_Group）。同じ卓で serveAt が等しい品目の集合。卓なしは 1 品 1 群。
+ * 同時に上げる群（Lift_Group）——`CookRecommendation.group` が等しい推奨の集合（判断 20）。
  *
- * 計画側の Lift_Group（同じ卓）を batch で割った単位に一致する（判断 2・16）。許容幅で「近い」を判定しない
+ * 群の所属は engine が確定計画（自前解・採用済み外部解とも）から決め、snapshot 内の識別子で運ぶ
+ * （lift-group-planning 判断 19・ADR-0008）。client は卓・serveAt・許容幅のいずれからも群を逆算しない
  * ——揃っていないものを揃っていると言う経路を持たない。
  */
 export interface LiftGroup {
-  readonly tableId: string | null;
-  readonly serveAt: number;
+  /** engine が付けた群の識別子（snapshot 内で閉じる）。 */
+  readonly group: string;
+  /** 合流した走行中の錨の実効 endTime。合流していなければ null（engine が付ける）。 */
+  readonly anchor: number | null;
   /** startAt 昇順・同値は到着順（compareArrival）。 */
   readonly items: NonEmptyArray<GroupItem>;
   /**
-   * 群の最初の 1 本が始まった事実（Group_Started・判断 16）。卓なしは常に false（始まれば推奨から消えて群ごと消える）。
-   *
-   * 「同じ卓の**現在も走行中**の Timer のうち endTime が群の serveAt に等しいものが在る」——計画が合流した
-   * 残りを走行中の実効 endTime に揃える構成（lift-group-planning・ADR-0007）そのものを読む。卓の一致だけでは
-   * 容量分割の後の batch まで開始済みになり、endTime の一致だけでは無関係な Timer の偶然の一致を拾う（AC 1.7）。
+   * 群の最初の 1 本が始まった事実（Group_Started・判断 16 / 20）——`anchor` が非 null で、かつ `anchor > corrected`。
+   * 錨の Timer が茹で上がると開始済みでなくなる（茹で上がり後は保持しない）。boolean ではなく錨の時刻を
+   * 運ぶのは、次の snapshot が届く前に終了時刻を跨いだときの失効を client が読めるようにするためである。
    */
   readonly started: boolean;
 }
@@ -50,45 +51,31 @@ export interface LiftGroup {
 /**
  * 受信した推奨の全量から群を導く。最早 startAt 順・同値は先頭品目の到着順（AC 1.4）。
  *
- * 開始できない推奨（品目が待ち行列に無い・麺種がプリセットに無い）は群に入れない（AC 1.3）。
- * serveAt は suggestedItemOf が startAt + 茹で秒 × 1000 で一度だけ再計算した値で、ここでは計算し直さない
- * ——計画が揃えた等号をそのまま鍵にする（AC 1.1 / 1.2）。
+ * 開始できない推奨（品目が待ち行列に無い・麺種がプリセットに無い）は群に入れない（AC 1.3）。群の鍵は
+ * `recommendation.group`（engine が付けた識別子）そのもので、client は卓も serveAt も見ない（AC 1.2）。
  *
- * started が boiled（endTime ≤ corrected）を数えないのは、茹で上がりの発火で計画が残りを新しい群に組み直す
- * ——client が発火の snapshot より先に同じ結論に達するだけで、届いた snapshot と食い違わない（判断 16）。
- * ワイヤの endTime は実効値（adjustment を畳んだ後）で、計画が錨に使った値と同じである。
+ * started は `anchor`（合流した走行中の錨の実効 endTime）が corrected より後であること（AC 1.7）。boiled
+ * （anchor ≤ corrected）を数えないのは、茹で上がりの発火で計画が残りを新しい群に組み直す——client が発火の
+ * snapshot より先に同じ結論に達するだけで、届いた snapshot と食い違わない（判断 16）。同じ群の推奨は同じ
+ * `anchor` を運ぶ（engine の射影がそう定める）ので、先頭品目の値で足りる。
  */
 export function liftGroups(view: ClientView, corrected: number): readonly LiftGroup[] {
-  // 鍵は卓なしなら品目そのもの、卓ありなら (tableId, serveAt)。同じ鍵の品目を束ねる。
-  const buckets = new Map<string, GroupItem[]>();
+  const buckets = new Map<string, { anchor: number | null; items: GroupItem[] }>();
   for (const recommendation of view.recommendations) {
     const item: GroupItem | null = suggestedItemOf(view, recommendation);
     if (item === null) continue;
-    const { order } = item;
-    const key =
-      order.tableId === null
-        ? `solo\u0000${order.externalOrderId}\u0000${order.itemIndex}`
-        : `table\u0000${order.tableId}\u0000${item.suggestion.serveAt}`;
-    const bucket = buckets.get(key);
-    if (bucket) bucket.push(item);
-    else buckets.set(key, [item]);
+    const bucket = buckets.get(recommendation.group);
+    if (bucket) bucket.items.push(item);
+    else buckets.set(recommendation.group, { anchor: recommendation.anchor, items: [item] });
   }
 
   const groups: LiftGroup[] = [];
-  for (const bucket of buckets.values()) {
-    const items = [...bucket].sort(compareItems);
+  for (const [group, bucket] of buckets) {
+    const items = [...bucket.items].sort(compareItems);
     if (!isNonEmpty(items)) continue; // 束は 1 件以上で作られる。型のためだけの確認で、実行時には通らない
-    const { tableId } = items[0].order;
-    const { serveAt } = items[0].suggestion;
-    const started =
-      tableId !== null &&
-      view.timers.some(
-        (timer) =>
-          timer.orderItem?.tableId === tableId &&
-          timer.endTime === serveAt &&
-          timer.endTime > corrected,
-      );
-    groups.push({ tableId, serveAt, items, started });
+    const { anchor } = bucket;
+    const started = anchor !== null && anchor > corrected;
+    groups.push({ group, anchor, items, started });
   }
   return groups.sort((a, b) => compareItems(a.items[0], b.items[0]));
 }

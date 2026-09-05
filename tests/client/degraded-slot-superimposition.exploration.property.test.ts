@@ -191,7 +191,6 @@ function replayBoiledThenLocalStart(run: DegradedRun): DegradedRunStages {
     firmness: "normal",
     startTime: run.serverEndTime - 60_000,
     endTime: run.serverEndTime,
-    orderItem: null,
   };
 
   // (1) live で接続が確立し、全量 snapshot が server-confirmed を運ぶ（= down 前から在るタイマー）。
@@ -302,7 +301,6 @@ function replayCompleteThenReconcile(run: DegradedRun): ResurrectionRunStages {
     firmness: "normal",
     startTime: run.serverEndTime - 60_000,
     endTime: run.serverEndTime,
-    orderItem: null,
   };
 
   // (1) live で接続が確立し、全量 snapshot が server-confirmed を運ぶ（= down 前から在るタイマー）。

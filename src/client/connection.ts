@@ -332,9 +332,6 @@ function decideLocalStart(
     firmness: DEFAULT_FIRMNESS,
     startTime: event.correctedNow,
     endTime: event.correctedNow + event.boilSeconds * 1000,
-    // アドホック開始（麺種プリセット）ゆえ品目を指さない。品目を指す開始（startOrderItem）は非 live で
-    // 何もせず戻るので、Provisional_Timer が注文由来で生まれる経路は無い。
-    orderItem: null,
     origin: "local",
   };
   // 新規開始した駆動スロットの直前結果（残滓）は解除する（要件13.7）。

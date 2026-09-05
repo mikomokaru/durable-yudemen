@@ -83,16 +83,23 @@ function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): 
   };
 }
 
+/** 推奨。群の所属と錨は engine が付ける値をそのまま書く（既定は一つの群 `g1`・合流していない）。 */
 function recommendation(
   order: PendingOrder,
   slotIds: readonly string[],
   startAt: number,
+  {
+    group = "g1",
+    anchor = null,
+  }: { readonly group?: string; readonly anchor?: number | null } = {},
 ): CookRecommendation {
   return {
     externalOrderId: order.externalOrderId,
     itemIndex: order.itemIndex,
     slotIds: nonEmpty(slotIds),
     startAt,
+    group,
+    anchor,
   };
 }
 

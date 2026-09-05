@@ -28,6 +28,18 @@ export interface CookRecommendation {
   readonly slotIds: NonEmptyArray<string>;
   /** 推奨する開始の絶対時刻。到来しても自動開始はしない（指示ではなく提案）。 */
   readonly startAt: number;
+  /**
+   * 群（同じ投入作業として続ける品目のまとまり）の識別子。同じ snapshot の同じ群の品目は同じ値。snapshot を
+   * 跨いだ同一性は持たない（永続的な群の履歴を導入しない・lift-group-planning 判断 19）。client は群を計算せず
+   * これで束ねる。
+   */
+  readonly group: string;
+  /**
+   * 合流した走行中の錨の実効 endTime。走行中の仲間に合流していなければ null。client は群の開始（Group_Started）を
+   * `anchor > Corrected_Now` で読む——boolean ではなく時刻を運ぶのは、次の snapshot が届く前に錨の Timer が
+   * 茹で上がったときの失効を client が読めるようにするため。
+   */
+  readonly anchor: number | null;
 }
 
 /**

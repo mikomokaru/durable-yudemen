@@ -10,9 +10,8 @@
 //   2. 「TimerFact を god type にしないか」→ Timer は「既に茹でている釜の計時」、Pending_Order は
 //      「まだ釜に入っていない品目」。占有する slot も endTime も持たない、基数も生存期間も違う概念である。
 //      共有だからといって一つの型へ混ぜれば、共有の芯が片側都合で膨らみ、複雑性は抑制ではなく増幅に転じる。
-//   3. 「概念が別なら名前を分ける」→ よって独立した契約として立てる。両者を結ぶのは TimerFact.orderItem
-//      （OrderItemOrigin・{ externalOrderId; itemIndex; tableId }）で、参照は Timer の側だけが持つ
-//      （Pending_Order は Timer を指さない）。
+//   3. 「概念が別なら名前を分ける」→ よって独立した契約として立てる。両者を結ぶのは engine 専用の
+//      Ordered.orderItem（{ externalOrderId; itemIndex }）で、その紐づけは domain へは露出しない。
 
 import { isFirmness, type Firmness } from "./firmness";
 import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";

@@ -165,10 +165,13 @@ describe("engine/digest — digestInput", () => {
         noodlePresets: [...DEFAULT_NOODLE_PRESETS].reverse(),
       }),
     ).toBe(baseline);
+  });
 
-    // toleranceRatio が計画へ届く経路は running の実効 endTime ただ一つで、それは既に畳んである。
-    // 二重に畳めば「解放表が動かないパラメータ変更」で要求が出る。
-    expect(digestInput(PENDING, RUNNING, { ...PARAMS, toleranceRatio: 25 })).toBe(baseline);
+  it("toleranceRatio は合流の窓 h_i を導くので指紋を変える（lift-group-planning 判断 18）", () => {
+    // かつては running の実効 endTime 経由でしか計画に届かず畳まなかったが、合流の窓（茹で時間 × toleranceRatio）
+    // が配置を動かすようになった。解放表が動かなくても合流の可否が変わる。
+    const baseline = digestInput(PENDING, RUNNING, PARAMS);
+    expect(digestInput(PENDING, RUNNING, { ...PARAMS, toleranceRatio: 25 })).not.toBe(baseline);
   });
 
   it("計画が読む値には反応する（arms は Arms_Overflow で採点に効く・slotSpan は割当に効く）", () => {

@@ -73,7 +73,6 @@ function genFacts(
     firmness: fc.constantFrom(...FIRMNESS_POOL),
     startTime: fc.integer({ min: ANCHOR - 10_000, max: ANCHOR }),
     endTime: fc.constantFrom(...END_TIME_POOL),
-    orderItem: fc.constant(null),
   });
   return fc
     .uniqueArray(fc.constantFrom(...idPool), { maxLength: idPool.length })

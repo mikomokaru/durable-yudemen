@@ -17,6 +17,7 @@ import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_AFFINITY_WEIGHT,
   DEFAULT_ARMS,
+  DEFAULT_TOLERANCE_RATIO,
   DEFAULT_FIRMNESS_CODES,
   DEFAULT_MENU_ITEMS,
   DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
@@ -35,6 +36,7 @@ export function schedulingDefaults(unitCount: number): ScheduleParams {
     tableSyncWeight: DEFAULT_TABLE_SYNC_WEIGHT,
     affinityWeight: DEFAULT_AFFINITY_WEIGHT,
     arms: DEFAULT_ARMS,
+    toleranceRatio: DEFAULT_TOLERANCE_RATIO,
     orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
     tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
     affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
@@ -53,7 +55,11 @@ export function configResidualDefaults(
   unitCount: number,
 ): Omit<StoreConfig, "unitCount" | "arms" | "toleranceRatio" | "noodlePresets"> {
   // arms は Override の主張対象（StoreConfig 側）であり残余ではない。採点パラメータの束からは外して返す。
-  const { arms: _arms, ...scheduling } = schedulingDefaults(unitCount);
+  const {
+    arms: _arms,
+    toleranceRatio: _toleranceRatio,
+    ...scheduling
+  } = schedulingDefaults(unitCount);
   return {
     ...scheduling,
     firmnessCodes: DEFAULT_FIRMNESS_CODES,

@@ -58,7 +58,6 @@ describe("SlotCard — Complete の実描画境界", () => {
     firmness: "normal",
     startTime: START_NOW - 60_000,
     endTime: START_NOW,
-    orderItem: null,
   };
 
   it("boiled は Complete button を 1 つ描画し、running / idle は描画しない（要件7.1 / 7.3）", () => {
@@ -221,7 +220,6 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       firmness: "normal",
       startTime: START_NOW,
       endTime,
-      orderItem: null,
     };
   }
 

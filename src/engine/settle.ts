@@ -289,7 +289,13 @@ export function toWireSnapshot(
     timers: state.timers.map(toWireTimer),
     // 待ち行列は全量（計画対象 64 件を超える分も含む・AC 2.3 / 2.4）。推奨は確定計画からの導出値。
     pendingOrders: state.pendingOrders,
-    recommendations: recommend(committed),
+    recommendations: recommend(
+      committed,
+      state.pendingOrders,
+      state.timers,
+      params.noodlePresets,
+      params,
+    ),
   };
 }
 

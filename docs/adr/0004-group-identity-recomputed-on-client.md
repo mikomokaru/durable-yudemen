@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0008
 date: 2026-09-04
 specs: lift-group-display
 ---

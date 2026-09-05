@@ -24,14 +24,10 @@ type VariantKeys<K extends Effect["type"]> = keyof Extract<Effect, { readonly ty
 type ObservationOnlyKeys = "storeId" | "timerId" | "operationKind" | "eventTime" | "Record_Seq";
 type SequenceKeys = "Record_Seq" | "seq" | "nextSeq";
 type ModelShapeAssertions = [
-  // lift-group-display が orderItem を engine 専用（Ordered）から共有の芯へ移した（client が群の開始の判定に読む）。
   Assert<
-    Equal<
-      keyof TimerFact,
-      "id" | "slotIds" | "noodleType" | "firmness" | "startTime" | "endTime" | "orderItem"
-    >
+    Equal<keyof TimerFact, "id" | "slotIds" | "noodleType" | "firmness" | "startTime" | "endTime">
   >,
-  Assert<Equal<keyof Timer, keyof TimerFact | "seq" | "boiledAt" | "adjustment">>,
+  Assert<Equal<keyof Timer, keyof TimerFact | "seq" | "boiledAt" | "adjustment" | "orderItem">>,
   // 調理順スケジューリング（online-cook-scheduling タスク 5.1）が 3 フィールドを足した。この主張の眼目は
   // 「Operation History が Timer モデルへフィールドを足さないこと」であり、他 spec による正当な拡張は追随させる。
   // POS オーダー取り込み（pos-order-ingress タスク 10）が重複排除の判定材料を 1 つ足した。

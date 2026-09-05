@@ -44,7 +44,7 @@ function recommendation(
   slotIds: NonEmptyArray<string>,
   startAt: number,
 ): CookRecommendation {
-  return { externalOrderId, itemIndex, slotIds, startAt };
+  return { externalOrderId, itemIndex, slotIds, startAt, group: "g", anchor: null };
 }
 
 /** synced 済みのビュー（待ち行列と推奨だけを差し替える）。 */

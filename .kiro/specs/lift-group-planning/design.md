@@ -268,6 +268,16 @@ placeBatch(batch, release, runningAnchor: EpochMillis | null, params):
 
 `runningAnchor` は `members.get(tableKey)` の最大値（無ければ `null`）。**batch ごとに錨を取り直す**（AC 1.5）——batch 2 の `earliest` は進めた解放表から出るので、群全体の錨を使い回せば AC 1.4 が成り立たない。走行中の錨は卓の事実なのでどの batch にも同じ値が入るが、`max` の中で `earliest` に負けるだけで害はない。
 
+
+#### 判断 18・19 の改訂（実装で確定・2026-09-05）
+
+- **`ScheduleParams.toleranceRatio`** を足し、合流の窓 `joinWindowMillis(boil, params) = floor(boil × toleranceRatio / 100)` を `schedule.ts` に置く。指紋（`digest.ts`）に畳む。`RequestPlan` の `params` は SettleParams をそのまま載せるので追加の配線は無い。
+- `placeGroup(items, release, siblings, presets, params)`——`runningAnchor` の代わりに同じ卓の走行中の提供時刻の列（`tableMembers` の値・昇順）を受ける。`joinable` / `fits` は `catchable(earliest, siblings, boil, params)`（`A ≥ earliest − h_i` を満たす最早の A）で合流の可否を判定し、`placeJoined` は `joinedServeAt`——いずれかの A が `|earliest − A| ≤ h_i` なら **earliest**、無ければ earliest より後の最早の A——に置く。残りの batch は従来どおり `placeBatch(…, max(siblings))`。
+- `keepsAnchor(placements, release, siblings, targets, presets, params)`：(1) 走行中の最早より h_i を超えて手前に散らさない、(2) `isPushedOut`——合流分（`joinedAnchor` が非 null＝いずれかの A から h_i 以内）だけで解放表を進め、合流していない配置の釜が「最遅の A + h_i − 茹で時間」までに空いていたら押し出し。
+- `boilMillisOf` を `schedule.ts` から export し、admit.ts の重複を消した。
+- `recommend(committed, pending, running, presets, params)`：配置ごとに `joinedAnchor` を引き、`group = joined ? \`${slice}:anchor:${A}\` : \`${slice}:${serveAt}\``、`anchor = A | null`。
+- 検証：`tests/core/continuous-input.example.test.ts`（arms 1〜3 × 間隔 0 / 1 / 3 / 5 秒・6 本を順に投入し、各投入の直後に空いている釜の残りがすべて `anchor` 非 null で `startAt ≤ now`、いま押せる推奨が使わない空き釜に後ろへ置かれた品目が無い）。Property 1 は「最早の走行中 − h_i より手前に散らさない・最遅 + h_i より後ろは一つに揃う」へ。`digest.example` は toleranceRatio が指紋を変える形へ。
+
 ### Component 4: `admit.ts` — 再採点で比べ、`slotSpan` を見る
 
 #### 採点は 2 つの計画に対して 3 回

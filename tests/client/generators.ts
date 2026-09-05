@@ -30,7 +30,7 @@ import {
   type ServerMessage,
 } from "../../src/domain/messages";
 import type { PendingOrder } from "../../src/domain/order";
-import type { TimerFact, NonEmptyArray, OrderItemOrigin } from "../../src/domain/timer";
+import type { TimerFact, NonEmptyArray } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import { EMPTY_VIEW } from "../../src/client/connection";
 import type {
@@ -195,6 +195,8 @@ const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
   itemIndex: fc.integer({ min: 0, max: 2 }),
   slotIds: genSlotIds,
   startAt: genReceivedAt,
+  group: fc.constantFrom("g-1", "g-2", "g-3"),
+  anchor: fc.option(genReceivedAt, { nil: null }),
 });
 
 /** 開始推奨の全量（空・複数の双方）。 */
@@ -205,20 +207,6 @@ const genRecommendations: fc.Arbitrary<readonly CookRecommendation[]> = fc.array
 
 // ── Timer / View 生成器 ────────────────────────────────────────────────────────────────────────
 
-/**
- * Timer の由来。null（アドホック）と、待ち行列と同じプールから引く品目参照（卓あり / 卓なし）を分布する。
- * 同じプールを使うのは、走行中 Timer と未着手の品目が同じ卓を持つ盤面（群の開始の判定・lift-group-display
- * 判断 16）を密に生むためである。
- */
-export const genOrderItemOrigin: fc.Arbitrary<OrderItemOrigin | null> = fc.option(
-  fc.record({
-    externalOrderId: fc.constantFrom(...EXTERNAL_ORDER_ID_POOL),
-    itemIndex: fc.integer({ min: 0, max: 2 }),
-    tableId: fc.oneof(fc.constant<string | null>(null), fc.constantFrom(...TABLE_ID_POOL)),
-  }),
-  { nil: null },
-);
-
 /** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。 */
 export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
@@ -227,7 +215,6 @@ export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
-  orderItem: genOrderItemOrigin,
   origin: genTimerOrigin,
 });
 
@@ -332,7 +319,6 @@ const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
-  orderItem: genOrderItemOrigin,
 });
 
 /** TimerFact 集合（id 一意・全置換 snapshot / Reconcile の入力）。空集合も含む。 */
@@ -502,20 +488,24 @@ export const genViewAndCorrectedNow: fc.Arbitrary<{ view: ClientView; correctedN
 
 // ── 群を作る場面（lift-group-display） ────────────────────────────────────────────────────────
 //
-// 上の genClientView は畳み込み（decideView）の入力空間で、推奨と待ち行列が同じ品目を指す組は密に生じても
-// 「同じ卓で serveAt が揃う」品目は偶然にしか生まれない。群の導出（liftGroups / slotSuggestions / pairSlots）
-// の性質を問うには、serveAt が揃う品目を意図的に作り、走行中の仲間を「群の serveAt に一致する」「一致しない」
-// 「卓を持たない」「別の卓」の 4 種で混ぜた盤面が要る（design「生成器」）。boiled の仲間は corrected の側で
-// 踏む（endTime 以後の corrected を境界として引く）。
+// 上の genClientView は畳み込み（decideView）の入力空間で、推奨の group / anchor は無作為に振られ、「同じ群の推奨は
+// 同じ anchor を運ぶ」という engine の射影の不変条件を保たない。群の導出（liftGroups / slotSuggestions / pairSlots）
+// の性質を問うには、engine が出す形を意図的に作る盤面が要る——batch ごとに一つの group、合流した batch は全品が
+// 同じ anchor（走行中の錨の実効 endTime）を運び、その錨の Timer が走行中に在る。合流していない batch は anchor が
+// null。錨が過去（anchor ≤ corrected・boiled）は corrected の側で踏む（錨の直前・ちょうど・直後を境界として引く）。
 
 /** 群を作る場面の基準時刻（エポックミリ秒）。群の serveAt はここから先に置く。 */
 export const LIFT_SCENE_ORIGIN = 1_700_000_000_000;
 
-/** 群を作る場面の卓。null は卓なし（1 品 1 群）。 */
+/** 群を作る場面の卓。null は卓なし。client は卓を群の判定に読まない（AC 1.2）ので、待ち行列の写しにだけ載る。 */
 const LIFT_TABLE_POOL: readonly (string | null)[] = [null, "tb-1", "tb-2"];
 
-/** 走行中の仲間の種別。match だけが群を started にする（他は卓か endTime のどちらかが外れる）。 */
-type LiftMateKind = "match" | "mismatch" | "stray" | "foreign";
+/**
+ * 走行中の仲間の種別。match は batch の錨（合流していなければ serveAt）に endTime が一致し、mismatch は 1 秒ずれ、
+ * stray は無関係の時刻に上がる。client はどれも読まない（started は anchor だけで決まる・AC 1.7）——一致する
+ * Timer が在っても anchor が null なら started でなく、Timer が無くても anchor が未来なら started である。
+ */
+type LiftMateKind = "match" | "mismatch" | "stray";
 
 /** 品目の茹で秒（DEFAULT_NOODLE_PRESETS × firmness）。場面の組み立てと性質の再計算が同じ表を引く。 */
 function sceneBoilSeconds(noodleType: string, firmness: Firmness): number {
@@ -532,14 +522,25 @@ interface LiftItemSpec {
   readonly arrivalOffset: number;
 }
 
-/** 群を作る場面の batch（同じ卓・同じ serveAt に揃う品目の束）。 */
+/**
+ * 合流した batch の錨——走行中の Timer として盤面に置く。skew は serveAt からのずれ（合流した品目の serveAt は
+ * 錨と h_i 以内でずれうる・lift-group-planning 判断 18）で、anchor = serveAt + skew。
+ */
+interface LiftAnchorSpec {
+  readonly skew: number;
+  readonly slotIds: NonEmptyArray<string>;
+  readonly boilSeconds: number;
+}
+
+/** 群を作る場面の batch（一つの群）。anchor が null なら合流していない群。 */
 interface LiftBatchSpec {
   readonly tableId: string | null;
   readonly serveAt: number;
+  readonly anchor: LiftAnchorSpec | null;
   readonly items: readonly LiftItemSpec[];
 }
 
-/** 走行中の仲間。batch を指し、種別で卓と endTime の一致 / 不一致を決める。 */
+/** 走行中の仲間。batch を指し、種別で endTime の一致 / 不一致を決める。 */
 interface LiftMateSpec {
   readonly batch: number;
   readonly kind: LiftMateKind;
@@ -555,6 +556,11 @@ interface LiftSceneSpec {
   readonly retired: boolean;
 }
 
+/** batch の錨の時刻（合流していなければ null）。 */
+function anchorOf(batch: LiftBatchSpec): number | null {
+  return batch.anchor === null ? null : batch.serveAt + batch.anchor.skew;
+}
+
 /** 場面の指定からビュー（live・synced）を組む。 */
 function liftViewOf(
   unitCount: number,
@@ -562,7 +568,10 @@ function liftViewOf(
 ): ClientView {
   const pendingOrders: PendingOrder[] = [];
   const recommendations: CookRecommendation[] = [];
+  const timers: ClientTimer[] = [];
   batches.forEach((batch, batchIndex) => {
+    const group = `g${batchIndex}`;
+    const anchor = anchorOf(batch);
     batch.items.forEach((item, itemIndex) => {
       const externalOrderId = `o-${batchIndex}`;
       pendingOrders.push({
@@ -581,8 +590,22 @@ function liftViewOf(
         itemIndex,
         slotIds: item.slotIds,
         startAt: batch.serveAt - sceneBoilSeconds(item.noodleType, item.firmness) * 1000,
+        group,
+        anchor,
       });
     });
+    // 合流した batch の錨は走行中の Timer として盤面に在る（engine は走行中の仲間の実効 endTime を anchor に写す）。
+    if (batch.anchor !== null && anchor !== null) {
+      timers.push({
+        id: `t-anchor-${batchIndex}`,
+        slotIds: batch.anchor.slotIds,
+        noodleType: "Thin",
+        firmness: "normal",
+        startTime: anchor - batch.anchor.boilSeconds * 1000,
+        endTime: anchor,
+        origin: "server",
+      });
+    }
   });
   if (retired) {
     pendingOrders.push({
@@ -601,6 +624,8 @@ function liftViewOf(
       itemIndex: 0,
       slotIds: nonEmpty(["0"]),
       startAt: LIFT_SCENE_ORIGIN,
+      group: "g-retired",
+      anchor: null,
     });
   }
   if (orphan) {
@@ -609,32 +634,27 @@ function liftViewOf(
       itemIndex: 0,
       slotIds: nonEmpty(["0"]),
       startAt: LIFT_SCENE_ORIGIN,
+      group: "g-orphan",
+      anchor: null,
     });
   }
-  const timers: ClientTimer[] = mates.map((mate, mateIndex) => {
+  mates.forEach((mate, mateIndex) => {
     const batch = batches[mate.batch % batches.length]!;
-    const endTime = mate.kind === "mismatch" ? batch.serveAt + 1000 : batch.serveAt;
-    const tableId =
-      mate.kind === "stray"
-        ? null
-        : mate.kind === "foreign"
-          ? batch.tableId === "tb-1"
-            ? "tb-2"
-            : "tb-1"
-          : batch.tableId;
-    return {
+    const endTime =
+      mate.kind === "match"
+        ? (anchorOf(batch) ?? batch.serveAt)
+        : mate.kind === "mismatch"
+          ? batch.serveAt + 1000
+          : LIFT_SCENE_ORIGIN + mate.boilSeconds * 1000;
+    timers.push({
       id: `t-mate-${mateIndex}`,
       slotIds: mate.slotIds,
       noodleType: "Thin",
       firmness: "normal",
       startTime: endTime - mate.boilSeconds * 1000,
       endTime,
-      orderItem:
-        mate.kind === "stray"
-          ? null
-          : { externalOrderId: `o-mate-${mateIndex}`, itemIndex: 0, tableId },
       origin: "server",
-    };
+    });
   });
   return {
     ...EMPTY_VIEW,
@@ -652,14 +672,15 @@ function liftViewOf(
 /**
  * 群を作る場面のビュー（live・synced）。
  *
- * batch ごとに卓と serveAt を決め、1〜3 品の茹で秒から startAt を逆算する（同じ batch の品目は serveAt が
- * 揃う）。卓なしの batch は品目ごとに 1 群へ割れる。同じ (卓, serveAt) の batch が 2 つ出れば一群に束なる
- * ——それも正当な場面である。加えて、待ち行列に無い品目への推奨（orphan）とプリセットに無い麺種の品目
- * （retired）を混ぜ、群に入らない推奨（AC 1.3）を踏む。
+ * batch ごとに group（`g0`, `g1`, …）・卓・serveAt を決め、1〜3 品の茹で秒から startAt を逆算する（同じ batch の
+ * 品目は serveAt が揃う）。batch は合流している（全品が同じ anchor を運び、その錨の Timer が走行中に在る）か、
+ * 合流していない（anchor が null）かのどちらか。錨は serveAt から少しずれうる（合流した品目は錨と h_i 以内で
+ * ずれる）。別の batch が同じ卓・同じ serveAt を持っても group が違えば別の群である（AC 6.1）。加えて、待ち行列に
+ * 無い品目への推奨（orphan）とプリセットに無い麺種の品目（retired）を混ぜ、群に入らない推奨（AC 1.3）を踏む。
  *
- * 走行中の仲間は batch を指して作る。match は同じ卓で endTime = serveAt、mismatch は同じ卓で endTime が
- * 1 秒ずれ、stray は卓を持たず endTime = serveAt（偶然の一致）、foreign は別の卓で endTime = serveAt。
- * 仲間の釜は推奨の釜と同じプールから引き、推奨の釜と重なる（全釜 idle を破る）盤面も生む。
+ * 走行中の仲間は batch を指して作る。match は錨（合流していなければ serveAt）に endTime が一致し、mismatch は
+ * 1 秒ずれ、stray は無関係の時刻に上がる。仲間と錨の釜は推奨の釜と同じプールから引き、推奨の釜と重なる
+ * （全釜 idle を破る）盤面も生む。
  */
 export const genLiftView: fc.Arbitrary<ClientView> = fc
   .integer({ min: 1, max: 2 })
@@ -674,15 +695,22 @@ export const genLiftView: fc.Arbitrary<ClientView> = fc
       slotIds: genSceneSlotIds,
       arrivalOffset: fc.integer({ min: 0, max: 600_000 }),
     });
+    const genAnchor = fc.record({
+      // 錨と serveAt のずれ。0 と前後数秒（Boil_Sync の範囲）。
+      skew: fc.constantFrom(0, 0, -5000, 3000),
+      slotIds: genSceneSlotIds,
+      boilSeconds: fc.integer({ min: 60, max: 600 }),
+    });
     const genBatch = fc.record({
       tableId: fc.constantFrom(...LIFT_TABLE_POOL),
       // serveAt は基準の 2〜15 分後を 30 秒刻みで。刻みを粗くして batch どうしの serveAt の一致も生む。
       serveAt: fc.integer({ min: 4, max: 30 }).map((step) => LIFT_SCENE_ORIGIN + step * 30_000),
+      anchor: fc.option(genAnchor, { nil: null }),
       items: fc.array(genItem, { minLength: 1, maxLength: 3 }),
     });
     const genMate = fc.record({
       batch: fc.nat({ max: 3 }),
-      kind: fc.constantFrom<LiftMateKind>("match", "mismatch", "stray", "foreign"),
+      kind: fc.constantFrom<LiftMateKind>("match", "mismatch", "stray"),
       slotIds: genSceneSlotIds,
       boilSeconds: fc.integer({ min: 60, max: 600 }),
     });
@@ -700,8 +728,9 @@ export const genLiftView: fc.Arbitrary<ClientView> = fc
  * 群を作る場面の補正後現在時刻。
  *
  * 広域（基準の 5 分前〜20 分後）に加え、提案の境界（startAt − PREP_LEAD_MS の直前・ちょうど、startAt の直前・
- * ちょうど）と仲間の境界（endTime の直前・ちょうど・直後）を必ず踏む。endTime 以後は仲間が boiled に転じ、
- * 群が started でなくなる（判断 16）。
+ * ちょうど）、錨の境界（anchor の直前・ちょうど・直後）、仲間の境界（endTime の直前・ちょうど・直後）を必ず踏む。
+ * anchor 以後は群が started でなくなる（判断 16 / 20）。仲間の endTime は client の判定に現れない（跨いでも
+ * 何も変わらない）が、境界として踏ませて「変わらない」を検査に載せる。
  */
 export function genLiftCorrected(view: ClientView): fc.Arbitrary<number> {
   const broad = fc.integer({
@@ -714,6 +743,9 @@ export function genLiftCorrected(view: ClientView): fc.Arbitrary<number> {
       recommendation.startAt - PREP_LEAD_MS,
       recommendation.startAt - 1,
       recommendation.startAt,
+      ...(recommendation.anchor === null
+        ? []
+        : [recommendation.anchor - 1, recommendation.anchor, recommendation.anchor + 1]),
     ]),
     ...view.timers.flatMap((timer) => [timer.endTime - 1, timer.endTime, timer.endTime + 1]),
   ];
