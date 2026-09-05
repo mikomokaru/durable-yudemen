@@ -1,5 +1,7 @@
 // domain/store.ts — 店舗のサーバ権威設定（StoreConfig）。Timer の SSOT フローとは別概念。
 // プラットフォーム非依存の純粋な型と検証だけを持つ（domain 内の timer 契約のみ取り込む）。
+// レイアウト（ユニット原点・オフセット）から導く slot 間距離（slotDistance）もここに置く——engine の採点と
+// client の釜の組が同じ尺度を要るため、両者の中立地帯で一度だけ定義する。
 //
 // StoreConfig はクライアントが制御しない（UI から変更不可・店舗ごとに固定）サーバ権威の設定で、
 // サーバから各クライアントへ一方向に配信される（config ServerMessage）。Timer のような
@@ -169,6 +171,70 @@ export function defaultUnitOrigins(unitCount: number): readonly UnitOrigin[] {
 /** 単一ユニットの既定原点。既定列の生成と toUnitOrigins の要素ごとの畳み込みが同じ式を二度書かないための芯。 */
 function defaultUnitOrigin(unit: number): UnitOrigin {
   return { x: unit * DEFAULT_UNIT_ORIGIN_STRIDE, y: 0 };
+}
+
+/** 縦横 1 マスのコスト。オクタイル距離を整数へ正規化する基準。 */
+const STRAIGHT_STEP_COST = 10;
+
+/** 斜め 1 マスの追加コスト。斜め移動は STRAIGHT_STEP_COST + 4 = 14 で、√2 ≈ 1.4 の整数近似になる。 */
+const DIAGONAL_EXTRA_COST = 4;
+
+/**
+ * slotDistance — 2 つの slot の物理的な近さを測るオクタイル距離の整数版。
+ *
+ * 合成座標 position(i) = unitOrigins[⌊i / SLOTS_PER_UNIT⌋] + slotOffsets[i % SLOTS_PER_UNIT] を求め、
+ * dx = |x₁ − x₂|・dy = |y₁ − y₂| として 10 × max(dx, dy) + 4 × min(dx, dy) を返す。
+ *
+ * なぜオクタイルか。要求されている順序は「縦横隣接 < 斜め隣接 < 2 マス直線」（10 < 14 < 20）であり、
+ * この 1 点で他の候補が落ちる。マンハッタンは斜め隣接と 2 マス直線を同値に見て斜めを遠すぎに扱い、
+ * チェビシェフは縦横隣接と斜め隣接を同値に見て斜めを近すぎに扱う。ユークリッドは順序を満たすが
+ * 平方根が無理数を生み、改善判定を丸め誤差に晒す（Boil_Sync が整数スケールで決定性を担保するのと同じ規律で退ける）。
+ * 二乗ユークリッドは整数で順序も満たすが距離が二次で伸び、Wait_Time（秒）の和と足し合わされる線形の
+ * 重み係数と噛み合わない。オクタイルはユークリッドの利点をその欠点なしに得る（誤差は 8% 以内）。
+ *
+ * レイアウトを引数で受ける（合成座標は導出値ゆえ設定として持たない）。目的関数へ計上するのは
+ * ここで得た生の距離ではなく許容距離からの超過分だが、それは呼び出し側（engine の scoreSchedule）の関心事である。
+ *
+ * **ここ（domain）が尺度の正本である。** engine の目的関数（affinity 項・Slot_Affinity の組選び）と client の
+ * 釜の組（ラジアルの待ち行列から slotSpan ≥ 2 を組む pairSlots）が同じ距離を要る。engine に置いたままなら
+ * client が engine を import する（構造の主権を破る）か、距離を二度定義する（二つの真実）かのどちらかになる
+ * （lift-group-display 判断 12・Requirement 6.7）。engine は再 export しない——正本への入口は一つに保つ。
+ */
+export function slotDistance(
+  slot: number,
+  other: number,
+  unitOrigins: readonly UnitOrigin[],
+  slotOffsets: SlotOffsets,
+): number {
+  const from = position(slot, unitOrigins, slotOffsets);
+  const to = position(other, unitOrigins, slotOffsets);
+  const dx = Math.abs(from.x - to.x);
+  const dy = Math.abs(from.y - to.y);
+
+  return STRAIGHT_STEP_COST * Math.max(dx, dy) + DIAGONAL_EXTRA_COST * Math.min(dx, dy);
+}
+
+/**
+ * position — slot 番号から合成座標を導く。
+ *
+ * 範囲外への防御を置かない。unitOrigins は toUnitOrigins（サーバ側）が長さを unitCount へ揃え、client 側は
+ * config の復号（wire.ts の toStoreConfig）が長さの一致を要るため、slot 番号が unitCount × SLOTS_PER_UNIT の
+ * 内側にある限り原点は必ず在る。オフセットの index は i % SLOTS_PER_UNIT ゆえ
+ * 定義上 6 要素タプルの内側に収まる。起こり得ない状態に既定座標を用意すれば、不正な slot 番号が
+ * 座標を持ててしまい（嘘をつく計画が作れる）、かつ本当の設定不整合が黙って埋もれる。
+ *
+ * export するのは engine の代表 slot の選定（座標の辞書式最小）が座標そのものを要るためで、距離と同じく
+ * 合成の式を二度書かない。
+ */
+export function position(
+  slot: number,
+  unitOrigins: readonly UnitOrigin[],
+  slotOffsets: SlotOffsets,
+): GridPoint {
+  const origin = unitOrigins[Math.floor(slot / SLOTS_PER_UNIT)]!;
+  const offset = slotOffsets[slot % SLOTS_PER_UNIT]!;
+
+  return { x: origin.x + offset.x, y: origin.y + offset.y };
 }
 
 /** 硬さ別の茹で時間（秒）。麺ごとに異なる値を持つ（券売機統合・運用注入の写し先）。 */

@@ -10,10 +10,10 @@
 import type { EpochMillis, SlotId } from "./types";
 import type { Timer } from "./timer";
 import { adjustedEndTime, type TableMembers } from "./project";
-import { slotDistance, type ScheduleParams } from "./objective";
+import type { ScheduleParams } from "./objective";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
 import type { PendingOrder } from "../domain/order";
-import { slotOf, type NoodlePreset } from "../domain/store";
+import { slotDistance, slotOf, type NoodlePreset } from "../domain/store";
 
 /**
  * Placement — 1 品目の配置。engine 内部形。
@@ -736,7 +736,7 @@ function pairwiseDistance(slots: readonly number[], params: ScheduleParams): num
   return total;
 }
 
-/** slot 間距離。尺度の正本は objective.ts の slotDistance ただ一つ（距離を二度定義しない）。 */
+/** slot 間距離。尺度の正本は domain/store.ts の slotDistance ただ一つ（距離を二度定義しない）。 */
 function distanceBetween(slot: number, other: number, params: ScheduleParams): number {
   return slotDistance(slot, other, params.unitOrigins, params.slotOffsets);
 }

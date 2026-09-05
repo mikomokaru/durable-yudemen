@@ -12,21 +12,22 @@
 // 記録ロジックを decideView 側へ寄せたことで、自端末完了・リモート完了の双方で残滓が出る（表示は導出のみ）。
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import type { ClientView, TimerConnection } from "../connection";
+import { mode, type TimerConnection } from "../connection";
 import { correctedNow } from "../clock";
-import { formatRemaining } from "../format";
 import { FIRMNESS_LABEL } from "./firmness";
 import { isNonEmpty } from "../../domain/timer";
 import { assignedSlotDisplays } from "./slotDisplay";
+import { displayName, orderQueueEntries } from "./queueDisplay";
 import {
-  orderQueueEntries,
-  suggestionTiming,
-  type QueueEntry,
-  type QueueSuggestion,
-} from "./queueDisplay";
-import { SlotCard } from "./SlotCard";
+  liftGroups,
+  pairSlots,
+  slotSuggestions,
+  visibleGroups,
+  type SlotSuggestion,
+} from "./liftGroups";
+import { SlotCard, type SuggestionView } from "./SlotCard";
 import { OrderRail } from "./OrderRail";
-import { RadialMenu } from "./RadialMenu";
+import { RadialMenu, type RadialQueueItem } from "./RadialMenu";
 import { noodleColors } from "./noodleColor";
 
 interface SlotBoardProps {
@@ -70,26 +71,30 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
       window.removeEventListener("pageshow", tick);
     };
   }, []);
-  // 現在時刻は端のここで一度だけ読み、純粋導出（slotDisplay）へ引数で渡す。
+  // 現在時刻は端のここで一度だけ読み、純粋導出（slotDisplay / liftGroups）へ引数で渡す。補正後現在時刻も
+  // ここで一度だけ組む——群の開始（走行中の判定）と提案の相（薄 / 濃）が同じ瞬間を読む。
   const now = Date.now();
-  // 待ち行列を先に導出する。釜カードの提案（idle の next）はこの結果から選ぶため、1 描画で一度だけ導く
-  // ——同じものを二度導出すれば、担当範囲の絞り込みと茹で秒の引き当てが二箇所で語られる。
-  // 件数は絞らない——計画対象の上限を超える分も並び、提案が付かないだけである。
+  const corrected = correctedNow(view.offset, now);
+  // 待ち行列（レール用・到着順）。件数は絞らない——計画対象の上限を超える分も並び、提案が付かないだけである。
   const queue = orderQueueEntries(view, units, now);
-  // 計画の錨。受信した推奨の全量から取る——担当範囲で絞った後に取ると端末ごとに錨が変わり、同じ計画が
-  // 2 台で違う間隔に見える（提供時刻を揃える単位は卓であり、卓の品目は別ユニットの釜へ置かれうる）。
-  // 推奨が無ければ錨も要らない。
-  const planAnchor =
-    view.recommendations.length === 0
-      ? null
-      : Math.min(...view.recommendations.map((recommendation) => recommendation.startAt));
+  // 釜カードの提案は、受信した推奨の全量から群 → 表示できる群 → 釜ごとの提案の順に導く。担当範囲で絞るのは
+  // 表示（assignedSlotDisplays）だけで、群・開始・連鎖・全釜 idle は店舗全体で判定する——どの端末を見ても
+  // 同じ「次」が見える（lift-group-display AC 1.6 / 2.12）。群も先頭もビューに保持しない（AC 1.5）。
+  const bySlot = slotSuggestions(visibleGroups(liftGroups(view, corrected)), view, corrected);
   // 保持は全量・表示は導出。担当外スロットはここで構造的に除外される（要件12.2）。
-  const displays = assignedSlotDisplays(view, units, now, queue);
+  const displays = assignedSlotDisplays(view, units, now, bySlot);
   // レールを描くかは 1 箇所でだけ判定する。非空なら型が NonEmptyArray<QueueEntry> へ絞られ、
   // そのまま OrderRail の props を満たす（0 件のレールは構築不能）。
   const waiting = isNonEmpty(queue) ? queue : null;
   // ラジアルメニューの開閉。ボード内で一つだけ持ち、RadialMenu も一つだけ描画する。
   const [picker, setPicker] = useState<PickerAnchor | null>(null);
+  // ラジアルの待ち行列の帯。レールと同じ到着順の行に、押した釜から組めた釜の集合を付ける（lift-group-display
+  // AC 4.1 / 4.4）。毎描画 view から導くので、開いたまま snapshot で起点の釜が埋まれば行は自動的に不活性になる
+  // （AC 4.9・状態に写さない）。degraded では空——選んでも開始されない品目を選べる形で示さない（AC 4.8 / 4.9）。
+  const radialQueue: readonly RadialQueueItem[] =
+    picker !== null && mode(view) === "live"
+      ? queue.map(({ order }) => ({ order, slotIds: pairSlots(picker.slot, order.slotSpan, view) }))
+      : [];
   // 麺色の resolver。メニュー順に重複なく色を割り当てる（config 受信時のみ再構築・毎ティックでは作り直さない）。
   const colorOf = useMemo(
     () => noodleColors(view.noodlePresets.map((preset) => preset.noodleType)),
@@ -144,25 +149,17 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
                       <SlotCard
                         key={display.slot}
                         display={display}
-                        suggestionOf={
-                          display.kind === "idle" && display.next !== null && planAnchor !== null
-                            ? suggestionOf(
-                                display.next,
-                                display.slot,
-                                queue,
-                                colorOf,
-                                now,
-                                view,
-                                planAnchor,
-                              )
-                            : undefined
+                        suggestionOf={(suggestion) =>
+                          suggestionOf(suggestion, display.slot, colorOf)
                         }
-                        onStartSuggested={(suggestion) => {
+                        onStartSuggested={({ order, suggestion }) => {
                           // 品目を指して開始する。麺種・茹で加減・茹で秒は送らない——サーバが待ち行列の
-                          // 当該品目と noodlePresets から導く（slot-suggested-start 判断 6）。
-                          const item = itemOf(suggestion, queue);
-                          if (item === undefined) return;
-                          connection.startOrderItem(suggestion.slotIds, item);
+                          // 当該品目と noodlePresets から導く（slot-suggested-start 判断 6）。釜は推奨の
+                          // slotIds 全体（lift-group-display AC 3.1）。
+                          connection.startOrderItem(suggestion.slotIds, {
+                            externalOrderId: order.externalOrderId,
+                            itemIndex: order.itemIndex,
+                          });
                           playTouchCue();
                         }}
                         onStart={(slot, center) => {
@@ -202,6 +199,17 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
         presets={view.noodlePresets}
         colorOf={colorOf}
         label={picker ? `Slot ${picker.slot}` : undefined}
+        queue={radialQueue}
+        onSelectItem={({ order, slotIds }) => {
+          // 品目を指して開始する（提案からの開始と同じ口・AC 4.2）。釜は押した釜から組んだ集合——slotSpan 1 は
+          // 押した釜だけ（AC 4.3）、2 以上は許容距離の内側で最も近い idle の釜を足したもの（AC 4.4）。
+          connection.startOrderItem(slotIds, {
+            externalOrderId: order.externalOrderId,
+            itemIndex: order.itemIndex,
+          });
+          setPicker(null);
+          playTouchCue();
+        }}
         onSelect={(preset) => {
           // 麺選択確定＝Start。指定操作に Touch_Cue を相乗りさせる（開始動作は変えない・要件1.1/1.4/1.5）。
           if (picker) startOnSlot(picker.slot, preset.noodleType, preset.boilSeconds.normal);
@@ -215,66 +223,39 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
 }
 
 /**
- * 提案が指す品目を待ち行列から引く。
- *
- * 提案（`QueueSuggestion`）は釜と時刻と茹で秒だけを持ち、品目の鍵を持たない——鍵で引ける形にすると
- * 同じ鍵が提案と行の二箇所に現れる。ここでは同一性を「同じ提案オブジェクトである」ことで判定し、
- * 行から鍵を取る。導出の向きは常に「行 → 提案」であり、逆流させない。
- */
-function itemOf(
-  suggestion: QueueSuggestion,
-  queue: readonly QueueEntry[],
-): { readonly externalOrderId: string; readonly itemIndex: number } | undefined {
-  const entry = queue.find((candidate) => candidate.suggestion === suggestion);
-  return entry === undefined
-    ? undefined
-    : { externalOrderId: entry.order.externalOrderId, itemIndex: entry.order.itemIndex };
-}
-
-/**
  * 提案の見え方（ラベル・aria-label・塗り）を組む。
  *
- * 表示語彙をここに集める。商品名の代替（`itemName ?? noodleType`）・NFKC 正規化・時期の整形はレールと
- * 同じ語で書く必要があり、カードへ散らすと二つの真実になる。カードは受け取った文字列を描くだけである。
+ * 表示語彙をここに集める。品目の名はレール・ラジアルの帯と同じ displayName で呼び（商品名の代替・NFKC 正規化・
+ * 麺量はそこにだけ在る）、カードへ散らすと二つの真実になる。可視のラベルも aria-label も同じ名を置く——麺量の
+ * 違う同名の品目は別の品目で、支援技術にだけ麺量を落とす理由が無い（design Component 5 の実装注記）。カードは
+ * 受け取った文字列を描くだけである。
  *
- * 固定文言は英語（`now` / `in m:ss` / `Table {n}`）。#24 がレールの固定文言を英語に固定し、カードの操作
- * ラベルも `Start` / `Cancel` / `Complete` である——調理母語は硬さだけが `FIRMNESS_LABEL` 経由で入る。
+ * 時期を組まず、語だけを組む。可視の語は空か `now` の 2 つだけで、時刻（`in m:ss` / `+m:ss` / 壁時計 /
+ * 秒読み）は描かない（lift-group-display AC 2.5 / 3.3 / 6.4）——順序は出現の順が語り、押せる先頭は薄くても
+ * 押せる。aria-label だけが `soon`（薄い先頭）/ `queued`（押せない仲間）で薄・押せないを語る（AC 3.4 / 3.7）。
+ * 可視の `now` は aria-label の相の語から導く——同じ一語から二つの文を組むので、食い違う状態が表現できない。
+ *
+ * 返すのは文字列と色だけで、判別（`role` / `phase`）は返さない。押せるか・濃いかは `SlotCard` が導出の
+ * 判別から直接読む（見え方に写せば二つ目の真実になる・`SuggestionView` の doc）。
+ *
+ * 固定文言は英語（`now` / `Table {n}`）。#24 がレールの固定文言を英語に固定し、カードの操作ラベルも
+ * `Start` / `Cancel` / `Complete` である——調理母語は硬さだけが `FIRMNESS_LABEL` 経由で入る。
  */
 function suggestionOf(
-  suggestion: QueueSuggestion,
+  suggestion: SlotSuggestion,
   slot: number,
-  queue: readonly QueueEntry[],
   colorOf: (noodleType: string) => string,
-  now: number,
-  view: ClientView,
-  planAnchor: number,
-): { readonly label: string; readonly ariaLabel: string; readonly tint: string } | undefined {
-  const entry = queue.find((candidate) => candidate.suggestion === suggestion);
-  if (entry === undefined) return undefined;
-  const { order } = entry;
-  const name = (order.itemName ?? order.noodleType).normalize("NFKC");
-  const size = order.sizeName?.normalize("NFKC");
+): SuggestionView {
+  const { order } = suggestion.item;
+  const name = displayName(order);
   const firmness = FIRMNESS_LABEL[order.firmness];
   const table = order.tableId === null ? undefined : `Table ${order.tableId}`;
-  // 時期は計画の間隔（サーバの事実）と補正後現在時刻からの導出。壁時計は用いない（要件 2.5）。
-  // 秒読みが尽きたら `in` を使わない——1 本目を始めない限り錨は現在へ張り付き間隔は不変ゆえ、
-  // 同じ語で描き続ければ減らない秒読みになる（lapsed-suggestion-timing 要件 3.1）。
-  const planTiming = suggestionTiming(
-    suggestion.startAt,
-    planAnchor,
-    correctedNow(view.offset, now),
-  );
-  const timing =
-    planTiming.kind === "countdown"
-      ? `in ${formatRemaining(planTiming.ms)}`
-      : planTiming.kind === "now"
-        ? "now"
-        : `+${formatRemaining(planTiming.ms)}`;
-  const parts = [size === undefined ? name : `${name} ${size}`, firmness, table, timing];
-  return {
-    label: parts.filter((part) => part !== undefined).join(" · "),
-    // 命令形を用いない（AC 8.2）。提案であること・品目・釜・時期をこの順で語る。
-    ariaLabel: `Suggested — ${name} · Slot ${slot} · ${timing}`,
-    tint: colorOf(order.noodleType),
-  };
+  // 相の語。先頭は startAt を迎えたら `now`・手前は `soon`、仲間は常に `queued`（startAt が過ぎても・AC 2.4）。
+  const phrase =
+    suggestion.role === "head" ? (suggestion.phase === "solid" ? "now" : "soon") : "queued";
+  const parts = [name, firmness, table, phrase === "now" ? phrase : undefined];
+  const label = parts.filter((part) => part !== undefined).join(" · ");
+  // 命令形を用いない（AC 3.3）。提案であること・品目・釜・相をこの順で語る。
+  const ariaLabel = `Suggested — ${name} · Slot ${slot} · ${phrase}`;
+  return { label, ariaLabel, tint: colorOf(order.noodleType) };
 }

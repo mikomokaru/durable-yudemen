@@ -23,8 +23,14 @@ import { BOIL_SECONDS_MAX, BOIL_SECONDS_MIN } from "../engine/types";
 import type { CookRecommendation, ServerMessage } from "../domain/messages";
 import type { PendingOrder } from "../domain/order";
 import type { TimerFact, NonEmptyArray } from "../domain/timer";
-import { DEFAULT_UNIT_COUNT, DEFAULT_NOODLE_PRESETS } from "../domain/store";
-import type { NoodlePreset } from "../domain/store";
+import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_SLOT_OFFSETS,
+  DEFAULT_UNIT_COUNT,
+  defaultUnitOrigins,
+} from "../domain/store";
+import type { NoodlePreset, SlotOffsets, UnitOrigin } from "../domain/store";
 import { DEFAULT_FIRMNESS, type Firmness } from "../domain/firmness";
 import { boiledGroup } from "./boiledGroup";
 import { clockOffset, correctedNow, remainingMs } from "./clock";
@@ -134,6 +140,18 @@ export interface ClientView {
   readonly unitCount: number;
   /** 店舗が提供する麺種プリセット（サーバ権威・受信した事実）。config 受信で確定する。開始 UI の選択肢の元。 */
   readonly noodlePresets: readonly NoodlePreset[];
+  /**
+   * ユニット原点の列（サーバ権威・受信した事実・unitCount 個）。config 受信で確定する。
+   *
+   * 釜の組（`slotSpan ≥ 2` の品目を押した釜から組む・lift-group-display AC 4.4 / 4.7）が釜の距離を
+   * domain の `slotDistance` で測るために読む。計画の採点と同じ座標から同じ尺度で測るので、client が
+   * 「近い」と判じた組は計画も「近い」と採点する。
+   */
+  readonly unitOrigins: readonly UnitOrigin[];
+  /** ユニット内 slot のオフセット（サーバ権威・受信した事実・全ユニット共通）。config 受信で確定する。用途は unitOrigins と同じ。 */
+  readonly slotOffsets: SlotOffsets;
+  /** 許容 slot 距離（サーバ権威・受信した事実）。config 受信で確定する。釜の組がこの内側の空き釜だけを組む（AC 4.4 / 4.5）。 */
+  readonly affinityToleranceDistance: number;
 }
 
 /**
@@ -182,6 +200,9 @@ export const EMPTY_VIEW: ClientView = {
   error: null,
   unitCount: DEFAULT_UNIT_COUNT,
   noodlePresets: DEFAULT_NOODLE_PRESETS,
+  unitOrigins: defaultUnitOrigins(DEFAULT_UNIT_COUNT),
+  slotOffsets: DEFAULT_SLOT_OFFSETS,
+  affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
 };
 
 /**
@@ -311,6 +332,9 @@ function decideLocalStart(
     firmness: DEFAULT_FIRMNESS,
     startTime: event.correctedNow,
     endTime: event.correctedNow + event.boilSeconds * 1000,
+    // アドホック開始（麺種プリセット）ゆえ品目を指さない。品目を指す開始（startOrderItem）は非 live で
+    // 何もせず戻るので、Provisional_Timer が注文由来で生まれる経路は無い。
+    orderItem: null,
     origin: "local",
   };
   // 新規開始した駆動スロットの直前結果（残滓）は解除する（要件13.7）。
@@ -438,18 +462,24 @@ function decideServerMessage(
     }
 
     case "config":
-      // 店舗設定の一方向受信（サーバ権威・クライアント不変）。ユニット総数と麺種プリセットを確定し offset も最新化する。
-      // 稼働中の差し替え（運用エンドポイント発の再配信）も同じ経路で反映される（要件2.3）。
+      // 店舗設定の一方向受信（サーバ権威・クライアント不変）。ユニット総数・麺種プリセット・レイアウトと
+      // 許容距離を確定し offset も最新化する。稼働中の差し替え（運用エンドポイント発の再配信）も同じ経路で
+      // 反映される（要件2.3）。
       //
-      // 計画のパラメータ（重み・許容幅・slot のグリッド座標）は読まない。それらは計画の採点（サーバ側の
-      // 計算）にのみ効く事実で、client の表示・導出のどこからも参照されない。読み手の無い写しをビューへ
-      // 置けば、サーバ設定の第二の真実を抱えるだけになる（online-cook-scheduling AC 3.4 の「表示・導出にのみ
-      // 用い変更要求を送らない」を、最小の形——受け取っても持たない——で満たす）。
+      // 計画のパラメータのうち、ビューへ写すのは client に読み手のできた 3 項目（unitOrigins / slotOffsets /
+      // affinityToleranceDistance——釜の組が釜の距離を測るために読む・lift-group-display AC 4.7）だけである。
+      // 重み・許容幅（秒）は引き続き読まない。それらは計画の採点（サーバ側の計算）にのみ効く事実で、client の
+      // 表示・導出のどこからも参照されない。読み手の無い写しをビューへ置けば、サーバ設定の第二の真実を抱える
+      // だけになる（online-cook-scheduling AC 3.4 の「表示・導出にのみ用い変更要求を送らない」を、最小の形
+      // ——読み手の在るものだけを持つ——で満たす）。
       return {
         ...view,
         offset,
         unitCount: message.unitCount,
         noodlePresets: message.noodlePresets,
+        unitOrigins: message.unitOrigins,
+        slotOffsets: message.slotOffsets,
+        affinityToleranceDistance: message.affinityToleranceDistance,
       };
 
     case "error":

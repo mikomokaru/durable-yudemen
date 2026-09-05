@@ -1,5 +1,7 @@
 # Requirements Document
 
+> **（2026-09-05 追記）本 spec は `lift-group-display` が目的ごと置き換えた。** 時期の語（`in mm:ss` / `+mm:ss`）は釜カードから消え、可視の語は空か `now` の 2 つだけになった。順序と間隔——本 spec が守ろうとした計画の中身——は、店舗全体で次に上げる群の品目を薄（`startAt` の 60 秒前・Prep_Lead）/ 濃（到来）の相で並べ、群の先頭だけを押せる形で伝える（同 spec 判断 3・17・AC 2.5・6.4）。本 spec が据えた `suggestionTiming` / `SuggestionTiming`（`queueDisplay.ts`）と `planAnchor`（`SlotBoard.tsx`）、そのテスト（`tests/client/suggestionTiming.property.test.ts`・`lapsedSuggestion.example.test.tsx`）は撤去した（同 spec AC 7.3）。以下は撤去前の記録として残す。
+
 ## Introduction
 
 本 spec は、開始推奨（Cook_Recommendation）の**時期の描き方**を定義する。放置された提案が「now」へ収束するのをやめ、計画の間隔を保ったまま現在時刻へ追随させる。

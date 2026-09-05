@@ -69,6 +69,9 @@ export default defineConfig({
             // 左レール化の配置と出所の検査（pending-order-list-left-rail タスク5.1）。node:fs で
             // src/client のソースと styles.css を読むため node 環境で実行する。
             "tests/pending-order-list-left-rail.static.test.ts",
+            // 距離の正本が domain にあり engine が再定義も再 export もしないことの検査（lift-group-display
+            // タスク2.3・Property 7）。TypeScript AST でソースを読むため node 環境で実行する。
+            "tests/lift-group-display.static.test.ts",
           ],
         },
       },
@@ -195,6 +198,7 @@ export default defineConfig({
             "tests/static/domain-imports.test.ts",
             "tests/degraded-slot-superimposition.static.test.ts",
             "tests/pending-order-list-left-rail.static.test.ts",
+            "tests/lift-group-display.static.test.ts",
             "tests/observe/**/*.property.test.ts",
             "tests/observe/**/*.example.test.ts",
             // src/registry/ の純粋層テストは registry プロジェクト（node）が担当する。

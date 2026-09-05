@@ -10,14 +10,14 @@ import { CURRENT_SCHEMA_VERSION } from "../engine/types";
 import type { EpochMillis, SlotId, NoodleType, TimerId } from "../engine/types";
 import { EMPTY_STATE } from "./state";
 import { createTimer } from "./timer";
-import type { Ordered, Timer } from "./timer";
+import type { Timer } from "./timer";
 import type { ShellFailure } from "./rejection";
 import type { StoreSnapshot } from "./snapshot";
 import { toSnapshot } from "./snapshot";
 import type { AcceptedSlice, Placement } from "./schedule";
 import type { InputDigest } from "./digest";
 import type { PendingOrder } from "../domain/order";
-import type { NonEmptyArray } from "../domain/timer";
+import type { NonEmptyArray, TimerFact } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness, type Firmness } from "../domain/firmness";
 import { SLOT_SPAN_MAX, SLOT_SPAN_MIN } from "../domain/store";
@@ -341,7 +341,7 @@ function reviveTimer(value: unknown): Timer | null {
  * 壊れた紐づけで店舗全体を起動不能にする代償の方が大きい（adjustment を移行失敗にする判断とは、
  * 失われる事実の重さが違う——あちらは実効 endTime、すなわち計時そのものを歪める）。
  */
-function reviveOrderItem(value: unknown): Ordered["orderItem"] {
+function reviveOrderItem(value: unknown): TimerFact["orderItem"] {
   if (typeof value !== "object" || value === null) return null;
   const item = value as Record<string, unknown>;
   if (typeof item.externalOrderId !== "string" || item.externalOrderId.length === 0) return null;

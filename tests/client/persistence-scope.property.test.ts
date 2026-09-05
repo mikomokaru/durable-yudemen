@@ -76,7 +76,7 @@ const genSlotIds: fc.Arbitrary<NonEmptyArray<string>> = fc
   )
   .map(([head, tail]) => [head, ...tail] as NonEmptyArray<string>);
 
-/** 永続往復で完全保存される形の ClientTimer（余剰フィールドを持たない）。 */
+/** 永続往復で完全保存される形の ClientTimer（余剰フィールドを持たない）。orderItem は null と品目参照の双方。 */
 const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.string({ minLength: 1, maxLength: 8 }),
   slotIds: genSlotIds,
@@ -84,6 +84,14 @@ const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   firmness: fc.constantFrom(...FIRMNESS_POOL),
   startTime: genTime,
   endTime: genTime,
+  orderItem: fc.option(
+    fc.record({
+      externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+      itemIndex: fc.integer({ min: 0, max: 8 }),
+      tableId: fc.option(fc.string({ minLength: 1, maxLength: 6 }), { nil: null }),
+    }),
+    { nil: null },
+  ),
   origin: fc.constantFrom("server" as const, "local" as const),
 });
 

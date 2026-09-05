@@ -9,7 +9,12 @@
 
 import { describe, expect, it } from "vitest";
 import type { ClientTimer, ClientView } from "../../src/client/connection";
-import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+} from "../../src/domain/store";
 import { slotsOfUnits, unitsForCount } from "../../src/client/assignment";
 import { assignedSlotDisplays, type SlotDisplay } from "../../src/client/components/slotDisplay";
 
@@ -39,6 +44,7 @@ function timerOnSlot(slot: number, id: string): ClientTimer {
     firmness: "normal",
     startTime: 0,
     endTime: 60_000,
+    orderItem: null,
     origin: "server",
   };
 }
@@ -59,6 +65,9 @@ function syncedView(timers: readonly ClientTimer[]): ClientView {
     error: null,
     unitCount: 4,
     noodlePresets: DEFAULT_NOODLE_PRESETS,
+    unitOrigins: defaultUnitOrigins(4),
+    slotOffsets: DEFAULT_SLOT_OFFSETS,
+    affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   };
 }
 
@@ -75,7 +84,7 @@ describe("client 担当 UI と担当不変（要件12.3 / 12.4）", () => {
       timerOnSlot(12, "out-b"),
     ]);
 
-    const displays = assignedSlotDisplays(view, units, 0, []);
+    const displays = assignedSlotDisplays(view, units, 0);
 
     // 描画されるスロットは担当集合とちょうど一致する（担当外スロットは構造的に現れない）。
     const renderedSlots = new Set(displays.map((d) => d.slot));
@@ -116,7 +125,7 @@ describe("client 担当 UI と担当不変（要件12.3 / 12.4）", () => {
     ];
 
     for (const view of views) {
-      const displays = assignedSlotDisplays(view, units, 0, []);
+      const displays = assignedSlotDisplays(view, units, 0);
       const renderedSlots = new Set(displays.map((d) => d.slot));
       // 担当集合（＝操作・表示スコープ）はビューの Timer 集合に一切左右されない。
       expect(renderedSlots).toEqual(expectedAssigned);

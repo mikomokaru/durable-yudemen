@@ -44,7 +44,13 @@ import {
 import { assignedSlotDisplays } from "../../src/client/components/slotDisplay";
 import { correctedNow, remainingMs } from "../../src/client/clock";
 import { slotsOfUnits } from "../../src/client/assignment";
-import { DEFAULT_NOODLE_PRESETS, slotOf } from "../../src/domain/store";
+import {
+  DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+  DEFAULT_NOODLE_PRESETS,
+  DEFAULT_SLOT_OFFSETS,
+  defaultUnitOrigins,
+  slotOf,
+} from "../../src/domain/store";
 import type { TimerFact } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import { nonEmpty } from "../nonEmpty";
@@ -164,6 +170,7 @@ function genTimerFacts(
             firmness: firmnesses[i]!,
             startTime: endTime - 60_000,
             endTime,
+            orderItem: null,
           });
         }
         return facts;
@@ -219,6 +226,9 @@ const genScenario: fc.Arbitrary<DisplayScenario> = fc
             error: null,
             unitCount: 4,
             noodlePresets: DEFAULT_NOODLE_PRESETS,
+            unitOrigins: defaultUnitOrigins(4),
+            slotOffsets: DEFAULT_SLOT_OFFSETS,
+            affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
           },
         };
       });
@@ -303,7 +313,7 @@ describe("client/connection × slotDisplay — degraded-slot-superimposition Pro
         // 表示は解決結果に対して導出する。時刻は生のローカル読み `at` を渡す——`assignedSlotDisplays` は
         // 内部で correctedNow(view.offset, now) を掛けるため、解決が使った補正後時刻と同じ瞬間になる
         // （補正後時刻をそのまま渡すと offset が二重に足される）。
-        const displays = assignedSlotDisplays(result, units, at, []);
+        const displays = assignedSlotDisplays(result, units, at);
         const displayedSlots = new Set(displays.map((display) => display.slot));
 
         // 担当射影が黙って落としていないこと — 在席する全 Timer の全スロットが表示対象に含まれる。

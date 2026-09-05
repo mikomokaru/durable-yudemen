@@ -132,7 +132,13 @@ const SUGGESTED_AT = new Date(2023, 10, 14, 9, 5).getTime();
  * 単数では「全て」が問えない。番号は時刻の桁（0・9・0・5）と重ならない語を選ぶ。
  */
 function queueSuggestion(overrides: Partial<QueueSuggestion> = {}): QueueSuggestion {
-  return { slotIds: ["2", "4", "6"], startAt: SUGGESTED_AT, boilSeconds: 95, ...overrides };
+  return {
+    slotIds: ["2", "4", "6"],
+    startAt: SUGGESTED_AT,
+    boilSeconds: 95,
+    serveAt: SUGGESTED_AT + 95_000,
+    ...overrides,
+  };
 }
 
 // 提案の accessible name と押下の検査は釜カードへ移った（slot-suggested-start）。守る不変は同じ

@@ -119,7 +119,7 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
     expect(reconciled.recommendations).toEqual([recommendation("o-new", 0, ["1"], T + 20)]);
   });
 
-  it("config の追加項目を受け取ってもビューが持つのはユニット総数と麺種プリセットだけ", () => {
+  it("config の追加項目を受け取ってもビューが持つのはユニット総数・麺種プリセットと、釜の組に要る 3 項目だけ", () => {
     const applied = decideView(EMPTY_VIEW, {
       kind: "Server",
       message: {
@@ -156,7 +156,9 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
     });
     expect(applied.unitCount).toBe(2);
     expect(applied.noodlePresets).toEqual(DEFAULT_NOODLE_PRESETS);
-    // 計画のパラメータは読み手が無いためビューへ写さない（キーそのものを持たない）。
+    // 計画のパラメータのうち、重み・許容幅（秒）・POS の対応表は読み手が無いためビューへ写さない
+    // （キーそのものを持たない）。写すのは釜の組が読む unitOrigins / slotOffsets / affinityToleranceDistance
+    // だけで、その写しの例は connection.example に在る（lift-group-display 要件4.7）。
     expect(Object.keys(applied).sort()).toEqual(Object.keys(EMPTY_VIEW).sort());
   });
 });
@@ -191,7 +193,12 @@ describe("待ち行列の表示導出（AC 8.1 / 8.2 / 8.5）", () => {
     );
     const entries = orderQueueEntries(view, [0], T);
     expect(entries).toHaveLength(3);
-    expect(entries[0]?.suggestion).toEqual({ slotIds: ["3"], startAt: T + 5_000, boilSeconds: 60 });
+    expect(entries[0]?.suggestion).toEqual({
+      slotIds: ["3"],
+      startAt: T + 5_000,
+      boilSeconds: 60,
+      serveAt: T + 65_000,
+    });
     expect(entries[1]?.suggestion).toBeNull();
     expect(entries[2]?.suggestion).toBeNull();
   });

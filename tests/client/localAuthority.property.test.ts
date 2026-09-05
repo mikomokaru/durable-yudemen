@@ -49,7 +49,7 @@ type Residual = NonNullable<ReturnType<ClientView["lastResults"]["get"]>>;
 
 /**
  * 要求スロットのプール。unit 0（SLOTS_PER_UNIT = 6）に収まる範囲に限るのは、表示導出を
- * `assignedSlotDisplays(view, [0], now, [])` で引くためである——担当外スロットは射影で構造的に現れない。
+ * `assignedSlotDisplays(view, [0], now)` で引くためである——担当外スロットは射影で構造的に現れない。
  */
 const REQUEST_SLOT_POOL = ["0", "1", "2", "3"] as const;
 /** 麺種プール。 */
@@ -94,6 +94,7 @@ function toWireTimer(timer: ClientTimer): TimerFact {
     firmness: timer.firmness,
     startTime: timer.startTime,
     endTime: timer.endTime,
+    orderItem: timer.orderItem,
   };
 }
 
@@ -285,7 +286,7 @@ describe("client/connection 一時的なローカル権限（offline-degradation
         // SlotCard が Start の口を描くのは idle 分岐だけゆえ、走行中化は口の消失そのものである。
         // ローカル時刻は補正後現在時刻から offset を差し引いて逆算する（時計に触れず引数で運ぶ）。
         const localNow = start.correctedNow - view.offset;
-        const displays = assignedSlotDisplays(accepted, [0], localNow, []);
+        const displays = assignedSlotDisplays(accepted, [0], localNow);
         for (const slotId of slotIds) {
           const display = displays.find((candidate) => candidate.slot === Number(slotId));
           expect(display).toBeDefined();

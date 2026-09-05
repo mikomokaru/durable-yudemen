@@ -476,9 +476,9 @@ Boil_Sync は「client 変更不要」だったが、**本機能は client 変�
 | 待ち行列の表示 | Pending_Order を Order_Arrival_Time 昇順で一覧する。計画対象外（65 件目以降）も表示するが推奨は付かない |
 | 推奨の表示 | `recommendations` を担当スロット範囲で絞って提示する（既存の `assignment.ts` の担当絞り込みに倣う）。**指示ではなく提案**として見せる |
 | 開始操作 | 推奨から開始する経路で `ClientMessage.start` に `externalOrderId` / `itemIndex` を添える。推奨と異なる操作も従来どおり通す（AC 8.3） |
-| `config` の受け | 追加項目を受け取る。表示・導出にのみ用い変更要求を送らない。`unitOrigins` / `slotOffsets` は現時点で用途なし（受け取るが使わない） |
+| `config` の受け | 追加項目を受け取る。表示・導出にのみ用い変更要求を送らない。`unitOrigins` / `slotOffsets` は当初「用途なし（受け取るが使わない）」だったが、`lift-group-display` が `affinityToleranceDistance` と併せて `ClientView` に写し、釜の組（`pairSlots`——`slotSpan ≥ 2` の品目を押した釜から許容距離の内側で最も近い空き釜と組む）の距離の計算に読む（2026-09-05 改訂）。盤面のレイアウトには用いない |
 
-**推奨開始時刻の到来で自動開始しない**（AC 8.2）。client は `startAt` を表示するだけで、時刻到来を契機に何も起こさない。過ぎた `startAt` は、client が**計画の間隔を保ったまま錨を現在時刻へ繰り上げて**表示する（`lapsed-suggestion-timing`）。サーバ側は変わらない——時刻起動の失効判定を持たず（AC 7.5）、次の状態変化で `hasLapsedStart` が陳腐化として置き換える。client の繰り上げは受け取った `startAt` を書き換えず、表示のたびの導出である。
+**推奨開始時刻の到来で自動開始しない**（AC 8.2）。client は `startAt` を表示するだけで、時刻到来を契機に何も起こさない。過ぎた `startAt` は、client が**計画の間隔を保ったまま錨を現在時刻へ繰り上げて**表示する（`lapsed-suggestion-timing`）。サーバ側は変わらない——時刻起動の失効判定を持たず（AC 7.5）、次の状態変化で `hasLapsedStart` が陳腐化として置き換える。client の繰り上げは受け取った `startAt` を書き換えず、表示のたびの導出である。**（2026-09-05 改訂）** `lift-group-display` が錨の繰り上げ（`planAnchor` / `suggestionTiming`）ごと撤去した。client はもはや `startAt` を語として描かず（同 spec AC 2.5・6.4——提案の可視の語は空か `now` のみ）、到来までは Prep_Lead（`PREP_LEAD_MS`・60 秒前）から薄く、到来で群の先頭（Group_Head）だけが濃く `now` と描く（同 spec 判断 3・4・17）。過ぎた `startAt` は繰り上げず、先頭が `now` のまま押されるのを待つ。時刻到来で自動開始しない（AC 8.2）ことと、サーバ側が時刻起動の失効判定を持たず `hasLapsedStart` が次の状態変化で置き換えること（AC 7.5）は変わらない。
 
 > **boiled と推奨が同一 slot に重なりうる。** `initialRelease` は boiled を解放済みとして扱う（釜は湯切りで空く）ため、明示完了（`Complete`）されていない茹で上がりが表示されている釜へ推奨が付くことがある。物理的には正しい（釜は空いている）。表示の重なりは既存の重畳の関心事であり、`degraded-slot-superimposition` の扱いに倣う——本機能で新しい重畳規則を作らない。
 
@@ -798,7 +798,7 @@ unitOrigins: u → (4u, 0)                            // ユニット幅 2 ＋ �
 
 要件違反にはならない。Boil_Sync の要件6.5 は `WHERE クライアント端末が調整パラメータを受信する` という条件節で、受信した場合の扱い（表示・導出にのみ用い、変更不可）を定めているだけで、配信を禁じていない。Boil_Sync design.md の該当 2 箇所には本方針への改訂注記を添えた。
 
-client 側の扱いは変わらない。受信した値を表示・導出にのみ用い、変更要求は送らない（サーバ権威）。`unitOrigins` / `slotOffsets` は画面のスロット配置を物理配置に合わせる用途に将来使えるが、現時点で client は使わなくてよい（配信するが利用は強制しない）。
+client 側の扱いは変わらない。受信した値を表示・導出にのみ用い、変更要求は送らない（サーバ権威）。`unitOrigins` / `slotOffsets` は画面のスロット配置を物理配置に合わせる用途に将来使えるが、現時点で client は使わなくてよい（配信するが利用は強制しない）。**（2026-09-05 改訂）** `lift-group-display` が最初の用途を与えた——`ClientView.unitOrigins` / `slotOffsets` / `affinityToleranceDistance` として写し、domain へ移した `slotDistance`（`src/domain/store.ts`・engine の採点と同じ尺度）で釜の組を選ぶ。画面の配置には依然として用いない。
 
 ---
 

@@ -191,6 +191,7 @@ function replayBoiledThenLocalStart(run: DegradedRun): DegradedRunStages {
     firmness: "normal",
     startTime: run.serverEndTime - 60_000,
     endTime: run.serverEndTime,
+    orderItem: null,
   };
 
   // (1) live で接続が確立し、全量 snapshot が server-confirmed を運ぶ（= down 前から在るタイマー）。
@@ -301,6 +302,7 @@ function replayCompleteThenReconcile(run: DegradedRun): ResurrectionRunStages {
     firmness: "normal",
     startTime: run.serverEndTime - 60_000,
     endTime: run.serverEndTime,
+    orderItem: null,
   };
 
   // (1) live で接続が確立し、全量 snapshot が server-confirmed を運ぶ（= down 前から在るタイマー）。
@@ -530,7 +532,7 @@ describe("client degraded 経路 A — 発火済みスロットへの start が�
     // slot "0" は unit 0 の担当範囲。offset は 0（serverTime === receivedAt）ゆえ now をそのまま渡せる。
     expect(view.offset).toBe(0);
 
-    const displays = assignedSlotDisplays(view, [0], stages.startAt, []);
+    const displays = assignedSlotDisplays(view, [0], stages.startAt);
     const forSlotZero = displays.filter((display) => display.slot === 0);
 
     // 在席 1 本・表示 1 件。数が一致していること自体が「隠れが無い」ことの表明である。

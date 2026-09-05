@@ -194,9 +194,9 @@ export function useAudioCues(
       for (let i = 0; i < fire.length; i++) emit(playPreAlertTone, false); // 撃ち捨て（生成しない・tick は非ジェスチャ）
 
       // Done（状態型）— boiled が在る間、5 秒ペースで鳴らし続ける持続アラーム（要件3.1）。
-      // 音の判定は提案を読まない（見るのは boiled の Timer 集合だけ）。ゆえに待ち行列は渡さず空で足りる
+      // 音の判定は提案を読まない（見るのは boiled の Timer 集合だけ）。ゆえに釜ごとの提案は渡さず既定の空で足りる
       // ——提案を渡さないことが「音は提案に依らない」ことの表明になる。
-      const boiled = boiledTimerIds(assignedSlotDisplays(currentView, currentUnits, now, []));
+      const boiled = boiledTimerIds(assignedSlotDisplays(currentView, currentUnits, now));
       if (boiled.size === 0) {
         lastRingAtRef.current = null; // 空へ遷移＝鳴動停止。次の非空化で即時に最初の一発（要件3.4）。
         return;
