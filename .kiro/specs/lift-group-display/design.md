@@ -38,15 +38,18 @@ engine と永続は、`Ordered` を `TimerFact.orderItem` に置き換える型�
 | domain | `src/domain/store.ts` | `slotDistance`（と `position`・2 定数）を `objective.ts` から移す |
 | engine | `src/engine/timer.ts` | `Ordered` を削除。`Timer` は `TimerFact` から `orderItem` を継承。`createTimer` の入力型を `TimerFact["orderItem"]` へ |
 | engine | `src/engine/project.ts` | `toWireTimer` が `orderItem` を写す |
-| engine | `src/engine/migrate.ts` / `start.ts` / `objective.ts` | 型参照の追随（`Ordered["orderItem"]` → `TimerFact["orderItem"]`）。`slotDistance` を domain から import |
+| engine | `src/engine/migrate.ts` / `start.ts` | 型参照の追随（`Ordered["orderItem"]` → `TimerFact["orderItem"]`） |
+| engine | `src/engine/objective.ts` / `schedule.ts` | `slotDistance` / `position` を domain から import する（`schedule.ts:13` の import 元と `:713` の注記「正本は objective.ts」を domain へ改める） |
 | client | `src/client/connection.ts` | `ClientView` に `unitOrigins` / `slotOffsets` / `affinityToleranceDistance` を足し、config 受信で写す |
+| client | `src/client/persistence.ts` | `toClientTimer` が `orderItem` を復元する（欠如 / null → null。旧ブロブの優雅な移行・`startTime` / `firmness` と同じ扱い） |
+| client | `src/client/components/useAudioCues.ts` | `assignedSlotDisplays(view, units, now, [])` の第 4 引数を落とす（省略可にする） |
 | client | `src/client/components/liftGroups.ts`（新規） | 群・開始・表示できる群・先頭・釜ごとの提案・釜の組の導出（純粋） |
 | client | `src/client/components/queueDisplay.ts` | `suggestionTiming` / `SuggestionTiming` を撤去。`QueueSuggestion` に `serveAt` を足す（注文参照は足さない） |
 | client | `src/client/components/slotDisplay.ts` | idle の `next` を `readonly SlotSuggestion[]` へ。`nextForSlot` を撤去し、`slotSuggestions` の結果を受ける |
 | client | `src/client/components/SlotBoard.tsx` | `planAnchor` と時期の語を撤去。提案の見え方を `phase` から組む。ラジアルへ待ち行列と釜の組を渡す |
 | client | `src/client/components/SlotCard.tsx` | 提案を複数描く。`head` だけ丸ボタン、`member` はラベルだけ。薄 / 濃の塗り |
 | client | `src/client/components/RadialMenu.tsx` | 待ち行列の列を足す（到着順・選べない品目は不活性）。プリセットの花びらは残す |
-| tests | `tests/client/*`、`tests/domain/wire.*`、`tests/core/*` | 後述 |
+| tests | `tests/client/*`、`tests/domain/wire.*`、`tests/core/*` | 後述（「撤去・書き換え・型の追随」） |
 | docs | `slot-suggested-start` / `online-cook-scheduling` / `lapsed-suggestion-timing` / ADR-0003 / `timer-model.md` | Requirement 7 |
 
 ### 描画ごとのデータフロー
@@ -101,9 +104,9 @@ function toOrderItemOrigin(value: unknown): OrderItemOrigin | null | undefined
 //   それ以外 → undefined（復号失敗。toTimerFact は null を返す）
 ```
 
-「欠如を null に畳む」のは、旧サーバの snapshot を新 client が読む過渡のためではない（同じ Worker が配るので起きない）。engine の revive と同じ扱いに揃えて、二つの境界で「無い」の意味を変えないためである。不正値は救済しない（AC 5.2）。
+Worker 経由では欠如は起きない（同じ Worker が client と snapshot を配る）。**欠如が実際に起きる境界は localStorage の旧ブロブ（`persistence.ts`）だけ**で、旧 client が書いた `timers` に `orderItem` キーは無い。ワイヤと永続の両方で `toOrderItemOrigin` を共用し（wire.ts から export）、欠如 / null → null に畳む。不正値はワイヤでは復号失敗（AC 5.2）、永続では `firmness` / `startTime` と同じ優雅な移行の規律に従い **null に畳む**（一要素の不備でブロブ全体を `EMPTY_VIEW` に落とすと、瞬断で走行中の秒読みが死ぬ——`persistence.ts` 冒頭の目的に反する）。
 
-`ClientTimer = TimerFact & { origin }` はそのまま `orderItem` を得る。degraded でローカルに立てる Provisional_Timer は `orderItem: null`（アドホック）。
+`ClientTimer = TimerFact & { origin }` は型としては `orderItem` を得るが、`toClientTimer`（`persistence.ts:136-165`）はリテラルで組み立てているので、`orderItem` の復元をそこに足す。`serializeView` は `view.timers` をそのまま書くので追加作業は無い。degraded でローカルに立てる Provisional_Timer は `orderItem: null`（アドホック）。
 
 ### Component 2: engine — `Ordered` の撤去と `toWireTimer`
 
@@ -111,7 +114,7 @@ function toOrderItemOrigin(value: unknown): OrderItemOrigin | null | undefined
 
 `toWireTimer` は `orderItem: timer.orderItem` を足す。他の項目は変えない。`migrate.ts` の `reviveOrderItem` の返り型を `TimerFact["orderItem"]` にする（判定は変えない）。
 
-**engine の挙動は一行も変わらない。** 型の置き場所が動くだけで、遷移・計画・採点・永続の検査は既存のテストがそのまま通る。
+**engine の挙動は変わらない。** 遷移・計画・採点・永続の既存テストは型の追随だけで通る。例外は `tests/core/to-wire-timer-adjustment.example.test.ts` で、ワイヤのキー集合を固定している（`WIRE_TIMER_KEYS`・`not.toHaveProperty("orderItem")`）ため、`orderItem` を加え `toHaveProperty("orderItem", timer.orderItem)` に改める。`Ordered` を参照する `tests/core/{timer.example,sync.p4.property}.test.ts` と `src/domain/order.ts` の注記も追随する。
 
 ### Component 3: `liftGroups.ts` — 群・開始・連鎖・先頭・釜ごとの提案
 
@@ -228,7 +231,7 @@ return [String(slot), ...near.slice(0, slotSpan − 1).map(String)]
 
 - `QueueSuggestion` に `serveAt: number` を足す。注文参照は足さない——注文を指すのは `GroupItem.order`（釜の提案は `item.order` から鍵を取る）と `QueueEntry.order`（レール）で、提案そのものは釜と時刻だけを語る。`SlotBoard` の `itemOf`（提案オブジェクトの同一性で行を引く）は不要になり消える。
 - `suggestionTiming` / `SuggestionTiming` を削除。
-- `SlotDisplay` idle の `next: readonly SlotSuggestion[]`（空配列は提案なし）。`assignedSlotDisplays(view, units, now, bySlot)` は `bySlot.get(slot) ?? []` を載せるだけで、`nextForSlot` は消える。degraded で空なのは `slotSuggestions` が担う（判定を一箇所に）。
+- `SlotDisplay` idle の `next: readonly SlotSuggestion[]`（空配列は提案なし）。`assignedSlotDisplays(view, units, now, bySlot = NO_SUGGESTIONS)` の第 4 引数は `ReadonlyMap<number, readonly SlotSuggestion[]>` で**省略可**（既定は空 Map）——`useAudioCues.ts:199` と 10 本以上のテストが `[]` を渡しており、省略可にすれば呼び出し側は引数を落とすだけで済む。静的検査 `tests/sync-set-batch-complete.static.test.ts` の正規表現（4 引数の呼び出し）は `SlotBoard` の呼び出しが満たす。idle は `bySlot.get(slot) ?? []` を載せるだけで、`nextForSlot` は消える。degraded で空なのは `slotSuggestions` が担う（判定を一箇所に）。
 - `orderQueueEntries` は変えない（レール用・AC 5.5）。`QueueEntry.suggestion` は残す——レールが「提案あり」を語らなくても、待ち行列の行と提案の対応は待ち行列の関心事である。
 
 ### Component 5: `SlotBoard.tsx` / `SlotCard.tsx`
@@ -268,7 +271,7 @@ export interface RadialQueueItem {
 }
 ```
 
-- 列は花びらの弧の反対側（画面の左半分で開けば右、右半分で開けば左）に縦の帯として描き、`overflow-y: auto`。行は商品名・麺量・茹で加減・卓（レールと同じ語・時刻なし）。`slotIds === null` の行は `disabled`（aria-disabled・薄い塗り）で、押しても何も起きない（AC 4.5・4.9）。
+- 列は花びらの弧の**反対側**に縦の帯として描く。花びらは `base === 0`（画面の左半分で開いた）なら右へ、`base === Math.PI`（右半分）なら左へ咲く（`RadialMenu.tsx:81`）ので、帯は左半分で開けば**左**、右半分で開けば**右**——配置は `base` から導く（`base === 0` → 帯の右端を `cx − radius − 花びら半径` に、`base === Math.PI` → 帯の左端を `cx + radius + 花びら半径` に）。帯の幅は中心のクランプ余白（`margin = radius + 60`）から `min(12rem, 余白)` を取り、余白が最小幅（8rem）に満たなければ帯を弧の**下**へ落とす。`overflow-y: auto`。行は商品名・麺量・茹で加減・卓（レールと同じ語・時刻なし）。`slotIds === null` の行は `disabled`（aria-disabled・薄い塗り）で、押しても何も起きない（AC 4.5・4.9）。
 - `SlotBoard` は `picker` が開いたとき、`queue` の各行に `pairSlots(picker.slot, order.slotSpan, view)` を付けて渡す。degraded では `queue: []`（AC 4.8）。
 - 選択 → `connection.startOrderItem(slotIds, { externalOrderId, itemIndex })`（AC 4.2）。`slotSpan` 1 は押した釜だけ（AC 4.3）。
 - 弧の項目数はプリセット数のまま（3〜6）で、幾何は変えない。
@@ -279,7 +282,7 @@ export interface RadialQueueItem {
 
 ### Component 8: `slotDistance` の移設
 
-`objective.ts` の `slotDistance` / `position` / `STRAIGHT_STEP_COST` / `DIAGONAL_EXTRA_COST` を `src/domain/store.ts` へ移し、`objective.ts` は import する。算術は変えない（AC 5.7）。doc（オクタイルを選んだ理由）も一緒に移す。
+`objective.ts` の `slotDistance` / `position` / `STRAIGHT_STEP_COST` / `DIAGONAL_EXTRA_COST` を `src/domain/store.ts` へ移す。domain は `slotDistance` と `position` を export し（2 定数は非公開のまま）、`objective.ts` は `affinityExcess` のために `slotDistance` を、`representativeSlot`（`:243-246`）のために `position` を `../domain/store` から import する。`schedule.ts:13` の import 元も domain へ変え、`:713` の注記「尺度の正本は objective.ts」を domain に改める。**objective から再 export しない**——残せば「距離の正本は domain」（6.7）が objective 経由の第二の入口で濁る。`tests/core/objective.{property,example}.test.ts` の `slotDistance` の import 先を `src/domain/store` に変える。算術は変えない（AC 5.7）。doc（オクタイルを選んだ理由）も一緒に移す。
 
 ## Error Handling
 
@@ -288,7 +291,7 @@ export interface RadialQueueItem {
 | 推奨の品目が待ち行列に無い・麺種がプリセットに無い | 群に入れない（提案として成立しない） | AC 1.3 |
 | 推奨の `slotIds` の一部が走行中 / 茹で上がり | どの釜にも出さない。全釜が空いた時点で現れる | AC 2.7・2.8 |
 | degraded | 提案もラジアルの待ち行列も空。`startOrderItem` は呼ばれない | AC 2.13・4.8・6.11 |
-| 走行中の仲間が茹で上がりに転じた（同じ snapshot・Corrected_Now が進んだ） | その群は started でなくなり、後続の群は消える。発火の snapshot で残りが新しい群として届く | 判断 16・AC 6.3 の例外 |
+| 走行中の仲間が茹で上がりに転じた（同じ snapshot・Corrected_Now が進んだ） | その群は started でなくなり、後続の群は消える。発火の snapshot で残りが新しい群として届く。再計画は boiled の釜を空きとして選びうるため、Complete までは残りの提案が出ないことがある | 判断 16・AC 6.3 の例外 |
 | `slotSpan ≥ 2` で許容距離の内側に空き釜が足りない | ラジアルの行を不活性にする | AC 4.5 |
 | ラジアルを開いた釜自身が、開いた後の snapshot で埋まった | `pairSlots` が null を返し、全行が不活性になる（`slotSpan` 1 でも） | AC 4.9・観測事実 12 |
 | ワイヤの `orderItem` が不正（空文字・負の index） | 復号失敗（snapshot 全体を落とす・`verified-wire-contract` の規律） | AC 5.2 |
@@ -296,7 +299,13 @@ export interface RadialQueueItem {
 
 ## Testing Strategy
 
-純粋関数（`liftGroups` / `visibleGroups` / `headOf` / `slotSuggestions` / `pairSlots`）は Property、見え方（`SlotCard` / `RadialMenu`）は Example（Testing Library）。ワイヤは既存の往復 Property に `orderItem` を足す。engine は既存テストが型の追随だけで通る。
+純粋関数（`liftGroups` / `visibleGroups` / `headOf` / `slotSuggestions` / `pairSlots`）は Property、見え方（`SlotCard` / `RadialMenu`）は Example（Testing Library）。ワイヤは既存の往復 Property に `orderItem` を足す。
+
+### 撤去・書き換え・型の追随
+
+- **撤去**：`tests/client/suggestionTiming.property.test.ts`・`lapsedSuggestion.example.test.tsx`（#27）。`slotSuggestion.example.test.ts`（`itemOf` の参照一致・`nextForSlot` の `startAt` 最小）と `slotSuggestion.property.test.ts` は `liftGroups.ts` の性質（6.5 / 6.8 / 6.9 / 6.11）へ置き換える。
+- **書き換え**：`slot-card.example.test.tsx`（idle の `next` が配列・`head` / `member` の描画）、`order-rail.example.test.tsx`（`QueueEntry` の形が変わらないことの確認のみ）、`tests/core/to-wire-timer-adjustment.example.test.ts`（`orderItem` を運ぶ）。
+- **型の追随**（挙動は変えない）：`tests/domain/wireGenerators.ts` の `genTimerFact` と `tests/client/generators.ts` の Timer 生成器に `orderItem` を足す。`assignedSlotDisplays(…, [])` を呼ぶテスト（`complete.example`・`audioCue.property`・`assignment-ui.example`・`localAuthority.property`・`degraded-slot-superimposition.{display,exploration}`）は第 4 引数を落とす。`tests/core/objective.{property,example}.test.ts` は `slotDistance` の import 先を domain へ。
 
 ### 生成器
 
@@ -307,8 +316,8 @@ export interface RadialQueueItem {
 | # | 性質 | 検査 |
 | --- | --- | --- |
 | 6.1 | 群の等号（片方向） | 同じ群の任意の 2 品目は卓が同じで `serveAt` が等しい |
-| 6.2 / 1.10 | 一意 | 同じ snapshot と Corrected_Now から、担当範囲を変えても `liftGroups` / `visibleGroups` / `headOf` が同じ |
-| 6.3 | 単調な出現 | 同じ snapshot で Corrected_Now を進める。走行中の `endTime` を跨がない区間では、提案は消えず薄→濃だけ。跨ぐ区間は例外（後述の 2 場面） |
+| 6.2 / 1.10 | 一意 | `liftGroups` は担当範囲を引数に取らない（構造で保証・6.7 と同じ静的な事実）。Property は「`view.timers` / `recommendations` / `pendingOrders` を任意に並べ替え、端末ローカルの項目（`connectivity` / `sync` / `processedIds` / `lastResults` / `error`）を任意に変えても、`liftGroups` / `visibleGroups` / `headOf` が構造的に等しい」——群と品目の並びを正準順序で定義した実装を固定する。担当範囲の不変は「units A と units B で共通する釜の idle `next` が一致する」として 6.6 の隣に置く |
+| 6.3 | 単調な出現 | 同じ snapshot で Corrected_Now を進める。区間の分割点は「可視の群の `serveAt` に等しい `endTime` を持つ**同卓の**走行中 Timer」の `endTime` **だけ**。その分割点を跨がない区間では提案は消えず薄→濃だけで、他卓・`endTime` 不一致・`orderItem: null` の Timer の `endTime` を跨いでも破れない（生成器の「一致しない仲間」「boiled の仲間」をそのまま使う）。分割点を跨ぐ区間は例外（後述の 2 場面） |
 | 6.4 | 時刻不在 | `suggestionOf` のラベルの末尾は空か `now` |
 | 6.5 | 群の境界 | ある群より前に started でない群があれば、その群の品目は `slotSuggestions` に現れない |
 | 6.6 | 担当外の空白 | Visible_Groups の全品目が担当外なら `assignedSlotDisplays` の idle の `next` はすべて空 |
@@ -321,12 +330,14 @@ export interface RadialQueueItem {
 ### 茹で上がりの 2 場面（requirements「design への申し送り」）
 
 1. **同じ snapshot で 599 秒 → 600 秒を跨ぐ**：G1 の仲間の `endTime` が 600 秒。599 秒では G1.started が真で G2 の提案（Prep_Lead 到来済み）が見える。600 秒で G1.started が偽になり、G2 の提案は消え、G1 の残りが先頭として濃く残る。
-2. **その後に発火の snapshot を受け取る**：G1 の残りが新しい `serveAt`（走行中の `endTime` と不一致）で届く。G2 は引き続き隠れ、G1 の残りが先頭として濃い。(1) の 600 秒時点と (2) の見え方が一致する（Example で両方を並べる）。
+2. **その後に発火の snapshot を受け取る**：G1 の残りが新しい `serveAt`（走行中の `endTime` と不一致）で届く。G2 は引き続き隠れる。G1 の残りは先頭の群だが、**濃く出るのは新しい配置の全釜が idle のときだけ**——発火後の再計画は boiled の釜を「今空いている」と扱う（`initialRelease` は実効 `endTime` が過去なら now）ため、残りが boiled の釜（例：index 最小の釜 0）へ置き直されることがあり、その釜のカードは boiled（Complete 待ち）で提案を載せない。Complete された時点で現れる。
+
+**両場面で一致するのは「G2 が隠れる」ことである。** G1 の残りの見え方は釜の割当に依るので、(2) の snapshot を手書きしない——`tests/core` 側で `startOrderItemTimer` → `fireDueTimers` → `toWireSnapshot` を実際に走らせて得た snapshot を `liftGroups` / `slotSuggestions` に通す横断 Example にし、boiled の釜が index 最小の場面と最大の場面の両方を置く。
 
 ### Example
 
 - レビューの再現：茹で 510 / 360 / 330 秒の同卓 3 品（開始予定 0 / 150 / 180 秒）。180 秒経っても押せるのは 510 秒の品目だけで、他 2 品は薄いラベルだけ。
-- 6 釜・同卓 4 品・各 2 釜：1 本目を始めた後、合流する 2 品が G1（started・`serveAt` = 走行中の `endTime`）で今（head・solid）。釜 0・1 を待つ 1 品は別の `serveAt` を持つ **G2 の唯一の head** であり、member ではない。釜 0・1 が走行中の間は全釜 idle を満たさず提案自体が出ず、空いた時点で head として現れる（G1 が started なので連鎖は通っている）。釜 0 だけが空いた状態でも出ない。
+- 6 釜・同卓 4 品・各 2 釜（engine を実走させた snapshot で検査する）：1 本目を始めた後、合流する 2 品が G1（started・`serveAt` = 走行中の `endTime`）で今（head・solid）。釜 0・1 を待つ 1 品は別の `serveAt` を持つ **G2 の唯一の head** であり、member ではない。釜 0・1 が走行中の間は全釜 idle を満たさず提案自体が出ない。到達可能な続きは 2 通り：(i) 2 品を始め、360 秒に 3 本が boiled、1 本目を Complete → G1 は pending を持たず存在せず、G2 が**先頭の群として**現れ、item4 が釜 0・1 に head・solid（item2 / 3 の釜が boiled のままでも釜 0・1 は idle）。(ii) 2 品を始めないまま 1 本目を Complete → 1 本目は走行中でないので G1 は started でなく、G1 が先頭で item4 は出ない。「G1 が started なので連鎖が通る」経路は無い——釜 0・1 が空く時点で 1 本目は必ず boiled 以降である。
 - `SlotCard`：`head` に丸ボタンと aria-label `… · now` / `… · soon`、`member` にボタン無しと `… · queued`。
 - `RadialMenu`：live で待ち行列の列が出る。`slotSpan` 2 で許容距離の内側に空きが無い行は不活性。degraded で列が無い。**開いたまま snapshot が更新され、起点の釜が走行中になった場面**：`slotSpan` 1 の行を含めて全行が不活性になり、選んでも `startOrderItem` が呼ばれない。
 - ワイヤ：`orderItem` 欠如 → null、不正 → 復号失敗（`wire.example`）。往復 Property に `orderItem` を足す（`wireGenerators`）。
@@ -345,7 +356,19 @@ export interface RadialQueueItem {
 10. **開始の事実の一意** — Requirement 6.10。
 11. **非 live の沈黙** — Requirement 6.11。
 12. **ワイヤの往復** — `TimerFact.orderItem` を含めて encode → decode が恒等（`verified-wire-contract` の既存 Property の拡張）。
-13. **engine 不変** — `Ordered` の撤去で engine の既存テストが変更なしに通る（型の追随のみ）。
+13. **engine 不変** — `Ordered` の撤去で engine の遷移・計画・採点・永続の既存テストが変更なしに通る（型の追随のみ）。ワイヤのキー集合を固定する `to-wire-timer-adjustment.example` だけが `orderItem` を加える形に変わる。
+
+## 未決（ユーザー判断）— 採用済み一片の下で等号が切れる
+
+判断 16 の Group_Started は「同じ卓の走行中 T の `endTime` が群の `serveAt` に等しい」で、その根拠は「計画が合流した残りを走行中の実効 `endTime` に一致させる」（観測事実 13）である。**これは自前解の尾部でしか保証されない。** 採用済み一片（外部計画）は `livePrefix`（`commit.ts:86-93`）が `isStale`（品目集合と `slotSpan`）と `hasLapsedStart` でしか切らず、**走行中の錨が動いても再錨しない**（ADR-0007「採用済み一片は合成で再検証しない」）。錨は Boil_Sync で動く——無関係な Timer が仲間の窓の内側で始まると、仲間の adjustment が変わり実効 `endTime` が ±Δ ずれる。そのとき採用済み一片の `serveAt`（採用時の錨）は新しい `endTime` に一致せず、client は「開始済みでない」と判定して後続の群を隠す。次の品目集合の変化か外部計画の受領で自然に直るが、その間の表示は嘘になる。
+
+選択肢：
+
+- **(a) engine 側（推奨）**：確定計画の合成に陳腐化条件を 1 つ足す——「走行中の錨に**合流できる**品目の `serveAt` が現在の錨に一致しない採用済み一片は陳腐化」。`joinable`（`schedule.ts`）を一片の位置の解放表で引き、その品目の配置が `serveAt === anchor` でなければ接頭辞をそこで切る。導出だけで判定でき（前回の錨を持たない）、自前解の合流一片は構成から満たす。外部計画が合流品目を錨より手前に散らした一片は採用直後の合成で落ちるが、それは段 2 の合成後採点にも現れる（合成で落ちる一片は改善に数えられない）ので、ゲートと合成は整合する。**engine の変更（`commit.ts`・`lift-group-planning` の AC 追加）を伴い、本 spec の Requirement 5.3 と `lift-group-planning` の改訂が要る**（PR #28 は未マージなので、そちらのレビュー対応として入れられる）。
+- **(b) client 側**：Group_Started を「同じ卓の走行中 T が在り、群の `serveAt ≤ T.endTime`」に緩める。錨が後ろへ動く（+Δ）場合は救えるが、前へ動く（−Δ）場合は救えず、外部計画が錨より手前に置いた品目も開始済みに数える。不完全。
+- **(c) 記録だけ**：等号が切れる区間は「次の状態変化まで」に限られ、外部ソルバの応答が採用された卓でだけ起きる。本 spec では受け入れ、`lift-group-planning` の後続課題に記す。
+
+(a) を推す。表示の前提を engine が保証する形が、判断 16 の「開始の事実は計画の構成そのもので判定する」に沿う。どの案でも、`tests/core` に横断 Property（`receivePlan` で合流一片を採用 → 無関係な Timer を `startTimer` → `toWireSnapshot` を `liftGroups` に通して `started` を検査）を置く。
 
 ## naming ゲート（実装前にユーザー確認）
 
