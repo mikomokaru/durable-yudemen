@@ -358,17 +358,15 @@ export interface RadialQueueItem {
 12. **ワイヤの往復** — `TimerFact.orderItem` を含めて encode → decode が恒等（`verified-wire-contract` の既存 Property の拡張）。
 13. **engine 不変** — `Ordered` の撤去で engine の遷移・計画・採点・永続の既存テストが変更なしに通る（型の追随のみ）。ワイヤのキー集合を固定する `to-wire-timer-adjustment.example` だけが `orderItem` を加える形に変わる。
 
-## 未決（ユーザー判断）— 採用済み一片の下で等号が切れる
+## 解決済み — 採用済み一片の下でも等号が成り立つ（`lift-group-planning` 判断 17・AC 4.8）
 
-判断 16 の Group_Started は「同じ卓の走行中 T の `endTime` が群の `serveAt` に等しい」で、その根拠は「計画が合流した残りを走行中の実効 `endTime` に一致させる」（観測事実 13）である。**これは自前解の尾部でしか保証されない。** 採用済み一片（外部計画）は `livePrefix`（`commit.ts:86-93`）が `isStale`（品目集合と `slotSpan`）と `hasLapsedStart` でしか切らず、**走行中の錨が動いても再錨しない**（ADR-0007「採用済み一片は合成で再検証しない」）。錨は Boil_Sync で動く——無関係な Timer が仲間の窓の内側で始まると、仲間の adjustment が変わり実効 `endTime` が ±Δ ずれる。そのとき採用済み一片の `serveAt`（採用時の錨）は新しい `endTime` に一致せず、client は「開始済みでない」と判定して後続の群を隠す。次の品目集合の変化か外部計画の受領で自然に直るが、その間の表示は嘘になる。
+判断 16 の Group_Started は「同じ卓の走行中 T の `endTime` が群の `serveAt` に等しい」で、その根拠は「計画が合流した残りを走行中の実効 `endTime` に一致させる」（観測事実 13）である。design レビュー（workflow・2026-09-05）で、これが自前解の尾部でしか保証されず、採用済み一片（外部計画）は錨が Boil_Sync で動いても再錨しない穴が見つかった。**計画側で直した**（(a) engine 側・PR #28 コミット cb956b4）：確定計画の合成が採用済み一片を現在の実効錨で再検証し（`keepsAnchor`——合流分は錨に一致・合流できる品目を押し出さない）、違反した一片以降を切って残した接頭辞の解放表から尾部を再計算する。ゲートの (e) も同じ述語を読む。合流する部分集合は外部解に強制しない。
 
-選択肢：
+本 spec への帰結：
 
-- **(a) engine 側（推奨）**：確定計画の合成に陳腐化条件を 1 つ足す——「走行中の錨に**合流できる**品目の `serveAt` が現在の錨に一致しない採用済み一片は陳腐化」。`joinable`（`schedule.ts`）を一片の位置の解放表で引き、その品目の配置が `serveAt === anchor` でなければ接頭辞をそこで切る。導出だけで判定でき（前回の錨を持たない）、自前解の合流一片は構成から満たす。外部計画が合流品目を錨より手前に散らした一片は採用直後の合成で落ちるが、それは段 2 の合成後採点にも現れる（合成で落ちる一片は改善に数えられない）ので、ゲートと合成は整合する。**engine の変更（`commit.ts`・`lift-group-planning` の AC 追加）を伴い、本 spec の Requirement 5.3 と `lift-group-planning` の改訂が要る**（PR #28 は未マージなので、そちらのレビュー対応として入れられる）。
-- **(b) client 側**：Group_Started を「同じ卓の走行中 T が在り、群の `serveAt ≤ T.endTime`」に緩める。錨が後ろへ動く（+Δ）場合は救えるが、前へ動く（−Δ）場合は救えず、外部計画が錨より手前に置いた品目も開始済みに数える。不完全。
-- **(c) 記録だけ**：等号が切れる区間は「次の状態変化まで」に限られ、外部ソルバの応答が採用された卓でだけ起きる。本 spec では受け入れ、`lift-group-planning` の後続課題に記す。
-
-(a) を推す。表示の前提を engine が保証する形が、判断 16 の「開始の事実は計画の構成そのもので判定する」に沿う。どの案でも、`tests/core` に横断 Property（`receivePlan` で合流一片を採用 → 無関係な Timer を `startTimer` → `toWireSnapshot` を `liftGroups` に通して `started` を検査）を置く。
+- 表示が読む snapshot の推奨は、すべての一片（自前解・採用済み）について「合流分の `serveAt` = 走行中の実効 `endTime`」を満たす。判断 16 の等号は前提として成り立つ。
+- 錨が早まって本当に合流できなくなった品目の一片は、正当な後続の batch として残る。その群は `serveAt ≠ endTime` で **started にならない**——表示は「開始済み」を要求しない（要件どおり）。
+- 横断 Property を `tests/core` に置く：`receivePlan` で合流一片を採用 → 無関係な Timer を `startTimer`（仲間の adjustment が動く）→ `toWireSnapshot` の timers / recommendations を `liftGroups` に通し、合流分の群が `started` であること、届かなくなった一片の群が `started` でないことを検査する。
 
 ## naming ゲート（実装前にユーザー確認）
 
