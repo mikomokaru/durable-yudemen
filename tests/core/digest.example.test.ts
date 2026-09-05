@@ -71,8 +71,8 @@ const PENDING: readonly PendingOrder[] = [
 ];
 
 const RUNNING: readonly Timer[] = [
-  timerOn({ slot: 0, endOffset: 60_000, boiled: false }, 0),
-  timerOn({ slot: 3, endOffset: 120_000, boiled: false }, 1),
+  timerOn({ slot: 0, endOffset: 60_000, boiled: false, tableId: null }, 0),
+  timerOn({ slot: 3, endOffset: 120_000, boiled: false, tableId: null }, 1),
 ];
 
 describe("engine/digest — digestInput", () => {
@@ -166,11 +166,20 @@ describe("engine/digest — digestInput", () => {
       }),
     ).toBe(baseline);
 
-    // arms / toleranceRatio が計画へ届く経路は running の実効 endTime ただ一つで、それは既に畳んである。
+    // toleranceRatio が計画へ届く経路は running の実効 endTime ただ一つで、それは既に畳んである。
     // 二重に畳めば「解放表が動かないパラメータ変更」で要求が出る。
-    expect(digestInput(PENDING, RUNNING, { ...PARAMS, arms: 4, toleranceRatio: 25 })).toBe(
-      baseline,
+    expect(digestInput(PENDING, RUNNING, { ...PARAMS, toleranceRatio: 25 })).toBe(baseline);
+  });
+
+  it("計画が読む値には反応する（arms は Arms_Overflow で採点に効く・slotSpan は割当に効く）", () => {
+    const baseline = digestInput(PENDING, RUNNING, PARAMS);
+
+    expect(digestInput(PENDING, RUNNING, { ...PARAMS, arms: 4 })).not.toBe(baseline);
+
+    const wider = PENDING.map((order, index) =>
+      index === 0 ? { ...order, slotSpan: order.slotSpan + 1 } : order,
     );
+    expect(digestInput(wider, RUNNING, PARAMS)).not.toBe(baseline);
   });
 
   it("整数（32bit 非負）で閉じる — 改善判定と同じ規律で丸め誤差を持ち込まない", () => {

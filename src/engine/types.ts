@@ -38,5 +38,9 @@ export const EPSILON_MS = 500 as const;
  *      Timer には engine 専用の orderItem（由来する注文品目）が乗る。欠如は null で埋める。
  *  v8: PendingOrder に slotSpan（占有するスロット幅）、状態に lastSequenceByTerminal（取り込みの重複排除の
  *      判定材料）を追加（POS オーダー取り込み）。前者の欠如は 1、後者の欠如は空で埋める——v7 以前の待ち行列は
- *      現に 1 品目 1 スロットで計画され、取り込み経路が無いため判定材料を持つ端末も無い。 */
-export const CURRENT_SCHEMA_VERSION = 9 as const;
+ *      現に 1 品目 1 スロットで計画され、取り込み経路が無いため判定材料を持つ端末も無い。
+ *  v9: PendingOrder に POS 申告の商品名 itemName / sizeName を追加（slot-suggested-start）。欠如は null で埋める。
+ *  v10: Timer.orderItem に由来する卓 tableId を追加（欠如は null）。AcceptedSlice から score を除去
+ *      （一片は点数を持たない・採点は比較の時点の導出）。v9 の score は余剰として読まずに捨てる
+ *      （lift-group-planning・ADR-0001 / 0003）。 */
+export const CURRENT_SCHEMA_VERSION = 10 as const;

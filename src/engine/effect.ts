@@ -15,6 +15,7 @@ import type { Rejection } from "./rejection";
 import type { ScheduleParams } from "./objective";
 import type { InputDigest } from "./digest";
 import type { PendingOrder } from "../domain/order";
+import type { NoodlePreset } from "../domain/store";
 import type { ServerMessage } from "../domain/messages";
 
 /** 純粋変換が返す作用の記述。shell が先頭から順に実行する。 */
@@ -23,14 +24,17 @@ export type Effect =
   | { readonly type: "SetAlarm"; readonly at: EpochMillis } // storage.setAlarm
   | { readonly type: "ClearAlarm" } // storage.deleteAlarm
   | { readonly type: "Broadcast"; readonly message: ServerMessage } // 接続中の全 WS へ
-  // 外部（Solver_Worker）へ計画を要求する（要件5.1）。運ぶのは対象集合・パラメータ・要求時点の指紋の 3 つ。
+  // 外部（Solver_Worker）へ計画を要求する（要件5.1）。運ぶのは対象集合・走行中・パラメータ・麺プリセット・
+  // 要求時点の指紋。要求の入力は engine の決定として一箇所に定め、shell は Effect と storeId の写しを送るだけ
+  // にする（麺プリセットを shell の在メモリから添えると、同じ要求の入力が二箇所から来る）。
   // storeId は載せない——engine は storeId を知らず、shell が送出時に付ける（構造の主権）。
   // 送出は投機であって確定の一部ではないため列の末尾に置く。失敗は Timer 本体へ伝播させない（AC 10.2）。
   | {
       readonly type: "RequestPlan";
       readonly pending: readonly PendingOrder[]; // 計画の対象集合（未着手品目）
       readonly running: readonly Timer[]; // 釜を占める Timer（slot 解放表の所与）
-      readonly params: ScheduleParams; // 重み・許容幅・レイアウトの 8 値
+      readonly params: ScheduleParams; // 重み 3・arms・許容幅 2・距離 1・レイアウト 2 の 9 値
+      readonly noodlePresets: readonly NoodlePreset[]; // 茹で時間の出所（外部解が serveAt = startAt + 茹で時間 を満たすために要る）
       readonly digest: InputDigest; // 要求時点の Input_Fingerprint（この要求がどの入力に対するものかの同定）
     };
 

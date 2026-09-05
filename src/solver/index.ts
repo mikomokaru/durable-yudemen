@@ -16,6 +16,7 @@
 // 引きずられるためである（design「意図的な重複」）。
 
 import { baselineSchedule, initialRelease, type CookSchedule } from "../engine/schedule";
+import { tableMembers } from "../engine/project";
 import type { EpochMillis } from "../engine/types";
 import { SLOTS_PER_UNIT } from "../domain/store";
 import type { PlanRequest } from "./request";
@@ -110,5 +111,7 @@ function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null
     now,
     request.params.unitOrigins.length * SLOTS_PER_UNIT,
   );
-  return baselineSchedule(request.pending, release, request.noodlePresets, request.params);
+  // 卓の成員表も同じ running から引く（engine の commit.ts と同じ二つの表）。
+  const members = tableMembers(request.running);
+  return baselineSchedule(request.pending, release, members, request.noodlePresets, request.params);
 }

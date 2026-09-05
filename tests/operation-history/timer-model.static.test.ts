@@ -68,7 +68,13 @@ type ModelShapeAssertions = [
   Assert<Equal<VariantKeys<"SetAlarm">, "type" | "at">>,
   Assert<Equal<VariantKeys<"ClearAlarm">, "type">>,
   Assert<Equal<VariantKeys<"Broadcast">, "type" | "message">>,
-  Assert<Equal<VariantKeys<"RequestPlan">, "type" | "pending" | "running" | "params" | "digest">>,
+  // lift-group-planning が RequestPlan に noodlePresets を足した（要求の入力を engine の決定として一箇所に定める）。
+  Assert<
+    Equal<
+      VariantKeys<"RequestPlan">,
+      "type" | "pending" | "running" | "params" | "noodlePresets" | "digest"
+    >
+  >,
   Assert<Equal<Extract<Effect, { readonly type: "Persist" }>["snapshot"], StoreSnapshot>>,
   Assert<
     Equal<
@@ -165,7 +171,7 @@ describe("Operation History の Timer モデル規律", () => {
               "startTime": 1700000000000,
             },
           ],
-          "version": 9,
+          "version": 10,
         },
         "type": "Persist",
       }

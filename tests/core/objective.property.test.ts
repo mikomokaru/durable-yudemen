@@ -8,9 +8,12 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { scoreSchedule, slotDistance, type ScheduleParams } from "../../src/engine/objective";
 import type { PlanSlice } from "../../src/engine/schedule";
+import { tableMembers } from "../../src/engine/project";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
 import {
+  ARMS_MAX,
+  ARMS_MIN,
   AFFINITY_TOLERANCE_DISTANCE_MIN,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_SLOT_OFFSETS,
@@ -48,7 +51,7 @@ interface ItemSeed {
 
 /** 生成した計画。scoreSchedule の 3 引数がそのまま揃う。 */
 interface PlanSeed {
-  readonly slices: readonly Omit<PlanSlice, "score">[];
+  readonly slices: readonly PlanSlice[];
   readonly pending: readonly PendingOrder[];
   readonly params: ScheduleParams;
 }
@@ -93,6 +96,7 @@ function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
     orderSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     tableSyncWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
     affinityWeight: fc.integer({ min: WEIGHT_MIN, max: WEIGHT_MAX }),
+    arms: fc.integer({ min: ARMS_MIN, max: ARMS_MAX }),
     orderSyncToleranceSeconds: fc.integer({
       min: SYNC_TOLERANCE_SECONDS_MIN,
       max: SYNC_TOLERANCE_SECONDS_MAX,
@@ -149,7 +153,7 @@ const genPlan: fc.Arbitrary<PlanSeed> = fc
     }),
   )
   .map(({ params, groups }) => {
-    const slices: Omit<PlanSlice, "score">[] = [];
+    const slices: PlanSlice[] = [];
     const pending: PendingOrder[] = [];
     groups.forEach((orders, groupIndex) => {
       const tableKey = `t-${groupIndex}`;
@@ -198,13 +202,15 @@ describe("engine/objective — 目的関数", () => {
   it("Property 3: 部分和の総和が全体値に等しく、各部分和は単独採点と一致する", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const score = scoreSchedule(slices, pending, params);
+        const score = scoreSchedule(slices, pending, new Map(), params);
 
         expect(score.bySlice).toHaveLength(slices.length);
         expect(score.bySlice.reduce((sum, value) => sum + value, 0)).toBe(score.total);
 
         slices.forEach((slice, index) => {
-          expect(scoreSchedule([slice], pending, params).total).toBe(score.bySlice[index]);
+          expect(scoreSchedule([slice], pending, new Map(), params).total).toBe(
+            score.bySlice[index],
+          );
         });
       }),
       { numRuns: 300 },
@@ -220,7 +226,7 @@ describe("engine/objective — 目的関数", () => {
   it("Property 16: 全体値と各部分和が整数である", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const score = scoreSchedule(slices, pending, params);
+        const score = scoreSchedule(slices, pending, new Map(), params);
 
         expect(Number.isInteger(score.total)).toBe(true);
         for (const partial of score.bySlice) {
@@ -359,8 +365,8 @@ describe("engine/objective — 距離尺度", () => {
           const within = { ...params, affinityToleranceDistance: tolerance };
           const withoutAffinity = { ...within, affinityWeight: 0 };
 
-          expect(scoreSchedule(slices, pending, within)).toEqual(
-            scoreSchedule(slices, pending, withoutAffinity),
+          expect(scoreSchedule(slices, pending, new Map(), within)).toEqual(
+            scoreSchedule(slices, pending, new Map(), withoutAffinity),
           );
         },
       ),
@@ -396,3 +402,183 @@ function maxPairDistance(params: ScheduleParams): number {
   }
   return max;
 }
+
+// ── lift-group-planning — 卓の群を採点の帰結として得るための性質 ────────────────────────────────
+
+/** 一片の全配置を最遅の提供時刻へ揃える（自前解が置く形）。 */
+function aligned(slice: PlanSlice): PlanSlice {
+  const latest = Math.max(...slice.placements.map((placement) => placement.serveAt));
+  return {
+    tableKey: slice.tableKey,
+    placements: slice.placements.map((placement) => ({
+      ...placement,
+      startAt: (latest - (placement.serveAt - placement.startAt)) as EpochMillis,
+      serveAt: latest as EpochMillis,
+    })),
+  };
+}
+
+/** 揃った一片の 1 本だけを Δ ms 早める（散らした計画）。 */
+function scattered(slice: PlanSlice, index: number, deltaMillis: number): PlanSlice {
+  return {
+    tableKey: slice.tableKey,
+    placements: slice.placements.map((placement, position) =>
+      position === index
+        ? {
+            ...placement,
+            startAt: (placement.startAt - deltaMillis) as EpochMillis,
+            serveAt: (placement.serveAt - deltaMillis) as EpochMillis,
+          }
+        : placement,
+    ),
+  };
+}
+
+/** 揃った一片を 1 つ含む計画。品目数 ≥ 2 の一片だけを対象にする（1 本では散らしようがない）。 */
+const genAlignedPlan = genPlan
+  .filter(({ slices }) => slices.some((slice) => slice.placements.length >= 2))
+  .chain(({ slices, pending, params }) => {
+    const candidates = slices
+      .map((slice, index) => ({ slice, index }))
+      .filter(({ slice }) => slice.placements.length >= 2);
+    return fc.constantFrom(...candidates).map(({ slice, index }) => ({
+      slices: slices.map((each, position) => (position === index ? aligned(each) : each)),
+      sliceIndex: index,
+      pending,
+      params,
+      placementCount: slice.placements.length,
+    }));
+  });
+
+/** 揃えることが点で勝つ w_table の域（要件 2 の前提・w_table ≥ 2）。 */
+const genTableWeight = fc.integer({ min: 2, max: WEIGHT_MAX });
+
+/** 1 ms 〜 999 ms と 1 秒以上の双方。秒未満の側が切り上げでしか閉じない境界である。 */
+const genDelta = fc.oneof(
+  fc.integer({ min: 1, max: 999 }),
+  fc.integer({ min: 1_000, max: 600_000 }),
+);
+
+describe("engine/objective — 卓の群（lift-group-planning）", () => {
+  // Feature: lift-group-planning, Property 2 — 採点の単調性（ずれが 1 ミリ秒でも成り立つ）
+  // **Validates: Requirements 2.1, 2.8, 7.2**
+  //
+  // 揃えた一片の 1 本だけを Δ 早めた計画は、揃えた計画より必ず値が大きい。Δ < 1 秒の側が本質で、
+  // Table_Lag を切り捨てに戻した実装はここで落ちる（wait の切り捨てが 1 減り lag が増えない）。
+  it("Property 2: 揃えた配置から 1 本を Δ 早めた計画は、Δ が 1 ms でも真に良くならない（超過が無ければ真に悪い）", () => {
+    fc.assert(
+      fc.property(
+        genAlignedPlan,
+        genTableWeight,
+        genDelta,
+        fc.nat({ max: 3 }),
+        ({ slices, sliceIndex, pending, params, placementCount }, tableSyncWeight, delta, pick) => {
+          const weighted = { ...params, tableSyncWeight };
+          const members = new Map();
+          const target = slices[sliceIndex]!;
+          const chosen = target.placements[pick % placementCount]!;
+          // 提供が到着より前になる配置は計画として成立しない（Wait_Time が負になる嘘）。そこへは踏み込まない。
+          const arrival = pending.find(
+            (order) =>
+              order.externalOrderId === chosen.externalOrderId &&
+              order.itemIndex === chosen.itemIndex,
+          )?.arrivalTime;
+          fc.pre(arrival === undefined || chosen.serveAt - delta >= arrival);
+          const worse = slices.map((slice, position) =>
+            position === sliceIndex ? scattered(slice, pick % placementCount, delta) : slice,
+          );
+          const alignedScore = scoreSchedule(slices, pending, members, weighted);
+          const scatteredScore = scoreSchedule(worse, pending, members, weighted);
+
+          // arms 超過が立っている一片では、1 本を外すと超過が (w_table − 1) 減り、lag の増分（w_table × ceil(Δ)）と
+          // wait の節約（≤ ceil(Δ)）を差し引くと最悪で同値になる。同値はゲートが棄却するので採用には至らない。
+          // 超過が無い（arms ≥ 本数）なら常に真に大きい。
+          const overflowFree = weighted.arms >= placementCount;
+          if (overflowFree) {
+            expect(scatteredScore.bySlice[sliceIndex]!).toBeGreaterThan(
+              alignedScore.bySlice[sliceIndex]!,
+            );
+            expect(scatteredScore.total).toBeGreaterThan(alignedScore.total);
+          } else {
+            expect(scatteredScore.bySlice[sliceIndex]!).toBeGreaterThanOrEqual(
+              alignedScore.bySlice[sliceIndex]!,
+            );
+            expect(scatteredScore.total).toBeGreaterThanOrEqual(alignedScore.total);
+          }
+          // 触っていない一片の部分和は動かない（部分和の独立・Property 13 の前提）。
+          slices.forEach((_slice, position) => {
+            if (position !== sliceIndex) {
+              expect(scatteredScore.bySlice[position]).toBe(alignedScore.bySlice[position]);
+            }
+          });
+        },
+      ),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: lift-group-planning, Property 9 / 10 — 到達可能な下限 0
+  // **Validates: Requirements 7.9, 7.10**
+  //
+  // 走行中の仲間が無く揃った一片では卓同期項が 0 で、同時刻の本数が arms 以下なら arms 超過も 0。
+  // どちらも「w_table を変えても値が動かない」ことで観測する（両項の重みは w_table から出る）。
+  it("Property 9 / 10: 揃った一片は卓同期項が 0、同時刻の本数が arms 以下なら arms 超過も 0", () => {
+    fc.assert(
+      fc.property(genAlignedPlan, genTableWeight, ({ slices, sliceIndex, pending, params }, w) => {
+        const target = slices[sliceIndex]!;
+        // 同時刻の本数（＝一片の本数）以上の arms なら超過は 0。
+        const roomy = { ...params, arms: target.placements.length };
+        const withWeight = scoreSchedule([target], pending, new Map(), {
+          ...roomy,
+          tableSyncWeight: w,
+        });
+        const withoutWeight = scoreSchedule([target], pending, new Map(), {
+          ...roomy,
+          tableSyncWeight: 0,
+        });
+        expect(withWeight.total).toBe(withoutWeight.total);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  // Feature: lift-group-planning, Property 13 — 再採点の決定性
+  // **Validates: Requirements 2.9, 7.7**
+  it("Property 13: 同じ入力から同じ値を返し、bySlice の総和は total に一致する", () => {
+    fc.assert(
+      fc.property(genPlan, ({ slices, pending, params }) => {
+        const first = scoreSchedule(slices, pending, new Map(), params);
+        const second = scoreSchedule(slices, pending, new Map(), params);
+        expect(second).toEqual(first);
+        expect(first.bySlice.reduce((sum, value) => sum + value, 0)).toBe(first.total);
+        expect(Number.isInteger(first.total)).toBe(true);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  // 走行中の仲間は錨として lag に寄与し、Wait_Time には寄与しない（AC 2.3 / 2.5）。
+  it("走行中の仲間を成員に加えても、Wait_Time は動かず卓の遅れだけが動く", () => {
+    fc.assert(
+      fc.property(
+        genAlignedPlan,
+        fc.integer({ min: 1, max: 600 }),
+        ({ slices, sliceIndex, pending, params }, laterSeconds) => {
+          const target = slices[sliceIndex]!;
+          const latest = Math.max(...target.placements.map((placement) => placement.serveAt));
+          const memberEnd = (latest + laterSeconds * 1000) as EpochMillis;
+          const members = new Map([[target.tableKey, nonEmpty([memberEnd])]]);
+          const roomy = { ...params, arms: 100 };
+          const alone = scoreSchedule([target], pending, new Map(), roomy);
+          const withMember = scoreSchedule([target], pending, members, roomy);
+          // 配置全員が laterSeconds だけ遅れる（切り上げ・整数秒ゆえ厳密）。
+          expect(withMember.total - alone.total).toBe(
+            roomy.tableSyncWeight * laterSeconds * target.placements.length,
+          );
+          void tableMembers;
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+});

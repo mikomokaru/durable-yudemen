@@ -19,11 +19,17 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   PLAN_TARGET_LIMIT,
+  advanceRelease,
   baselineSchedule,
   initialRelease,
+  isPushedOut,
+  planTargets,
   type SlotRelease,
 } from "../../src/engine/schedule";
+import type { EpochMillis } from "../../src/engine/types";
 import type { ScheduleParams } from "../../src/engine/objective";
+import { tableMembers, type TableMembers } from "../../src/engine/project";
+import type { Timer } from "../../src/engine/timer";
 import type { PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import {
@@ -47,10 +53,12 @@ import {
   toPending,
 } from "./scheduleScenes";
 
-/** 生成した場面。baselineSchedule の 4 引数と、検査に要る slot 数が揃う。 */
+/** 生成した場面。baselineSchedule の引数と、検査に要る slot 数が揃う。 */
 interface Scene {
   readonly pending: readonly PendingOrder[];
   readonly release: SlotRelease;
+  readonly members: TableMembers;
+  readonly running: readonly Timer[];
   readonly slotCount: number;
   readonly params: ScheduleParams;
 }
@@ -69,12 +77,17 @@ const genScene: fc.Arbitrary<Scene> = fc
       }),
     });
   })
-  .map(({ slotCount, params, running, orders }) => ({
-    pending: toPending(orders),
-    release: initialRelease(running.map(timerOn), NOW, slotCount),
-    slotCount,
-    params,
-  }));
+  .map(({ slotCount, params, running, orders }) => {
+    const timers = running.map(timerOn);
+    return {
+      pending: toPending(orders),
+      release: initialRelease(timers, NOW, slotCount),
+      members: tableMembers(timers),
+      running: timers,
+      slotCount,
+      params,
+    };
+  });
 
 describe("engine/schedule — baselineSchedule", () => {
   // Feature: online-cook-scheduling, Property: 1 — Baseline_Plan は常に feasible
@@ -86,8 +99,14 @@ describe("engine/schedule — baselineSchedule", () => {
   // 他の品目の配置を壊さないことを、同じ述語が同時に検査する。
   it("Property 1: ハード制約 (a) 重複なし (b) 同時本数 ≤ slot 数 (c) 解放時刻より前に開始しない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, slotCount, params }) => {
-        const schedule = baselineSchedule(pending, release, DEFAULT_NOODLE_PRESETS, params);
+      fc.property(genScene, ({ pending, release, members, slotCount, params }) => {
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          members,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
         const placements = allPlacements(schedule.slices);
 
         expect(hasOverlapOnSameSlot(placements)).toBe(false);
@@ -125,12 +144,14 @@ describe("engine/schedule — baselineSchedule", () => {
           const canonical = baselineSchedule(
             scene.pending,
             scene.release,
+            scene.members,
             DEFAULT_NOODLE_PRESETS,
             scene.params,
           );
           const permuted = baselineSchedule(
             shuffled,
             scene.release,
+            scene.members,
             DEFAULT_NOODLE_PRESETS,
             scene.params,
           );
@@ -151,8 +172,14 @@ describe("engine/schedule — baselineSchedule", () => {
   // 麺種は既知のみで振る——茹で時間が引けない品目の除外が混ざると「64 件で切れた」ことが観測できない。
   it("Property 15: 計画対象は正準順序の先頭 64 件と厳密に一致する", () => {
     fc.assert(
-      fc.property(genLargeScene, ({ pending, release, params }) => {
-        const schedule = baselineSchedule(pending, release, DEFAULT_NOODLE_PRESETS, params);
+      fc.property(genLargeScene, ({ pending, release, members, params }) => {
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          members,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
         const placed = allPlacements(schedule.slices).map((placement) =>
           keyOf(placement.externalOrderId, placement.itemIndex),
         );
@@ -201,6 +228,7 @@ const genLargeScene: fc.Arbitrary<Scene> = fc
               noodleType: fc.constantFrom(...KNOWN_NOODLE_TYPES),
               firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
               tableId: fc.oneof(fc.constantFrom("t-1", "t-2", "t-3"), fc.constant(null)),
+              slotSpan: fc.constant(1),
             }),
             { minLength: 1, maxLength: 4 },
           ),
@@ -213,6 +241,126 @@ const genLargeScene: fc.Arbitrary<Scene> = fc
   .map(({ slotCount, params, orders }) => ({
     pending: toPending(orders),
     release: initialRelease([], NOW, slotCount),
+    members: tableMembers([]),
+    running: [],
     slotCount,
     params,
   }));
+
+describe("engine/schedule — 同時に上げる群（lift-group-planning）", () => {
+  // Feature: lift-group-planning, Property 1 — 錨への一致
+  // **Validates: Requirements 1.4, 3.3, 3.4, 7.1**
+  //
+  // 釜容量に収まる一片では、走行中の仲間が居なければ未着手の配置の serveAt がすべて等しく、各配置の
+  // earliest 以上である。走行中の仲間が居れば（Property 16・判断 16・ADR-0007）配置は高々 2 つの serveAt に
+  // 分かれる——走行中の錨に**合流した**配置はちょうど錨に一致し、残りは一つの値に揃って錨より後ろにある。
+  // 容量を超える一片は batch に割れるので対象外（Property 14）。
+  it("Property 1 / 16: 容量に収まる一片は、走行中が無ければ一つの serveAt に揃い、在れば合流分が錨に一致し残りが一つに揃う", () => {
+    fc.assert(
+      fc.property(genScene, ({ pending, release, members, slotCount, params }) => {
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          members,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
+        const spanOf = new Map(
+          pending.map((order) => [
+            `${order.externalOrderId}\u0000${order.itemIndex}`,
+            order.slotSpan,
+          ]),
+        );
+        for (const slice of schedule.slices) {
+          const totalSpan = slice.placements.reduce(
+            (sum, placement) =>
+              sum + (spanOf.get(`${placement.externalOrderId}\u0000${placement.itemIndex}`) ?? 1),
+            0,
+          );
+          if (totalSpan > slotCount) continue;
+          const serveTimes = [...new Set(slice.placements.map((placement) => placement.serveAt))];
+          const siblings = members.get(slice.tableKey);
+          if (siblings === undefined) {
+            expect(serveTimes).toHaveLength(1);
+          } else {
+            const runningAnchor = Math.max(...siblings);
+            // 合流分（錨に一致）と残り（錨より後ろで一つに揃う）の高々 2 値。
+            expect(serveTimes.length).toBeLessThanOrEqual(2);
+            for (const serveAt of serveTimes) expect(serveAt).toBeGreaterThanOrEqual(runningAnchor);
+            if (serveTimes.length === 2) expect(serveTimes).toContain(runningAnchor);
+          }
+          // 各配置は自分の釜の解放時刻 + 茹で時間 以上（下限のクランプ無しで構成から従う）。
+          for (const placement of slice.placements) {
+            const boil = placement.serveAt - placement.startAt;
+            const earliest =
+              Math.max(...placement.slotIds.map((slotId) => release[Number(slotId)]!)) + boil;
+            expect(placement.serveAt).toBeGreaterThanOrEqual(earliest);
+          }
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: lift-group-planning, Property 17 — 自前解は始めたまとまりを崩さない（ハード制約 (e)）
+  // **Validates: Requirements 1.9, 1.11, 5.3**
+  //
+  // 計画順に解放表を進めながら、走行中の仲間が在る一片ごとに isPushedOut（Acceptance_Gate と同じ述語）が
+  // 偽であること。自前解がゲートの (e) を構成から満たすことの検査で、joinable の貪欲と述語の整合を固定する。
+  it("Property 17: 走行中の仲間が在る一片で、合流できた品目を錨より後ろへ押し出さない", () => {
+    fc.assert(
+      fc.property(genScene, ({ pending, release, members, params }) => {
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          members,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
+        const targets = planTargets(pending);
+        let free = release;
+        for (const slice of schedule.slices) {
+          const siblings = members.get(slice.tableKey);
+          if (siblings !== undefined) {
+            const anchor = Math.max(...siblings) as EpochMillis;
+            expect(
+              isPushedOut(slice.placements, free, anchor, targets, DEFAULT_NOODLE_PRESETS),
+            ).toBe(false);
+          }
+          free = advanceRelease(free, slice.placements);
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: lift-group-planning, Property 3 / 14 — slotSpan と batch
+  // **Validates: Requirements 4.1, 4.4, 4.5, 7.3**
+  it("Property 3 / 14: 各配置は slotSpan 個の相異なる釜を持ち、同時刻の占有は釜数を超えない", () => {
+    fc.assert(
+      fc.property(genScene, ({ pending, release, members, slotCount, params }) => {
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          members,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
+        const spanOf = new Map(
+          pending.map((order) => [
+            `${order.externalOrderId}\u0000${order.itemIndex}`,
+            order.slotSpan,
+          ]),
+        );
+        for (const placement of allPlacements(schedule.slices)) {
+          const span = spanOf.get(`${placement.externalOrderId}\u0000${placement.itemIndex}`);
+          expect(placement.slotIds.length).toBe(span);
+          expect(new Set(placement.slotIds).size).toBe(placement.slotIds.length);
+        }
+        expect(exceedsSlotCount(allPlacements(schedule.slices), slotCount)).toBe(false);
+        expect(hasOverlapOnSameSlot(allPlacements(schedule.slices))).toBe(false);
+      }),
+      { numRuns: 300 },
+    );
+  });
+});

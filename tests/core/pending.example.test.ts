@@ -39,7 +39,7 @@ const started: Timer = createTimer({
   startTime: (ARRIVED_AT + 60_000) as EpochMillis,
   endTime: (ARRIVED_AT + 180_000) as EpochMillis,
   seq: 0,
-  orderItem: { externalOrderId: "o-1", itemIndex: 0 },
+  orderItem: { externalOrderId: "o-1", itemIndex: 0, tableId: null },
 });
 
 describe("upsertOrder — 一部開始済みの注文への modification", () => {
@@ -95,7 +95,7 @@ describe("removeOrder / consumeOrder — キャンセルと開始による除去
   it("キャンセルは当該注文の全品目を除き、開始済み Timer には触れない", () => {
     expect(removeOrder(pending, "o-1")).toEqual([]);
     // Timer 集合はこの関数の関心事ではない——自動キャンセルの経路が存在しないこと自体が保証である。
-    expect(started.orderItem).toEqual({ externalOrderId: "o-1", itemIndex: 0 });
+    expect(started.orderItem).toEqual({ externalOrderId: "o-1", itemIndex: 0, tableId: null });
   });
 
   it("人の開始は 1 品目だけを除く", () => {

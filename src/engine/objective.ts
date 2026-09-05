@@ -4,7 +4,7 @@
 // 採点が整数で閉じることは Acceptance_Gate の改善判定（真に良いか同値か）の前提ゆえ、
 // 距離も浮動小数を一切生まない形で持つ。
 //
-// 採点のパラメータ（ScheduleParams）もここに置く。計画の算出・合成・受け入れも同じ 8 値を要するが、
+// 採点のパラメータ（ScheduleParams）もここに置く。計画の算出・合成・受け入れも同じ 9 値を要するが、
 // それらは採点を経由して要求するのであって、値の意味を定めているのは目的関数である（sync.ts が
 // SyncParams を持つのと同じ置き方）。
 
@@ -17,26 +17,36 @@ import {
 } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
+import type { TableMembers } from "./project";
 import type { Placement, PlanSlice } from "./schedule";
-import type { SlotId } from "./types";
+import type { EpochMillis, SlotId } from "./types";
 
 /**
  * ScheduleParams — 計画の採点に要するパラメータ（値）。shell が StoreConfig から解決して渡す。
  *
  * engine は domain の設定型（StoreConfig）を知らない。StoreConfig をそのまま渡せば、麺プリセットのように
  * 採点と無関係な項目まで engine が引き連れることになる（SyncParams が arms / toleranceRatio だけを受けるのと
- * 同じ規律）。重み 3・許容幅 3・レイアウト 2 のちょうど 8 値が、この計算の全入力である。
+ * 同じ規律）。重み 3・arms 1・許容幅 2・距離 1・レイアウト 2 の 9 値が、この計算の全入力である。
+ * arms は本数であって重みではない。SyncParams も arms を持つが、SettleParams が両者を継承するので実体は一つで
+ * 足りる——値の意味（同時に上がる本数の超過を数える）を定めるのは目的関数の側ゆえ、ここにも置く。
  */
 export interface ScheduleParams {
   /** w_order。同一オーダーの提供時刻差の超過分に掛かる係数。 */
   readonly orderSyncWeight: number;
-  /** w_table。同一 Table_Group の提供時刻差の超過分に掛かる係数。 */
+  /** w_table。卓の遅れ（Table_Lag）の和に掛かる係数。arms 超過の重みもここから導く（w_table − 1）。 */
   readonly tableSyncWeight: number;
   /** w_affinity。代表 slot 間距離の超過分に掛かる係数。 */
   readonly affinityWeight: number;
+  /** 同時に上げられる本数（腕の本数）。同じ時刻に上がる卓の成員がこれを超えた分を数える。 */
+  readonly arms: number;
   /** 同一オーダー内の提供時刻差の許容幅（秒）。超過分のみ計上する。 */
   readonly orderSyncToleranceSeconds: number;
-  /** 同一 Table_Group 内の提供時刻差の許容幅（秒）。超過分のみ計上する。 */
+  /**
+   * 同一 Table_Group 内の提供時刻差の許容幅（秒）。
+   *
+   * **本項目を読む計算は無い。** 卓同期の項は許容幅を使わず遅れの和を数える（lift-group-planning 判断 5）。
+   * StoreConfig の項目を増減しないため型には残す。撤去候補として online-cook-scheduling の design に記録した。
+   */
   readonly tableSyncToleranceSeconds: number;
   /** 許容 slot 距離。超過分のみ計上する。 */
   readonly affinityToleranceDistance: number;
@@ -69,13 +79,22 @@ export interface ScheduleScore {
 const MILLIS_PER_SECOND = 1000;
 
 /**
- * scoreSchedule — 計画の目的関数値を Requirement 3 の確定式で算出する（整数・秒換算）。
+ * scoreSchedule — 計画の目的関数値を算出する（整数・秒換算・lift-group-planning Requirement 2）。
  *
- * = Σ Wait_Time + w_table × Σ(同卓の提供時刻最大差の許容幅 超過分)
+ * = Σ Wait_Time（未着手の配置のみ）
+ *   + w_table × Σ Table_Lag（卓の成員＝未着手の配置と同じ卓の走行中 Timer。最遅からの各成員の遅れの和）
+ *   + (w_table − 1) × Σ Arms_Overflow（同じ時刻に上がる成員の本数のうち arms を超える分）
  *   + w_order × Σ(同一オーダーの提供時刻最大差の許容幅 超過分)
  *   + w_affinity × Σ max(0, slotDistance − 許容距離)
  *
- * 3 項すべてが「許容幅からの超過分」で揃い、到達可能な下限 0 を持つ。
+ * 卓同期の項だけ形が違う。最大差の許容超過では 3 本目以降を揃える得が無く、遅れの和なら w_table > 1 の下で
+ * 「揃える方が点が良い」が何本の卓でも成り立つ。揃えることは制約でも保証でもなく、この式の最適点である
+ * （ADR-0001）。到達可能な下限 0 は、走行中の仲間が無い卓で成り立つ——走行中が錨より早く上がる卓では
+ * その差が Table_Lag に必ず残る。
+ *
+ * **走行中 Timer を卓の成員として受け取る**（TableMembers・project.ts）。成員の提供時刻は動かせない事実で、
+ * 錨として lag に寄与するが、Wait_Time には寄与しない（Placement ではなく、その待ちは既に実現済み）。
+ * tableId を持たない走行中はどの卓の成員にもならない——単独キーは NUL 始まりで非空の tableId と一致しない。
  *
  * **Pending_Order 集合を受け取る。** Wait_Time は `serveAt − arrivalTime` だが、Placement は arrivalTime を
  * 持たない（Pending_Order 集合が正本であり、計画が写しを持てば二つの真実になる）。ゆえに起点は集合から引く。
@@ -83,39 +102,85 @@ const MILLIS_PER_SECOND = 1000;
  * 持たないもの——は Σ Wait_Time に寄与しない（Requirement 8 の確定注記）。0 秒待ったと数えるのは嘘であり、
  * 寄与しないことが真である。
  *
- * **入力の一片は score を持たない**（`Omit<PlanSlice, "score">`）。部分和はこの関数の出力であって入力ではない。
- * 完成した PlanSlice を要求すると、baselineSchedule が仮の score を置いてから採点し直す形になり、
- * 一瞬でも嘘の値を持つ計画が存在してしまう。CookSchedule.slices はこの型を構造的に満たすため、外部から
- * 届いた計画（主張された score を含む）をそのまま渡して再採点できる。
+ * 一片は点数を持たない。採点は比較の時点（Acceptance_Gate）だけの導出で、配置（baselineSchedule）は
+ * 採点を呼ばない。外部から届いた計画もそのまま渡して採点できる。
  *
  * slotIds は解放表の内側（存在する釜）を指すことを前提とする。ハード制約の検査を通っていない配置を
  * 採点しても意味のある値にはならないため、ここに範囲防御は置かない（slotDistance と同じ規律）。
  */
 export function scoreSchedule(
-  slices: readonly Omit<PlanSlice, "score">[],
+  slices: readonly PlanSlice[],
   pending: readonly PendingOrder[],
+  members: TableMembers,
   params: ScheduleParams,
 ): ScheduleScore {
   const arrivals = new Map(pending.map((order) => [itemKey(order), order.arrivalTime]));
-  const bySlice = slices.map((slice) => scoreSlice(slice.placements, arrivals, params));
+  const bySlice = slices.map((slice) =>
+    scoreSlice(slice.placements, arrivals, members.get(slice.tableKey) ?? [], params),
+  );
 
-  // 全項が Table_Group の内部に閉じるため、総和は部分和の和で尽きる（AC 6.2(d) の部分比較の成立条件）。
+  // 全項が卓（Table_Group とその卓の走行中）の内部に閉じるため、総和は部分和の和で尽きる
+  // （AC 6.2(d) の部分比較の成立条件）。走行中は一つの卓にしか属さない。
   return { total: bySlice.reduce((sum, score) => sum + score, 0), bySlice };
 }
 
-/** 一片（Table_Group）の部分和。Σ Wait_Time と 3 つのソフト制約項をこの範囲だけで閉じて足す。 */
+/** 一片（Table_Group）の部分和。Σ Wait_Time と 4 つのソフト制約項をこの範囲だけで閉じて足す。 */
 function scoreSlice(
   placements: readonly Placement[],
   arrivals: ReadonlyMap<string, number>,
+  memberEnds: readonly EpochMillis[],
   params: ScheduleParams,
 ): number {
+  const serveTimes = [...placements.map((placement) => placement.serveAt), ...memberEnds];
   return (
     waitSeconds(placements, arrivals) +
-    params.tableSyncWeight *
-      excessSeconds(serveSpread(placements), params.tableSyncToleranceSeconds) +
+    params.tableSyncWeight * tableLagSeconds(serveTimes) +
+    armsOverflowWeight(params) * armsOverflow(serveTimes, params.arms) +
     params.orderSyncWeight * orderExcessSeconds(placements, params.orderSyncToleranceSeconds) +
     params.affinityWeight * affinityExcess(placements, params)
   );
+}
+
+/**
+ * 卓の遅れ（Table_Lag）の和（秒）。最遅の提供時刻から各成員の提供時刻までの差を、成員ごとに切り上げて足す。
+ *
+ * 切り上げは意図である（ADR-0006）。切り捨てで揃えると、揃った計画の 1 本を 1 ms だけ早めた計画が
+ * Wait_Time の切り捨てを 1 減らし lag を増やさず「真に良い」を作り、Acceptance_Gate を通る。client は
+ * serveAt の等号で群を組むので、その 1 ms で群が割れる。切り上げなら任意の Δ > 0 に対し lag が
+ * w_table × ceil(Δ) 増え、wait の節約は高々 ceil(Δ) なので、w_table ≥ 2 の下で常に損になる。
+ * 差がちょうど 0 のときだけ 0 になることは切り上げでも保たれる（下限 0 は破れない）。
+ */
+function tableLagSeconds(serveTimes: readonly number[]): number {
+  if (serveTimes.length === 0) return 0;
+  const latest = Math.max(...serveTimes);
+  let total = 0;
+  for (const serveAt of serveTimes) total += ceilSeconds(latest - serveAt);
+  return total;
+}
+
+/**
+ * arms 超過（Arms_Overflow）。同じ提供時刻に上がる成員を束ね、本数のうち arms を超える分を足す。
+ *
+ * 「群の本数」ではなく同時刻で数える——腕が競合するのは同時刻だけで、batch に割れて同時に上がらない本数は
+ * 数えない。卓同期の項と同じ成員集合（走行中を含む）の上で数える。
+ */
+function armsOverflow(serveTimes: readonly number[], arms: number): number {
+  const counts = new Map<number, number>();
+  for (const serveAt of serveTimes) counts.set(serveAt, (counts.get(serveAt) ?? 0) + 1);
+  let total = 0;
+  for (const count of counts.values()) total += Math.max(0, count - arms);
+  return total;
+}
+
+/**
+ * arms 超過の重み。設定にも定数にもせず w_table から導く（lift-group-planning 判断 8）。
+ *
+ * 任意の w_table ≥ 1 で「卓同期 > arms 超過」が式から出る——arms 超過は卓の群を組むときにだけ生まれる費用で、
+ * 群を組む価値の一段下に群を組む代償を置く。単位は秒 対 本数で既定（w_table = 2）では 1 本 1 秒に相当し、
+ * 実質はタイブレークである。効かせるには「arms を超えた 1 本が上げ遅れる秒数」という計測値が要る。
+ */
+function armsOverflowWeight(params: ScheduleParams): number {
+  return Math.max(0, params.tableSyncWeight - 1);
 }
 
 /** Σ Wait_Time（秒）。起点を持たない配置は寄与しない。 */
@@ -208,15 +273,23 @@ function excessSeconds(spreadMillis: number, toleranceSeconds: number): number {
 }
 
 /**
- * ミリ秒を秒へ落とす。**切り捨て（floor）を採る。**
+ * ミリ秒を秒へ落とす（水準の側）。**切り捨て（floor）を採る。**
  *
  * 許容幅は秒で与えられるため、差を秒へ落としてから超過を採る必要がある。切り捨てなら「許容幅ちょうどまでは
  * 超過 0」という境界が厳密に保たれる（切り上げなら 60.001 秒が 61 秒になり、許容幅 60 秒に対して 1 秒の
- * 超過が立ってしまう）。Wait_Time にも同じ規則を用いる——単位を落とす規則を二つ持てば、同じ時間差が
- * 項によって違う秒数になる。client の残り時間表示（format.ts）も同じ切り捨てで、秒未満は人の知覚の粒度に無い。
+ * 超過が立ってしまう）。Wait_Time にも同じ規則を用いる。client の残り時間表示（format.ts）も同じ切り捨てで、
+ * 秒未満は人の知覚の粒度に無い。
+ *
+ * 単位を落とす規則は役割で二つに分かれる。水準（どれだけ待ったか・どれだけ超えたか）は切り捨て、逸脱の罰
+ * （Table_Lag）は切り上げ（ceilSeconds）。ゼロでない逸脱をすべて 1 秒以上に数えなければ「ずらす得」が残る。
  */
 function toWholeSeconds(millis: number): number {
   return Math.floor(millis / MILLIS_PER_SECOND);
+}
+
+/** ミリ秒を秒へ落とす（逸脱の罰の側）。切り上げ。理由は tableLagSeconds と ADR-0006。 */
+function ceilSeconds(millis: number): number {
+  return Math.ceil(millis / MILLIS_PER_SECOND);
 }
 
 /** 品目を指す鍵（externalOrderId × itemIndex）。区切りに文字列に現れない NUL を使い、鍵の衝突を作らない。 */

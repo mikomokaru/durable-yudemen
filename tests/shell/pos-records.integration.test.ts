@@ -100,12 +100,12 @@ const UNIT_COUNT = 2;
 /** 本テストの店舗設定。`noodlePresets` に ORPHAN_NOODLE を載せないことが AC 6.28 の前提である。 */
 const storeConfig: StoreConfig = {
   unitCount: UNIT_COUNT,
+  ...schedulingDefaults(UNIT_COUNT),
   arms: 3,
   toleranceRatio: 10,
   noodlePresets: [
     { noodleType: NOODLE, boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
   ] as NonEmptyArray<NoodlePreset>,
-  ...schedulingDefaults(UNIT_COUNT),
   firmnessCodes,
   menuItems,
 };

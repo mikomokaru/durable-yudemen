@@ -9,8 +9,8 @@
 
 import type { EpochMillis, SlotId } from "./types";
 import type { Timer } from "./timer";
-import { adjustedEndTime } from "./project";
-import { scoreSchedule, slotDistance, type ScheduleParams } from "./objective";
+import { adjustedEndTime, type TableMembers } from "./project";
+import { slotDistance, type ScheduleParams } from "./objective";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
 import type { PendingOrder } from "../domain/order";
 import { slotOf, type NoodlePreset } from "../domain/store";
@@ -41,16 +41,14 @@ export interface Placement {
  *
  * 名に分解軸（卓・時間・干渉閉包）を焼き付けない。軸が変わっても「計画の独立した一片」という
  * 概念境界は変わらないため（design.md 命名節）。
- * score を一片ごとに持つのは、Acceptance_Gate の段 1 が部分和どうしを比べるため。全ソフト制約項が
- * Table_Group の内部に閉じるので、部分和の総和は計画全体の値に厳密に一致する。
+ * 一片は自分の点数を持たない。採点は比較の時点（Acceptance_Gate）の導出であって計画の一部ではなく、
+ * 永続すれば重みや走行中の変化とずれる（lift-group-planning 判断 7・ADR-0001）。
  */
 export interface PlanSlice {
   /** 現行の分解軸＝Table_Group 識別子（tableId が null の品目は単独キーへ写す）。 */
   readonly tableKey: string;
   /** この一片に属する品目の配置。 */
   readonly placements: readonly Placement[];
-  /** 当該 PlanSlice の目的関数部分和（整数。丸め誤差に改善判定を晒さない）。 */
-  readonly score: number;
 }
 
 /**
@@ -61,8 +59,6 @@ export interface PlanSlice {
 export interface CookSchedule {
   /** 計画順に並ぶ一片の列。 */
   readonly slices: readonly PlanSlice[];
-  /** 部分和の総和（各 slice の score の和に厳密に一致する）。 */
-  readonly score: number;
 }
 
 /**
@@ -89,9 +85,8 @@ export interface AcceptedSlice extends PlanSlice {}
  * **置き場所は `CookSchedule` の定義と同じここである。** 検証は「この型を名乗れる値とは何か」の宣言であり、
  * 型と離せば両者は黙ってずれる（`isNonEmpty` が `NonEmptyArray` と同居しているのと同じ判断）。
  *
- * score は**外部が主張した値**として受けるだけで、採否の根拠にはしない（admit が engine 自身の採点へ
- * 差し替える）。それでも整数性を要求するのは、目的関数値が整数で閉じるという不変（Property 16）を外部の値が
- * 破ってよい理由が無いためである。
+ * 外部が score を添えてきても読まない（計画は点数を持たない・AC 5.6）。読まない値を検証すれば、検証だけが
+ * 理由で計画が棄却されうる。
  *
  * **見るのは形だけである。** 釜の時間帯の重複・`serveAt` と茹で時間の整合・同一 Table_Group の二重計画は
  * いずれも検査しない——型の内側で成立していない計画であり、`admit` のハード制約が落とす（plan.ts 冒頭）。
@@ -100,7 +95,6 @@ export interface AcceptedSlice extends PlanSlice {}
 export function toCookSchedule(raw: unknown): CookSchedule | null {
   if (typeof raw !== "object" || raw === null) return null;
   const candidate = raw as Record<string, unknown>;
-  if (!isInteger(candidate.score)) return null;
   if (!Array.isArray(candidate.slices)) return null;
   const slices: PlanSlice[] = [];
   for (const value of candidate.slices) {
@@ -108,16 +102,15 @@ export function toCookSchedule(raw: unknown): CookSchedule | null {
     if (slice === null) return null;
     slices.push(slice);
   }
-  return { slices, score: candidate.score };
+  return { slices };
 }
 
-/** 生値を 1 つの PlanSlice へ写す。分解軸の鍵・部分和・配置列のいずれかが不正なら null。 */
+/** 生値を 1 つの PlanSlice へ写す。分解軸の鍵・配置列のいずれかが不正なら null。 */
 function toPlanSlice(value: unknown): PlanSlice | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   // 空の tableKey はどの Table_Group も指さない（識別子は tableId か単独キーのいずれかで必ず非空）。
   if (typeof candidate.tableKey !== "string" || candidate.tableKey.length === 0) return null;
-  if (!isInteger(candidate.score)) return null;
   if (!Array.isArray(candidate.placements)) return null;
   const placements: Placement[] = [];
   for (const item of candidate.placements) {
@@ -125,7 +118,7 @@ function toPlanSlice(value: unknown): PlanSlice | null {
     if (placement === null) return null;
     placements.push(placement);
   }
-  return { tableKey: candidate.tableKey, placements, score: candidate.score };
+  return { tableKey: candidate.tableKey, placements };
 }
 
 /** 生値を 1 配置へ写す。対象品目・釜・開始と提供の時刻のいずれかが不正なら null。 */
@@ -258,7 +251,12 @@ interface TableGroup {
  * baselineSchedule — 計画対象へ順序・slot・開始時刻を割り当てる決定的な貪欲法（要件4.1〜4.5）。
  *
  * 常に feasible（Requirement 3 のハード制約充足）。pending が空なら空の計画を返す。
- * 副産物として PlanSlice ごとの目的関数部分和を添え、Acceptance_Gate が追加計算なしで比較できるようにする。
+ * 採点を呼ばない——採点は比較の時点（Acceptance_Gate）の関心事で、配置の関心事ではない。この関数は
+ * 「配置を決める」だけである（lift-group-planning 判断 7）。
+ *
+ * **卓の成員表を引数に取る。** 同じ卓の走行中 Timer の提供時刻（project.ts の tableMembers）で、その最大が
+ * 群の錨になる。解放表（「その釜がいつ空くか」）と同じ資格の第二の表（「その卓がいつ上がるか」）であり、
+ * 配置は Timer ではなく表だけを読む。
  *
  * **解放表を引数に取る。** 「途中まで確定した配置の続きを埋める」用途（committedSchedule の尾部再実行）に
  * そのまま使えることが、合成後の計画が構成から feasible であることの根拠になる。全体の自前解は
@@ -277,29 +275,24 @@ interface TableGroup {
 export function baselineSchedule(
   pending: readonly PendingOrder[],
   release: SlotRelease,
+  members: TableMembers,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): CookSchedule {
-  const slices: Omit<PlanSlice, "score">[] = [];
+  const slices: PlanSlice[] = [];
   let free = release;
   for (const group of tableGroups(planTargets(pending))) {
-    const placements = placeGroup(group.items, free, presets, params);
+    // 走行中の錨＝同じ卓の走行中の仲間の提供時刻の最大（表の値は昇順ゆえ末尾）。卓なしの単独キーは
+    // NUL 始まりで非空の tableId と一致しないため、表に当たらない（条件を書かない・ADR-0003）。
+    const ends = members.get(group.tableKey);
+    const runningAnchor = ends === undefined ? null : ends[ends.length - 1]!;
+    const placements = placeGroup(group.items, free, runningAnchor, presets, params);
     // 1 品目も置けなかったグループは PlanSlice を成さない（空の一片は採用/棄却の対象にならない）。
     if (placements.length === 0) continue;
     slices.push({ tableKey: group.tableKey, placements });
     free = advanceRelease(free, placements);
   }
-
-  // 採点は scoreSchedule ただ一つ（採点を二度書かない）。部分和は入力の slices と同じ index で返る。
-  const score = scoreSchedule(slices, pending, params);
-  return {
-    slices: slices.map((slice, index) => ({
-      tableKey: slice.tableKey,
-      placements: slice.placements,
-      score: score.bySlice[index]!,
-    })),
-    score: score.total,
-  };
+  return { slices };
 }
 
 /**
@@ -348,7 +341,91 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
   // 本数が違えば集合は一致しない。以降の走査で「計画対象 ⊆ 一片」だけを見れば足りる形にする
   // （本数が等しく計画対象を覆うなら、一片の側に余りも重複も残らない）。
   if (group.length !== slice.placements.length) return true;
-  return group.some((order) => !slice.placements.some((placement) => refersTo(placement, order)));
+  // 品目が在るだけでなく、配置がその品目の**現在の** slotSpan を満たしていること。採用済み一片は
+  // 採用時の slotSpan の上に組まれており、品目が同じでも要る釜数が変われば（v9 の採用済み計画は
+  // slotSpan を読まずに 1 釜で組まれている・サイズ変更の再送）配置はもうその品目の計画ではない。
+  return group.some((order) => {
+    const placement = slice.placements.find((candidate) => refersTo(candidate, order));
+    return placement === undefined || !occupiesSlotSpan(placement, order);
+  });
+}
+
+/**
+ * 一片が走行中の錨を守っているか（ハード制約 (e)・判断 16 / 17・ADR-0007）。守るとは 2 つ——
+ *   1. **合流分は錨に一致する**：錨以下に提供する配置は、ちょうど錨に提供する（錨より手前に散らさない）。
+ *   2. **押し出さない**：合流できた品目を錨より後ろへ置かない（isPushedOut）。
+ *
+ * Acceptance_Gate（admit.ts）と確定計画の合成（commit.ts）が同じ述語を読む。合成が読むのは、採用済み一片が
+ * 採用時の錨の上に組まれているためである——錨は Boil_Sync で動く（無関係な Timer が仲間の窓の内側で始まると
+ * 仲間の adjustment が変わる）。錨が +Δ 動けば合流分は錨より手前になり（1 が破れる）、−Δ 動けば合流分は
+ * 錨より後ろになって、まだ合流できるなら押し出し（2 が破れる）、もう届かないなら正当な後続の batch になる。
+ * どちらも導出だけで判定でき、採用時の錨を持たなくてよい。
+ *
+ * **合流する部分集合を外部解に強制しない。** 残り容量が 1 品分で自前解が A を選んでも、外部解が B を合流させ
+ * A を後ろに置く一片は、A が B の後では合流できない（isPushedOut が偽）ので守っている。強制するのは「合流した
+ * ものは錨に一致」と「合流できるものを押し出さない」だけで、どれを合流させるかは外部の自由（ADR-0007）。
+ */
+export function keepsAnchor(
+  placements: readonly Placement[],
+  release: SlotRelease,
+  anchor: EpochMillis,
+  targets: readonly PendingOrder[],
+  presets: readonly NoodlePreset[],
+): boolean {
+  if (placements.some((placement) => placement.serveAt < anchor)) return false;
+  return !isPushedOut(placements, release, anchor, targets, presets);
+}
+
+/**
+ * 走行中の錨に合流できたのに、錨より後ろへ押し出された配置が在るか（ハード制約 (e)・判断 16・ADR-0007）。
+ *
+ * 「始めたまとまりを崩さない」は目的関数では守れない——卓同期項は最遅からの遅れの和なので、合流できない 1 本が
+ * 在るとき「合流できる品目まで全員を最後へ遅らせる」配置の方が点が良く（合流分の遅れが消える）、ソフトに
+ * 置けば外部解がその形で自前解を上書きする。ゆえに feasibility の側に置く。主張は「揃えたい」という好みでは
+ * なく「始めたまとまりを崩す計画は成立していない」という構造のもの。
+ *
+ * 判定：錨以下に提供する配置（合流分）だけで解放表を進めた上で、錨より後ろの各配置について、その品目の
+ * `slotSpan` 個の釜が「錨 − 茹で時間」までに空いていたなら押し出しである。自前解はこの述語を構成から満たす
+ * （joinable の貪欲が拒んだ品目は、合流分を置いた後の表でも間に合わない——対応づけは間に合う集合が在れば
+ * 必ず間に合わせる形で、集合が増えるほど間に合いにくくなるだけ）。錨が過去（走行中が boiled だけ）なら
+ * 「錨 − 茹で時間」までに空く釜は無く、何も押し出しにならない。
+ *
+ * `release` は当該一片を置く前の解放表（計画順に進めた表）。Acceptance_Gate と自前解の性質検査が共用する。
+ */
+export function isPushedOut(
+  placements: readonly Placement[],
+  release: SlotRelease,
+  anchor: EpochMillis,
+  targets: readonly PendingOrder[],
+  presets: readonly NoodlePreset[],
+): boolean {
+  const joinedTable = advanceRelease(
+    release,
+    placements.filter((placement) => placement.serveAt <= anchor),
+  );
+  return placements.some((placement) => {
+    if (placement.serveAt <= anchor) return false;
+    const order = targets.find((candidate) => refersTo(placement, candidate));
+    if (order === undefined) return false;
+    const boiling = toBoiling(order, presets);
+    if (boiling === null) return false;
+    const deadline = anchor - boiling.boilMillis;
+    const available = joinedTable.filter((at) => at <= deadline).length;
+    return available >= order.slotSpan;
+  });
+}
+
+/**
+ * 配置が当該品目の slotSpan を満たしているか——`slotIds` の本数が `slotSpan` に等しく、かつ釜が相異なる
+ * （lift-group-planning AC 4.2）。
+ *
+ * 相異なるかは **釜番号（slotOf）** で比べる。文字列で比べると `["0","00"]` が別の釜に見えるが、解放表を
+ * 引く側は両方を釜 0 に写すので、1 釜しか空いていない釜に 2 釜の品目が置ける穴になる。
+ * Acceptance_Gate（admit.ts）と確定計画の合成（commit.ts・isStale 経由）が同じ述語を読む。
+ */
+export function occupiesSlotSpan(placement: Placement, order: PendingOrder): boolean {
+  if (placement.slotIds.length !== order.slotSpan) return false;
+  return new Set(placement.slotIds.map(slotOf)).size === placement.slotIds.length;
 }
 
 /**
@@ -415,35 +492,98 @@ function tableKeyOf(order: PendingOrder): string {
  * 「その秒数で茹でれば良い」という嘘の計画ができる。ゆえに置かない。品目は待ち行列に残って表示され、
  * 推奨だけが付かない（計画対象を超えた品目と同じ扱い）。
  *
- * **釜の数を超える品目は同時に置けない。** 大人数の卓が釜の数を超えることは表現可能ゆえ、置ける分ずつに
- * 分けて順に置く（分割の跨ぎで生じる提供時刻の開きはソフト制約違反として計上されるだけで、feasibility は保つ）。
+ * **釜容量を超える品目は同時に置けない。** 容量は本数ではなく slotSpan の合計で数える（大盛は 2 釜）。
+ * 大人数の卓が容量を超えることは表現可能ゆえ、正準順序のまま容量に収まる分ずつ batch に分けて順に置く
+ * （batch の跨ぎで生じる提供時刻の開きは卓の遅れとして計上されるだけで、feasibility は保つ）。
+ * 1 品目が単独で容量を超えることは無い——slotSpan ≤ SLOT_SPAN_MAX = SLOTS_PER_UNIT ≤ 容量
+ * （UNIT_COUNT_MIN = 1）——ので「置けない品目」の分岐を書かない（起こり得ないものに防御を置かない）。
+ *
+ * **走行中の仲間が在る卓は、その錨に合流できる品目で最初の batch を組む（判断 16・ADR-0007）。** 容量は釜の
+ * 総数で数えるため走行中が占める釜も入り、群の 1 本目を始めた直後に残りが一つの batch に収まって、走行中の
+ * 釜が空くまで全員が錨ごと後ろへずれる（始めたまとまりを後続品のために崩す）。合流できるとは「slotSpan 個の
+ * 相異なる釜すべてが 錨 − 茹で時間 までに空く」こと——いま空いているかではなく、逆算した投入時刻までに
+ * 空くか。合流した品目は走行中と同じ serveAt を持ち、残りは従来どおり詰める。走行中が無い卓は一行も変えない
+ * （待つことも含めてまとめる・AC 1.8）。
  */
 function placeGroup(
   items: readonly PendingOrder[],
   release: SlotRelease,
+  runningAnchor: EpochMillis | null,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly Placement[] {
   const boilings = items
     .map((order) => toBoiling(order, presets))
     .filter((boiling): boiling is Boiling => boiling !== null);
-  // 同時に置ける本数＝釜の数。解放表の長さが「置ける場所」の全体を語る（表の外に釜は無い）。
+  // 同時に置ける幅＝釜の数。解放表の長さが「置ける場所」の全体を語る（表の外に釜は無い）。
   const capacity = release.length;
-  // 釜が無ければ置ける組は 0 個（この算術が反復の終わりを構成から与える）。
-  const batches = capacity === 0 ? 0 : Math.ceil(boilings.length / capacity);
+  if (capacity === 0) return [];
 
   const placements: Placement[] = [];
   let free = release;
-  for (let batch = 0; batch < batches; batch++) {
-    const placed = placeBatch(
-      boilings.slice(batch * capacity, (batch + 1) * capacity),
-      free,
-      params,
-    );
+  let remaining = boilings;
+  if (runningAnchor !== null) {
+    const joined = joinable(boilings, free, runningAnchor, params);
+    if (joined.length > 0) {
+      // fits が placeBatch と同じ対応づけで earliest ≤ 錨 を確かめているので、この batch の錨は走行中の錨になる。
+      const placed = placeBatch(joined, free, runningAnchor, params);
+      placements.push(...placed);
+      free = advanceRelease(free, placed);
+      remaining = boilings.filter((boiling) => !joined.includes(boiling));
+    }
+  }
+
+  let batch: Boiling[] = [];
+  let span = 0;
+  const flush = () => {
+    if (batch.length === 0) return;
+    const placed = placeBatch(batch, free, runningAnchor, params);
     placements.push(...placed);
     free = advanceRelease(free, placed);
+    batch = [];
+    span = 0;
+  };
+  for (const boiling of remaining) {
+    if (span + boiling.order.slotSpan > capacity) flush();
+    batch.push(boiling);
+    span += boiling.order.slotSpan;
   }
+  flush();
   return placements;
+}
+
+/**
+ * 走行中の錨に合流できる品目。正準順序の貪欲で、先に合流を確定した品目が釜を取った上で次を判定する。
+ * 合流の本数を最大化しない——最適な部分集合の選択は外部ソルバの役目で、自前解に要るのは決定性だけ
+ * （正準順序と assignSlots の全順序から従う）。
+ */
+function joinable(
+  boilings: readonly Boiling[],
+  release: SlotRelease,
+  anchor: EpochMillis,
+  params: ScheduleParams,
+): readonly Boiling[] {
+  const joined: Boiling[] = [];
+  for (const boiling of boilings) {
+    if (fits([...joined, boiling], release, anchor, params)) joined.push(boiling);
+  }
+  return joined;
+}
+
+/**
+ * 品目群が全員、錨に間に合うか——placeBatch と同じ対応づけで各品目の earliest（全釜の解放時刻の最大 +
+ * 茹で時間）を出し、すべてが錨以下であること。earliest ≤ 錨 は「全釜が 錨 − 茹で時間 までに空く」と同値。
+ * 錨までの残りより茹で時間が長い品目は、解放表の下限が now ゆえ必ず外れる。
+ */
+function fits(
+  candidate: readonly Boiling[],
+  release: SlotRelease,
+  anchor: EpochMillis,
+  params: ScheduleParams,
+): boolean {
+  const totalSpan = candidate.reduce((sum, boiling) => sum + boiling.order.slotSpan, 0);
+  if (totalSpan > release.length) return false;
+  return assignSlots(candidate, release, params).earliest.every((serveAt) => serveAt <= anchor);
 }
 
 /** 茹で時間を解決する。プリセットに無い麺種は解決できない（null）。 */
@@ -454,68 +594,87 @@ function toBoiling(order: PendingOrder, presets: readonly NoodlePreset[]): Boili
 }
 
 /**
- * 同時に置ける品目群（batch.length ≤ 釜の数）を配置し、提供時刻を許容幅内へ揃える。
+ * 同時に置ける品目群（Σ slotSpan ≤ 釜の数）を配置し、提供時刻を群の錨に一致させる。
  *
- * **提供時刻の錨は「全員を揃えられる最も早い時刻」＝ max(その品目の釜の解放時刻 + 茹で時間)。**
- * 解放時刻の最大値そのものを錨に採ると、茹で時間の分だけ手前に開始時刻を逆算することになり、釜が空く前に
- * 始める配置——ハード制約違反——が生まれる。ゆえに錨を「解放 + 茹で」の最大に置く。こうすると各品目の
- * 提供時刻は自分の釜の解放時刻 + 茹で時間 以上に必ずなり、**逆算した開始時刻が解放時刻を下回る余地が
- * 構成から消える**（下限のクランプを書く必要がない・起こり得ないものに防御を置かない）。
+ * **提供時刻の錨（Group_Anchor）は max(全員の earliest, 走行中の錨)。** earliest は「その品目の全釜の解放時刻の
+ * 最大 + 茹で時間」で、各品目を最も早く始めたときの提供時刻。解放時刻そのものを錨に採ると茹で時間の分だけ
+ * 手前に開始を逆算して釜が空く前に始める配置が生まれるため、錨は「解放 + 茹で」の側に置く。こうすると
+ * 各品目の提供時刻は自分の全釜の解放時刻 + 茹で時間 以上に必ずなり、**逆算した開始時刻が解放時刻を下回る
+ * 余地が構成から消える**（下限のクランプを書く必要がない・起こり得ないものに防御を置かない）。
  *
- * **揃えるのは許容幅までで、それ以上は詰めない。** 錨へ提供時刻を厳密に一致させると、許容幅の内側に
- * 収まっていた品目まで遅れて Σ Wait_Time だけが増える（目的関数は許容幅の超過分しか見ない）。ゆえに
- * 各品目の提供時刻は「同卓の錨 − 同卓の許容幅」と「同一オーダーの錨 − オーダーの許容幅」の遅いほうまで
- * 引き上げる。これで batch 内の提供時刻差は両許容幅の内側に収まり、遅らせる量は最小になる。
- * 揃えられない差（batch を跨いだ分割・グループ間）はソフト制約違反として目的関数に計上されるだけで、
- * feasibility の否定事由にはしない（AC 3.5）。
+ * **錨へ厳密に一致させる。** 許容幅の内側に散らす形（かつての tableFloor / orderFloor）は採らない。目的関数の
+ * 卓同期項が「最遅からの遅れの和 × w_table」であり、w_table ≥ 2 の下では全員を錨に置く配置がその式の
+ * 唯一の最適点である——揃えることは制約でも保証でもなく採点の帰結で、この関数はその最適点を直接置く
+ * （lift-group-planning 判断 5・ADR-0001）。走行中の錨に届かない品目があれば群ごと錨より後ろへずれ、
+ * 走行中との差は卓の遅れとして計上されるだけで feasibility の否定事由にはしない。錨は batch ごとに取り直す
+ * （batch 2 の earliest は進めた解放表から出る）。
+ *
+ * **釜の割当は決定的である。** 長い茹でに早く空く釜を与える（1 品目 1 釜では錨を最小にする対応づけだった）。
+ * slotSpan が混在すると最小性は言えないが、要るのは決定性だけで、それは byRelease / byBoil の全順序
+ * （同点を index で断つ）から従う。厳密解の供給は外部ソルバの役目である。
  */
 function placeBatch(
   batch: readonly Boiling[],
   release: SlotRelease,
+  runningAnchor: EpochMillis | null,
   params: ScheduleParams,
 ): readonly Placement[] {
-  const slots = chooseSlots(batch.length, release, params);
-  // 茹で時間の長い品目を最も早く空く釜へ。錨（max(解放 + 茹で)）を最小にする対応づけである
-  // ——長い茹でを遅い釜に置けば、その一本のために batch 全員が待つ。
+  const { slotsOfItem, earliest } = assignSlots(batch, release, params);
+  const anchor = Math.max(...earliest, runningAnchor ?? Number.NEGATIVE_INFINITY);
+
+  return batch.map((boiling, index) => {
+    // slotId はスロット番号の文字列表現（domain の slotOf = Number(slotId) の逆・要件12.5）。
+    // 非空は構成から従う（slotSpan ≥ 1・domain の SLOT_SPAN_MIN）ので先頭と残りに分けて型へ載せる。
+    const [head, ...tail] = slotsOfItem[index]!;
+    const slotIds: NonEmptyArray<SlotId> = [
+      String(head!) as SlotId,
+      ...tail.map((slot) => String(slot) as SlotId),
+    ];
+    return {
+      externalOrderId: boiling.order.externalOrderId,
+      itemIndex: boiling.order.itemIndex,
+      slotIds,
+      startAt: (anchor - boiling.boilMillis) as EpochMillis,
+      serveAt: anchor as EpochMillis,
+    };
+  });
+}
+
+/**
+ * 品目群への釜の対応づけと、各品目の earliest（全釜の解放時刻の最大 + 茹で時間）。
+ *
+ * placeBatch（配置）と fits（合流の判定）が**同じ対応づけ**を読む唯一の場所。二箇所に書けば「合流できる」と
+ * 判定した品目が、置くときには別の釜を取って錨に届かない、という食い違いが生まれる。
+ *
+ * 長い茹でから順に、早く空く釜を slotSpan 個ずつ連続した塊で配る（1 品目 1 釜では錨を最小にする対応づけ
+ * だった。slotSpan が混在すると最小性は言えないが、要るのは決定性だけで、byRelease / byBoil の全順序——
+ * 同点を index で断つ——から従う）。
+ */
+function assignSlots(
+  batch: readonly Boiling[],
+  release: SlotRelease,
+  params: ScheduleParams,
+): { readonly slotsOfItem: readonly (readonly number[])[]; readonly earliest: readonly number[] } {
+  const totalSpan = batch.reduce((sum, boiling) => sum + boiling.order.slotSpan, 0);
+  const slots = chooseSlots(totalSpan, release, params);
   const byRelease = [...slots].sort(
     (slot, other) => release[slot]! - release[other]! || slot - other,
   );
   const byBoil = batch
     .map((_unused, index) => index)
     .sort((index, other) => batch[other]!.boilMillis - batch[index]!.boilMillis || index - other);
-  const slotOfItem = new Map(
-    byBoil.map((index, rank): [number, number] => [index, byRelease[rank]!]),
-  );
-  // 各品目を最も早く始められたときの提供時刻。錨も許容幅からの下限もここから出る。
+  const slotsOfItem: (readonly number[])[] = new Array(batch.length);
+  let cursor = 0;
+  for (const index of byBoil) {
+    const span = batch[index]!.order.slotSpan;
+    slotsOfItem[index] = byRelease.slice(cursor, cursor + span);
+    cursor += span;
+  }
   const earliest = batch.map(
-    (boiling, index) => release[slotOfItem.get(index)!]! + boiling.boilMillis,
+    (boiling, index) =>
+      Math.max(...slotsOfItem[index]!.map((slot) => release[slot]!)) + boiling.boilMillis,
   );
-
-  const tableFloor = Math.max(...earliest) - params.tableSyncToleranceSeconds * 1000;
-  const orderFloors = new Map<string, number>();
-  batch.forEach((boiling, index) => {
-    const floor = earliest[index]! - params.orderSyncToleranceSeconds * 1000;
-    const current = orderFloors.get(boiling.order.externalOrderId);
-    if (current === undefined || floor > current)
-      orderFloors.set(boiling.order.externalOrderId, floor);
-  });
-
-  return batch.map((boiling, index) => {
-    const serveAt = Math.max(
-      earliest[index]!,
-      tableFloor,
-      orderFloors.get(boiling.order.externalOrderId)!,
-    );
-    // slotId はスロット番号の文字列表現（domain の slotOf = Number(slotId) の逆・要件12.5）。
-    const slotIds: NonEmptyArray<SlotId> = [String(slotOfItem.get(index)!) as SlotId];
-    return {
-      externalOrderId: boiling.order.externalOrderId,
-      itemIndex: boiling.order.itemIndex,
-      slotIds,
-      startAt: (serveAt - boiling.boilMillis) as EpochMillis,
-      serveAt: serveAt as EpochMillis,
-    };
-  });
+  return { slotsOfItem, earliest };
 }
 
 /**

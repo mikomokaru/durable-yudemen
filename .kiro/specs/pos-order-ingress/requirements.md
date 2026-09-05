@@ -355,7 +355,7 @@
 2. THE POS_Ingress SHALL Pending_Order 集合の正本を StoreTimerDO の永続層に置き、上流ストリームおよび POS の状態を正本として参照しない。
 3. THE POS_Ingress SHALL 上流ペイロードの解釈に関わる純粋計算（Arrival_Batch の解釈・Unique_Key の導出・Pending_Order への写像・麺の仕様の翻訳）を `src/ingress/` に置き、宛先解決の純粋計算（Code_Index の構築・Store_Code の衝突検出）を `src/registry/` に置く。`src/domain/` には共有契約（`PendingOrder` / `StoreConfig` の型）のみを置き、POS ペイロードの形を持ち込まない（client が知る必要のない外部形式を共有契約の中立地帯へ混ぜない）。
 4. THE POS_Ingress SHALL 作用（認可・宛先解決の RPC・DO への委譲・`storage.put`・broadcast・保留と再生）を `src/worker.ts` と `src/shell/` に置く。
-5. 本機能は `src/engine` の**既存の**状態遷移と割り当ての算術を変更しない。次の 3 つは除く——受領遷移（`RecordsReceived`）の追加（AC 6.9）、`slotSpan` を `PendingOrder` へ足すことに伴う型の追随、冪等の判定材料を engine 状態へ含めることに伴うスキーマ更新。engine が `slotSpan` を用いて複数スロットを割り当てる変更は別 spec で扱う（AC 6.36）。
+5. 本機能は `src/engine` の**既存の**状態遷移と割り当ての算術を変更しない。次の 3 つは除く——受領遷移（`RecordsReceived`）の追加（AC 6.9）、`slotSpan` を `PendingOrder` へ足すことに伴う型の追随、冪等の判定材料を engine 状態へ含めることに伴うスキーマ更新。engine が `slotSpan` を用いて複数スロットを割り当てる変更は別 spec で扱う（AC 6.36）。**解消済み**——`lift-group-planning` が `slotSpan` を計画のハード制約にし、割当（`placeBatch`）と Acceptance_Gate（相異なる `slotSpan` 個の釜）が読むようになった（ADR-0002）。
 6. 本機能は `src/domain` の `TimerFact` 契約を変更しない（`PendingOrder` は `TimerFact` とは別の契約であり、`slotSpan` の追加は `TimerFact` に及ばない）。
 7. 本機能は `PendingOrder` 型と `toPendingOrders` の検証規律を再利用し、同じ検証を二度定義しない。`PendingOrder` への `slotSpan` の追加はこの再利用の範囲内である（既存の検証に 1 属性の検証が加わるだけで、別の検証経路を立てない）。
 8. 本機能は `Cook_Scheduling`（Baseline_Plan・Acceptance_Gate・Solver_Worker）の機構を変更しない。到着の受理が再計算の契機となる既存の配線をそのまま用いる。

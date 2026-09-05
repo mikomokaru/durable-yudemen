@@ -201,7 +201,12 @@ export function startOrderItemTimer(
     startTime: args.now,
     endTime,
     seq: state.nextSeq,
-    orderItem: { externalOrderId: args.externalOrderId, itemIndex: args.itemIndex },
+    // 卓も品目の事実から写す。走行中になった後も計画の群の成員に留まるための唯一の手がかり（ADR-0003）。
+    orderItem: {
+      externalOrderId: args.externalOrderId,
+      itemIndex: args.itemIndex,
+      tableId: item.tableId,
+    },
   });
   const moved: TimerState = {
     ...state,

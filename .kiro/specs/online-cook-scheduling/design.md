@@ -213,15 +213,18 @@ export function advanceRelease(release: SlotRelease, placements: readonly Placem
  * 計画対象の Pending_Order へ順序・slot・開始時刻を割り当てる決定的な貪欲法（要件4.1〜4.5）。
  *
  * 常に feasible（Requirement 3 のハード制約充足）。Pending_Order 集合が空なら空の計画を返す。
- * 副産物として Plan_Unit ごとの目的関数部分和を返し、Acceptance_Gate が追加計算なしで
- * 検証・比較できるようにする（要件4.5 / 6.7）。
+ * 採点はしない（`lift-group-planning` 判断 9 で配置と採点を分離した。Acceptance_Gate は比較の時点で
+ * 両側を `scoreSchedule` に通す）。
  *
- * 解放表を引数に取るため、「途中まで確定した配置の続きを埋める」用途にそのまま使える
- * （committedSchedule の尾部再実行）。全体の自前解は initialRelease(running, now) を渡した場合。
+ * 解放表と卓の成員表（`tableMembers(running)`）を引数に取る。前者は「途中まで確定した配置の続きを
+ * 埋める」用途（committedSchedule の尾部再実行）に、後者は同じ卓の走行中 Timer を錨として読むために
+ * 要る。全体の自前解は initialRelease(running, now) を渡した場合。
  */
 export function baselineSchedule(
   pending: readonly PendingOrder[],
   release: SlotRelease,
+  members: TableMembers,
+  presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): CookSchedule;
 ```
@@ -230,11 +233,11 @@ export function baselineSchedule(
 
 1. **計画対象の抽出（AC 11.2）** — Pending_Order を（Order_Arrival_Time 昇順, External_Order_Id 昇順, 品目 index 昇順）で整列し、先頭 `PLAN_TARGET_LIMIT = 64` 件を計画対象とする。超過分は計画に現れず、Cook_Recommendation の対象にもならない（保持と表示は続く）。**この境界で Table_Group が割れる場合は、計画対象に入った品目のみで PlanSlice を成す**（残りは次の再計算で先頭が減ったときに同じ Table_Group の PlanSlice へ合流する）。境界で割れた group はソフト制約の評価も対象品目の間だけで行う。
 2. **Table_Group 単位で配置** — 計画対象を Table_Group へまとめ、Table_Group を（最早 Order_Arrival_Time, 識別子）順に取り出す。各 Table_Group について、
-   - グループの品目数 k 本を収容できる slot 群のうち、**k 本すべてが空く最早時刻**が最小になる組を選ぶ。
-   - 同一オーダーの品目は許容幅 30 秒、同卓は 60 秒に収まるよう、選んだ slot 群の解放時刻の最大値へ**開始時刻を揃える**（茹で時間が異なる品目は提供時刻が揃うよう開始時刻を逆算する）。揃えられない場合はソフト制約違反として目的関数に計上するのみ（AC 3.5：feasibility の否定事由にしない）。
-   - `Slot_Affinity`: 最早時刻が同点の候補が複数あるとき、**グループ内の全ペアの `slotDistance` の和が最小**になる組を選ぶ。さらに同点なら代表 slot の index 昇順で断つ。
-   - 配置が決まったら `advanceRelease` で解放表を進め、次の Table_Group へ渡す。
-3. **部分和の算出** — Plan_Unit ごとに目的関数の部分和を計算して計画に添える。
+   - （`lift-group-planning` で改訂）グループを釜容量（Σ `slotSpan` ≤ slot 数）に収まる **batch** へ貪欲に割る。batch ごとに、各品目の `earliest`（解放時刻 − 茹で時間の逆算）と同じ卓の走行中の実効 `endTime` の最大（`members`）から錨 `max(...earliest, 走行中の錨)` を取り、全員の `serveAt` を錨に揃える（開始時刻は `錨 − 茹で時間`）。錨に届かない品目があれば batch ごと錨より後ろへずれ、走行中との差は Table_Lag として採点に残る（一致は保証ではなく採点の帰結・ADR-0001 / 0003）。
+   - 走行中の仲間が在る卓では、その錨に合流できる品目（`slotSpan` 個の釜すべてが「錨 − 茹で時間」までに空く）だけで最初の batch を組み、残りを上の詰め方へ渡す——始めたまとまりを後続品のために崩さない（`lift-group-planning` 判断 16・ADR-0007）。走行中が無い卓は待つことも含めてまとめる。
+   - 釜は解放時刻順に `slotSpan` 個ずつ、茹で時間の長い品目から割り当てる（相異なる釜・ハード制約 (d)）。`Slot_Affinity` は最早時刻が同点のときだけ効く（採点しない品目内の距離のために採点する値を悪化させない・ADR-0002）。
+   - 配置が決まったら `advanceRelease` で解放表を進め、次の batch / Table_Group へ渡す。
+3. 採点はここでは行わない（`scoreSchedule` が placements から導く）。
 
 #### 計算量
 
@@ -247,19 +250,31 @@ export function baselineSchedule(
 ```ts
 // src/engine/objective.ts
 /**
- * 計画の目的関数値を Requirement 3 の確定式で算出する（整数・秒換算）。
+ * 計画の目的関数値を Requirement 3 の確定式（`lift-group-planning` 判断 5 で改訂）で算出する
+ * （整数・秒換算）。
  *
- * = Σ Wait_Time + w_table × Σ(同卓の提供時刻最大差の 60 秒 超過分)
+ * = Σ Wait_Time                                    // floor 秒
+ *   + w_table × Σ Table_Lag                         // 卓の成員（未着手＋同じ卓の走行中）のうち
+ *                                                   // 最遅からの各成員の遅れ。ceil 秒（ADR-0006）
+ *   + max(0, w_table − 1) × Σ Arms_Overflow         // 同じ serveAt の成員の本数 − arms（ADR-0002）
  *   + w_order × Σ(同一オーダーの提供時刻最大差の 30 秒 超過分)
- *   + w_affinity × Σ max(0, slotDistance − 14)   // 14 = 斜め隣接。隣り合う釜なら 0
+ *   + w_affinity × Σ max(0, slotDistance − 14)      // 14 = 斜め隣接。隣り合う釜なら 0
  *
- * 3 項すべてが「許容幅からの超過分」で揃う。到達可能な下限 0 を持つ。
+ * 下限 0 は走行中の仲間が無い卓で到達可能（走行中は動かせないため、錨に届かない品目があれば
+ * lag が残る）。`tableSyncToleranceSeconds` は読まない。
  *
  * Plan_Unit（Table_Group）ごとの部分和も返す。全項が Table_Group 内に閉じるため部分和の総和は
  * 全体値に厳密に一致する（AC 6.2(d) の部分比較の成立条件）。
  */
-export function scoreSchedule(schedule: CookSchedule): ScheduleScore;
+export function scoreSchedule(
+  slices: readonly PlanSlice[],
+  pending: readonly PendingOrder[],
+  members: TableMembers,
+  params: ScheduleParams,
+): ScheduleScore;
 ```
+
+**撤去候補（`lift-group-planning` で記録）:** `ScheduleParams.tableSyncToleranceSeconds` は `ScheduleParams` に在るが読む計算が無い。`orderSyncWeight` / `orderSyncToleranceSeconds` は減点項としてだけ残る。設定・ワイヤ・外部契約（`RequestPlan`）に及ぶため撤去は別の判断とする。
 
 Wait_Time は導出値であり状態に持たない（AC 3.2）。未開始品目は「計画上の開始時刻＋茹で時間」で、Boil_Sync による開始後の調整（±h_i）を織り込まない近似（Requirement 3 の申し送り）。開始済み品目は `adjustedEndTime` を用いる。アドホック麺茹での Timer は `Order_Arrival_Time` を持たないため `Σ Wait_Time` に寄与しない（Requirement 8 の確定注記）が、slot 解放表には現れる。
 

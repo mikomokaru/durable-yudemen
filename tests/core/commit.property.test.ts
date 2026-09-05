@@ -37,6 +37,7 @@ import {
   type SlotRelease,
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
+import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
@@ -121,6 +122,7 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
       const accepted = baselineSchedule(
         planned,
         initialRelease(running, NOW, slotCount),
+        tableMembers(running),
         DEFAULT_NOODLE_PRESETS,
         plannedParams,
       ).slices;
@@ -269,6 +271,7 @@ describe("engine/commit — committedSchedule", () => {
         const tail = baselineSchedule(
           remaining,
           releaseAfterPrefix(scene, prefix),
+          tableMembers(scene.running),
           DEFAULT_NOODLE_PRESETS,
           scene.params,
         );

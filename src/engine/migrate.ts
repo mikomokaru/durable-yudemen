@@ -10,7 +10,7 @@ import { CURRENT_SCHEMA_VERSION } from "../engine/types";
 import type { EpochMillis, SlotId, NoodleType, TimerId } from "../engine/types";
 import { EMPTY_STATE } from "./state";
 import { createTimer } from "./timer";
-import type { Timer } from "./timer";
+import type { Ordered, Timer } from "./timer";
 import type { ShellFailure } from "./rejection";
 import type { StoreSnapshot } from "./snapshot";
 import { toSnapshot } from "./snapshot";
@@ -216,12 +216,17 @@ function reviveAcceptedSlices(value: unknown): readonly AcceptedSlice[] | null {
   return slices;
 }
 
-/** 一件の raw を AcceptedSlice へ写す。score は整数（目的関数値は整数で閉じる）。 */
+/**
+ * 一件の raw を AcceptedSlice へ写す。
+ *
+ * v9 以前の一片は score を持つが、v10 で一片は点数を持たなくなった（採点は比較の時点の導出・lift-group-planning
+ * 判断 7）。余剰として読まずに捨てる。ここで整数性を検査し続ければ、score を書かない v10 の永続データが
+ * 全滅して移行失敗＝店舗が起動しない。
+ */
 function reviveAcceptedSlice(value: unknown): AcceptedSlice | null {
   if (typeof value !== "object" || value === null) return null;
   const s = value as Record<string, unknown>;
   if (typeof s.tableKey !== "string" || s.tableKey.length === 0) return null;
-  if (typeof s.score !== "number" || !Number.isInteger(s.score)) return null;
   if (!Array.isArray(s.placements)) return null;
   const placements: Placement[] = [];
   for (const element of s.placements) {
@@ -229,7 +234,7 @@ function reviveAcceptedSlice(value: unknown): AcceptedSlice | null {
     if (placement === null) return null;
     placements.push(placement);
   }
-  return { tableKey: s.tableKey, placements, score: s.score };
+  return { tableKey: s.tableKey, placements };
 }
 
 /** 一件の raw を Placement へ写す。slotIds は Timer と同じ非空配列の規律に従う。 */
@@ -323,24 +328,26 @@ function reviveTimer(value: unknown): Timer | null {
 }
 
 /**
- * 永続の orderItem 表現を現行 v7 形へ写す（v7 で追加）。
+ * 永続の orderItem 表現を現行形へ写す（v7 で追加・v10 で tableId を内側に足した）。
  * - 欠如 / null（v6 以前は注文紐づけを持たない）→ null（アドホック麺茹で扱い）。
  * - { externalOrderId: 非空文字列; itemIndex: 0 以上の整数 } → その参照。
  * - それ以外 → null へ畳む（移行失敗にしない）。
+ * - tableId（v10 で追加）は非空文字列ならその値、欠如 / null / 壊れた値は null へ畳む。tableId だけが
+ *   壊れていても orderItem 全体を捨てない——orderItem の喪失は二重調理の防止を失うが、tableId の喪失は
+ *   その卓の同期が 1 回崩れるだけで、代償の軽い方へ畳む。
  *
  * 移行失敗にしないのは、この参照の用途が「開始済み品目を Pending_Order の置換から除く」ひとつであり、
  * 失っても起きるのは二重調理の防止が効かない可能性だけで、Timer 自体の計時は完全に保たれるためである。
  * 壊れた紐づけで店舗全体を起動不能にする代償の方が大きい（adjustment を移行失敗にする判断とは、
  * 失われる事実の重さが違う——あちらは実効 endTime、すなわち計時そのものを歪める）。
  */
-function reviveOrderItem(
-  value: unknown,
-): { readonly externalOrderId: string; readonly itemIndex: number } | null {
+function reviveOrderItem(value: unknown): Ordered["orderItem"] {
   if (typeof value !== "object" || value === null) return null;
   const item = value as Record<string, unknown>;
   if (typeof item.externalOrderId !== "string" || item.externalOrderId.length === 0) return null;
   if (!isNonNegativeInteger(item.itemIndex)) return null;
-  return { externalOrderId: item.externalOrderId, itemIndex: item.itemIndex };
+  const tableId = typeof item.tableId === "string" && item.tableId.length > 0 ? item.tableId : null;
+  return { externalOrderId: item.externalOrderId, itemIndex: item.itemIndex, tableId };
 }
 
 /**

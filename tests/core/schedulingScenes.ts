@@ -14,6 +14,7 @@ import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Event } from "../../src/engine/event";
 import type { SettleParams } from "../../src/engine/settle";
 import { baselineSchedule, initialRelease, type CookSchedule } from "../../src/engine/schedule";
+import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
@@ -167,10 +168,11 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
     const now = (NOW + seed.elapsed) as EpochMillis;
     const pending = toPending(seed.orders);
     const params: SettleParams = {
-      arms: seed.arms,
       toleranceRatio: seed.toleranceRatio,
       noodlePresets: DEFAULT_NOODLE_PRESETS,
       ...seed.schedule,
+      // arms は同期と採点で一つ（SettleParams の実体は一つ）。場面の arms を採点側にも通す。
+      arms: seed.arms,
     };
     // 自前解を「外部から採用された計画」に見立てる。採用の経路（admit）はまだ無いため、採用済み計画を
     // 持つ状態はこうして組むしかない——形は同じ（AcceptedSlice extends PlanSlice）であり、settle と
@@ -178,6 +180,7 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
     const plan = baselineSchedule(
       pending,
       initialRelease(timers, NOW, seed.slotCount),
+      tableMembers(timers),
       DEFAULT_NOODLE_PRESETS,
       seed.schedule,
     );

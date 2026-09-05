@@ -185,7 +185,10 @@ describe("core/migrate — v7 → v8 の面", () => {
             ({ slotSpan: _span, itemName: _item, sizeName: _size, ...rest }) => rest,
           ),
         ).toEqual(v7.pendingOrders);
-        expect(result.snapshot.acceptedSlices).toEqual(v7.acceptedSlices);
+        // v10 で一片は点数を持たない。v7 の score は余剰として捨てられ、それ以外は写しである。
+        expect(result.snapshot.acceptedSlices).toEqual(
+          v7.acceptedSlices.map(({ score: _score, ...rest }) => rest),
+        );
         expect(result.snapshot.requestedDigest).toBe(v7.requestedDigest);
         expect(result.snapshot.nextSeq).toBe(v7.nextSeq);
         // 計時の事実（endTime / adjustment / boiledAt）に一切触れない。
@@ -322,5 +325,94 @@ describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさ
       lastSequenceByTerminal: {},
     };
     expect(migrate(broken).ok).toBe(false);
+  });
+});
+
+// ── lift-group-planning — v10 の移行は二方向（tableId の追加・score の除去） ──────────────────────
+
+/** v9 の Timer。orderItem は卓を持たない（それが v9 であることの定義）。 */
+const genV9Timer = fc.record({
+  id: fc.string({ minLength: 1, maxLength: 8 }),
+  slotIds: fc.array(fc.string({ minLength: 1, maxLength: 4 }), { minLength: 1, maxLength: 2 }),
+  noodleType: fc.constantFrom("Thin", "Medium", "Thick"),
+  firmness: fc.constantFrom(...FIRMNESS_ORDER),
+  startTime: fc.integer({ min: 1_600_000_000_000, max: 1_700_000_000_000 }),
+  endTime: fc.integer({ min: 1_700_000_000_001, max: 1_800_000_000_000 }),
+  seq: fc.nat({ max: 1000 }),
+  boiledAt: fc.constant(null),
+  adjustment: fc.integer({ min: -60_000, max: 60_000 }),
+  orderItem: fc.option(
+    fc.record({
+      externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+      itemIndex: fc.nat({ max: 9 }),
+    }),
+    { nil: null },
+  ),
+});
+
+const genV9Snapshot = fc.record({
+  version: fc.constant(9),
+  timers: fc.array(genV9Timer, { maxLength: 4 }),
+  nextSeq: fc.nat({ max: 1000 }),
+  pendingOrders: fc.constant([]),
+  acceptedSlices: fc.array(genV7AcceptedSlice, { maxLength: 3 }),
+  requestedDigest: fc.constant(null),
+  lastSequenceByTerminal: fc.constant({}),
+});
+
+describe("core/migrate — v9 → v10 の面（lift-group-planning）", () => {
+  // Feature: lift-group-planning, Property 5 — 移行（追加）
+  // **Validates: Requirements 3.7, 7.5**
+  it("Property 5: v9 の Timer は orderItem.tableId = null として保持され、落ちない", () => {
+    fc.assert(
+      fc.property(genV9Snapshot, (v9) => {
+        const result = migrate(structuredClone(v9));
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.snapshot.timers).toHaveLength(v9.timers.length);
+        result.snapshot.timers.forEach((timer, index) => {
+          const before = v9.timers[index]!.orderItem;
+          expect(timer.orderItem).toEqual(before === null ? null : { ...before, tableId: null });
+        });
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  // Feature: lift-group-planning, Property 6 — 移行（除去）
+  // **Validates: Requirements 3.7, 7.6**
+  //
+  // v9 の採用済み一片は score を持つ。v10 はそれを読まずに捨てる。整数性の検査を外し忘れた実装は
+  // ここで落ちる（v10 の永続データが全滅する種類の失敗）。
+  it("Property 6: v9 の AcceptedSlice は score を捨てて保持され、落ちない", () => {
+    fc.assert(
+      fc.property(genV9Snapshot, (v9) => {
+        const result = migrate(structuredClone(v9));
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.snapshot.acceptedSlices).toEqual(
+          v9.acceptedSlices.map(({ score: _score, ...rest }) => rest),
+        );
+        for (const slice of result.snapshot.acceptedSlices) {
+          expect(slice).not.toHaveProperty("score");
+        }
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  it("v10 の永続値（score を持たない一片）はそのまま読める", () => {
+    fc.assert(
+      fc.property(genV9Snapshot, (v9) => {
+        const v10 = {
+          ...v9,
+          version: 10,
+          acceptedSlices: v9.acceptedSlices.map(({ score: _score, ...rest }) => rest),
+        };
+        const result = migrate(structuredClone(v10));
+        expect(result.ok).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
   });
 });

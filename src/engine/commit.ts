@@ -1,26 +1,30 @@
 // engine/commit.ts — 確定計画（Committed_Plan）の合成。
 // cloudflare:workers にも storage にも触れない純粋モジュール。
 //
-// ここに置くのは「採用済みの計画と自前解をどう繋ぐか」だけである。計画の型と算出は schedule.ts、
-// 採点は objective.ts の関心事であり、この関数はそれらを一度ずつ呼ぶ。
+// ここに置くのは「採用済みの計画と自前解をどう繋ぐか」だけである。計画の型と算出は schedule.ts の
+// 関心事であり、この関数はそれを一度呼ぶ。採点は呼ばない——採点は比較の時点（admit.ts）の導出であって
+// 合成の一部ではない（lift-group-planning 判断 7）。
 //
 // 確定計画は**導出値**であって状態ではない。正本は採用済み PlanSlice 列（TimerState.acceptedSlices）と
 // 現在の Pending_Order / Timer 集合である。ゆえにここに永続する形は現れない。
 
 import { SLOTS_PER_UNIT, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
-import { scoreSchedule, type ScheduleParams } from "./objective";
+import type { ScheduleParams } from "./objective";
+import { tableMembers } from "./project";
 import {
   advanceRelease,
   baselineSchedule,
   initialRelease,
   isStale,
+  keepsAnchor,
   planTargets,
   refersTo,
   type AcceptedSlice,
   type CookSchedule,
-  type PlanSlice,
+  type SlotRelease,
 } from "./schedule";
+import type { TableMembers } from "./project";
 import type { Timer } from "./timer";
 import type { EpochMillis } from "./types";
 
@@ -57,52 +61,55 @@ export function committedSchedule(
   params: ScheduleParams,
 ): CookSchedule {
   const targets = planTargets(pending);
-  const prefix = livePrefix(accepted, targets, now);
-
   // 解放表は開始済み Timer の占有から始め、接頭辞の配置で順に進める（design の合成手順 2）。
-  let release = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
-  for (const slice of prefix) release = advanceRelease(release, slice.placements);
+  // 卓の成員表も同じ走行中から引く（「その釜がいつ空くか」と「その卓がいつ上がるか」の二つの表）。
+  const initial = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
+  const members = tableMembers(running);
+  const { prefix, release } = livePrefix(accepted, targets, now, initial, members, presets);
 
   // 尾部の対象は「接頭辞が使わなかった計画対象」。全 Pending_Order から除くのではない——それでは
   // 65 件目以降が繰り上がって計画に現れ、計画対象を 64 件に限る AC 11.2 が破れる。
   const remaining = targets.filter((order) => !isPlaced(order, prefix));
-  const tail = baselineSchedule(remaining, release, presets, params);
+  const tail = baselineSchedule(remaining, release, members, presets, params);
 
-  // **採点は接頭辞を含めてやり直す。** AcceptedSlice が持つ部分和は外部が主張した値であり、こちらが
-  // 検証した事実ではない。確定計画の総和は Acceptance_Gate の段 2 が比較の基準に用いるため、
-  // 外部の主張をそのまま総和へ流せば、嘘の値で単調改善を判定することになる。
-  const slices: readonly Omit<PlanSlice, "score">[] = [
-    ...prefix.map((slice) => ({ tableKey: slice.tableKey, placements: slice.placements })),
-    ...tail.slices,
-  ];
-  const score = scoreSchedule(slices, pending, params);
-
-  return {
-    slices: slices.map((slice, index) => ({
-      tableKey: slice.tableKey,
-      placements: slice.placements,
-      score: score.bySlice[index]!,
-    })),
-    score: score.total,
-  };
+  return { slices: [...prefix, ...tail.slices] };
 }
 
 /**
- * 採用済み列のうち、計画順に見て最初に陳腐化した一片の手前まで（design の合成手順 1）。
+ * 採用済み列のうち、計画順に見て最初に陳腐化した一片の手前まで（design の合成手順 1）と、その接頭辞で進めた
+ * 解放表。尾部はその表から再計算する。
  *
- * 陳腐化は 2 つの理由で立つ。**判定を分けているのは概念が違うから**である。
- *   - `isStale` — 対象品目が計画対象と食い違った（陳腐化A・B）。`admit` と共有する述語（schedule.ts）。
+ * 陳腐化は 3 つの理由で立つ。**判定を分けているのは概念が違うから**である。
+ *   - `isStale` — 対象品目が計画対象と食い違った（陳腐化A・B）、または配置が品目の現在の slotSpan を
+ *     満たさない（v9 で採用された 1 釜の配置は v10 の制約で再検証され、ここで切れる）。`admit` と共有する
+ *     述語（schedule.ts）。
  *   - `hasLapsedStart` — 推奨開始時刻を過ぎた。合成側だけの関心事ゆえここに置く。
+ *   - `keepsAnchor` の否定 — 走行中の錨が在る卓で、合流分が現在の錨に一致しない、または合流できる品目を
+ *     押し出している。採用済み一片は採用時の錨の上に組まれ、錨は Boil_Sync で動くので、ここで再検証しなければ
+ *     「1 本目に揃う」という一片の主張が黙って嘘になる（lift-group-planning 判断 17）。`admit` の (e) と同じ述語。
+ *     一片ごとに、その一片を置く前の解放表で判定する（ゲートと同じ位置・同じ表）。
  */
 function livePrefix(
   accepted: readonly AcceptedSlice[],
   targets: readonly PendingOrder[],
   now: EpochMillis,
-): readonly AcceptedSlice[] {
-  const stale = accepted.findIndex(
-    (slice) => isStale(slice, targets) || hasLapsedStart(slice, now),
-  );
-  return stale === -1 ? accepted : accepted.slice(0, stale);
+  initial: SlotRelease,
+  members: TableMembers,
+  presets: readonly NoodlePreset[],
+): { readonly prefix: readonly AcceptedSlice[]; readonly release: SlotRelease } {
+  const prefix: AcceptedSlice[] = [];
+  let release = initial;
+  for (const slice of accepted) {
+    if (isStale(slice, targets) || hasLapsedStart(slice, now)) break;
+    const siblings = members.get(slice.tableKey);
+    if (siblings !== undefined) {
+      const anchor = Math.max(...siblings) as EpochMillis;
+      if (!keepsAnchor(slice.placements, release, anchor, targets, presets)) break;
+    }
+    prefix.push(slice);
+    release = advanceRelease(release, slice.placements);
+  }
+  return { prefix, release };
 }
 
 /**

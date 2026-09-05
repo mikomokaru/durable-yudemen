@@ -13,6 +13,7 @@ import type { PendingOrder } from "../../src/domain/order";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
 import { settleParams } from "../settleParams";
+import { nonEmpty } from "../nonEmpty";
 
 const NOW = 1_700_000_000_000 as EpochMillis;
 const PARAMS = settleParams({ arms: 2, toleranceRatio: 10 });
@@ -133,5 +134,47 @@ describe("Feature: slot-suggested-start — Effect 列は既存 start と同一�
       },
     );
     expect(outcome.ok).toBe(false);
+  });
+});
+
+describe("Feature: lift-group-planning — 走行中の Timer は由来する卓を持つ（要件 3.1 / 3.2 / 3.6）", () => {
+  it("品目からの開始は PendingOrder の卓を orderItem の内側へ写す", () => {
+    const state: TimerState = { ...EMPTY_STATE, pendingOrders: [ORDER] };
+    const outcome = start(state, ORDER);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state.timers[0]!.orderItem).toEqual({
+      externalOrderId: "o-1",
+      itemIndex: 0,
+      tableId: "t-3",
+    });
+  });
+
+  it("modification で品目の卓が移っても、走行中 Timer の卓は追随しない（再送の品目は新しい卓へ）", () => {
+    const state: TimerState = { ...EMPTY_STATE, pendingOrders: [ORDER] };
+    const started = start(state, ORDER);
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+
+    // 同じ注文が卓を変えて再送される。開始済みの品目は置換から除かれ（要件 1.8）、走行中 Timer は旧卓のまま。
+    const moved = decide(
+      started.state,
+      {
+        type: "OrderArrived",
+        arrival: nonEmpty([
+          { ...ORDER, tableId: "t-9" },
+          { ...ORDER, itemIndex: 1, tableId: "t-9" },
+        ]),
+        now: NOW,
+      },
+      PARAMS,
+    );
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(moved.state.timers[0]!.orderItem?.tableId).toBe("t-3");
+    // 再送で届いた未着手の品目（itemIndex 1）は新しい卓の群に入る。開始済みの itemIndex 0 は復活しない。
+    expect(moved.state.pendingOrders.map((order) => [order.itemIndex, order.tableId])).toEqual([
+      [1, "t-9"],
+    ]);
   });
 });

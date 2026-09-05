@@ -47,7 +47,8 @@ import { describe, expect, it } from "vitest";
 import { admit } from "../../src/engine/admit";
 import { committedSchedule } from "../../src/engine/commit";
 import { initialRelease, type AcceptedSlice, type CookSchedule } from "../../src/engine/schedule";
-import type { ScheduleParams } from "../../src/engine/objective";
+import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
+import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
@@ -200,6 +201,12 @@ function spliced(first: CookSchedule, second: CookSchedule): CookSchedule {
 }
 
 /** 現在の採用済み計画から確定計画を導く（admit の比較基準そのもの）。 */
+/** 比較の時点の採点（計画は点数を持たない・卓の成員表は場面の走行中から引く）。 */
+function scoreOf(scene: AdmitScene, schedule: CookSchedule): number {
+  return scoreSchedule(schedule.slices, scene.pending, tableMembers(scene.running), scene.params)
+    .total;
+}
+
 function committedOf(scene: AdmitScene, accepted: readonly AcceptedSlice[]): CookSchedule {
   return committedSchedule(
     accepted,
@@ -251,9 +258,9 @@ describe("engine/admit — Acceptance_Gate", () => {
       fc.property(genAdmitScene, (scene) => {
         let accepted: readonly AcceptedSlice[] = [];
         for (const arrived of scene.arrivals) {
-          const before = committedOf(scene, accepted).score;
+          const before = scoreOf(scene, committedOf(scene, accepted));
           accepted = receive(scene, accepted, arrived).accepted;
-          expect(committedOf(scene, accepted).score).toBeLessThanOrEqual(before);
+          expect(scoreOf(scene, committedOf(scene, accepted))).toBeLessThanOrEqual(before);
         }
       }),
       { numRuns: 300 },

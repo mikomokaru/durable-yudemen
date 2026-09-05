@@ -19,5 +19,6 @@ export function settleParams(
   sync: SyncParams,
   unitCount: number = DEFAULT_UNIT_COUNT,
 ): SettleParams {
-  return { ...sync, ...schedulingDefaults(unitCount), noodlePresets: DEFAULT_NOODLE_PRESETS };
+  // arms は同期と採点で一つの実体。テストが主張する sync 側の値を後ろに置いて勝たせる。
+  return { ...schedulingDefaults(unitCount), ...sync, noodlePresets: DEFAULT_NOODLE_PRESETS };
 }

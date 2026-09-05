@@ -78,11 +78,11 @@ export function settle(
   now: EpochMillis,
   mayRequestPlan: boolean,
 ): Outcome {
-  // running のみ再同期し、boiled は据え置いて元の並び順のまま合成する。
-  const running = moved.timers.filter((t) => t.boiledAt === null);
-  const synced = synchronize(running, params);
-  const nextTimers = mergeBoiled(moved.timers, synced);
-  const nextState: TimerState = { ...moved, timers: nextTimers };
+  // running のみ再同期し、boiled は据え置く（synchronize が boiled を動かさず並び順も保つ）。
+  // **確定する Timer 列はこれである。** 確定の前に走行中の実効 endTime を読む判定（受領・plan.ts）は
+  // 同じ synchronize を通した列を読まなければならない——設定の差し替えを跨いだ状態の adjustment は旧設定の
+  // 同期結果であり、判定が旧錨・確定が新錨を見れば、旧錨に揃える計画が「改善」として通る。
+  const nextState: TimerState = { ...moved, timers: synchronize(moved.timers, params) };
 
   // no-op 検出（要件7.7）：確定結果が prev と同一なら put も broadcast もしない。状態も prev を返す。
   if (isSameConfirmedResult(prev, nextState)) {
@@ -127,9 +127,9 @@ export function settle(
  * 受け取るため——外部が別の集合から解放表を組めば、こちらの feasibility 判定と噛み合わない。
  *
  * params は SettleParams（ScheduleParams の上位集合）をそのまま載せる。Effect が契約として宣言するのは
- * ScheduleParams の 8 値であり、読み手はそこだけを見る。同期パラメータと麺プリセットを 8 値へ削ぐ射影を
- * 立てないのは、削ぐために同じフィールド名の列挙をもう一箇所に置くことになるためである（何を外へ送るかは
- * 送出の関心事で、shell 側の担当・タスク 19.2）。
+ * ScheduleParams の 9 値であり、読み手はそこだけを見る。同期パラメータを 9 値へ削ぐ射影を立てないのは、
+ * 削ぐために同じフィールド名の列挙をもう一箇所に置くことになるためである。麺プリセットは Effect が自分の
+ * 項目として運ぶ——要求の入力を engine の決定として一箇所に定める（lift-group-planning 判断 13）。
  */
 function requestPlan(
   state: TimerState,
@@ -142,19 +142,9 @@ function requestPlan(
     pending: targets,
     running: state.timers,
     params,
+    noodlePresets: params.noodlePresets,
     digest,
   };
-}
-
-/**
- * 同期済みの running（synced）を moved.timers の並び順へ差し戻す。boiled は moved のまま据え置く。
- *
- * synchronize には running のみを渡すため synced は running だけを含む。id をキーに running を synced で
- * 差し替え、boiled はそのまま通すことで、moved の元の並び順を保ったまま再合成する（順序を乱さない）。
- */
-function mergeBoiled(movedTimers: readonly Timer[], synced: readonly Timer[]): readonly Timer[] {
-  const syncedById = new Map<string, Timer>(synced.map((t) => [t.id, t]));
-  return movedTimers.map((t) => (t.boiledAt === null ? (syncedById.get(t.id) ?? t) : t));
 }
 
 /**
@@ -242,12 +232,11 @@ function isSameAccepted(prev: readonly AcceptedSlice[], next: readonly AcceptedS
   return prev.every((slice, index) => isSameSlice(slice, next[index]));
 }
 
-/** 一片の同一性（分解軸の鍵・部分和・配置列）。 */
+/** 一片の同一性（分解軸の鍵・配置列）。点数は一片が持たない導出値ゆえ比較の対象にならない。 */
 function isSameSlice(left: AcceptedSlice, right: AcceptedSlice | undefined): boolean {
   return (
     right !== undefined &&
     left.tableKey === right.tableKey &&
-    left.score === right.score &&
     left.placements.length === right.placements.length &&
     left.placements.every((placement, index) => isSamePlacement(placement, right.placements[index]))
   );

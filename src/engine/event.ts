@@ -70,8 +70,8 @@ export type Event =
       readonly received: readonly ReceivedOrder[];
       readonly now: EpochMillis;
     }
-  // 外部（Solver_Worker）から届いた計画（要件6.1）。plan.score は**外部が主張した値**にすぎず、採否の根拠に
-  // しない——engine 側の採点（scoreSchedule）が唯一の権威である（design「意図的な重複」の不変点）。
+  // 外部（Solver_Worker）から届いた計画（要件6.1）。計画は点数を運ばない（PlanSlice に score は無い）——
+  // 採否の根拠は engine 側の採点（scoreSchedule）が比較の時点で出す値だけである（lift-group-planning 判断 7）。
   // 解析不能・スキーマ不正・Input_Fingerprint の欠落（AC 10.3）はここに到達する前に落とす——境界で検証して
   // engine には検証済みの型だけを渡す既存の規律（domain の toPendingOrders・shell の parseClientMessage）に
   // 従い、受け口（deliverPlan・タスク 19.2）の担当とする。届かなければ状態は変わらず、全体棄却が成立する。

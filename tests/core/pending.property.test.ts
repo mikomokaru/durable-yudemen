@@ -118,7 +118,7 @@ function timerFor(externalOrderId: string, itemIndex: number, seq: number): Time
     startTime: NOW as EpochMillis,
     endTime: (NOW + 120_000) as EpochMillis,
     seq,
-    orderItem: { externalOrderId, itemIndex },
+    orderItem: { externalOrderId, itemIndex, tableId: null },
   });
 }
 
