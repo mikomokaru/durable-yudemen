@@ -30,7 +30,7 @@
 ### 確定した設計判断（すべて本要件へ演繹する・2026-09-04 の対話で確定）
 
 1. **出すのは店舗全体で最早の群だけ。** 群の順序は群の中で最も早い `startAt`。群の全員を出す（arms を超えていても）。他の群は出さない。
-2. **群の識別は client の再計算。** `serveAt = startAt + 茹で秒` を計算し、等しいものを一群とする。許容幅で「近い」を判定しない。揃っていない品目は別の群になり、揃っていないものを揃っていると言う経路を持たない。
+2. **群の識別は client の再計算。** `serveAt = startAt + 茹で秒` を計算し、**同じ卓（`tableId`）で** `serveAt` が等しいものを一群とする。卓を持たない品目は 1 品で 1 群（計画側の Lift_Group と同じ単位・`lift-group-planning` AC 1.2）。許容幅で「近い」を判定しない。揃っていない品目は別の群になり、揃っていないものを揃っていると言う経路を持たない。**改訂（2026-09-05・レビュー）**: 当初は `serveAt` の等号だけで束ねていたが、それでは別の卓が偶然同じ `serveAt` を持つと一群になり、卓なし 2 品も一群になって「群の開始」が定義できない（判断 16）。卓を鍵に足すことで、client の群は計画側の Lift_Group（同じ卓）を batch で割った単位に一致する。
 3. **提案は startAt の 60 秒前に薄く現れる。語は無い。** 60 秒は麺を準備する猶予であり、domain の定数とする。店舗差が実在するまで設定にしない。
 4. **startAt が来たら濃くなり `now` と描く。** 時刻（`in mm:ss` / 壁時計 / 秒読み）は描かない。
 5. **薄くても押せる。** 提案は指示ではない。早く入れれば Boil_Sync が吸収する。**判断 17 で「押せるのは群の先頭だけ」に絞った**——先頭は薄くても押せるが、先頭でない品目は薄くても濃くても押せない。
@@ -41,12 +41,18 @@
 10. **ラジアルに店舗全体の待ち行列を足す。** 到着順に列挙し、選べば品目として開始する（待ち行列から消える）。`slotSpan` 2 の品目は押した釜と、そこから `affinityToleranceDistance` の内側で最も近い空き釜を自動で組にし、内側に無ければ選べない。麺種プリセットのアドホック開始は残す。
 11. **レールは到着順のまま。** 計画順にしない（再評価のたびに並びが揺れる）。
 12. **`slotDistance` を domain へ移す。** engine と client の両方が使うためで、GridPoint / UnitOrigin しか用いないため domain に置ける。`ClientView` は config の `unitOrigins` / `slotOffsets` を持つ。
-13. **永続・config を変えない。ワイヤは `TimerFact.tableId` の 1 項目だけ足す（判断 16）。** engine の変更は `toWireTimer` がその 1 項目を写すことに限る。それ以外は client と domain（`slotDistance` の移設・定数の追加・ワイヤ復号の 1 項目）だけである。
+13. **永続・config を変えない。ワイヤは `TimerFact.orderItem` の 1 項目だけ足す（判断 16）。** engine の変更は型の合成（`Ordered` を `TimerFact.orderItem` に置き換える）と `toWireTimer` がその項目を写すことに限る。遷移・計画・採点・永続は変えない。それ以外は client と domain（`slotDistance` の移設・定数の追加・ワイヤ復号の 1 項目）だけである。
 14. **`lapsed-suggestion-timing` は #27 として main にマージ済み。** 当初「マージしない」としたが、実測でマージされていた（2026-09-04）。本 spec がその挙動（`planAnchor` / `suggestionTiming` による間隔の追随）を置き換える。観測事実は 2026-09-05 に #27 マージ後の main へ更新済み（観測事実 2・11）。
 
 15. **複数釜の提案は、`slotIds` の全釜が idle のときだけ表示し、押せる（レビュー指摘 1・P1）。** engine は開始時に釜の占有を検査しない（観測事実 12）ので、「釜 0 は空き・釜 1 は 30 秒後に空く」2 釜の提案を釜 0 に出して押せれば、走行中の釜 1 にも Timer が立つ。端末は snapshot の全 Timer（担当外を含む）を持つので、受信済みの状態だけで判定できる。端末間の競合ではない。一部の釜が埋まっている間は提案を出さず、全釜が空いた時点で現れる（判断 6 の複数釜版）。
 
-16. **「群の最初の 1 本が始まった」の事実は、走行中 Timer の卓で判定する。ワイヤの `TimerFact` に `tableId: string | null` を足す（レビュー指摘 2・P2）。** 開始した品目は推奨から消え、現行のワイヤは Timer に品目参照も卓も載せない（観測事実 10）ため、途中接続した端末は走行中 Timer がどの群のものか確定できず、端末ごとの履歴で補えば端末間一致が崩れる。判定に使える事実は次の 2 つで、後者を採る。(a) `serveAt` の等号——合流した群の `serveAt` は走行中の仲間の実効 `endTime` に一致する（観測事実 13）ので、「Next_Group の `serveAt` が走行中のいずれかの `endTime` と等しい」で判定できるが、無関係な Timer の `endTime` と偶然一致しうる（`release + boil` がたまたま別卓の `endTime` に当たる）偽陽性を持つ。(b) **`TimerFact.tableId`**——engine の Timer は既に卓を持つ（ADR-0003・永続 v10）ので、`toWireTimer` が 1 項目写すだけで、復号は欠如を null に畳む（追加は後方互換）。Group_Started(G) ⇔ G の卓が非 null で、かつ同じ卓の走行中（boiled でない）Timer が在る。卓を持たない品目は単独の群で、始まれば消えるだけ（「始まったまま残る」状態が無い）。**これは判断 13 の改訂であり、ADR-0003 が本 spec へ委ねた判断そのものである。**
+16. **「群の最初の 1 本が始まった」は、走行中 Timer の卓と実効 `endTime` の両方で判定する。ワイヤの `TimerFact` に `orderItem`（品目参照と卓）を足す（レビュー指摘 2・P2、2026-09-05 に改訂）。** 開始した品目は推奨から消え、現行のワイヤは Timer に品目参照も卓も載せない（観測事実 10）ため、途中接続した端末は走行中 Timer がどの群のものか確定できず、端末ごとの履歴で補えば端末間一致が崩れる。
+    - **卓の共有と群の開始は別である。** 「同じ卓の走行中が在る」は「その卓を調理中」であって「その群が開始済み」ではない——容量分割で同じ卓が G1・G2 に割れていれば、G1 を 1 品始めただけで未着手の G2 まで開始済みになってしまう。群の開始は **計画の構成そのもの**で判定する：`lift-group-planning`（観測事実 13）は、走行中の仲間が在る卓の未着手のうち合流できる品目の `serveAt` を走行中の実効 `endTime`（＝ワイヤの `endTime`）に**一致**させる。ゆえに **Group_Started(G) ⇔ G の卓が非 null で、同じ卓の走行中（boiled でない）`TimerFact` T が在り、`T.endTime === G.serveAt`**。G1（合流した残り）は真、G2（後の batch・`serveAt` が違う）は偽になる。合流できず別 batch になった残りも偽で、その群の 1 本目が始まるまで後続を解禁しない。
+    - **群の鍵に卓を足す（判断 2 の改訂）。** `serveAt` だけで束ねると別の卓が一群になり「G の卓」が一つに定まらない。卓を鍵に足せば、client の群は計画側の Lift_Group を batch で割った単位に一致し、Group_Started は群ごとに一意に決まる。
+    - **卓を持たない品目は 1 品 1 群で、「始まったまま残る」状態が無い。** 始まれば推奨から消えて群が消え、次の群が先頭になる。判断 19 の連鎖はこれをそのまま通す（卓なしの品目が続くときは 1 本ずつ現れる。並べて始めたければラジアルが残る）。
+    - **`serveAt` の等号だけで判定する案（卓なし）は採らない。** 走行中の `endTime` は Boil_Sync で動き、卓なしの未着手は走行中に再錨しないので、等号が成り立たない。卓の一致と等号の**両方**を要る形にして、偶然の一致（無関係な Timer の `endTime` が `release + boil` に当たる）も卓の不一致で落とす。
+    - **型の構成。** `TimerFact` に `tableId` を直下で足すと、`Timer extends TimerFact` ゆえ engine の Timer にも直下の `tableId` が要り、`orderItem.tableId` と重複する（`(orderItem = null, tableId 非 null)` を表現不能にした ADR-0003 の構造も崩れる）。ゆえに **engine の `Ordered.orderItem` の形をそのまま domain へ移し、`TimerFact.orderItem: { externalOrderId, itemIndex, tableId: string | null } | null` とする**。engine の `Ordered` は削除（`Timer` は `TimerFact` から `orderItem` を継承する）。`toWireTimer` は `orderItem` を写す。復号は欠如と null を null に畳み（engine の `reviveOrderItem` と同じ）、非 null なら `externalOrderId` 非空・`itemIndex` 非負整数・`tableId` null か非空文字列を要る。ワイヤに品目参照が出ることは、client が既に待ち行列で同じ鍵を持つため新しい露出ではない。走行中カードの表示には使わない（Requirement 5.8）。
+    - **これは判断 13 の改訂であり、ADR-0003「`TimerFact` には出さない……その spec が判断する」が本 spec へ委ねた判断そのものである。** ADR-0003 の Consequences を改訂する（Requirement 7.4）。
 
 17. **押せるのは群の先頭だけ。順は表示の変化ではなく、いま見えている形から読める（レビュー指摘 3・P2）。** Group_Head = 群の未着手のうち `startAt` 最小の品目（同値は全部——茹で時間が同じ品目は入れ替えても揃う）。先頭は薄くても押せる（判断 5）。先頭でない品目は、Prep_Lead が来ていれば薄く**見える**が押せない（丸ボタンを描かない・ラベルだけ）。濃くなるのは先頭だけである。放置して全品の `startAt` が過ぎても、先頭は 1 本（または同値の数本）で、出現の履歴を見ていない人にも次の投入対象が分かる。先頭を始めると計画が残りを走行中の錨へ組み直し、次の先頭が決まる。「薄い品目の中で順を示す」案（番号）は判断 9（群を可視化しない・番号を出さない）と衝突するので採らない。「薄い段階の押下を最早の 1 本に限る」案は濃い段階に同じ問題を残す（観測事実 14）ので、薄・濃を問わず先頭に限る。
 
@@ -67,7 +73,7 @@
 - `slot-suggested-start` の Requirement 1.2（釜ごとに `startAt` 最小）・2.3〜2.5（ラベルの時期）・判断 5（時期の相対表示）を本 spec が改めた旨を追記する。
 - `online-cook-scheduling` design「`unitOrigins` / `slotOffsets` は現時点で用途なし」を改める。
 - `tests/client/slotSuggestion.*.test.ts` を群の導出へ書き換える。
-- `verified-wire-contract` の decoder（`toTimerFact`）と `tests/domain` の往復 property に `tableId` を足す。`docs/adr/0003` の Consequences を改訂する。
+- `verified-wire-contract` の decoder（`toTimerFact`）と `tests/domain` の往復 property に `orderItem` を足す。engine の `Ordered` を削除して `TimerFact.orderItem` に置き換える。`docs/adr/0003` の Consequences を改訂する。
 
 ### naming ゲート（`naming.md`）
 
@@ -82,7 +88,7 @@
 | `slotDistance` | domain へ移設（`store.ts` 候補） | 釜どうしの距離。engine と client が共有 |
 | `ClientView.unitOrigins` / `slotOffsets` | `connection.ts` | config から写す 2 項目（距離の計算に要る） |
 | ラジアルの待ち行列の口 | `RadialMenu.tsx` | 品目を選んで開始する。名は design |
-| `TimerFact.tableId` | `src/domain/timer.ts`（ワイヤ） | 走行中 Timer の由来する卓。群の開始の判定にだけ読む。engine の `orderItem.tableId` と同じ語 |
+| `TimerFact.orderItem` | `src/domain/timer.ts`（ワイヤ） | 走行中 Timer の由来する注文品目と卓。engine の `Ordered.orderItem` をそのまま domain へ移す（形も語も同じ）。群の開始の判定にだけ読む |
 | `Group_Head` / `Visible_Groups` / `All_Idle` | 要件語彙（識別子は design） | 押せる先頭・表示できる群・全釜が空き |
 
 ### `lift-group-planning` からの申し送り
@@ -91,11 +97,11 @@
 
 ## Glossary
 
-- **Lift_Group（同時に上げる群）**: `serveAt` が等しい提案の集合。client は `startAt + 茹で秒` で `serveAt` を再計算して組む。
+- **Lift_Group（同時に上げる群）**: 同じ卓（`tableId`）で `serveAt` が等しい提案の集合。卓を持たない品目は 1 品で 1 群。client は `startAt + 茹で秒` で `serveAt` を再計算して組む。
 - **Next_Group（次の群）**: 受信した推奨の全量から組んだ群のうち、最も早い `startAt` を持つ群。店舗全体で一つ。
 - **Prep_Lead（準備の猶予）**: 提案が薄く現れる、`startAt` までの時間。60 秒。domain の定数。
 - **Faint / Solid（薄 / 濃）**: 提案の二相。薄は `startAt − Prep_Lead ≤ now < startAt`、濃は `startAt ≤ now`。薄には語が無く、濃は `now`。
-- **Group_Started（群の開始）**: 群の卓が非 null で、同じ `tableId` を持つ走行中（boiled でない）の `TimerFact` が在る状態。次の群が現れる条件の一つ。
+- **Group_Started（群の開始）**: 群の卓が非 null で、同じ卓の走行中（boiled でない）`TimerFact` のうち `endTime` が群の `serveAt` に等しいものが在る状態（計画が残りを走行中の実効 `endTime` に揃えた事実）。卓なしの群には無い状態（始まれば消える）。次の群が現れる条件の一つ。
 - **Group_Head（群の先頭）**: 群の未着手のうち `startAt` 最小の品目（同値は全部）。押せるのは先頭だけ。
 - **Visible_Groups（表示できる群）**: 群を最早 `startAt` 順に並べたとき、先頭の群と、それより前の群がすべて Group_Started である群の集合。
 - **All_Idle（全釜が空き）**: 推奨の `slotIds` の全釜が idle（走行中・茹で上がり・unreceived でない）である状態。snapshot の全 Timer（担当外を含む）から判定する。
@@ -111,12 +117,12 @@
 #### Acceptance Criteria
 
 1. THE client SHALL 受信した推奨の全量（担当範囲で絞る前）から、各推奨の `serveAt` を `startAt + 茹で秒` で再計算する
-2. THE client SHALL `serveAt` が等しい推奨を一つの Lift_Group とする（許容幅を用いない）
+2. THE client SHALL 同じ `tableId` で `serveAt` が等しい推奨を一つの Lift_Group とし、`tableId` が null の推奨は 1 品で 1 群とする（許容幅を用いない）
 3. THE client SHALL 茹で秒を引けない推奨（品目が待ち行列に無い・麺種がプリセットに無い）を群に入れない
 4. THE Next_Group SHALL 群の中で最も早い `startAt` が最小の群とする。同値は `entries` の順（到着順）で先のもの
 5. THE client SHALL Next_Group をビューに保持せず、毎描画導出する
 6. THE Next_Group の導出 SHALL 担当範囲・端末に依らず、同じ推奨の全量からは同じ群を返す
-7. THE client SHALL 群の Group_Started を、群の卓が非 null で、かつ同じ `tableId` を持つ走行中（boiled でない）の `TimerFact` が snapshot に在ることで判定する。端末ごとの履歴・過去の描画・推奨の消失を判定に用いない
+7. THE client SHALL 群の Group_Started を、群の卓が非 null で、かつ snapshot の走行中（boiled でない）`TimerFact` に `orderItem.tableId` が群の卓に等しく `endTime` が群の `serveAt` に等しいものが在ることで判定する。卓の一致だけ・`endTime` の一致だけでは判定しない。端末ごとの履歴・過去の描画・推奨の消失を判定に用いない
 8. THE client SHALL Visible_Groups を、群を最早 `startAt` 順に並べたときの先頭の群と、それより前の群がすべて Group_Started である群の集合として導く
 9. THE client SHALL 各群の Group_Head を、群の未着手のうち `startAt` 最小の品目（同値は全部）として導く
 10. THE Group_Started / Visible_Groups / Group_Head の導出 SHALL 担当範囲・端末に依らず、同じ snapshot からは同じ結果を返す
@@ -186,14 +192,14 @@ _出所: 判断 10・12・18, 観測事実 4・6・7・8_
 
 #### Acceptance Criteria
 
-1. THE 変更 SHALL ワイヤ契約の変更を `TimerFact` への `tableId: string | null` の追加に限る。`CookRecommendation` / `ClientMessage` / `ServerMessage` の他の項目は変更しない
-2. THE ワイヤ復号（`domain/wire.ts` の `toTimerFact`） SHALL `tableId` の欠如と null を null に畳み、空文字と非文字列を復号失敗とする（`verified-wire-contract` の規律・engine の `reviveOrderItem` と同じ判定）
-3. THE 変更 SHALL `src/engine` の変更を `toWireTimer` が `orderItem?.tableId ?? null` を写すことに限る。計画・採点・遷移・永続スキーマを変更しない
+1. THE 変更 SHALL ワイヤ契約の変更を `TimerFact` への `orderItem: { externalOrderId: string; itemIndex: number; tableId: string | null } | null` の追加に限る。`CookRecommendation` / `ClientMessage` / `ServerMessage` の他の項目は変更しない
+2. THE ワイヤ復号（`domain/wire.ts` の `toTimerFact`） SHALL `orderItem` の欠如と null を null に畳み、非 null では `externalOrderId` 非空文字列・`itemIndex` 非負整数・`tableId` null または非空文字列を要し、逸脱を復号失敗とする（`verified-wire-contract` の規律・engine の `reviveOrderItem` と同じ判定）
+3. THE 変更 SHALL `src/engine` の変更を、`Ordered` を削除して `Timer` が `TimerFact.orderItem` を継承する型の合成と、`toWireTimer` が `orderItem` を写すことに限る。計画・採点・遷移・永続スキーマを変更しない
 4. THE 変更 SHALL `StoreConfig` を変更しない
 5. THE 変更 SHALL レールの並び（到着順）と内容を変更しない
 6. THE 変更 SHALL 提案の出現に Alarm・`setInterval`・時刻起動を用いず、既存の毎描画導出だけで行う
 7. THE 変更 SHALL `slotDistance` の算術を移設のみで変更しない
-8. THE 変更 SHALL 走行中カードの見え方を変更しない（`tableId` は群の開始の判定にだけ読む。表示は別の判断）
+8. THE 変更 SHALL 走行中カードの見え方を変更しない（`orderItem` は群の開始の判定にだけ読む。表示は別の判断）
 
 _出所: 判断 11・12・13・16_
 
@@ -212,7 +218,7 @@ _出所: 判断 11・12・13・16_
 7. **距離の一致** — client が用いる `slotDistance` は engine の目的関数が用いるものと同一の関数である
 8. **全釜 idle** — 表示される提案の `slotIds` の全釜は idle である（一部の釜が走行中の推奨は、どの釜にも表示されない）
 9. **先頭の一意** — 任意の snapshot と時刻で、押せる提案（丸ボタンを持つ）は各群につき `startAt` 最小の品目（同値は全部）だけである。放置して全品の `startAt` が過ぎても変わらない
-10. **開始の事実の一意** — Group_Started は snapshot（走行中の `tableId`）だけから決まり、途中接続した端末と接続し続けた端末で一致する
+10. **開始の事実の一意** — Group_Started は snapshot（走行中の `orderItem.tableId` と `endTime`、群の `serveAt`）だけから決まり、途中接続した端末と接続し続けた端末で一致する。同じ卓の後の batch（`serveAt` が走行中の `endTime` と異なる群）は開始済みにならない
 11. **非 live の沈黙** — degraded では、提案もラジアルの待ち行列も表示されず、`startOrderItem` が呼ばれることがない
 
 _出所: 判断 1・2・3・4・7・8・12・15・16・17・18・19_
