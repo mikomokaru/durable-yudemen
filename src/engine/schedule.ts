@@ -351,6 +351,32 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
 }
 
 /**
+ * 一片が走行中の錨を守っているか（ハード制約 (e)・判断 16 / 17・ADR-0007）。守るとは 2 つ——
+ *   1. **合流分は錨に一致する**：錨以下に提供する配置は、ちょうど錨に提供する（錨より手前に散らさない）。
+ *   2. **押し出さない**：合流できた品目を錨より後ろへ置かない（isPushedOut）。
+ *
+ * Acceptance_Gate（admit.ts）と確定計画の合成（commit.ts）が同じ述語を読む。合成が読むのは、採用済み一片が
+ * 採用時の錨の上に組まれているためである——錨は Boil_Sync で動く（無関係な Timer が仲間の窓の内側で始まると
+ * 仲間の adjustment が変わる）。錨が +Δ 動けば合流分は錨より手前になり（1 が破れる）、−Δ 動けば合流分は
+ * 錨より後ろになって、まだ合流できるなら押し出し（2 が破れる）、もう届かないなら正当な後続の batch になる。
+ * どちらも導出だけで判定でき、採用時の錨を持たなくてよい。
+ *
+ * **合流する部分集合を外部解に強制しない。** 残り容量が 1 品分で自前解が A を選んでも、外部解が B を合流させ
+ * A を後ろに置く一片は、A が B の後では合流できない（isPushedOut が偽）ので守っている。強制するのは「合流した
+ * ものは錨に一致」と「合流できるものを押し出さない」だけで、どれを合流させるかは外部の自由（ADR-0007）。
+ */
+export function keepsAnchor(
+  placements: readonly Placement[],
+  release: SlotRelease,
+  anchor: EpochMillis,
+  targets: readonly PendingOrder[],
+  presets: readonly NoodlePreset[],
+): boolean {
+  if (placements.some((placement) => placement.serveAt < anchor)) return false;
+  return !isPushedOut(placements, release, anchor, targets, presets);
+}
+
+/**
  * 走行中の錨に合流できたのに、錨より後ろへ押し出された配置が在るか（ハード制約 (e)・判断 16・ADR-0007）。
  *
  * 「始めたまとまりを崩さない」は目的関数では守れない——卓同期項は最遅からの遅れの和なので、合流できない 1 本が

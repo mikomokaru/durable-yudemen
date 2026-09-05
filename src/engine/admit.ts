@@ -23,8 +23,8 @@ import { tableMembers, type TableMembers } from "./project";
 import {
   advanceRelease,
   initialRelease,
-  isPushedOut,
   isStale,
+  keepsAnchor,
   occupiesSlotSpan,
   planTargets,
   refersTo,
@@ -174,10 +174,10 @@ function prune(
  * occupiesSlotSpan ただ一つ（相異なるかは釜番号で比べる。`["0","00"]` は 1 釜）。isStale も同じ述語を
  * 読むので (a)(b) で既に落ちているが、feasibility の側にも書くのは「解放表に置ける配置か」がここの主張だから。
  *
- * **(e) 始めたまとまりを崩さない。** 走行中の仲間が在る卓で、その錨に合流できた品目を錨より後ろへ押し出した
- * 計画は feasible と認めない（判断 16・ADR-0007）。目的関数は最遅参照ゆえ「合流できない 1 本のために全員を
- * 遅らせる」配置を真に良いと採点し、ソフトでは外部解に消される。述語は schedule.ts の isPushedOut ただ一つ
- * （自前解の性質検査と共用）。
+ * **(e) 始めたまとまりを崩さない。** 走行中の仲間が在る卓で、合流分が錨に一致しない（錨より手前に散らす）
+ * 計画と、その錨に合流できた品目を錨より後ろへ押し出した計画は feasible と認めない（判断 16 / 17・ADR-0007）。
+ * 目的関数は最遅参照ゆえ「合流できない 1 本のために全員を遅らせる」配置を真に良いと採点し、ソフトでは外部解に
+ * 消される。述語は schedule.ts の keepsAnchor ただ一つ（確定計画の合成・自前解の性質検査と共用）。
  *
  * **serveAt = startAt ＋ 当該品目の茹で時間 を検査する（design の (a)(b)(c) への追加）。** 外部計画は
  * startAt と serveAt の両方を主張してくるが、両者を結ぶのは品目の茹で時間ただ一つである。検査しないと
@@ -193,8 +193,8 @@ function feasibleRelease(
   presets: readonly NoodlePreset[],
   anchor: EpochMillis | null,
 ): SlotRelease | null {
-  // (e)。一片を置く前の表で判定する（合流分だけを進めた表は述語の内側で作る）。
-  if (anchor !== null && isPushedOut(placements, release, anchor, targets, presets)) return null;
+  // (e)。一片を置く前の表で判定する（合流分だけを進めた表は述語の内側で作る）。合成（commit.ts）と同じ述語。
+  if (anchor !== null && !keepsAnchor(placements, release, anchor, targets, presets)) return null;
   // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
   const ordered = [...placements].sort(
     (placement, other) =>

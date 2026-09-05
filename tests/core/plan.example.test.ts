@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import { decide } from "../../src/engine/decide";
 import { receivePlan } from "../../src/engine/plan";
 import { committedSchedule } from "../../src/engine/commit";
+import { synchronize } from "../../src/engine/sync";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { SettleParams } from "../../src/engine/settle";
 import type { CookSchedule } from "../../src/engine/schedule";
@@ -283,25 +284,29 @@ describe("receivePlan — 採否は採用後に確定する走行中と同じ実
     expect(outcome.effects).toEqual([]);
   });
 
-  it("新錨に揃える計画は採用され、確定した走行中も同じ錨を持つ", () => {
-    // 逆向き。旧錨で採点すれば 720 > 661 で棄却されるが、確定後の錨（600 秒）では 601 < 780 の改善である。
+  it("旧錨に揃えた採用済み一片は、判定の前の再同期で合成が捨て、新錨に揃える外部計画は同値として棄却される", () => {
+    // 逆向き。採用済みの一片は旧錨（660 秒）に揃えていた。判定は再同期後の走行中（錨 600 秒）で合成するので、
+    // その一片は「合流できる品目を押し出している」として捨てられ、確定計画は自前解（600 秒に揃う）になる。
+    // 届いた外部計画はそれと同値ゆえ棄却され、状態は動かない——確定計画は既に新錨に揃っている。
     const state = stateWith(AT_660);
     const outcome = receive(state, { slices: [AT_600] });
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
-    expect(outcome.state.acceptedSlices).toEqual([AT_600]);
-    const sibling = outcome.state.timers.find((t) => t.id === SIBLING.id)!;
-    expect(sibling.adjustment).toBe(0);
-    // 確定計画は採用した一片そのもの——判定が前提した錨と確定した錨が一致している。
+    expect(outcome.state).toBe(state);
+    expect(outcome.effects).toEqual([]);
+    // 再同期後の走行中で合成した確定計画は、採用済み一片ではなく新錨に揃った自前解である。
+    const resynced = synchronize(state.timers, PARAMS);
     const committed = committedSchedule(
-      outcome.state.acceptedSlices,
-      outcome.state.pendingOrders,
-      outcome.state.timers,
+      state.acceptedSlices,
+      state.pendingOrders,
+      resynced,
       NOW,
       PARAMS.noodlePresets,
       PARAMS,
     );
-    expect(committed.slices).toEqual([AT_600]);
+    expect(committed.slices.flatMap((slice) => slice.placements).map((p) => p.serveAt)).toEqual([
+      AT_600.placements[0]!.serveAt,
+    ]);
   });
 });
