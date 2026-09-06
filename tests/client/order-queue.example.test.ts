@@ -8,13 +8,20 @@
 
 import { describe, expect, it } from "vitest";
 import { decideView, EMPTY_VIEW, type ClientView } from "../../src/client/connection";
-import { orderQueueEntries } from "../../src/client/components/queueDisplay";
-import type { PendingOrder } from "../../src/domain/order";
+import { orderQueueEntries, suggestedItemOf } from "../../src/client/components/queueDisplay";
+import { liftGroups, slotSuggestions, visibleGroups } from "../../src/client/components/liftGroups";
+import { correctedNow } from "../../src/client/clock";
+import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import type { CookRecommendation } from "../../src/domain/messages";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 
 const T = 1_700_000_000_000;
+
+/** 品目の鍵（`id#itemIndex`・比較用の読める形）。 */
+function keyOf(order: PendingOrder): string {
+  return `${order.externalOrderId}#${order.itemIndex}`;
+}
 
 /** 1 品目の未着手オーダー。既定プリセットに在る麺種（Thin: normal=60 秒）を既定に据える。 */
 function order(
@@ -221,5 +228,116 @@ describe("待ち行列の表示導出（AC 8.1 / 8.2 / 8.5）", () => {
       [recommendation("o-1", 0, ["0"], T)],
     );
     expect(orderQueueEntries(unknownNoodle, [0], T)[0]?.suggestion).toBeNull();
+  });
+});
+
+// ── pending-order-expiry: client も同じ述語で絞る（Requirement 3・性質 5.8） ────────────────────────────
+//
+// wire の `pendingOrders` は保持したまま（ClientView に絞った値を持たない）、レールを並べる入口が補正後現在時刻で
+// domain の liveOrders に通す。サーバは既に絞って送るが、snapshot の後に時刻が進んで寿命を跨ぐ品目は client が
+// 消す——次の snapshot を待たない。時刻はすべて引数で運び、Date.now は用いない（純粋層の規律）。
+
+describe("Feature: pending-order-expiry — 寿命を跨いだ品目は次の snapshot を待たずに左レールから消える（AC 3.1 / 3.2・性質 5.8）", () => {
+  /** T にちょうど寿命を迎える品目（T − 1 では生きている）。 */
+  const EXPIRING = order("o-expiring", 0, T - ORDER_LIFETIME_MS);
+  /** 今届いた品目（どの場面でも生きている）。 */
+  const FRESH = order("o-fresh", 0, T - 1_000);
+
+  const keys = (entries: ReturnType<typeof orderQueueEntries>) =>
+    entries.map((entry) => keyOf(entry.order));
+
+  it("snapshot 直後は残り、correctedNow が寿命を跨ぐと消える。view の pendingOrders は wire のまま", () => {
+    const view = viewWith([EXPIRING, FRESH], []);
+    expect(keys(orderQueueEntries(view, [0], T - 1))).toEqual(["o-expiring#0", "o-fresh#0"]);
+    expect(keys(orderQueueEntries(view, [0], T))).toEqual(["o-fresh#0"]);
+    expect(keys(orderQueueEntries(view, [0], T + 60_000))).toEqual(["o-fresh#0"]);
+    // 絞った値を状態にしない——wire の全量はそのまま残る（design 原則 1）。
+    expect(view.pendingOrders).toEqual([EXPIRING, FRESH]);
+  });
+
+  it("境界は半開区間：ちょうど arrivalTime + 寿命 は含まず、その 1 ms 前は含む（domain と同じ 1 つの述語）", () => {
+    const view = viewWith([EXPIRING], []);
+    expect(orderQueueEntries(view, [0], T - 1)).toHaveLength(1);
+    expect(orderQueueEntries(view, [0], T)).toHaveLength(0);
+  });
+
+  it("寿命の判定は補正後現在時刻で行う——ローカル時計では生きていても、offset を足せば切れている", () => {
+    // offset +30 秒：ローカル T − 30 秒 は補正後 T に等しく、EXPIRING はちょうど寿命。
+    const view = { ...viewWith([EXPIRING, FRESH], []), offset: 30_000 };
+    expect(keys(orderQueueEntries(view, [0], T - 30_000 - 1))).toEqual([
+      "o-expiring#0",
+      "o-fresh#0",
+    ]);
+    expect(keys(orderQueueEntries(view, [0], T - 30_000))).toEqual(["o-fresh#0"]);
+    // 待ち時間もその補正後現在時刻から導く（同じ 1 回の補正）。
+    expect(orderQueueEntries(view, [0], T - 30_000)[0]?.waitingMs).toBe(T - FRESH.arrivalTime);
+  });
+
+  it("寿命を過ぎた品目を指す推奨は提案として成立しない（待ち行列に無い推奨と同じ経路・AC 3.3）", () => {
+    const view = viewWith(
+      [EXPIRING, FRESH],
+      [recommendation("o-expiring", 0, ["0"], T - 10_000), recommendation("o-fresh", 0, ["1"], T)],
+    );
+    // 1 ms 手前：両方に提案が付く。
+    const before = orderQueueEntries(view, [0], T - 1);
+    expect(before.map((entry) => [keyOf(entry.order), entry.suggestion !== null])).toEqual([
+      ["o-expiring#0", true],
+      ["o-fresh#0", true],
+    ]);
+    // ちょうど寿命：品目が消え、推奨も捨てられる（レールに提案の残骸が現れない）。
+    const at = orderQueueEntries(view, [0], T);
+    expect(at.map((entry) => [keyOf(entry.order), entry.suggestion !== null])).toEqual([
+      ["o-fresh#0", true],
+    ]);
+    // suggestedItemOf は補正済み時刻を受け、寿命の境界で null に切り替わる。
+    const target = view.recommendations[0]!;
+    expect(suggestedItemOf(view, target, T - 1)?.order).toBe(EXPIRING);
+    expect(suggestedItemOf(view, target, T)).toBeNull();
+  });
+});
+
+describe("Feature: pending-order-expiry — 非ゼロの offset で左レールと釜の提案は同じ品目集合を生きているとみなす（design Component 5・一致テスト）", () => {
+  /** offset は負で大きく振る（ローカル時計がサーバより 2 分進んでいる端末）。 */
+  const OFFSET = -120_000;
+  /** ローカル時計 NOW_LOCAL の補正後現在時刻がちょうど T になる。 */
+  const NOW_LOCAL = T - OFFSET;
+  const EXPIRING = order("o-expiring", 0, T - ORDER_LIFETIME_MS);
+  const FRESH = order("o-fresh", 1, T - 1_000);
+  /** 同じ群 g の 2 品目。startAt は補正後現在時刻より前で、全釜 idle ゆえ両方が釜の提案に現れる。 */
+  const VIEW: ClientView = {
+    ...viewWith(
+      [EXPIRING, FRESH],
+      [
+        recommendation("o-expiring", 0, ["0"], T - 30_000),
+        recommendation("o-fresh", 1, ["1"], T - 20_000),
+      ],
+    ),
+    offset: OFFSET,
+  };
+
+  /** 左レールが生きているとみなす品目の鍵（担当は全釜）。 */
+  function railKeys(now: number): readonly string[] {
+    return orderQueueEntries(VIEW, [0], now).map((entry) => keyOf(entry.order));
+  }
+
+  /** 釜の提案が生きているとみなす品目の鍵（境界で 1 回だけ補正した corrected を下へ渡す）。 */
+  function boardKeys(now: number): readonly string[] {
+    const corrected = correctedNow(VIEW.offset, now);
+    const bySlot = slotSuggestions(visibleGroups(liftGroups(VIEW, corrected)), VIEW, corrected);
+    return [...new Set([...bySlot.values()].flat().map((s) => keyOf(s.item.order)))].sort();
+  }
+
+  it("補正後現在時刻の 1 ms 前では両方が 2 品目を、ちょうど寿命では両方が生きている 1 品目だけを見る", () => {
+    expect(correctedNow(VIEW.offset, NOW_LOCAL)).toBe(T);
+    expect(railKeys(NOW_LOCAL - 1)).toEqual(["o-expiring#0", "o-fresh#1"]);
+    expect(boardKeys(NOW_LOCAL - 1)).toEqual(["o-expiring#0", "o-fresh#1"]);
+    expect(railKeys(NOW_LOCAL)).toEqual(["o-fresh#1"]);
+    expect(boardKeys(NOW_LOCAL)).toEqual(["o-fresh#1"]);
+  });
+
+  it("切り替わる瞬間は同じ 1 ms——どちらか一方だけが先に消える瞬間が無い", () => {
+    for (const now of [NOW_LOCAL - 2, NOW_LOCAL - 1, NOW_LOCAL, NOW_LOCAL + 1]) {
+      expect(railKeys(now), `now = ${now - NOW_LOCAL}`).toEqual(boardKeys(now));
+    }
   });
 });

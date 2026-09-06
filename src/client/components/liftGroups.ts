@@ -50,13 +50,17 @@ export type LiftGroup = LiftGroupOf<SuggestedItem>;
 /**
  * 受信した推奨の全量から群を導く。最早 startAt 順・同値は先頭品目の到着順（AC 1.4）。
  *
- * 開始できない推奨（品目が待ち行列に無い・麺種がプリセットに無い）は群に入れない（AC 1.3）。束ね方・並び・
- * started（`anchor > corrected`・AC 1.7）は domain の liftGroupsOf が定める。
+ * 開始できない推奨（品目が待ち行列に無い・寿命を過ぎた・麺種がプリセットに無い）は群に入れない（AC 1.3）。
+ * 束ね方・並び・started（`anchor > corrected`・AC 1.7）は domain の liftGroupsOf が定める。
+ *
+ * `corrected` は補正済み現在時刻で、境界（SlotBoard）が 1 回計算した値をそのまま suggestedItemOf へ渡す
+ * （pending-order-expiry design Component 5）——品目が生きているかの判定はレール（orderQueueEntries）と同じ
+ * `livePending` を同じ時刻で読み、左レールと釜の提案が別の集合を見ない。
  */
 export function liftGroups(view: ClientView, corrected: number): readonly LiftGroup[] {
   const items: SuggestedItem[] = [];
   for (const recommendation of view.recommendations) {
-    const item = suggestedItemOf(view, recommendation);
+    const item = suggestedItemOf(view, recommendation, corrected);
     if (item !== null) items.push(item);
   }
   return liftGroupsOf(items, corrected);

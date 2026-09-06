@@ -25,7 +25,7 @@ import {
   type ClientView,
   type TimerConnection,
 } from "../../src/client/connection";
-import type { PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import { defaultUnitOrigins, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
@@ -402,5 +402,56 @@ describe("開いたまま snapshot で起点の釜が走行中になると、全
       externalOrderId: "b",
       itemIndex: 1,
     });
+  });
+});
+
+// ── pending-order-expiry: 帯もレールも、時計が寿命を跨げば次の snapshot を待たずに品目を落とす（AC 3.1・性質 5.8） ──
+
+describe("時計が寿命を跨ぐと、開いたままの帯とレールから同じ品目が同じ瞬間に消える（pending-order-expiry AC 3.1）", () => {
+  /** 端末のローカル時計はサーバより 1 秒遅れている（offset +1 秒）。補正後現在時刻 = Date.now() + 1 秒。 */
+  const OFFSET = 1_000;
+  /** 補正後現在時刻が T0 + 1 秒 + 1 ms になった瞬間にちょうど寿命を迎える A。 */
+  const EXPIRING_A = { ...A, arrivalTime: T0 + OFFSET + 1 - ORDER_LIFETIME_MS };
+  const AGING: ClientView = { ...OPEN, offset: OFFSET, pendingOrders: [C, EXPIRING_A, B] };
+
+  /** レールの行の語。 */
+  function railNames(): readonly string[] {
+    const rail = screen.queryByRole("region", { name: "Waiting orders" });
+    return rail === null
+      ? []
+      : within(rail)
+          .getAllByRole("listitem")
+          .map((item) => item.querySelector("span")?.textContent ?? "");
+  }
+
+  it("snapshot 直後（1 ms 手前）は 3 行、ローカル時計が 1 ms 進んで補正後現在時刻が寿命に達すると A が帯とレールから消え、選べない", () => {
+    const { connection, replace } = renderBoard(AGING);
+    const dialog = openRadial(0);
+    // A は 2 時間前の到着ゆえ先頭に並ぶ（到着順）。
+    expect(rows(dialog).map((row) => shown(row).label)).toEqual([
+      `Mid · ${FIRMNESS} · Table t-1`,
+      `Salt L · ${FIRMNESS} · Table t-1`,
+      `ネギ丼 · ${FIRMNESS}`,
+    ]);
+    expect(railNames()).toEqual(["Mid", "Salt L", "ネギ丼"]);
+
+    // 時計の tick（再描画）だけが起きる。snapshot は同じ内容——待ち行列は wire のまま、絞るのは描画の導出である。
+    // ローカル時計では A の寿命（arrivalTime + 2 時間 = T0 + 1 秒 + 1 ms）にまだ 1 秒足りないが、補正後現在時刻は
+    // ちょうど寿命に達している——判定は補正後現在時刻で行う。
+    vi.spyOn(Date, "now").mockReturnValue(T0 + 1);
+    replace({ ...AGING });
+
+    expect(screen.getByRole("dialog", { name: "Select noodle" })).toBe(dialog);
+    expect(rows(dialog).map((row) => shown(row).label)).toEqual([
+      `Salt L · ${FIRMNESS} · Table t-1`,
+      `ネギ丼 · ${FIRMNESS}`,
+    ]);
+    expect(railNames()).toEqual(["Salt L", "ネギ丼"]);
+    expect(
+      within(dialog).queryByRole("button", { name: `Mid · ${FIRMNESS} · Table t-1` }),
+    ).toBeNull();
+    expect(connection.startOrderItem).not.toHaveBeenCalled();
+    // 花びら（アドホック開始）は残る。
+    for (const preset of PRESETS) expect(petal(dialog, preset)).toBeDefined();
   });
 });

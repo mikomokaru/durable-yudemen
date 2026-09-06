@@ -132,7 +132,7 @@ describe("Feature: lift-group-display, Property 1: 群の所属", () => {
         }
         // 逆向き：開始できる推奨（品目が待ち行列に在り、麺種がプリセットに在る）の group がそのまま群の集合である。
         const startable = view.recommendations.filter(
-          (recommendation) => suggestedItemOf(view, recommendation) !== null,
+          (recommendation) => suggestedItemOf(view, recommendation, corrected) !== null,
         );
         expect(new Set(groups.map((group) => group.group))).toEqual(
           new Set(startable.map((recommendation) => recommendation.group)),
@@ -163,7 +163,7 @@ describe("Feature: lift-group-display, Property 1: 群の所属", () => {
           ),
         };
         const splitGroups = liftGroups(split, corrected);
-        const item = suggestedItemOf(view, target);
+        const item = suggestedItemOf(view, target, corrected);
         if (item === null) {
           // 開始できない推奨は群に入らないので、group を分けても何も変わらない。
           expect(splitGroups).toEqual(groups);

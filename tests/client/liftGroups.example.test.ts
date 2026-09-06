@@ -18,7 +18,7 @@ import {
   visibleGroups,
 } from "../../src/client/components/liftGroups";
 import type { CookRecommendation } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import { defaultUnitOrigins, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
@@ -467,5 +467,59 @@ describe("Feature: lift-group-display — 釜の組（pairSlots・判断 10）",
     };
     expect(pairSlots(1, 5, taken)).toEqual(["1", "0", "3", "2", "6"]);
     expect(pairSlots(1, 6, taken)).toBeNull();
+  });
+});
+
+// ── pending-order-expiry: 釜の提案も同じ生きている待ち行列を読む（AC 3.1 / 3.3・性質 5.8） ────────────────
+//
+// 群の導出は推奨から品目を引く（suggestedItemOf）。その待ち行列は補正後現在時刻 `corrected` の Live_Orders であり、
+// 寿命を跨いだ品目を指す推奨は「待ち行列に無い推奨」と同じく群に入らない——別の入口を設けず、レールと同じ
+// 述語・同じ時刻で消える。ここでは同卓 3 品のうち先頭（long）の到着を寿命の境界に置き、`corrected` が
+// 1 ms 進むだけで群・釜の提案・先頭が切り替わることを固定する。
+
+describe("Feature: pending-order-expiry — 寿命を跨いだ品目は釜の提案からも同じ瞬間に消える（AC 3.1 / 3.3）", () => {
+  /** long の到着を寿命の境界に置く：`EXPIRY` でちょうど切れ、`EXPIRY − 1` では生きている。 */
+  const EXPIRY = T0 + 180 * SECOND;
+  const [LONG, MID, SHORT] = THREE as [PendingOrder, PendingOrder, PendingOrder];
+  const expiringLong = { ...LONG, arrivalTime: EXPIRY - ORDER_LIFETIME_MS };
+  const current = view({ pendingOrders: [expiringLong, MID, SHORT], recommendations: THREE_PLAN });
+
+  it("1 ms 手前では 3 品が群 g1 に在り、ちょうど寿命では long が群から抜けて 2 品になる（推奨は残るが品目が無い）", () => {
+    expect(
+      liftGroups(current, EXPIRY - 1)[0]!.items.map((item) => item.order.externalOrderId),
+    ).toEqual(["long", "mid", "short"]);
+    const after = liftGroups(current, EXPIRY);
+    expect(after).toHaveLength(1);
+    expect(after[0]!.items.map((item) => item.order.externalOrderId)).toEqual(["mid", "short"]);
+    // 絞った値を view に持たない——推奨も待ち行列も wire のまま。
+    expect(current.recommendations).toEqual(THREE_PLAN);
+    expect(current.pendingOrders).toEqual([expiringLong, MID, SHORT]);
+  });
+
+  it("釜の提案：1 ms 手前は 釜 0 head・釜 1 head・釜 2 member、ちょうど寿命では釜 0 が空き、mid と short が先頭 arms 2 本に繰り上がる", () => {
+    const before = suggestionsAt(current, EXPIRY - 1);
+    expect(before.get(0)?.[0]).toMatchObject({ role: "head" });
+    expect(before.get(1)?.[0]).toMatchObject({ role: "head" });
+    expect(before.get(2)?.[0]).toMatchObject({ role: "member" });
+
+    const at = suggestionsAt(current, EXPIRY);
+    expect(at.has(0)).toBe(false);
+    expect(at.get(1)?.[0]).toMatchObject({
+      role: "head",
+      item: expect.objectContaining({ order: MID }),
+    });
+    expect(at.get(2)?.[0]).toMatchObject({
+      role: "head",
+      item: expect.objectContaining({ order: SHORT }),
+    });
+  });
+
+  it("寿命の境界は domain の述語そのもの（半開区間）——別の式を client に書いていない", () => {
+    const alive = (corrected: number) =>
+      liftGroups(current, corrected)[0]!.items.some(
+        (item) => item.order.externalOrderId === "long",
+      );
+    expect(alive(expiringLong.arrivalTime + ORDER_LIFETIME_MS - 1)).toBe(true);
+    expect(alive(expiringLong.arrivalTime + ORDER_LIFETIME_MS)).toBe(false);
   });
 });
