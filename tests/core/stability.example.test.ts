@@ -22,7 +22,12 @@ import type { ScheduleParams } from "../../src/engine/objective";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { CookRecommendation } from "../../src/domain/messages";
-import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
+import {
+  itemKeyOf,
+  liveOrders,
+  ORDER_LIFETIME_MS,
+  type PendingOrder,
+} from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -436,5 +441,72 @@ describe("Feature: plan-stability — changeCost は旧 Shown_Plan からの変�
     const cost = changeCost(plan, contextOf(shown, 0), PARAMS);
     expect(cost).toBe(90 + 45 + 45 + 90 + 45);
     expect(Number.isInteger(cost)).toBe(true);
+  });
+});
+
+// Feature: pending-order-expiry, Component 3 / **Validates: Requirements 2.4**
+describe("Feature: pending-order-expiry — 期限切れの品目は対応から外れて費用に倒れない（AC 2.4・レビュー実走）", () => {
+  // 期限切れの旧先頭 A（釜 0・今の 1 秒前）と、生きている次品目 B（釜 1・今）。arms 1・L 45・茹で 600 秒（h_i 60 秒）。
+  const L = 45;
+  const PRESETS: readonly NoodlePreset[] = [
+    { noodleType: "Long", boilSeconds: { extraHard: 600, hard: 600, normal: 600, soft: 600 } },
+  ];
+  const PARAMS: ScheduleParams = { ...schedulingDefaults(1), arms: 1, liftIntervalSeconds: L };
+  const order = (externalOrderId: string, arrivalTime: number): PendingOrder => ({
+    externalOrderId,
+    itemIndex: 0,
+    noodleType: "Long",
+    firmness: "normal",
+    tableId: "t-1",
+    arrivalTime,
+    slotSpan: 1,
+    itemName: null,
+    sizeName: null,
+  });
+  const A = order("a", T0 - ORDER_LIFETIME_MS);
+  const B = order("b", T0 - 60 * SECOND);
+  const previous: CookSchedule = {
+    slices: [
+      {
+        tableKey: "t-1",
+        placements: [placement("a", ["0"], -1, 599), placement("b", ["1"], 0, 600)],
+      },
+    ],
+  };
+  const shown = shownPlanOf(previous, recommend(previous));
+  const contextWith = (pending: readonly PendingOrder[]): ChangeContext => ({
+    shown,
+    running: [],
+    now: T0 as EpochMillis,
+    pending,
+    presets: PRESETS,
+  });
+  const costOf = (schedule: CookSchedule, pending: readonly PendingOrder[]) =>
+    changeCost({ schedule, recommendations: recommend(schedule) }, contextWith(pending), PARAMS);
+  /** B を 1 秒遅らせる計画（A は期限切れゆえ計画に無い）。 */
+  const delayed: CookSchedule = {
+    slices: [{ tableKey: "t-1", placements: [placement("b", ["1"], 1, 601)] }],
+  };
+
+  it("B を 1 秒遅らせる計画：正しい文脈（A を除いた pending）では B が旧 Head で、先頭の変更 2L = 90", () => {
+    expect(costOf(delayed, liveOrders([A, B], T0))).toBe(2 * L);
+  });
+
+  it("期限切れの A を文脈に残すと旧 Head は A（arms 1・1 秒早い）になり、B の先頭消失が 0 に消える", () => {
+    expect(costOf(delayed, [A, B])).toBe(0);
+  });
+
+  it("期限切れの品目そのものの変更（釜・時刻）も、正しい文脈では対応が無く 0", () => {
+    // A を釜 3・100 秒へ動かした計画。A を文脈に残せば釜の変更 L・時刻の移動・先頭消失が付く。
+    const moved: CookSchedule = {
+      slices: [
+        {
+          tableKey: "t-1",
+          placements: [placement("a", ["3"], 100, 700), placement("b", ["1"], 0, 600)],
+        },
+      ],
+    };
+    expect(costOf(moved, liveOrders([A, B], T0))).toBe(0);
+    expect(costOf(moved, [A, B])).toBeGreaterThan(0);
   });
 });

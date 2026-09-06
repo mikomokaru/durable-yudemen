@@ -28,6 +28,7 @@ import { settle } from "./settle";
 import type { SettleParams } from "./settle";
 import type { ChangeContext } from "./stability";
 import { synchronize } from "./sync";
+import { liveOrders } from "../domain/order";
 
 /** PlanArrived イベントの本体。receivePlan はこの形だけを受け取る（event.ts の唯一の出所を再利用）。 */
 type PlanArrivedEvent = Extract<Event, { type: "PlanArrived" }>;
@@ -64,6 +65,11 @@ export function receivePlan(
   params: SettleParams,
 ): Outcome {
   const timers = synchronize(state.timers, params);
+  // 受領時刻の生きている待ち行列（Live_Orders）を一度だけ導き、合成・採否・変更費用の文脈のすべてがそれを読む
+  // （pending-order-expiry AC 2.3 / 2.4）。期限切れの品目を指す一片は計画対象と一致しないので `isStale` が落とし、
+  // 期限切れの旧先頭は対応から外れる——正本の集合を渡せば、生きている次品目を遅らせる計画の先頭の変更（2L）が
+  // 0 に消える。
+  const live = liveOrders(state.pendingOrders, args.now);
   // 旧 Shown_Plan は遷移前の状態が持つもの（`state` は遷移前・plan-stability AC 1.7）。現行 Committed_Plan の自前解も
   // 採用の可否（Business_Cost + Change_Cost）も同じ文脈で組み、採用すれば `settle` が同じ Persist で新しい Shown_Plan を
   // 確定する。
@@ -71,12 +77,12 @@ export function receivePlan(
     shown: state.shownPlan,
     running: timers,
     now: args.now,
-    pending: state.pendingOrders,
+    pending: live,
     presets: params.noodlePresets,
   };
   const committed = committedSchedule(
     state.acceptedSlices,
-    state.pendingOrders,
+    live,
     timers,
     args.now,
     params.noodlePresets,
@@ -86,7 +92,7 @@ export function receivePlan(
   const accepted = admit(
     args.plan,
     committed,
-    state.pendingOrders,
+    live,
     timers,
     state.shownPlan,
     args.now,

@@ -185,6 +185,7 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
       initialLifts(timers),
       DEFAULT_NOODLE_PRESETS,
       seed.schedule,
+      NOW,
       null,
     );
     const state: TimerState = {

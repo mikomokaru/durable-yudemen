@@ -66,7 +66,8 @@ export function committedSchedule(
   params: ScheduleParams,
   changeContext: ChangeContext | null,
 ): CookSchedule {
-  const targets = planTargets(pending);
+  // 計画対象は生きている待ち行列から（期限切れは `planTargets` が `now` で絞る・pending-order-expiry AC 2.1）。
+  const targets = planTargets(pending, now);
   // 解放表は開始済み Timer の占有から始め、接頭辞の配置で順に進める（design の合成手順 2）。
   // 卓の成員表も同じ走行中から引く（「その釜がいつ空くか」と「その卓がいつ上がるか」の二つの表）。
   const initial = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
@@ -86,7 +87,16 @@ export function committedSchedule(
   // 尾部の対象は「接頭辞が使わなかった計画対象」。全 Pending_Order から除くのではない——それでは
   // 65 件目以降が繰り上がって計画に現れ、計画対象を 64 件に限る AC 11.2 が破れる。
   const remaining = targets.filter((order) => !isPlaced(order, prefix));
-  const tail = baselineSchedule(remaining, release, members, lifts, presets, params, changeContext);
+  const tail = baselineSchedule(
+    remaining,
+    release,
+    members,
+    lifts,
+    presets,
+    params,
+    now,
+    changeContext,
+  );
 
   return { slices: [...prefix, ...tail.slices] };
 }

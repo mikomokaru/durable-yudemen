@@ -77,9 +77,10 @@ describe("engine/settle — 要求の抑制", () => {
           received.state.pendingOrders,
           received.state.timers,
           scene.params,
+          scene.now,
         );
         // 「計画対象」の判定は planTargets ただ一つ（settle と同じ定義を見る・同じ規則を二度書かない）。
-        const hasTargets = planTargets(received.state.pendingOrders).length > 0;
+        const hasTargets = planTargets(received.state.pendingOrders, scene.now).length > 0;
         if (hasTargets) withTargets++;
         else withoutTargets++;
 
@@ -101,7 +102,9 @@ describe("engine/settle — 要求の抑制", () => {
           expect(persistedDigest(requesting.effects)).toBe(digest);
           // 要求が運ぶ入力は、指紋を取った入力そのものである（受領時に入力を同定する手がかり・AC 5.3）。
           expect(
-            request === null ? null : digestInput(request.pending, request.running, scene.params),
+            request === null
+              ? null
+              : digestInput(request.pending, request.running, scene.params, scene.now),
           ).toBe(digest);
         } else {
           // 対象が無い遷移では新しい指紋を永続しない。次に対象が現れた遷移で指紋はまだ食い違っており、
@@ -132,9 +135,11 @@ describe("engine/settle — 要求の抑制", () => {
           outcome.state.pendingOrders,
           outcome.state.timers,
           scene.params,
+          scene.now,
         );
         const differs = expected !== scene.state.requestedDigest;
-        const requestable = differs && planTargets(outcome.state.pendingOrders).length > 0;
+        const requestable =
+          differs && planTargets(outcome.state.pendingOrders, scene.now).length > 0;
         expect(requestOf(outcome.effects) !== null).toBe(requestable);
         expect(outcome.state.requestedDigest).toBe(
           requestable ? expected : scene.state.requestedDigest,

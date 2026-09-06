@@ -16,7 +16,7 @@
 // 劣る計画が上書きできてしまう（AC 6.2(d) が Committed_Plan 基準を要求する理由そのもの）。
 
 import { SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../domain/store";
-import type { PendingOrder } from "../domain/order";
+import { liveOrders, type PendingOrder } from "../domain/order";
 import { committedSchedule } from "./commit";
 import { advanceLifts, initialLifts, liftsOf, withinLiftCap, type LiftTable } from "./lift";
 import { scoreSchedule, type ScheduleParams, type ScoreContext } from "./objective";
@@ -81,18 +81,22 @@ export function admit(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
+  // 受領時刻の生きている待ち行列（Live_Orders）を冒頭で一度だけ導き、変更費用の文脈・採点・計画対象（段 1 の
+  // `planTargets`）・段 2 の合成のすべてがそれを読む（pending-order-expiry AC 2.3 / 2.4）。正本の集合を文脈に残せば、
+  // 期限切れの旧先頭が Head に数えられ、生きている次品目を遅らせる計画の先頭の変更（2L）が 0 に消える。
+  const live = liveOrders(pending, now);
   // 卓の成員表と上げ表は 1 回だけ引き、変更費用の文脈と束ねて段 1・段 2 の採点 3 回（と段 1 の (e)(f)）で共有する。
   const scoreContext: ScoreContext = {
     members: tableMembers(running),
     lifts: initialLifts(running),
-    change: { shown, running, now, pending, presets },
+    change: { shown, running, now, pending: live, presets },
   };
-  const committedScore = scoreSchedule(committed.slices, pending, scoreContext, params);
+  const committedScore = scoreSchedule(committed.slices, live, scoreContext, params);
   const prefix = prune(
     arrived,
     committed,
     committedScore.bySlice,
-    pending,
+    live,
     running,
     now,
     scoreContext,
@@ -106,14 +110,14 @@ export function admit(
   // 尾部の自前解も同じ文脈で前回を残す（採用後に実際に確定する計画そのものを採点する）。
   const composed = committedSchedule(
     prefix,
-    pending,
+    live,
     running,
     now,
     presets,
     params,
     scoreContext.change,
   );
-  const composedScore = scoreSchedule(composed.slices, pending, scoreContext, params);
+  const composedScore = scoreSchedule(composed.slices, live, scoreContext, params);
   return composedScore.total < committedScore.total ? prefix : [];
 }
 
@@ -134,7 +138,7 @@ function prune(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
-  const targets = planTargets(pending);
+  const targets = planTargets(pending, now);
   const { members } = scoreContext;
   // 対応部分和は tableKey で引く。**index では引けない**——外部計画の一片の並びは現行 Committed_Plan の
   // 並びと無関係であり、同じ index の一片は別の Table_Group を指しうる（別物どうしの部分和を比べても

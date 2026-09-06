@@ -16,6 +16,7 @@ import {
   baselineSchedule,
   initialRelease,
   keepsAnchor,
+  planTargets,
   toCookSchedule,
   type Placement,
 } from "../../src/engine/schedule";
@@ -38,11 +39,18 @@ import {
 import { tableMembers } from "../../src/engine/project";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import { DEFAULT_NOODLE_PRESETS, HELPER_ARMS, type NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
+import {
+  changeCostOf,
+  EXPIRY_PARAMS,
+  EXPIRY_PRESETS,
+  mixedScene,
+  startOffsets,
+} from "./expiryScenes";
 
 const NOW = 1_000_000 as EpochMillis;
 
@@ -191,6 +199,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -225,6 +234,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        NOW,
         null,
       ),
     ).toEqual({
@@ -241,6 +251,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        NOW,
         null,
       ),
     ).toEqual({
@@ -265,6 +276,7 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -287,6 +299,7 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -327,6 +340,7 @@ describe("baselineSchedule — 釜が埋まっている", () => {
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -367,6 +381,7 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
     const placed = schedule.slices.flatMap((slice) => slice.placements);
@@ -384,6 +399,7 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
     const split = schedule.slices.find((slice) => slice.tableKey === "t-big")!;
@@ -523,6 +539,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -548,6 +565,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -572,6 +590,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -604,6 +623,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -626,6 +646,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -651,6 +672,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
     const serveSeconds = schedule.slices[0]!.placements.map(
@@ -721,6 +743,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        NOW,
         null,
       );
       expect(before.slices[0]!.placements.map((p) => (p.serveAt - NOW) / 1000)).toEqual([
@@ -738,6 +761,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        NOW,
         null,
       );
       // A#1・A#2 は空いている 4 釜で走行中の錨（60 秒）に合流し、A#3 だけが釜の空く 60 秒後に回る。
@@ -780,6 +804,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(running),
         presets,
         PARAMS,
+        NOW,
         null,
       );
 
@@ -805,6 +830,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        NOW,
         null,
       );
 
@@ -841,6 +867,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        NOW,
         null,
       );
 
@@ -860,6 +887,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(roomier),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        NOW,
         null,
       );
       expect(readable(joined.slices[0]!.placements[0]!)).toEqual({
@@ -921,6 +949,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -940,6 +969,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
     const placements = schedule.slices[0]!.placements;
@@ -964,6 +994,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       roomy,
+      NOW,
       null,
     );
 
@@ -988,6 +1019,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -1014,6 +1046,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       narrow,
+      NOW,
       null,
     );
 
@@ -1029,6 +1062,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         narrow,
+        NOW,
         null,
       ),
     ).toEqual({ slices: [] });
@@ -1050,6 +1084,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       narrow,
+      NOW,
       null,
     );
 
@@ -1065,6 +1100,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         narrow,
+        NOW,
         null,
       ).slices[0]!.placements.map(readable),
     ).toEqual([{ item: "F#0", slots: ["0", "1"], startSeconds: 0, serveSeconds: 60 }]);
@@ -1090,6 +1126,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
             ...PARAMS,
             tableSyncWeight,
           },
+          NOW,
           null,
         ),
       );
@@ -1119,6 +1156,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -1201,6 +1239,7 @@ describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10�
       initialLifts(running),
       PRESETS,
       PARAMS,
+      NOW,
       null,
     ).slices[0]!.placements;
   }
@@ -1394,6 +1433,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
       initialLifts(running),
       PRESETS,
       params,
+      NOW,
       changeContext,
     );
   }
@@ -1631,6 +1671,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         NO_LIFTS,
         PRESETS,
         params,
+        NOW,
         changeContext,
       );
     const first = planWide(null);
@@ -1693,6 +1734,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         initialLifts(running),
         PRESETS,
         params,
+        NOW,
         changeContext,
       );
     const first = planWide(null);
@@ -1801,6 +1843,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         initialLifts(running),
         PRESETS,
         params,
+        NOW,
         changeContext,
       );
     const first = planWide(null);
@@ -1818,5 +1861,102 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
     expect(
       changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, params),
     ).toBe(0);
+  });
+});
+
+describe("planTargets — 期限切れの品目は計画対象に入らない（pending-order-expiry AC 2.1・性質 5.4）", () => {
+  const pad = (index: number) => String(index).padStart(3, "0");
+  /** 到着順の先頭を占める期限切れ 64 件（枠と同じ数・すべて NOW でちょうど切れる）。 */
+  const dead = Array.from({ length: PLAN_TARGET_LIMIT }, (_unused, index) =>
+    pendingItem({ orderId: `dead-${pad(index)}`, arrivalTime: NOW - ORDER_LIFETIME_MS }),
+  );
+  /** その後に届いた生きている 65 件（1 件は枠から溢れる）。 */
+  const alive = Array.from({ length: PLAN_TARGET_LIMIT + 1 }, (_unused, index) =>
+    pendingItem({ orderId: `live-${pad(index)}`, arrivalTime: NOW - 100_000 + index }),
+  );
+
+  it("絞ってから切る：計画対象は生きている品目の先頭 64 件で、期限切れは何件先頭に在っても枠を食わない", () => {
+    expect(planTargets([...dead, ...alive], NOW)).toEqual(alive.slice(0, PLAN_TARGET_LIMIT));
+  });
+
+  it("入力の並びに依らない：期限切れを後ろに置いても同じ計画対象", () => {
+    expect(planTargets([...alive, ...dead], NOW)).toEqual(alive.slice(0, PLAN_TARGET_LIMIT));
+  });
+
+  it("now だけが違えば同じ待ち行列から違う計画対象が出る：1 ms 手前では先頭 64 件は期限切れ側で埋まる", () => {
+    const justBefore = planTargets([...dead, ...alive], (NOW - 1) as EpochMillis);
+    expect(justBefore).toHaveLength(PLAN_TARGET_LIMIT);
+    expect(justBefore.every((order) => order.externalOrderId.startsWith("dead-"))).toBe(true);
+  });
+
+  it("自前解も同じ 64 件を置く（期限切れは配置に現れない）", () => {
+    const schedule = baselineSchedule(
+      [...dead, ...alive],
+      EMPTY_KITCHEN,
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+      NOW,
+      null,
+    );
+    const placed = schedule.slices.flatMap((slice) => slice.placements);
+    expect(placed).toHaveLength(PLAN_TARGET_LIMIT);
+    expect(new Set(placed.map((placement) => placement.externalOrderId))).toEqual(
+      new Set(alive.slice(0, PLAN_TARGET_LIMIT).map((order) => order.externalOrderId)),
+    );
+  });
+});
+
+describe("baselineSchedule — 期限切れの旧先頭を文脈から外す（pending-order-expiry AC 2.4・レビュー実走）", () => {
+  const scene = mixedScene(NOW);
+  /** 場面の自前解。`pending` は変更費用の文脈が対応の相手にする集合（null は前回なし）。 */
+  function planWith(pending: readonly PendingOrder[] | null) {
+    return baselineSchedule(
+      scene.pending,
+      initialRelease(scene.running, NOW, 6),
+      tableMembers(scene.running),
+      initialLifts(scene.running),
+      EXPIRY_PRESETS,
+      EXPIRY_PARAMS,
+      NOW,
+      pending === null
+        ? null
+        : {
+            shown: scene.shown,
+            running: scene.running,
+            now: NOW,
+            pending,
+            presets: EXPIRY_PRESETS,
+          },
+    );
+  }
+  const placementsOf = (schedule: ReturnType<typeof planWith>) =>
+    schedule.slices.flatMap((slice) => slice.placements);
+
+  it("前回が無ければ業務費用で pack（B・C とも 45 秒後）。期限切れの A は正本に在っても置かれない", () => {
+    expect(startOffsets(placementsOf(planWith(null)), NOW)).toEqual([
+      ["B", 45],
+      ["C", 45],
+    ]);
+  });
+
+  it("正しい文脈（A を除いた pending）では B が旧 Head で、B を今に残す分割を採る（変更費用 0）", () => {
+    const schedule = planWith(scene.live);
+    expect(startOffsets(placementsOf(schedule), NOW)).toEqual([
+      ["B", 0],
+      ["C", 45],
+    ]);
+    expect(schedule.slices).toEqual(scene.split.slices);
+    expect(changeCostOf(schedule, scene, scene.live)).toBe(0);
+  });
+
+  it("期限切れの A を文脈に残すと旧 Head が A になり、B の先頭消失が数えられずに pack へ動く（対応の規律が破れる形）", () => {
+    expect(startOffsets(placementsOf(planWith(scene.pending)), NOW)).toEqual([
+      ["B", 45],
+      ["C", 45],
+    ]);
+    expect(changeCostOf(scene.pack, scene, scene.pending)).toBe(0);
+    expect(changeCostOf(scene.pack, scene, scene.live)).toBe(2 * EXPIRY_PARAMS.liftIntervalSeconds);
   });
 });

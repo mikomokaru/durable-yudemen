@@ -19,6 +19,7 @@ import { initialLifts } from "../engine/lift";
 import { baselineSchedule, initialRelease, type CookSchedule } from "../engine/schedule";
 import { tableMembers } from "../engine/project";
 import type { EpochMillis } from "../engine/types";
+import { liveOrders } from "../domain/order";
 import { SLOTS_PER_UNIT } from "../domain/store";
 import type { PlanRequest } from "./request";
 import type { StoreTimerDO } from "../shell/store-timer-do";
@@ -114,21 +115,26 @@ function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null
   );
   // 卓の成員表も同じ running から引く（engine の commit.ts と同じ二つの表）。
   const members = tableMembers(request.running);
+  // 要求が運ぶ待ち行列は要求時点の計画対象だが、届いてから自分の時計で期限を過ぎた品目は生きていない。計画も
+  // 変更費用の文脈も、自分の `now` で絞った生きている待ち行列（Live_Orders）を読む（pending-order-expiry AC 2.4）
+  // ——DO 側の受領は受領時刻の Live_Orders で照合するので、期限切れを置いた一片はどのみち落ちる。
+  const live = liveOrders(request.pending, now);
   // 上げ表（「店舗全体でいつ上がるか」）も同じ running から引く第三の表（lift-group-planning 判断 20）。
   // 前回の提案（Shown_Plan）も要求が運ぶ——外部解は同じ変更費用で採点されるので、自前解と同じ文脈で置く
   // （plan-stability Component 6）。比較の時点の now は自分の時計、Timer 集合は要求の running。
   return baselineSchedule(
-    request.pending,
+    live,
     release,
     members,
     initialLifts(request.running),
     request.noodlePresets,
     request.params,
+    now,
     {
       shown: request.shownPlan,
       running: request.running,
       now,
-      pending: request.pending,
+      pending: live,
       presets: request.noodlePresets,
     },
   );

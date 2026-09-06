@@ -21,7 +21,7 @@ import {
   type LiftTable,
 } from "./lift";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
-import { itemKeyOf, type ItemKey, type PendingOrder } from "../domain/order";
+import { itemKeyOf, liveOrders, type ItemKey, type PendingOrder } from "../domain/order";
 import { slotDistance, slotOf, type NoodlePreset } from "../domain/store";
 import { boilMillisOf, joinWindowMillis } from "./boil";
 import { partialChangeCost, shownHeadsOf, type ChangeContext, type ShownItem } from "./stability";
@@ -292,8 +292,13 @@ interface TableGroup {
  *
  * **解放表を引数に取る。** 「途中まで確定した配置の続きを埋める」用途（committedSchedule の尾部再実行）に
  * そのまま使えることが、合成後の計画が構成から feasible であることの根拠になる。全体の自前解は
- * initialRelease(running, now, slotCount) を渡した場合である。now を引数に取らないのは、
- * 「過去に開始しない」という事実の置き場所が解放表ただ一つであるため（initialRelease が下限を now に置く）。
+ * initialRelease(running, now, slotCount) を渡した場合である。「過去に開始しない」という事実の置き場所は
+ * 解放表ただ一つ（initialRelease が下限を now に置く）で、`now` を引数に取るのはそのためではない。
+ *
+ * **`now` を引数に取る（pending-order-expiry Component 2）。** 計画対象は生きている待ち行列（Live_Orders・
+ * `liveOrders(pending, now)`）から組む——期限切れの品目が到着順の先頭を占めて枠（PLAN_TARGET_LIMIT）を食わない
+ * ためで、絞るのは `planTargets` ただ一つ。`changeContext.now` と同じ値だが、`changeContext` が null の経路でも
+ * 要るので引数にする。解放表の下限とは別の関心事（あちらは「いつから置けるか」、こちらは「何を置くか」）。
  *
  * **上げ表を引数に取る（第三の表・lift-group-planning 判断 20・ADR-0009）。** 店舗全体で「いつ上がるか」——走行中の
  * 実効 endTime と計画済みの serveAt——を並べた表（lift.ts）で、解放表・成員表と同じく毎回導く導出値である。
@@ -322,12 +327,13 @@ export function baselineSchedule(
   lifts: LiftTable,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
+  now: EpochMillis,
   changeContext: ChangeContext | null,
 ): CookSchedule {
   // 前回の提案が無ければ（比較の相手なし）、前回を残す経路は一つも通らない——同じ入力からは前回の無い計画と
   // 同じ計画が出る。空の Shown_Plan も同じ扱い（changeCost が 0 を返す計画に、候補だけ増やす理由は無い）。
   if (changeContext === null || changeContext.shown.length === 0)
-    return buildSchedule(pending, release, members, lifts, presets, params, null);
+    return buildSchedule(pending, release, members, lifts, presets, params, now, null);
   const shownByKey = new Map(changeContext.shown.map((item) => [itemKeyOf(item), item]));
   // 旧 Shown_Plan の Head は比較の時点で決まり、計画の間は変わらない（一度だけ導く）。
   const heads = shownHeadsOf(changeContext, params);
@@ -336,11 +342,11 @@ export function baselineSchedule(
   // 変更費用）を見ないので、局所では勝つが全体では劣る候補へ計画が動き得る（実測：w_table 4・arms 2・L 62 で、
   // 卓の一片は 370 秒改善するが後続の単独品が 83 秒遅れ、変更費用 444 秒を足すと前回より 218 秒悪い計画に変わった）。
   // 前回に忠実な計画を常に候補に持ち、真に良いときだけ動く（同点は前回に忠実な側・AC 3.2・性質 5.6 / 5.7）。
-  const faithful = buildSchedule(pending, release, members, lifts, presets, params, {
+  const faithful = buildSchedule(pending, release, members, lifts, presets, params, now, {
     ...seed,
     faithful: true,
   });
-  const compared = buildSchedule(pending, release, members, lifts, presets, params, {
+  const compared = buildSchedule(pending, release, members, lifts, presets, params, now, {
     ...seed,
     faithful: false,
   });
@@ -358,12 +364,13 @@ function buildSchedule(
   lifts: LiftTable,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
+  now: EpochMillis,
   seed: Omit<Continuity, "slices"> | null,
 ): CookSchedule {
   const slices: PlanSlice[] = [];
   let free = release;
   let ends = lifts;
-  for (const group of tableGroups(planTargets(pending))) {
+  for (const group of tableGroups(planTargets(pending, now))) {
     // 走行中の錨＝同じ卓の走行中の仲間の提供時刻の最大（表の値は昇順ゆえ末尾）。卓なしの単独キーは
     // NUL 始まりで非空の tableId と一致しないため、表に当たらない（条件を書かない・ADR-0003）。
     const siblings = members.get(group.tableKey) ?? null;
@@ -380,7 +387,13 @@ function buildSchedule(
 }
 
 /**
- * 計画対象＝正準順序（arrivalTime 昇順, externalOrderId 昇順, itemIndex 昇順）の先頭 PLAN_TARGET_LIMIT 件。
+ * 計画対象＝生きている待ち行列（Live_Orders・`liveOrders(pending, now)`）を正準順序（arrivalTime 昇順,
+ * externalOrderId 昇順, itemIndex 昇順）に並べた先頭 PLAN_TARGET_LIMIT 件。
+ *
+ * **絞ってから切る（pending-order-expiry AC 2.1）。** 切ってから絞れば、到着順の先頭を占める期限切れの品目が枠を
+ * 食い、新しい注文が計画に入らない（性質 5.4）。期限は状態を書き換えず `now` から導く述語（domain/order.ts）で、
+ * 「何が計画対象か」の出所であるこの関数が、呼び手ごとの `now` で一度だけ呼ぶ。`isStale` / 合成の `livePrefix` は
+ * この出力を受けるので、期限切れの品目を指す一片は「計画対象と一致しない」で落ちる（AC 2.3）。
  *
  * 正準順序へ整列してから走らせることが、列挙順に依存しない（AC 4.3）ことの根拠である。
  * 文字列の比較は符号単位順（`<`）で行う。localeCompare は環境の locale に依存し、同じ入力から
@@ -393,8 +406,11 @@ function buildSchedule(
  * 確定計画の合成（commit.ts）が同じ範囲を指すために要る共有の語彙である。範囲の定義が二箇所にあれば、
  * 上限 64 件の境界で計画と判定が食い違う。
  */
-export function planTargets(pending: readonly PendingOrder[]): readonly PendingOrder[] {
-  return [...pending].sort(byCanonicalOrder).slice(0, PLAN_TARGET_LIMIT);
+export function planTargets(
+  pending: readonly PendingOrder[],
+  now: EpochMillis,
+): readonly PendingOrder[] {
+  return [...liveOrders(pending, now)].sort(byCanonicalOrder).slice(0, PLAN_TARGET_LIMIT);
 }
 
 /**

@@ -135,6 +135,7 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
         initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         plannedParams,
+        NOW,
         null,
       ).slices;
 
@@ -205,7 +206,7 @@ function prefixLength(scene: CommitScene): number {
   // 錨の再検証（judgment 17 / 18）：採用済み一片は別のパラメータ（合流の窓 h_i が違う）で組まれているため、
   // 現在のパラメータでは合流分が窓の外に出て「押し出し」と判定されうる。合成と同じ述語で同じ位置の解放表を
   // 読み、最初に破れた一片の手前までを期待する。
-  const targets = planTargets(scene.pending);
+  const targets = planTargets(scene.pending, scene.now);
   const members = tableMembers(scene.running);
   let release = initialRelease(scene.running, scene.now, scene.slotCount);
   let lifts = initialLifts(scene.running);
@@ -327,6 +328,7 @@ describe("engine/commit — committedSchedule", () => {
           liftsAfterPrefix(scene, prefix),
           DEFAULT_NOODLE_PRESETS,
           scene.params,
+          scene.now,
           null,
         );
 

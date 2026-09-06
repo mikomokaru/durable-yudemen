@@ -97,6 +97,7 @@ const genAlarmScene: fc.Arbitrary<AlarmScene> = fc
         initialLifts(timers),
         DEFAULT_NOODLE_PRESETS,
         seed.params,
+        NOW,
         null,
       ).slices;
       const planned: TimerState = {
