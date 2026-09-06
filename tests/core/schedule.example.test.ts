@@ -1560,4 +1560,263 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
       changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, PARAMS),
     ).toBe(0);
   });
+
+  it("容量超過の接頭辞が前回のまとまりを割る場面でも、前回のまとまりを保つ分割が候補になり同じ計画に戻る（性質 5.6 の回帰）", () => {
+    // Property 5.6 の反例（seed -1215411271 を縮めたもの）。卓 t-2 は Thick 極硬（100 秒・2 釜）・Thin 柔らか 2 品
+    // （75 秒・2 釜と 1 釜）で Σ span 5 が上限 4 を超える。前回の無い計画は正準順序の接頭辞 [Thick, 柔らか#0]（span 4）を
+    // pack して 121 秒に揃え、柔らか#1 を 100 秒に置く。再計画では茹で時間が同値の柔らか 2 品の並びを前回の startAt
+    // （#1 が 25 秒・#0 が 46 秒）で断つため接頭辞が [Thick, 柔らか#1] に変わり、前回同じ群だった Thick と柔らか#0 が
+    // 接頭辞の内と外に割れる——業務費用は同点のまま Thick が 2 秒へ動き、変更費用 31 秒を自前解自身が作っていた。
+    const arrival = NOW - 600 * SECS;
+    const pending = [
+      pendingItem({ orderId: "o-0", firmness: "normal", arrivalTime: arrival }),
+      pendingItem({ orderId: "o-1", firmness: "extraHard", tableId: "t-1", arrivalTime: arrival }),
+      pendingItem({
+        orderId: "o-1",
+        itemIndex: 1,
+        firmness: "extraHard",
+        tableId: "t-1",
+        arrivalTime: arrival,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        firmness: "soft",
+        tableId: "t-2",
+        arrivalTime: arrival,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        itemIndex: 1,
+        firmness: "soft",
+        tableId: "t-2",
+        arrivalTime: arrival,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        itemIndex: 2,
+        firmness: "normal",
+        arrivalTime: arrival,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-3",
+        noodleType: "Thick",
+        firmness: "extraHard",
+        tableId: "t-2",
+        arrivalTime: arrival,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-3",
+        itemIndex: 1,
+        noodleType: "Thick",
+        firmness: "extraHard",
+        arrivalTime: arrival,
+      }),
+    ];
+    const params: ScheduleParams = {
+      ...schedulingDefaults(2),
+      arms: 2,
+      tableSyncWeight: 1,
+      orderSyncWeight: 0,
+      affinityWeight: 0,
+      liftIntervalSeconds: 21,
+    };
+    const planWide = (changeContext: ChangeContext | null) =>
+      baselineSchedule(
+        pending,
+        initialRelease([], NOW, 12),
+        NO_MEMBERS,
+        NO_LIFTS,
+        PRESETS,
+        params,
+        changeContext,
+      );
+    const first = planWide(null);
+    const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), [], pending);
+
+    const second = planWide(changeContext);
+
+    expect(first.slices.at(-1)!.placements.map(readable)).toEqual([
+      { item: "o-2#0", slots: ["8", "9"], startSeconds: 46, serveSeconds: 121 },
+      { item: "o-2#1", slots: ["10"], startSeconds: 25, serveSeconds: 100 },
+      { item: "o-3#0", slots: ["6", "7"], startSeconds: 21, serveSeconds: 121 },
+    ]);
+    expect(second).toEqual(first);
+    expect(
+      changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, params),
+    ).toBe(0);
+  });
+
+  it("合流した群で 1 本だけ窓に残っていた前回の配置は、前回の提供時刻ごとの塊で再現され同じ計画に戻る（性質 5.6 / 5.7 の回帰）", () => {
+    // Property 5.7 の反例（seed 205718488 を縮めたもの）。走行中 3 本（うち 1 本が卓 t-2）が 75.751 秒に上がる表で
+    // arms 3・L 5：卓 t-2 の 4 品は全員が錨 75.751 秒に合流でき、窓の残り 2 本分に 1 本だけが入って残りは 80.751 秒。
+    // 前回の無い計画は正準順序の split（接頭辞 3 本が 80.751 秒・余りの o-3#0 が 75.751 秒）。再計画では茹で時間が同値の
+    // o-0#0 と o-3#0 の並びを前回の startAt で断つため接頭辞と余りが入れ替わり、split は o-0#0 を 75.751 秒に置く形に
+    // なる。4 品は同じ群（mates）なので「前回のまとまりを保つ分割」は pack と同じで、前回の配置が候補に無く、業務費用
+    // 5 秒・変更費用 1 秒の両方で劣る pack が採られていた。前回の serveAt ごとの塊で置く候補がそれを再現する。
+    const arrival = NOW - 600 * SECS;
+    const pending = [
+      pendingItem({ orderId: "o-0", firmness: "hard", tableId: "t-2", arrivalTime: arrival }),
+      pendingItem({ orderId: "o-1", firmness: "soft", tableId: "t-2", arrivalTime: arrival }),
+      pendingItem({ orderId: "o-1", itemIndex: 1, firmness: "extraHard", arrivalTime: arrival }),
+      pendingItem({
+        orderId: "o-2",
+        noodleType: "Medium",
+        firmness: "extraHard",
+        tableId: "t-2",
+        arrivalTime: arrival,
+      }),
+      pendingItem({ orderId: "o-3", firmness: "hard", tableId: "t-2", arrivalTime: arrival }),
+      pendingItem({ orderId: "o-3", itemIndex: 1, firmness: "extraHard", arrivalTime: arrival }),
+    ];
+    const running = [
+      timerOn({ id: "r0", slot: "0", endTime: NOW + 75_751, tableId: "t-2" }),
+      timerOn({ id: "r1", slot: "1", endTime: NOW + 75_751 }),
+      timerOn({ id: "r2", slot: "2", endTime: NOW + 75_751 }),
+    ];
+    const params: ScheduleParams = {
+      ...schedulingDefaults(3),
+      arms: 3,
+      toleranceRatio: 1,
+      tableSyncWeight: 0,
+      orderSyncWeight: 0,
+      affinityWeight: 0,
+      liftIntervalSeconds: 5,
+    };
+    const planWide = (changeContext: ChangeContext | null) =>
+      baselineSchedule(
+        pending,
+        initialRelease(running, NOW, 18),
+        tableMembers(running),
+        initialLifts(running),
+        PRESETS,
+        params,
+        changeContext,
+      );
+    const first = planWide(null);
+    const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), running, pending);
+
+    const second = planWide(changeContext);
+
+    expect(first.slices.at(-1)!.placements.map(readable)).toEqual([
+      { item: "o-0#0", slots: ["5"], startSeconds: 28.751, serveSeconds: 80.751 },
+      { item: "o-1#0", slots: ["6"], startSeconds: 5.751, serveSeconds: 80.751 },
+      { item: "o-2#0", slots: ["7"], startSeconds: 5.751, serveSeconds: 80.751 },
+      { item: "o-3#0", slots: ["8"], startSeconds: 23.751, serveSeconds: 75.751 },
+    ]);
+    expect(second).toEqual(first);
+    expect(
+      changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, params),
+    ).toBe(0);
+  });
+
+  it("列の局所比較で勝つ候補が全体では劣るとき、前回に忠実な計画が残る（総費用で 2 本を比べる・性質 5.6 の回帰）", () => {
+    // Property 5.6 の反例（seed 741737030 を縮めたもの）。w_table 4・arms 2・L 62・走行中 3 本（50.2 / 54.3 / 199 秒）。
+    // 卓 t-1 は Thick 極硬（100 秒・2 釜）と Thin 柔らか 2 品（75 秒・2 釜と 1 釜）で Σ span 5 が上限 4 を超える。
+    // 前回の無い計画は接頭辞 [Thick, 柔らか#0] を 261 秒に pack し、柔らか#1 を 116.334 秒に置く。再計画では同値の
+    // 並びを前回の startAt で断つため接頭辞が [Thick, 柔らか#1] になり、その分割（Thick 137 秒・柔らか#0 178.334 秒）は
+    // 卓の一片で 370 秒改善して局所では勝つが、後続の単独品 o-2#2 を窓が 71 → 154 秒へ押し、変更費用 444 秒を足すと
+    // 前回より 218 秒悪い（7460 対 7242）。前回に忠実な計画と総費用で比べるので、前回の計画が残る。
+    const arrival = NOW - 600 * SECS;
+    const pending = [
+      pendingItem({
+        orderId: "o-0",
+        noodleType: "Medium",
+        firmness: "extraHard",
+        arrivalTime: arrival + 1,
+      }),
+      pendingItem({
+        orderId: "o-0",
+        itemIndex: 1,
+        firmness: "extraHard",
+        tableId: "t-2",
+        arrivalTime: arrival + 1,
+      }),
+      pendingItem({
+        orderId: "o-0",
+        itemIndex: 2,
+        noodleType: "Thick",
+        firmness: "extraHard",
+        tableId: "t-1",
+        arrivalTime: arrival + 1,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-0",
+        itemIndex: 3,
+        firmness: "extraHard",
+        arrivalTime: arrival + 1,
+      }),
+      // プリセットに無い麺種は置かれないが、卓 t-2 の群を先頭に並べる（反例そのまま）。
+      pendingItem({
+        orderId: "o-1",
+        noodleType: "Ghost",
+        firmness: "extraHard",
+        tableId: "t-2",
+        arrivalTime: arrival,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        firmness: "soft",
+        tableId: "t-1",
+        arrivalTime: arrival + 2,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        itemIndex: 1,
+        firmness: "soft",
+        tableId: "t-1",
+        arrivalTime: arrival + 2,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        itemIndex: 2,
+        firmness: "extraHard",
+        arrivalTime: arrival + 2,
+      }),
+    ];
+    // 走行中 3 本は同じ釜 0 に載る（反例そのまま。釜は 1 つしか塞がず、上げ表に 3 本の上がりが載る）。
+    const running = [
+      timerOn({ id: "r0", slot: "0", endTime: NOW + 50_201 }),
+      timerOn({ id: "r1", slot: "0", endTime: NOW + 54_334, tableId: "t-2" }),
+      timerOn({ id: "r2", slot: "0", endTime: NOW + 199_000, tableId: "t-2" }),
+    ];
+    const params: ScheduleParams = {
+      ...schedulingDefaults(2),
+      arms: 2,
+      toleranceRatio: 1,
+      tableSyncWeight: 4,
+      orderSyncWeight: 0,
+      affinityWeight: 0,
+      liftIntervalSeconds: 62,
+    };
+    const planWide = (changeContext: ChangeContext | null) =>
+      baselineSchedule(
+        pending,
+        initialRelease(running, NOW, 12),
+        tableMembers(running),
+        initialLifts(running),
+        PRESETS,
+        params,
+        changeContext,
+      );
+    const first = planWide(null);
+    const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), running, pending);
+
+    const second = planWide(changeContext);
+
+    const t1 = first.slices.find((slice) => slice.tableKey === "t-1")!;
+    expect(t1.placements.map(readable)).toEqual([
+      { item: "o-0#2", slots: ["6", "7"], startSeconds: 161, serveSeconds: 261 },
+      { item: "o-2#0", slots: ["8", "9"], startSeconds: 186, serveSeconds: 261 },
+      { item: "o-2#1", slots: ["10"], startSeconds: 41.334, serveSeconds: 116.334 },
+    ]);
+    expect(second).toEqual(first);
+    expect(
+      changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, params),
+    ).toBe(0);
+  });
 });

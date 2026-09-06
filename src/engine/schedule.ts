@@ -10,7 +10,7 @@
 import type { EpochMillis, SlotId } from "./types";
 import type { Timer } from "./timer";
 import { adjustedEndTime, type TableMembers } from "./project";
-import type { ScheduleParams } from "./objective";
+import { scoreSchedule, type ScheduleParams } from "./objective";
 import {
   advanceLifts,
   firstFit,
@@ -324,24 +324,51 @@ export function baselineSchedule(
   params: ScheduleParams,
   changeContext: ChangeContext | null,
 ): CookSchedule {
+  // 前回の提案が無ければ（比較の相手なし）、前回を残す経路は一つも通らない——同じ入力からは前回の無い計画と
+  // 同じ計画が出る。空の Shown_Plan も同じ扱い（changeCost が 0 を返す計画に、候補だけ増やす理由は無い）。
+  if (changeContext === null || changeContext.shown.length === 0)
+    return buildSchedule(pending, release, members, lifts, presets, params, null);
+  const shownByKey = new Map(changeContext.shown.map((item) => [itemKeyOf(item), item]));
+  // 旧 Shown_Plan の Head は比較の時点で決まり、計画の間は変わらない（一度だけ導く）。
+  const heads = shownHeadsOf(changeContext, params);
+  const seed = { changeContext, shownByKey, heads };
+  // 2 本組んで総費用（業務費用 ＋ 変更費用）で選ぶ。列ごとの局所比較は後続の一片への影響（窓の押し出しとその
+  // 変更費用）を見ないので、局所では勝つが全体では劣る候補へ計画が動き得る（実測：w_table 4・arms 2・L 62 で、
+  // 卓の一片は 370 秒改善するが後続の単独品が 83 秒遅れ、変更費用 444 秒を足すと前回より 218 秒悪い計画に変わった）。
+  // 前回に忠実な計画を常に候補に持ち、真に良いときだけ動く（同点は前回に忠実な側・AC 3.2・性質 5.6 / 5.7）。
+  const faithful = buildSchedule(pending, release, members, lifts, presets, params, {
+    ...seed,
+    faithful: true,
+  });
+  const compared = buildSchedule(pending, release, members, lifts, presets, params, {
+    ...seed,
+    faithful: false,
+  });
+  const scoreContext = { members, lifts, change: changeContext };
+  const totalOf = (schedule: CookSchedule) =>
+    scoreSchedule(schedule.slices, pending, scoreContext, params).total;
+  return totalOf(compared) < totalOf(faithful) ? compared : faithful;
+}
+
+/** 卓ごとの群を正準順序で置いて計画を組む（`baselineSchedule` の本体。`seed` は前回を残す文脈、null は前回なし）。 */
+function buildSchedule(
+  pending: readonly PendingOrder[],
+  release: SlotRelease,
+  members: TableMembers,
+  lifts: LiftTable,
+  presets: readonly NoodlePreset[],
+  params: ScheduleParams,
+  seed: Omit<Continuity, "slices"> | null,
+): CookSchedule {
   const slices: PlanSlice[] = [];
   let free = release;
   let ends = lifts;
-  // 前回の提案が無ければ（比較の相手なし）、前回を残す経路は一つも通らない——同じ入力からは前回の無い計画と
-  // 同じ計画が出る。空の Shown_Plan も同じ扱い（changeCost が 0 を返す計画に、候補だけ増やす理由は無い）。
-  const shownByKey =
-    changeContext === null || changeContext.shown.length === 0
-      ? null
-      : new Map(changeContext.shown.map((item) => [itemKeyOf(item), item]));
-  // 旧 Shown_Plan の Head は比較の時点で決まり、計画の間は変わらない（一度だけ導く）。
-  const heads = changeContext === null ? new Set<ItemKey>() : shownHeadsOf(changeContext, params);
   for (const group of tableGroups(planTargets(pending))) {
     // 走行中の錨＝同じ卓の走行中の仲間の提供時刻の最大（表の値は昇順ゆえ末尾）。卓なしの単独キーは
     // NUL 始まりで非空の tableId と一致しないため、表に当たらない（条件を書かない・ADR-0003）。
     const siblings = members.get(group.tableKey) ?? null;
     // 手前の一片は、列の候補配置を仮に置いた計画の「列の外」を成す（この群を置く間は増えない）。
-    const continuity: Continuity | null =
-      shownByKey === null ? null : { changeContext: changeContext!, shownByKey, heads, slices };
+    const continuity: Continuity | null = seed === null ? null : { ...seed, slices };
     const placements = placeGroup(group, free, ends, siblings, presets, params, continuity);
     // 1 品目も置けなかったグループは PlanSlice を成さない（空の一片は採用/棄却の対象にならない）。
     if (placements.length === 0) continue;
@@ -694,6 +721,11 @@ function tableKeyOf(order: PendingOrder): string {
  */
 interface Continuity {
   readonly changeContext: ChangeContext;
+  /**
+   * 前回に忠実な計画を組む（`baselineSchedule` の 2 本目）。列の候補を比べず、前回の配置を再現する分割が在ればそれを、
+   * 無ければ pack（容量超過なら接頭辞の分割）を採る。
+   */
+  readonly faithful: boolean;
   readonly shownByKey: ReadonlyMap<ItemKey, ShownItem>;
   /** 旧 Shown_Plan の Head（比較の時点の now・遷移後の Timer 集合で導く）。「前回の先頭を今の窓に残す」候補が読む。 */
   readonly heads: ReadonlySet<ItemKey>;
@@ -1083,6 +1115,13 @@ const MILLIS_PER_SECOND = 1000;
  * 悪化する——pack は採らない。Head は列の候補配置を仮に置いた計画（手前の一片 ＋ この群で先に置いた配置 ＋ 列）に
  * 対して導く（`partialChangeCost`・列の外の品目は現在の確定分）。
  *
+ * **前回の配置を再現する分割（`restorePrevious`）も候補に置く。** 同じ群（`mates`）でも提供時刻は違い得る——走行中の錨に
+ * 合流した群は一つの群のまま、窓が押した品目だけ次の窓に上がる。そのとき前回のまとまりを保つ分割は塊が一つ（pack と
+ * 同じ）で前回の配置を出せず、同値の並びを前回の startAt で断った列では split の接頭辞と余りが前回と入れ替わって、
+ * 総費用で劣る配置しか候補に残らない（実測：arms 3・走行中 3 本の窓に前回 1 本だけ合流していた卓で、その 1 本が次の
+ * 窓へ動き、業務費用 5 秒と変更費用 1 秒の両方が悪化）。前回の serveAt が同じ品目を塊にし、前回の serveAt の昇順に置く。
+ * 容量超過の分岐（接頭辞で切る）でも、この 2 候補を足して同じ局所費用で選ぶ。
+ *
  * 結果は列と同じ並びで返す（pack も split も前回を保つ分割も、列の順を保つ）。
  */
 function placeWithLifts(
@@ -1113,16 +1152,34 @@ function placeWithLifts(
       params,
       after(continuity, placedHead),
     );
-    return [...placedHead, ...placedRest];
+    const cut = [...placedHead, ...placedRest];
+    // 接頭辞の切り方は列の並びに従うので、同値の並びを前回の startAt で断った列では前回同じ群だった品目が接頭辞の
+    // 内と外に割れる（実測：3 品の卓・上限 4・Σ span 5 で、前回 pack した 2 品のうち後ろの 1 品が接頭辞から外れ、
+    // 業務費用が同点のまま前回と違う分割になる）。前回のまとまりを保つ分割をここでも候補にし、局所費用で選ぶ。
+    if (continuity === null) return cut;
+    const restored = restorePrevious(column, t0, lifts, members, params, continuity);
+    if (continuity.faithful) return restored ?? cut;
+    return cheapest(
+      [restored, keepPrevious(column, t0, lifts, members, params, continuity), cut],
+      column,
+      lifts,
+      members,
+      params,
+      continuity,
+    );
   }
   // S ≤ arms + HELPER_ARMS なので firstFit は必ず時刻を返す（null は span が上限を超えるときだけ）。
   const pack = placeAt(column, firstFit(lifts, t0, total, params)!);
-  // 候補は優先順（同点はこの順で先の側）：前回のまとまりを保つ分割・前回の先頭を今の窓に残す分割・pack・split。
-  // 前回の提案が無ければ前者 2 つは無い。
+  // 前回に忠実な計画は候補を比べない——前回の配置を再現する分割が在ればそれ、無ければ pack。
+  if (continuity !== null && continuity.faithful)
+    return restorePrevious(column, t0, lifts, members, params, continuity) ?? pack;
+  // 候補は優先順（同点はこの順で先の側）：前回の配置を再現する分割・前回のまとまりを保つ分割・前回の先頭を今の窓に
+  // 残す分割・pack・split。前回の提案が無ければ前者 3 つは無い。
   const keeping =
     continuity === null
       ? []
       : [
+          restorePrevious(column, t0, lifts, members, params, continuity),
           keepPrevious(column, t0, lifts, members, params, continuity),
           keepHeads(column, t0, lifts, members, params, continuity),
         ];
@@ -1295,6 +1352,51 @@ function chunksByMates(
     else chunk.push(index);
   });
   return [...chunks.entries()].sort(([a], [b]) => a - b).map(([, chunk]) => chunk);
+}
+
+/**
+ * 前回の配置を再現する分割（plan-stability design Component 5 の実装時の追記）。
+ *
+ * 列を、Shown_Plan の `serveAt` が同じ品目の塊に割り、塊を前回の `serveAt` の昇順に置く——塊の span が上限以下なら
+ * 塊ごと `firstFit`、超えれば既存の容量の規則で更に割る（`keepPrevious` と同じ `placeChunks`）。前回に無い品目は末尾に
+ * 自分だけの塊（再現する相手を持たない）。候補にならない場面は null——塊が一つ（pack と同じ）か、列のどの品目も前回に無い。
+ */
+function restorePrevious(
+  column: readonly Assigned[],
+  t0: EpochMillis,
+  lifts: LiftTable,
+  members: readonly EpochMillis[],
+  params: ScheduleParams,
+  continuity: ColumnContinuity,
+): readonly Placement[] | null {
+  const keys = column.map((assigned) => itemKeyOf(assigned.boiling.order));
+  if (!keys.some((key) => continuity.shownByKey.has(key))) return null;
+  const chunks = chunksByServeAt(keys, continuity.shownByKey);
+  if (chunks.length <= 1) return null;
+  return placeChunks(column, chunks, t0, lifts, members, params, continuity);
+}
+
+/** 列の品目（鍵の列）を Shown_Plan の `serveAt` ごとの塊に割る。塊は前回の `serveAt` の昇順、前回に無い品目は末尾に単独。 */
+function chunksByServeAt(
+  keys: readonly ItemKey[],
+  shownByKey: ReadonlyMap<ItemKey, ShownItem>,
+): readonly (readonly number[])[] {
+  const byServeAt = new Map<number, number[]>();
+  const fresh: (readonly number[])[] = [];
+  keys.forEach((key, index) => {
+    const shown = shownByKey.get(key);
+    if (shown === undefined) {
+      fresh.push([index]);
+      return;
+    }
+    const chunk = byServeAt.get(shown.serveAt);
+    if (chunk === undefined) byServeAt.set(shown.serveAt, [index]);
+    else chunk.push(index);
+  });
+  return [
+    ...[...byServeAt.entries()].sort(([a], [b]) => a - b).map(([, chunk]) => chunk),
+    ...fresh,
+  ];
 }
 
 /** 列の Σ span。 */
