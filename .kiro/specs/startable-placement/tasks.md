@@ -2,7 +2,7 @@
 
 前提：main（#34 まで）。永続の版は上げない（v12 のまま）。`pending-order-expiry` と同じ進め方（task ごとに `[-]` → `[x]` と実測・チェックポイント・コミット）。
 
-- [ ] 0. naming ゲート（design の表）をユーザーが承認する
+- [x] 0. naming ゲート（design の表）をユーザーが承認する（2026-09-06 承認：`occupiedSlotsOf` / `pinNow` / `Pinned` / `cannotStart` / `operationScenes`）
   - `occupiedSlotsOf`（domain）、`pinNow` / `Pinned`・`cannotStart`（engine 内部）、`operationScenes`（tests）
 
 - [ ] 1. 事実の述語と harness
