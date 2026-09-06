@@ -4,10 +4,11 @@
 
 - [x] 0. naming ゲートの確認（design 末尾の表）——ユーザー承認済み（2026-09-06「namingOK」）
 
-- [ ] 1. Head の共有導出（`src/domain/lift-group.ts`）
-  - [ ] 1.1 `liftGroupsOf` / `visibleGroupsOf` / `headsOf` / `LiftItem` を domain に新設し、client の `liftGroups.ts` をそれを呼ぶ形に寄せる（`ClientView` からの取り出しだけを残す）
-  - [ ] 1.2 client の既存テスト（`liftGroups.*`・`slot-board-suggestions.*`・crosslayer・`slotDisplay.property`）が変更なしに通ることを確認（表示の挙動は変えない・AC 4.3）
-  - [ ] 1.3 チェックポイント
+- [x] 1. Head の共有導出（`src/domain/lift-group.ts`）
+  - 実測・2026-09-06: `src/domain/lift-group.ts` に `LiftItem` / `LiftGroupOf<T>` / `liftGroupsOf` / `visibleGroupsOf` / `displayableItemsOf` / `headsOf` を新設。品目の鍵（`ItemKey` / `itemKeyOf`）と到着順（`compareArrival`）は `src/domain/order.ts` へ移し、client の `queueDisplay.ts` はそれを呼ぶ。client の `liftGroups.ts` は `suggestedItemOf`（`LiftItem` に提案を重ねた `SuggestedItem` を返す）・`occupiedSlots`・`mode` の取り出しと釜ごとの並べ直しだけを残し、`LiftGroup` は `LiftGroupOf<SuggestedItem>` の別名。`GroupItem` / `SlotSuggestion` / `pairSlots` は不変。client の既存テスト（`liftGroups.example` / `liftGroups.property` / `liftGroups.crosslayer` / `slot-board-suggestions` / `slotDisplay.property` / `generators.smoke` / `slot-card` / `radial-queue` / `order-queue`）は 1 行も変えずに通過。`tests/domain/lift-group.example.test.ts`（8 件：束ね・started・連鎖・Prep_Lead・arms の上限・占有釜・時刻順・表示できない群）を追加。typecheck 0・lint 0 errors・fmt:check clean・234 ファイル 1544 テスト全通過。
+  - [x] 1.1 `liftGroupsOf` / `visibleGroupsOf` / `headsOf` / `LiftItem` を domain に新設し、client の `liftGroups.ts` をそれを呼ぶ形に寄せる（`ClientView` からの取り出しだけを残す）
+  - [x] 1.2 client の既存テスト（`liftGroups.*`・`slot-board-suggestions.*`・crosslayer・`slotDisplay.property`）が変更なしに通ることを確認（表示の挙動は変えない・AC 4.3）
+  - [x] 1.3 チェックポイント
   - _Requirements: 4.3, Glossary Head_
 
 - [ ] 2. Shown_Plan（状態・永続 v12・確定）
