@@ -12,9 +12,10 @@
   - [x] 1.3 観測事実 8 の 8 品の再現を `startable-placement.example` に赤で固定（72 秒の釜 1 の Complete の後に提案が出ない）
   - _Requirements: 1.1（事実の共有）, 4.3_
 
-- [ ] 2. 合成の失効
-  - [ ] 2.1 `commit.ts`：`livePrefix` に `occupied` を通し、`hasLapsedStart` を `cannotStart`（過去開始 ∨ `startAt ≤ now` かつ釜に Timer）に広げる。`committedSchedule` が `occupiedSlotsOf(running)` を一度作る
-  - [ ] 2.2 `commit.example`：boiled の釜に `startAt === now` の採用済み一片は落ちる／Timer の無い釜なら残る／時刻の到来で「今」になった将来配置も次の遷移で落ちる
+- [x] 2. 合成の失効
+  - 実測・2026-09-06: `src/engine/commit.ts` の `committedSchedule` は `occupied = occupiedSlotsOf(running)`（domain の述語）を一度作り `livePrefix(accepted, targets, now, occupied, initial, lifts, members, presets, params)` へ通す（署名は不変・`baselineSchedule` へはまだ渡さない＝task 3）。`hasLapsedStart(slice, now)` は `cannotStart(slice, now, occupied)` ＝ 過去開始（`startAt < now`）∨ 押せない釜（`startAt ≤ now` かつ `slotIds` のどれかが `occupied` に在る）に置き換え、注記に「人が始めなかった事実」と「押せない釜に Timer が残っている事実」の両方と、開始時刻が先の配置は見ない（boiled は Complete される予測・判断 2）こと、ゲートは読まない（判断 5）ことを書いた。判定は従来どおり一片単位。`recommend.ts` / `cook-scheduling.integration` の注記の名を追随。`tests/core/commit.example`（+5・6 釜・釜 3 に置く一片で「維持なら釜 3・置き直しなら自前解の釜 0」が語る）：(a) boiled の釜 3 に `startAt === now` → 落ちて尾部が釜 0 に今、(b) Timer の無い釜 3 に `startAt === now` → 維持、(c) 30 秒後の将来配置は受領時点（boiled でも）維持され、30 秒後の遷移で釜 3 がまだ boiled なら落ちて釜 0 に置き直し・Complete 済みなら維持、(d) `startAt < now` は Timer が無くても落ちる、(e) 走行中の Timer でも `startAt === now` なら落ち、開始時刻が先なら見ない。`tests/core/commit.property` の期待側 `prefixLength`（実装の述語を呼ばない素朴な算術）に「`startAt ≤ now` かつ釜に走行中の Timer」を足した——boiled の釜は解放 `now` ゆえ生成器の採用済み計画が高い頻度で boiled の釜に「今」置くため、旧モデルは Property 6 で 181 場面目に反例（接頭辞の長さの食い違い）を出した。Property 20（feasible）は不変で通過。8 品の再現（採用済み一片なし）は task 2 では変わらず `it.fails` のまま。typecheck 0（worker-configuration.d.ts を除く）・lint 0 errors・fmt:check clean（428 files）・全数 245 ファイル 1685 テスト通過 + 1 expected fail。
+  - [x] 2.1 `commit.ts`：`livePrefix` に `occupied` を通し、`hasLapsedStart` を `cannotStart`（過去開始 ∨ `startAt ≤ now` かつ釜に Timer）に広げる。`committedSchedule` が `occupiedSlotsOf(running)` を一度作る
+  - [x] 2.2 `commit.example`：boiled の釜に `startAt === now` の採用済み一片は落ちる／Timer の無い釜なら残る／時刻の到来で「今」になった将来配置も次の遷移で落ちる
   - _Requirements: 3.4, 3.5_
 
 - [ ] 3. 2 段の計画
