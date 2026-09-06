@@ -2,7 +2,7 @@
 
 前提：main（#33 まで）。永続の版は上げない（v12 のまま）。`plan-stability` と同じ進め方（task ごとに `[-]` → `[x]` と実測・チェックポイント・コミット）。
 
-- [ ] 0. naming ゲート（design の表）をユーザーが承認する
+- [x] 0. naming ゲート（design の表）をユーザーが承認する（2026-09-06 承認：`liveOrders` / `ORDER_LIFETIME_MS` / `livePending`）
   - `liveOrders` / `ORDER_LIFETIME_MS`（`src/domain/order.ts`）、`livePending`（client 局所）
 
 - [ ] 1. 述語と定数（domain）
