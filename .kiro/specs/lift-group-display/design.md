@@ -85,6 +85,8 @@ engine の変更は `lift-group-planning`（判断 18・19・ADR-0008）に属�
 
 ### Component 3: `liftGroups.ts` — 群・開始・連鎖・先頭・釜ごとの提案
 
+> **改訂（`plan-stability` 判断 8・task 1・ADR-0010・2026-09-06）:** 群の連鎖と Head の導出のうちビューに依らない純粋な部分は `src/domain/lift-group.ts`（`LiftItem` / `LiftGroupOf<T>` / `liftGroupsOf` / `visibleGroupsOf` / `displayableItemsOf` / `headsOf`）へ移した。engine は変更費用の「先頭の変更」を**同じ関数**で導く——旧 Shown_Plan（前回配信対象として確定した提案）からも新しい計画からも、比較の時点の now と遷移後の Timer 集合で `headsOf` に掛け、表示と採点が一つの導出を共有する（判断 19・21 の定義を二度書かない）。下の `liftGroups.ts` は `ClientView` からの取り出し（`suggestedItemOf`・`occupiedSlots`・`mode`）と釜ごとの並べ直しだけを残す薄い包みで、`LiftGroup` は `LiftGroupOf<SuggestedItem>` の別名。品目の鍵（`ItemKey` / `itemKeyOf`）と到着順（`compareArrival`）は `src/domain/order.ts` へ。表示の挙動は変えず、本 spec の既存テスト（`liftGroups.*`・`slot-board-suggestions`・crosslayer・`slotDisplay.property`）は 1 行も変えずに通る（`plan-stability` AC 4.3）。
+
 ```ts
 // src/client/components/liftGroups.ts
 
