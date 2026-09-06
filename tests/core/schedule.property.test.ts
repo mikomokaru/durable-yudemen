@@ -40,7 +40,10 @@ import {
   type LiftTable,
 } from "../../src/engine/lift";
 import { tableMembers, type TableMembers } from "../../src/engine/project";
-import type { Timer } from "../../src/engine/timer";
+import { recommend } from "../../src/engine/recommend";
+import { changeCost, shownPlanOf, type ChangeContext } from "../../src/engine/stability";
+import { createTimer, type Timer } from "../../src/engine/timer";
+import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import {
@@ -63,6 +66,7 @@ import {
   timerOn,
   toPending,
 } from "./scheduleScenes";
+import { nonEmpty } from "../nonEmpty";
 
 /** 生成した場面。baselineSchedule の引数と、検査に要る slot 数が揃う。 */
 interface Scene {
@@ -120,6 +124,7 @@ describe("engine/schedule — baselineSchedule", () => {
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          null,
         );
         const placements = allPlacements(schedule.slices);
 
@@ -162,6 +167,7 @@ describe("engine/schedule — baselineSchedule", () => {
             scene.lifts,
             DEFAULT_NOODLE_PRESETS,
             scene.params,
+            null,
           );
           const permuted = baselineSchedule(
             shuffled,
@@ -170,6 +176,7 @@ describe("engine/schedule — baselineSchedule", () => {
             scene.lifts,
             DEFAULT_NOODLE_PRESETS,
             scene.params,
+            null,
           );
 
           expect(permuted).toEqual(canonical);
@@ -196,6 +203,7 @@ describe("engine/schedule — baselineSchedule", () => {
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          null,
         );
         const placed = allPlacements(schedule.slices).map((placement) =>
           keyOf(placement.externalOrderId, placement.itemIndex),
@@ -285,6 +293,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          null,
         );
         const spanOf = new Map(
           pending.map((order) => [
@@ -354,6 +363,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          null,
         );
         const placements = allPlacements(schedule.slices);
         const cap = liftCap(params);
@@ -396,6 +406,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          null,
         );
         const targets = planTargets(pending);
         let free = release;
@@ -434,6 +445,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          null,
         );
         const spanOf = new Map(
           pending.map((order) => [
@@ -448,6 +460,126 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
         }
         expect(exceedsSlotCount(allPlacements(schedule.slices), slotCount)).toBe(false);
         expect(hasOverlapOnSameSlot(allPlacements(schedule.slices))).toBe(false);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: plan-stability, Property 5.6 — 自前解の保持
+  // **Validates: Requirements 3.1, 3.2, 5.6**
+  //
+  // 同じ入力で続けて計画する——二度目は一度目の計画を Shown_Plan（`shownPlanOf`）として渡す——と、釜・まとまり・順・
+  // 時刻のすべてが保たれ、Change_Cost は 0。前回の釜は空いているのでそのまま採れ、前回のまとまりを保つ候補は
+  // 一度目と同じ配置を作り、局所比較は変更費用 0 の側を採る（design Component 5）。比較の時点は計画の now（NOW）、
+  // Timer 集合は同じ集合。計画の同一性は配置の値の一致で見る（`toEqual`）。
+  it("Property 5.6: 同じ入力で続けて計画すると同じ計画になり、Change_Cost は 0", () => {
+    fc.assert(
+      fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
+        const first = baselineSchedule(
+          pending,
+          release,
+          members,
+          lifts,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+          null,
+        );
+        const changeContext: ChangeContext = {
+          shown: shownPlanOf(first, recommend(first)),
+          running,
+          now: NOW,
+          pending,
+          presets: DEFAULT_NOODLE_PRESETS,
+        };
+        const second = baselineSchedule(
+          pending,
+          release,
+          members,
+          lifts,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+          changeContext,
+        );
+        expect(second).toEqual(first);
+        expect(
+          changeCost(
+            { schedule: second, recommendations: recommend(second) },
+            changeContext,
+            params,
+          ),
+        ).toBe(0);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: plan-stability, Property 5.7 — 利益が上回れば変わる（候補の範囲・ハード制約が先）
+  // **Validates: Requirements 3.1, 3.3, 5.7**
+  //
+  // 前回の釜の第一候補は「候補の時刻までに空く実在の釜」にだけ効く。2 つの場面で見る。
+  //   (i) 前回の釜が表の外（存在しない釜）——第一候補は一つも採れず、釜の選択は既存の規則へ落ちる。並びの同値と
+  //       まとまりの候補は前回の計画（前回の無い計画そのもの）を保つので、**前回の無い計画に一致する**。
+  //   (ii) 前回の釜を遠い未来まで塞ぐ——ハード制約（重複なし・同時本数・解放時刻）を守る。塞がれた釜が空く時刻まで
+  //       列が待たされる場面では前回の釜が候補に間に合う（採ってよい）ので、一致は主張しない。
+  it("Property 5.7: 前回の釜が存在しなければ前回の無い計画に一致し、塞がれていればハード制約を守る", () => {
+    fc.assert(
+      fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
+        const previous = baselineSchedule(
+          pending,
+          release,
+          members,
+          lifts,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+          null,
+        );
+        const shown = shownPlanOf(previous, recommend(previous));
+
+        // (i) 前回の釜を表の外の番号へ写す（釜の数だけずらす）。
+        const elsewhere = shown.map((item) => ({
+          ...item,
+          slotIds: nonEmpty(
+            item.slotIds.map((slotId) => String(Number(slotId) + slotCount) as SlotId),
+          ),
+        }));
+        const withElsewhere = baselineSchedule(
+          pending,
+          release,
+          members,
+          lifts,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+          { shown: elsewhere, running, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
+        );
+        expect(withElsewhere).toEqual(previous);
+
+        // (ii) 前回の釜を遠い未来まで塞ぐ（卓を持たないので錨にも成員にもならない）。
+        const blockers = [...new Set(shown.flatMap((item) => item.slotIds))].map((slotId, index) =>
+          createTimer({
+            id: `blocker-${index}` as TimerId,
+            slotIds: nonEmpty([slotId as SlotId]),
+            noodleType: "Thin" as NoodleType,
+            firmness: "normal",
+            startTime: NOW,
+            endTime: (NOW + 86_400_000) as EpochMillis,
+            seq: 1_000 + index,
+          }),
+        );
+        const later = [...running, ...blockers];
+        const blockedRelease = initialRelease(later, NOW, slotCount);
+        const withBlocked = baselineSchedule(
+          pending,
+          blockedRelease,
+          tableMembers(later),
+          initialLifts(later),
+          DEFAULT_NOODLE_PRESETS,
+          params,
+          { shown, running: later, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
+        );
+        const placements = allPlacements(withBlocked.slices);
+        expect(hasOverlapOnSameSlot(placements)).toBe(false);
+        expect(exceedsSlotCount(placements, slotCount)).toBe(false);
+        expect(startsBeforeRelease(placements, blockedRelease)).toBe(false);
       }),
       { numRuns: 300 },
     );

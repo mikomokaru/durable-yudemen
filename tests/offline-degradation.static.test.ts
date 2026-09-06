@@ -58,6 +58,9 @@ const EXPECTED_CORE_FILES = [
   "src/engine/adjust.ts",
   "src/engine/admit.ts",
   "src/engine/alarm.ts",
+  // boil.ts は茹で時間と合流の窓の導出（plan-stability タスク 4 が schedule.ts から切り出した——自前解が変更費用を
+  // 読み、変更費用が茹で時間を読むため）。lift.ts と同じ判断で追随させる。
+  "src/engine/boil.ts",
   "src/engine/cancel.ts",
   "src/engine/commit.ts",
   "src/engine/complete.ts",

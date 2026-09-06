@@ -30,14 +30,15 @@
   - [x] 3.6 チェックポイント
   - _Requirements: 2.1〜2.6, 4.1, 5.1, 5.3〜5.5, 5.9_
 
-- [ ] 4. 自前解が前回を残す
-  - [ ] 4.1 `chooseSlots(..., preferred)` と `assignSlots` の第一候補（前回の釜が候補の時刻までに空けば採る）
-  - [ ] 4.2 batch の並びの同値の断ち方に前回の `startAt` 順
-  - [ ] 4.3 `placeWithLifts`：局所費用に Change_Cost の差分（**先頭の変更 (a) を含む 4 種**・列の候補配置を仮に置いた計画に `headsOf`）、第 3 候補「前回のまとまりを保つ分割」、同点は前回を保つ側。回帰：arms 1・L 45・茹で 600 秒・走行中 2 本が 600 秒・旧提案 A 今／B 45 秒後 → 両方 45 秒後の pack を採らない
-  - [ ] 4.4 `baselineSchedule` / `committedSchedule` / `src/solver` に `ChangeContext | null` を通す。`RequestPlan.shownPlan` を足す（指紋には畳まない）
-  - [ ] 4.5 `schedule.example`（前回の釜・埋まっていれば既存の規則・まとまりを保つ分割・改善が上回れば変わる）と Property 5.6 / 5.7
-  - [ ] 4.6 横断：連続投入の場面で投入のたびに残りの釜と順が変わらない（Change_Cost 0 が続く）
-  - [ ] 4.7 チェックポイント
+- [x] 4. 自前解が前回を残す
+  - 実測・2026-09-06: `baselineSchedule` / `committedSchedule` / `placeGroup` 以下に `changeContext: ChangeContext | null` を通し（settle は `state.shownPlan`・再同期後の Timer・now・pending・presets、`receivePlan` / `admit` は既に組む文脈、`src/solver` は要求の `shownPlan`、テストは `null`）、`RequestPlan.shownPlan` / `PlanRequest.shownPlan` を足した（`settle.requestPlan` は確定したばかりの Shown_Plan を載せる・指紋は不変・`timer-model.static` の鍵集合に追随）。`src/engine/boil.ts` を新設して `boilMillisOf` / `joinWindowMillis` を移し（schedule.ts が stability.ts を読み、stability.ts が茹で時間を読むため。schedule.ts は同名で再輸出・`offline-degradation.static` の集合に追加）。`chooseSlots(count, release, params, preferred?, freeBy?)`：前回の釜が count 本の相異なる実在の釜で全部が `freeBy`（候補の提供時刻 − 茹で時間）までに空けば採る（並びは既存と同じ解放時刻順）。`assignSlots` は既存の規則の対応づけから列の候補時刻を得て、byBoil の順に品目ごとに前回の釜を取り置き、残りを残った釜に既存の対応づけで埋め、列の候補が遅れるなら既存へ戻る。batch の候補時刻は錨から「最小の span で firstFit」まで進める（**design からの追記**：錨そのものを候補にすると、窓が押す列で同じ時刻に置かれるのに釜だけが変わった——連続投入 arms 1 の 2 本目で o7 が釜 1 → 2）。合流の候補時刻は合流先の提供時刻のまま。batch の並びは boil desc → 前回の startAt asc（無い側を後ろ）→ index（`batchOrder`・placeJoined の列も同じ）。`placeWithLifts`：局所費用に `partialChangeCost`（手前の一片 ＋ この群で先に置いた配置 ＋ 列の候補配置の途中の計画に対する 4 種。**(a) の Head はまだ置いていない品目を Shown_Plan の配置で補った計画から導く**——補わないと後の一片の群が連鎖から欠けて同じ計画に偽の 2L が付き、性質 5.6 が破れる。補いは Head にだけ使い (b)(c)(d) の対応には入れない）を秒→ミリ秒で足し、候補は優先順「前回のまとまりを保つ分割（`keepPrevious`・`mates` の列内の連結成分）→ **前回の先頭を今の窓に残す分割（`keepHeads`・design からの追記**：split の接頭辞は arms で切るので、走行中が窓の一部を占めると先頭 1 本だけなら残れた窓を誰も使えず、連続投入 arms 2 / 3 の 3 本目で前回「今」だった o3 が 45 秒後へ動いた）→ pack → split」の最小（同点は先の側）。S ≤ arms でも前回の候補は比べる。回帰（arms 1・L 45・茹で 600 秒・走行中 2 本が 600 秒・旧提案 A 今／B 45 秒後 → 前回無しは両方 45 秒後の pack、前回在りは A 今／B 45 秒後、w_table 4 なら利益 135 > 90 で pack）を `schedule.example` に固定。テスト：`schedule.example`（+8：前回の釜・batch の品目ごとの第一候補・埋まっていれば既存の規則で L・業務費用同点の pack / split で前回の分割を保つ・回帰 3 件・同じ入力で同じ計画）、`schedule.property`（Property 5.6：同じ入力で続けて計画すると同じ計画で Change_Cost 0 / Property 5.7：前回の釜が表の外なら前回の無い計画に一致・塞がれていればハード制約）、`continuous-input.example`（各投入の直後、残りの釜の集合・順・まとまり・前回の Head（今の now と走行中で導く）が保たれる——時刻は窓が押す分だけ動く）。追随：`liftGroups.crosslayer.example`（engine 実走の 3 場面。前回の釜を保つので A を推奨と違う釜で始めても B は自分の釜に留まり boiled の釜へ移らない・合流 2 品は前回「今」だった 1 本が同じ窓に残り 1 本だけ 45 秒後・発火後の再統合も前回の釜のまま・Q が前回の startAt 順で先に釜を取る。期待値と説明を新しい理由に書き換え、主張は弱めていない）。typecheck 0（worker-configuration.d.ts を除く）・lint 0 errors・fmt:check clean・237 ファイル 1592 テスト全通過。
+  - [x] 4.1 `chooseSlots(..., preferred)` と `assignSlots` の第一候補（前回の釜が候補の時刻までに空けば採る）
+  - [x] 4.2 batch の並びの同値の断ち方に前回の `startAt` 順
+  - [x] 4.3 `placeWithLifts`：局所費用に Change_Cost の差分（**先頭の変更 (a) を含む 4 種**・列の候補配置を仮に置いた計画に `headsOf`）、第 3 候補「前回のまとまりを保つ分割」、同点は前回を保つ側。回帰：arms 1・L 45・茹で 600 秒・走行中 2 本が 600 秒・旧提案 A 今／B 45 秒後 → 両方 45 秒後の pack を採らない
+  - [x] 4.4 `baselineSchedule` / `committedSchedule` / `src/solver` に `ChangeContext | null` を通す。`RequestPlan.shownPlan` を足す（指紋には畳まない）
+  - [x] 4.5 `schedule.example`（前回の釜・埋まっていれば既存の規則・まとまりを保つ分割・改善が上回れば変わる）と Property 5.6 / 5.7
+  - [x] 4.6 横断：連続投入の場面で投入のたびに残りの釜と順が変わらない（Change_Cost 0 が続く）
+  - [x] 4.7 チェックポイント
   - _Requirements: 3.1〜3.4, 4.5, 5.6, 5.7_
 
 - [ ] 5. 文書と全体

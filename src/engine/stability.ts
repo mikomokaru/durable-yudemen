@@ -15,8 +15,10 @@ import type { CookRecommendation } from "../domain/messages";
 import { itemKeyOf, type ItemKey, type PendingOrder } from "../domain/order";
 import { slotOf, type NoodlePreset } from "../domain/store";
 import type { NonEmptyArray } from "../domain/timer";
+import { boilMillisOf, joinWindowMillis } from "./boil";
 import type { ScheduleParams } from "./objective";
-import { boilMillisOf, joinWindowMillis, type CookSchedule } from "./schedule";
+import { recommend } from "./recommend";
+import type { CookSchedule } from "./schedule";
 import type { Timer } from "./timer";
 import type { EpochMillis, SlotId } from "./types";
 
@@ -166,9 +168,73 @@ export function changeCost(
 ): number {
   if (changeContext.shown.length === 0) return 0;
   const pendingByKey = new Map(changeContext.pending.map((order) => [itemKeyOf(order), order]));
-
   const oldItems = shownItemsOf(changeContext.shown, pendingByKey, changeContext.presets);
   const newItems = nextItemsOf(next, pendingByKey, changeContext.presets);
+  return costBetween(oldItems, newItems, newItems, changeContext, params);
+}
+
+/**
+ * partialChangeCost — 計画の**途中**に対する変更費用（plan-stability design Component 5・AC 3.2）。
+ *
+ * 自前解は列（同じ時刻に上げたい品目の並び）ごとに pack / split / 前回のまとまりを保つ分割の候補を作り、局所費用で
+ * 比べる。その局所費用に足すのがこれで、`partial` は「手前の一片 ＋ いま置いている群（末尾の一片・先に置いた配置と
+ * 列の候補配置）」である。**4 種すべて**を数える——(b)(c)(d) は置いた品目の間で（列の外の置いた品目との組も含む。
+ * 列に依らない組の費用は候補の間で定数なので、比較には効かず、引かなくてよい）。
+ *
+ * **(a) 先頭の変更は、まだ置いていない品目を Shown_Plan の配置で補った計画から Head を導く（レビュー指摘）。** Head は
+ * 群の連鎖と先頭 arms 本の順位で決まるので、置いた分だけの計画で導くと、後の一片が持つ群が連鎖から欠けて先頭が
+ * 変わる（同じ計画を続けて置いても先頭が消えたように見え、保つべき候補に偽の 2L が付く）。列の外の品目は「現在の
+ * 確定分」——手前で置いた配置はそのまま、まだ置いていない品目は前回確定した配置——で埋める。補った品目の群は
+ * `recommend` と同じ規則（同じ卓・同じ錨か同じ提供時刻）で振り、いま置いている卓の品目は末尾の一片の群に合流する。
+ * 補いは Head の導出にだけ使い、(b)(c)(d) の対応には入れない（置く前の品目の費用を先取りしない）。
+ *
+ * 局所探索であり、列の候補の範囲でだけ「利益が上回れば変わる」（性質 5.7）。
+ */
+export function partialChangeCost(
+  partial: CookSchedule,
+  changeContext: ChangeContext,
+  params: ScheduleParams,
+): number {
+  if (changeContext.shown.length === 0) return 0;
+  const pendingByKey = new Map(changeContext.pending.map((order) => [itemKeyOf(order), order]));
+  const oldItems = shownItemsOf(changeContext.shown, pendingByKey, changeContext.presets);
+  const newItems = nextItemsOf(
+    { schedule: partial, recommendations: recommend(partial) },
+    pendingByKey,
+    changeContext.presets,
+  );
+  const standIns = standInsOf(changeContext.shown, newItems, partial, pendingByKey, changeContext);
+  return costBetween(oldItems, newItems, [...newItems, ...standIns], changeContext, params);
+}
+
+/**
+ * shownHeadsOf — 旧 Shown_Plan の Head（比較の時点の now・遷移後の Timer 集合で導く・判断 8）。
+ *
+ * 自前解が「前回の先頭を今の窓に残す」候補（design Component 5 の局所比較）を作るために読む。`changeCost` の (a) と
+ * 同じ導出（`headsOf`）で、費用の側と候補の側が同じ先頭を見る。
+ */
+export function shownHeadsOf(
+  changeContext: ChangeContext,
+  params: ScheduleParams,
+): ReadonlySet<ItemKey> {
+  if (changeContext.shown.length === 0) return new Set();
+  const pendingByKey = new Map(changeContext.pending.map((order) => [itemKeyOf(order), order]));
+  const oldItems = shownItemsOf(changeContext.shown, pendingByKey, changeContext.presets);
+  const occupied = occupiedSlotsOf(changeContext.running);
+  return new Set(headsOfItems(oldItems, occupied, changeContext.now, params.arms));
+}
+
+/**
+ * 変更費用の本体。`headItems` は新しい計画の Head を導く品目（全体の採点では `newItems` そのもの・途中の比較では
+ * 置いていない品目を補ったもの）。対応する品目は `oldItems` と `newItems` の両方に在るものだけ。
+ */
+function costBetween(
+  oldItems: readonly LiftItem[],
+  newItems: readonly LiftItem[],
+  headItems: readonly LiftItem[],
+  changeContext: ChangeContext,
+  params: ScheduleParams,
+): number {
   const newByKey = new Map(newItems.map((item) => [itemKeyOf(item.order), item]));
   const oldByKey = new Map(oldItems.map((item) => [itemKeyOf(item.order), item]));
 
@@ -179,7 +245,7 @@ export function changeCost(
   // 両側とも同じ now・同じ Timer 集合（遷移後）・同じ占有釜で Head を導く（判断 8）。
   const occupied = occupiedSlotsOf(changeContext.running);
   const oldHead = new Set(headsOfItems(oldItems, occupied, changeContext.now, params.arms));
-  const newHead = new Set(headsOfItems(newItems, occupied, changeContext.now, params.arms));
+  const newHead = new Set(headsOfItems(headItems, occupied, changeContext.now, params.arms));
 
   const L = params.liftIntervalSeconds;
   const Lms = L * MILLIS_PER_SECOND;
@@ -228,6 +294,56 @@ export function changeCost(
     }
   }
   return cost;
+}
+
+/**
+ * 途中の計画で、まだ置いていない品目を Shown_Plan の配置で補う（`partialChangeCost` の Head の導出にだけ使う）。
+ *
+ * 群は `recommend` と同じ規則で振る——同じ卓で、合流なら同じ錨、それ以外は同じ提供時刻が一つの群。いま置いている卓
+ * （`partial` の末尾の一片）の品目は、その一片の群の識別子（`recommend` が付ける `index:anchor:…` / `index:serveAt`）
+ * をそのまま使い、置いた品目と同じ錨・同じ提供時刻なら同じ群に入る。他の卓は卓ごとに閉じた識別子で、置いた品目の群と
+ * 交わらない（一片は卓ごとゆえ、全体の計画でも交わらない）。卓を持たない品目は 1 品 1 群。
+ */
+function standInsOf(
+  shown: ShownPlan,
+  placed: readonly LiftItem[],
+  partial: CookSchedule,
+  pendingByKey: ReadonlyMap<ItemKey, PendingOrder>,
+  changeContext: ChangeContext,
+): readonly LiftItem[] {
+  const placedKeys = new Set(placed.map((item) => itemKeyOf(item.order)));
+  const current = partial.slices[partial.slices.length - 1];
+  const currentIndex = partial.slices.length - 1;
+  const items: LiftItem[] = [];
+  for (const item of shown) {
+    const key = itemKeyOf(item);
+    if (placedKeys.has(key)) continue;
+    const order = pendingByKey.get(key);
+    if (order === undefined) continue;
+    const boilMillis = boilMillisOf(order, changeContext.presets);
+    if (boilMillis === null) continue;
+    const scope =
+      order.tableId === null
+        ? `${SHOWN_GROUP_PREFIX}single\u0000${key}`
+        : current !== undefined && current.tableKey === order.tableId
+          ? `${currentIndex}`
+          : `${SHOWN_GROUP_PREFIX}${order.tableId}`;
+    const group =
+      item.anchor !== null ? `${scope}:anchor:${item.anchor}` : `${scope}:${item.serveAt}`;
+    items.push({
+      recommendation: {
+        externalOrderId: item.externalOrderId,
+        itemIndex: item.itemIndex,
+        slotIds: item.slotIds,
+        startAt: item.startAt,
+        group,
+        anchor: item.anchor,
+      },
+      order,
+      boilSeconds: boilMillis / MILLIS_PER_SECOND,
+    });
+  }
+  return items;
 }
 
 /**

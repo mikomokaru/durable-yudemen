@@ -143,6 +143,7 @@ describe("settle — 確定結果の Persist に Shown_Plan が同乗する（AC
       NOW,
       PRESETS,
       PARAMS,
+      null,
     );
     expect(persistedShownPlan(outcome.effects)).toEqual(
       shownPlanOf(committed, snapshot.recommendations),
@@ -221,6 +222,7 @@ describe("settle — no-op・棄却・hydration では Shown_Plan を更新し�
       NOW,
       PRESETS,
       PARAMS,
+      null,
     );
 
     const outcome = receivePlan(prev, { type: "PlanArrived", plan: same, now: NOW }, PARAMS);

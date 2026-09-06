@@ -103,7 +103,16 @@ export function admit(
 
   // 段 2。候補接頭辞で合成を 1 回走らせ、総和を現行 Committed_Plan と比べる。合成は接頭辞の占有から
   // 尾部を再実行するため、ここで得る総和は「採用した後に実際に確定する計画」の値そのものである。
-  const composed = committedSchedule(prefix, pending, running, now, presets, params);
+  // 尾部の自前解も同じ文脈で前回を残す（採用後に実際に確定する計画そのものを採点する）。
+  const composed = committedSchedule(
+    prefix,
+    pending,
+    running,
+    now,
+    presets,
+    params,
+    scoreContext.change,
+  );
   const composedScore = scoreSchedule(composed.slices, pending, scoreContext, params);
   return composedScore.total < committedScore.total ? prefix : [];
 }

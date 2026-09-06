@@ -21,8 +21,13 @@ import {
   type LiftTable,
 } from "./lift";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
-import type { PendingOrder } from "../domain/order";
+import { itemKeyOf, type ItemKey, type PendingOrder } from "../domain/order";
 import { slotDistance, slotOf, type NoodlePreset } from "../domain/store";
+import { boilMillisOf, joinWindowMillis } from "./boil";
+import { partialChangeCost, shownHeadsOf, type ChangeContext, type ShownItem } from "./stability";
+
+// 茹で時間と合流の窓の導出は boil.ts に在る（変更費用が同じ導出を読むため）。読む側の入口はここのまま。
+export { boilMillisOf, joinWindowMillis } from "./boil";
 
 /**
  * Placement — 1 品目の配置。engine 内部形。
@@ -303,6 +308,12 @@ interface TableGroup {
  * 署名から見えない形で入り込み、決定性が署名から読めなくなる。値は不活性で、整列も比較もできる。
  * (2) toPendingOrders（domain/order.ts）が同じ判断のために同じ型を受けている前例がある。
  * StoreConfig 全体は渡さない——重み・許容幅・レイアウト以外の設定まで engine が引き連れることになる。
+ *
+ * **変更費用の文脈（`changeContext`）を引数に取る（plan-stability Requirement 3・design Component 5）。** 前回配信対象
+ * として確定した提案（Shown_Plan）が在れば、釜の選択はその釜を第一候補にし（AC 3.1）、batch の並びの同値は前回の
+ * `startAt` 順で断ち、列の pack / split の局所比較に変更費用の差分を足して「前回のまとまりを保つ分割」を第 3 候補に
+ * 置く（AC 3.2）。ハード制約（釜の排他・slotSpan・上げ窓・合流の契約）は候補の生成の前に効き、前回より優先する
+ * （AC 3.3）。null は比較の相手なし——前回を残す経路は一つも通らず、従来と同じ計画が出る。
  */
 export function baselineSchedule(
   pending: readonly PendingOrder[],
@@ -311,15 +322,27 @@ export function baselineSchedule(
   lifts: LiftTable,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
+  changeContext: ChangeContext | null,
 ): CookSchedule {
   const slices: PlanSlice[] = [];
   let free = release;
   let ends = lifts;
+  // 前回の提案が無ければ（比較の相手なし）、前回を残す経路は一つも通らない——同じ入力からは前回の無い計画と
+  // 同じ計画が出る。空の Shown_Plan も同じ扱い（changeCost が 0 を返す計画に、候補だけ増やす理由は無い）。
+  const shownByKey =
+    changeContext === null || changeContext.shown.length === 0
+      ? null
+      : new Map(changeContext.shown.map((item) => [itemKeyOf(item), item]));
+  // 旧 Shown_Plan の Head は比較の時点で決まり、計画の間は変わらない（一度だけ導く）。
+  const heads = changeContext === null ? new Set<ItemKey>() : shownHeadsOf(changeContext, params);
   for (const group of tableGroups(planTargets(pending))) {
     // 走行中の錨＝同じ卓の走行中の仲間の提供時刻の最大（表の値は昇順ゆえ末尾）。卓なしの単独キーは
     // NUL 始まりで非空の tableId と一致しないため、表に当たらない（条件を書かない・ADR-0003）。
     const siblings = members.get(group.tableKey) ?? null;
-    const placements = placeGroup(group.items, free, ends, siblings, presets, params);
+    // 手前の一片は、列の候補配置を仮に置いた計画の「列の外」を成す（この群を置く間は増えない）。
+    const continuity: Continuity | null =
+      shownByKey === null ? null : { changeContext: changeContext!, shownByKey, heads, slices };
+    const placements = placeGroup(group, free, ends, siblings, presets, params, continuity);
     // 1 品目も置けなかったグループは PlanSlice を成さない（空の一片は採用/棄却の対象にならない）。
     if (placements.length === 0) continue;
     slices.push({ tableKey: group.tableKey, placements });
@@ -663,6 +686,38 @@ function tableKeyOf(order: PendingOrder): string {
 }
 
 /**
+ * Continuity — 自前解が前回の提案を残すための文脈（plan-stability Requirement 3・design Component 5）。
+ *
+ * `changeContext` は変更費用の比較の文脈（旧 Shown_Plan・遷移後の Timer・比較の時点の now・pending・presets）、
+ * `shownByKey` はその Shown_Plan を品目の鍵で引く表（釜の第一候補・並びの同値・前回のまとまり）、`heads` はその
+ * Head、`slices` はこの計画で手前に置いた一片（列の候補配置を仮に置いた計画の「列の外」）。null は比較の相手なし。
+ */
+interface Continuity {
+  readonly changeContext: ChangeContext;
+  readonly shownByKey: ReadonlyMap<ItemKey, ShownItem>;
+  /** 旧 Shown_Plan の Head（比較の時点の now・遷移後の Timer 集合で導く）。「前回の先頭を今の窓に残す」候補が読む。 */
+  readonly heads: ReadonlySet<ItemKey>;
+  readonly slices: readonly PlanSlice[];
+}
+
+/**
+ * 列の局所比較に要る Continuity——いま置いている群の鍵と、その群で先に置いた配置。列の候補配置を足せば、
+ * 変更費用を数える途中の計画（手前の一片 ＋ この群の一片）が組める。
+ */
+interface ColumnContinuity extends Continuity {
+  readonly tableKey: string;
+  readonly placed: readonly Placement[];
+}
+
+/** 列の配置を置いた後の Continuity（残りの列・分割の残りが読む）。 */
+function after(
+  continuity: ColumnContinuity | null,
+  placed: readonly Placement[],
+): ColumnContinuity | null {
+  return continuity === null ? null : { ...continuity, placed: [...continuity.placed, ...placed] };
+}
+
+/**
  * 1 つの Table_Group を配置する。
  *
  * **茹で時間が引けない品目は配置しない。** 未知の noodleType は Order_Ingress では弾かれる
@@ -691,17 +746,18 @@ function tableKeyOf(order: PendingOrder): string {
  * 卓の成員の提供時刻（走行中の仲間＋この群で先に置いた配置）も同じ順で積み、局所費用の卓の遅れに読ませる。
  */
 function placeGroup(
-  items: readonly PendingOrder[],
+  group: TableGroup,
   release: SlotRelease,
   lifts: LiftTable,
   siblings: readonly EpochMillis[] | null,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
+  continuity: Continuity | null,
 ): readonly Placement[] {
   // 残りの batch の錨は走行中の最遅（表の値は昇順ゆえ末尾）。合流の判定は個々の走行中の提供時刻で行う。
   const runningAnchor = siblings === null ? null : siblings[siblings.length - 1]!;
   const cap = liftCap(params);
-  const boilings = items
+  const boilings = group.items
     .map((order) => toBoiling(order, presets))
     .filter((boiling): boiling is Boiling => boiling !== null && boiling.order.slotSpan <= cap);
   // 同時に置ける幅＝釜の数。解放表の長さが「置ける場所」の全体を語る（表の外に釜は無い）。
@@ -719,6 +775,11 @@ function placeGroup(
     ends = advanceLifts(ends, liftsOf(placed));
     members = [...members, ...placed.map((placement) => placement.serveAt)];
   };
+  // 列の局所比較が読む文脈。この群で先に置いた配置は列を置くたびに増える。
+  const column = (): ColumnContinuity | null =>
+    continuity === null
+      ? null
+      : { ...continuity, tableKey: group.tableKey, placed: [...placements] };
 
   let remaining = boilings;
   if (siblings !== null) {
@@ -729,9 +790,9 @@ function placeGroup(
     // 届く）。一度の判定で残りを batch へ回すと、ゲート（isPushedOut・置いた後の表で合流できたかを見る）が
     // その配置を押し出しと判定する（Property 17 の実測）。どの品目も合流できなくなるまで回す。
     for (;;) {
-      const joined = joinable(remaining, free, siblings, params);
+      const joined = joinable(remaining, free, siblings, params, continuity);
       if (joined.length === 0) break;
-      collect(placeJoined(joined, ends, members, params));
+      collect(placeJoined(joined, ends, members, params, column()));
       remaining = remaining.filter((boiling) => !joined.some((entry) => entry.boiling === boiling));
     }
   }
@@ -740,7 +801,7 @@ function placeGroup(
   let span = 0;
   const flush = () => {
     if (batch.length === 0) return;
-    collect(placeBatch(batch, free, ends, members, runningAnchor, params));
+    collect(placeBatch(batch, free, ends, members, runningAnchor, params, column()));
     batch = [];
     span = 0;
   };
@@ -787,11 +848,20 @@ function joinable(
   release: SlotRelease,
   siblings: readonly EpochMillis[],
   params: ScheduleParams,
+  continuity: Continuity | null,
 ): readonly Joined[] {
   const joined: Joined[] = [];
   let free = release;
   for (const boiling of boilings) {
-    const { slotsOfItem, earliest } = assignSlots([boiling], free, params);
+    // 前回の釜の第一候補（AC 3.1）。候補の時刻は、既存の規則で置いたときの合流先の提供時刻——前回の釜がそこまでに
+    // 空けば採り、合流先はその釜の earliest から引き直す（候補より手前に届くことはあっても、後ろへは動かない）。
+    const { slotsOfItem, earliest } = assignSlots(
+      [boiling],
+      free,
+      params,
+      continuity,
+      (base) => joinTarget(base[0]!, siblings, boiling.boilMillis, params)?.serveAt ?? null,
+    );
     const target = joinTarget(earliest[0]!, siblings, boiling.boilMillis, params);
     if (target === null) continue;
     joined.push({ boiling, slots: slotsOfItem[0]!, target });
@@ -862,13 +932,12 @@ function placeJoined(
   lifts: LiftTable,
   members: readonly EpochMillis[],
   params: ScheduleParams,
+  continuity: ColumnContinuity | null,
 ): readonly Placement[] {
-  const byBoil = joined
-    .map((_unused, index) => index)
-    .sort(
-      (index, other) =>
-        joined[other]!.boiling.boilMillis - joined[index]!.boiling.boilMillis || index - other,
-    );
+  const byBoil = batchOrder(
+    joined.map((entry) => entry.boiling),
+    continuity,
+  );
   const candidates = [...new Set(joined.map((entry) => entry.target.serveAt))].sort(
     (a, b) => a - b,
   );
@@ -876,6 +945,7 @@ function placeJoined(
   const placed: Placement[] = new Array(joined.length);
   let ends = lifts;
   let ended = members;
+  let placedSoFar = continuity;
   for (const candidate of candidates) {
     const indices = byBoil.filter((index) => joined[index]!.target.serveAt === candidate);
     const column = indices.map((index) => ({
@@ -883,12 +953,13 @@ function placeJoined(
       slots: joined[index]!.slots,
       anchor: joined[index]!.target.anchor,
     }));
-    const result = placeWithLifts(column, candidate, ends, ended, params);
+    const result = placeWithLifts(column, candidate, ends, ended, params, placedSoFar);
     indices.forEach((index, position) => {
       placed[index] = result[position]!;
     });
     ends = advanceLifts(ends, liftsOf(result));
     ended = [...ended, ...result.map((placement) => placement.serveAt)];
+    placedSoFar = after(placedSoFar, result);
   }
   return placed;
 }
@@ -897,29 +968,6 @@ function placeJoined(
 function toBoiling(order: PendingOrder, presets: readonly NoodlePreset[]): Boiling | null {
   const boilMillis = boilMillisOf(order, presets);
   return boilMillis === null ? null : { order, boilMillis };
-}
-
-/**
- * 品目の茹で時間（ミリ秒）。麺種がプリセットに無ければ null。
- *
- * 茹で時間は PendingOrder が持たない導出値（noodleType × firmness）。配置・ゲート・推奨の射影が同じ引き方を
- * 読む唯一の場所（二度書けば二つの真実になる）。
- */
-export function boilMillisOf(order: PendingOrder, presets: readonly NoodlePreset[]): number | null {
-  const preset = presets.find((candidate) => candidate.noodleType === order.noodleType);
-  if (preset === undefined) return null;
-  return preset.boilSeconds[order.firmness] * 1000;
-}
-
-/**
- * 合流の窓 h_i（ミリ秒）——茹で時間 × toleranceRatio / 100（lift-group-planning 判断 18・ADR-0008）。
- *
- * 走行中の錨に `earliest ≤ 錨 + h_i` で届く品目を「同じ投入作業として続ける」と見なす。Boil_Sync の許容調整
- * 割合と同じ既存の品質許容幅であって新しい設定ではないが、**Boil_Sync が同時に揃える保証ではない**——あちらは
- * 個々の基底 endTime から窓を作り、共通部分と arms のセット分割を見る。計画の群と Sync_Set は別の概念である。
- */
-export function joinWindowMillis(boilMillis: number, params: ScheduleParams): number {
-  return Math.floor((boilMillis * params.toleranceRatio) / 100);
 }
 
 /**
@@ -953,8 +1001,23 @@ function placeBatch(
   members: readonly EpochMillis[],
   runningAnchor: EpochMillis | null,
   params: ScheduleParams,
+  continuity: ColumnContinuity | null,
 ): readonly Placement[] {
-  const { slotsOfItem, earliest, byBoil } = assignSlots(batch, release, params);
+  // 前回の釜の第一候補（AC 3.1）。候補の時刻は、既存の規則で置いたときの錨から**列のどの塊も上げ窓で置けない最早の時刻**
+  // （最小の span で firstFit）まで進めた値——錨の窓が埋まっていれば列はどのみちそこまで待つので、そこまでに空く前回の
+  // 釜を採っても列は遅れない。錨そのものを候補にすると、窓が押す列で前回の釜が「間に合わない」と見なされ、同じ時刻に
+  // 置かれるのに釜だけが変わる。firstFit は時刻にも span にも単調なので、この時刻より手前に置かれる塊は無い（feasible）。
+  const { slotsOfItem, earliest, byBoil } = assignSlots(
+    batch,
+    release,
+    params,
+    continuity,
+    (base) => {
+      const anchor = Math.max(...base, runningAnchor ?? Number.NEGATIVE_INFINITY) as EpochMillis;
+      const least = Math.min(...batch.map((boiling) => boiling.order.slotSpan));
+      return firstFit(lifts, anchor, least, params) ?? anchor;
+    },
+  );
   const anchor = Math.max(...earliest, runningAnchor ?? Number.NEGATIVE_INFINITY) as EpochMillis;
   const column = byBoil.map((index) => ({
     boiling: batch[index]!,
@@ -963,7 +1026,7 @@ function placeBatch(
     // 群の所属（`Placement.anchor`）は placeJoined だけが与える（判断 18・AC 9.9）。
     anchor: null,
   }));
-  const result = placeWithLifts(column, anchor, lifts, members, params);
+  const result = placeWithLifts(column, anchor, lifts, members, params, continuity);
   const placed: Placement[] = new Array(batch.length);
   byBoil.forEach((index, position) => {
     placed[index] = result[position]!;
@@ -995,7 +1058,8 @@ const MILLIS_PER_SECOND = 1000;
  *   - S > arms + HELPER_ARMS：どの時刻にも入らない列なので、**候補の窓の残り容量**（上限 − 既存の負荷。残りが
  *     先頭の品目に足りなければ上限）に収まる最長の非空の接頭辞と残りに割って再帰する（先頭の品目は必ず上限に
  *     収まる——1 品で超える品目は placeGroup が列に入れない・AC 9.12）。
- *   - S ≤ arms：手伝いが要らないので pack（全員を firstFit の時刻へ）。
+ *   - S ≤ arms：手伝いが要らないので pack（全員を firstFit の時刻へ）。前回の提案が在れば、前回のまとまり・先頭を
+ *     残す分割も候補になる（窓が埋まって pack が次の窓へ動くとき、先頭の 1 本だけなら今の窓に残れることがある）。
  *   - その間：pack（全員を同じ窓へ・手伝いを頼む）と split（arms に収まる最長の非空の接頭辞を先に、残りを
  *     進めた表の上で再帰）の**両方を同じ既存の表に対して実際に作り**、局所の費用で安い方を置く。同点は pack。
  *     **品目は不可分**——接頭辞が空（先頭の品目の span が arms を超える・例：arms 1 の大盛）なら split は候補に
@@ -1004,12 +1068,22 @@ const MILLIS_PER_SECOND = 1000;
  * 局所の費用 cost(c) = Σ 待ち（serve − 到着・候補を後ろへ動かした分を含む）
  *                   + w_table × Σ 卓の遅れ（走行中の仲間と先に置いた配置を含む成員の、最遅からの差）
  *                   + ΔLift_Overflow（liftOverflow は秒相当を返すので L を重ねて掛けない）
- * 目的関数と同じ 3 つの物差しで測るが、目的関数そのものではない（丸めを持ち込まずミリ秒で比べる・卓の内側と
+ *                   + Change_Cost（前回の提案が在るとき・秒相当をミリ秒へ）
+ * 目的関数と同じ物差しで測るが、目的関数そのものではない（丸めを持ち込まずミリ秒で比べる・卓の内側と
  * 店舗全体の差分に閉じる）。4 人家族（arms 2・L 45・表が空）は pack 330 対 split 330（split の残りも同じ窓に
  * 入る）で同点ゆえ pack、走行中 2 本の窓に 2 品を足す場面は pack が次の窓へ動いても卓の遅れが小さく pack が
  * 勝つ——どちらも「同時に上げる方を置く」（判断 20）。
  *
- * 結果は列と同じ並びで返す（pack も split も接頭辞と残りの順を保つ）。
+ * **前回の提案が在れば候補を足し、全候補の最小を採る（plan-stability AC 3.2・design Component 5）。** 「前回のまとまりを
+ * 保つ分割」（前回同じ群だった品目を同じ塊に置く・`keepPrevious`）と「前回の先頭を今の窓に残す分割」（旧 Head の品目を
+ * 先頭の塊にする・`keepHeads`）で、局所費用には Change_Cost の差分——**先頭の変更 (a) を含む 4 種**——を足す。同点は
+ * 前回のまとまりを保つ側、次に前回の先頭を残す側、次に pack。(a) を含めるのは、(b)(c)(d) だけでは最も
+ * 守りたい投入対象が動くためである：arms 1・L 45・茹で 600 秒・走行中 2 本が 600 秒に上がる表で、旧提案が A を今・
+ * B を 45 秒後なら、両方を 45 秒後へ pack すると業務費用は 45 秒改善するが、A の先頭消失は 90 秒で総費用は 45 秒
+ * 悪化する——pack は採らない。Head は列の候補配置を仮に置いた計画（手前の一片 ＋ この群で先に置いた配置 ＋ 列）に
+ * 対して導く（`partialChangeCost`・列の外の品目は現在の確定分）。
+ *
+ * 結果は列と同じ並びで返す（pack も split も前回を保つ分割も、列の順を保つ）。
  */
 function placeWithLifts(
   column: readonly Assigned[],
@@ -1017,6 +1091,7 @@ function placeWithLifts(
   lifts: LiftTable,
   members: readonly EpochMillis[],
   params: ScheduleParams,
+  continuity: ColumnContinuity | null,
 ): readonly Placement[] {
   if (column.length === 0) return [];
   const cap = liftCap(params);
@@ -1029,21 +1104,35 @@ function placeWithLifts(
     const room = cap - loadWith(lifts, t0, 0, params);
     const first = column[0]!.boiling.order.slotSpan;
     const head = longestPrefixWithin(column, room >= first ? room : cap);
-    const placedHead = placeWithLifts(head, t0, lifts, members, params);
+    const placedHead = placeWithLifts(head, t0, lifts, members, params, continuity);
     const placedRest = placeWithLifts(
       column.slice(head.length),
       t0,
       advanceLifts(lifts, liftsOf(placedHead)),
       [...members, ...placedHead.map((placement) => placement.serveAt)],
       params,
+      after(continuity, placedHead),
     );
     return [...placedHead, ...placedRest];
   }
   // S ≤ arms + HELPER_ARMS なので firstFit は必ず時刻を返す（null は span が上限を超えるときだけ）。
   const pack = placeAt(column, firstFit(lifts, t0, total, params)!);
-  if (total <= params.arms) return pack;
+  // 候補は優先順（同点はこの順で先の側）：前回のまとまりを保つ分割・前回の先頭を今の窓に残す分割・pack・split。
+  // 前回の提案が無ければ前者 2 つは無い。
+  const keeping =
+    continuity === null
+      ? []
+      : [
+          keepPrevious(column, t0, lifts, members, params, continuity),
+          keepHeads(column, t0, lifts, members, params, continuity),
+        ];
+  // S ≤ arms：手伝いが要らないので pack——ただし窓が埋まっていて pack が次の窓へ動くとき、前回の先頭やまとまりを
+  // 今の窓に残す分割は候補になる（列の全員が窓に入らなくても、先頭の 1 本は入ることがある）。
+  if (total <= params.arms)
+    return cheapest([...keeping, pack], column, lifts, members, params, continuity);
   const prefix = longestPrefixWithin(column, params.arms);
-  if (prefix.length === 0) return pack;
+  if (prefix.length === 0)
+    return cheapest([...keeping, pack], column, lifts, members, params, continuity);
   const placedPrefix = placeAt(prefix, firstFit(lifts, t0, spanOf(prefix), params)!);
   const placedRest = placeWithLifts(
     column.slice(prefix.length),
@@ -1051,12 +1140,161 @@ function placeWithLifts(
     advanceLifts(lifts, liftsOf(placedPrefix)),
     [...members, ...placedPrefix.map((placement) => placement.serveAt)],
     params,
+    after(continuity, placedPrefix),
   );
   const split = [...placedPrefix, ...placedRest];
-  return localCost(pack, column, lifts, members, params) <=
-    localCost(split, column, lifts, members, params)
-    ? pack
-    : split;
+  return cheapest([...keeping, pack, split], column, lifts, members, params, continuity);
+}
+
+/** 候補（優先順・null は候補にならなかったもの）のうち局所費用が最小のもの。同点は先の候補。 */
+function cheapest(
+  candidates: readonly (readonly Placement[] | null)[],
+  column: readonly Assigned[],
+  lifts: LiftTable,
+  members: readonly EpochMillis[],
+  params: ScheduleParams,
+  continuity: ColumnContinuity | null,
+): readonly Placement[] {
+  let best: readonly Placement[] | null = null;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    if (candidate === null) continue;
+    const cost = localCost(candidate, column, lifts, members, params, continuity);
+    if (cost < bestCost) {
+      best = candidate;
+      bestCost = cost;
+    }
+  }
+  // pack は常に候補に在る（null でない）ので、最小は必ず見つかる。
+  return best!;
+}
+
+/**
+ * 前回の先頭を今の窓に残す分割（plan-stability design Component 5 の局所比較・判断 2 (a)）。
+ *
+ * 列のうち旧 Shown_Plan の Head に在る品目を先頭の塊として候補の時刻の窓に置き（`firstFit`）、残りを進めた表の上で
+ * 再帰する。split の接頭辞は arms で切るので、走行中が窓の一部を占めていると接頭辞ごと次の窓へ押され、先頭 1 本だけ
+ * なら残れた窓を誰も使わない（実測：arms 2・走行中 3 本が同じ窓に上がる表で、前回「今」だった 1 本が 45 秒後へ動く）。
+ * この候補は先頭の本数で切るので、その 1 本を残せる。採るかどうかは局所費用（先頭の消失 2L を含む）が決める。
+ *
+ * 候補にならない場面は null——列に先頭が無い、または列の全員が先頭（pack と同じ）。結果は列の並びで返す。
+ */
+function keepHeads(
+  column: readonly Assigned[],
+  t0: EpochMillis,
+  lifts: LiftTable,
+  members: readonly EpochMillis[],
+  params: ScheduleParams,
+  continuity: ColumnContinuity,
+): readonly Placement[] | null {
+  const isHead = (index: number) => continuity.heads.has(itemKeyOf(column[index]!.boiling.order));
+  const indices = column.map((_unused, index) => index);
+  const leading = indices.filter(isHead);
+  if (leading.length === 0 || leading.length === column.length) return null;
+  return placeChunks(
+    column,
+    [leading, indices.filter((index) => !isHead(index))],
+    t0,
+    lifts,
+    members,
+    params,
+    continuity,
+  );
+}
+
+/**
+ * 列を塊の列に沿って置く——塊の span が上限以下なら塊ごと `firstFit`（同じ時刻に上げる）、超えれば `placeWithLifts` の
+ * 再帰（既存の容量の規則で更に割る）。塊は順に、置いた上がりで進めた表の上に置く。結果は列の並びで返す。
+ */
+function placeChunks(
+  column: readonly Assigned[],
+  chunks: readonly (readonly number[])[],
+  t0: EpochMillis,
+  lifts: LiftTable,
+  members: readonly EpochMillis[],
+  params: ScheduleParams,
+  continuity: ColumnContinuity,
+): readonly Placement[] {
+  const cap = liftCap(params);
+  const placed: Placement[] = new Array(column.length);
+  let ends = lifts;
+  let ended = members;
+  let placedSoFar: ColumnContinuity | null = continuity;
+  for (const chunk of chunks) {
+    const part = chunk.map((index) => column[index]!);
+    const span = spanOf(part);
+    const result =
+      span <= cap
+        ? placeAt(part, firstFit(ends, t0, span, params)!)
+        : placeWithLifts(part, t0, ends, ended, params, placedSoFar);
+    chunk.forEach((index, position) => {
+      placed[index] = result[position]!;
+    });
+    ends = advanceLifts(ends, liftsOf(result));
+    ended = [...ended, ...result.map((placement) => placement.serveAt)];
+    placedSoFar = after(placedSoFar, result);
+  }
+  return placed;
+}
+
+/**
+ * 前回のまとまりを保つ分割（plan-stability AC 3.2・design Component 5 の第 3 候補）。
+ *
+ * 列を、Shown_Plan で同じ群だった品目（`mates`・列の内側で連結成分に閉じる）が同じ塊に入るように割り、塊を列の順に
+ * 置く——塊の span が上限以下なら塊ごと `firstFit`（同じ時刻に上げる）、超えれば既存の容量の規則で更に割る
+ * （`placeWithLifts` の再帰）。前回に無い品目は自分だけの塊（新規に増えた品目は守る相手を持たない）。
+ *
+ * 候補にならない場面は null——塊が一つ（pack と同じ）か、列のどの品目も前回に無い（保つまとまりが無い）。
+ * 塊の並びは列の順（茹で時間の長い順・同値は前回の startAt 順）を保ち、結果も列の並びで返す。
+ */
+function keepPrevious(
+  column: readonly Assigned[],
+  t0: EpochMillis,
+  lifts: LiftTable,
+  members: readonly EpochMillis[],
+  params: ScheduleParams,
+  continuity: ColumnContinuity,
+): readonly Placement[] | null {
+  const keys = column.map((assigned) => itemKeyOf(assigned.boiling.order));
+  if (!keys.some((key) => continuity.shownByKey.has(key))) return null;
+  const chunks = chunksByMates(keys, continuity.shownByKey);
+  if (chunks.length <= 1) return null;
+  return placeChunks(column, chunks, t0, lifts, members, params, continuity);
+}
+
+/**
+ * 列の品目（鍵の列）を、Shown_Plan の `mates` で繋がる連結成分に割る。成分は列の内側で閉じ（列の外の相手は辿らない）、
+ * 成分の並びと成分の中の並びは列の順。`mates` は対称に持つ（shownPlanOf）が、永続から来た値が片側だけでも成分は繋がる。
+ */
+function chunksByMates(
+  keys: readonly ItemKey[],
+  shownByKey: ReadonlyMap<ItemKey, ShownItem>,
+): readonly (readonly number[])[] {
+  const positionOf = new Map(keys.map((key, index) => [key, index]));
+  const chunkOf: number[] = keys.map((_unused, index) => index);
+  const rootOf = (index: number): number => {
+    let root = index;
+    while (chunkOf[root] !== root) root = chunkOf[root]!;
+    return root;
+  };
+  keys.forEach((key, index) => {
+    for (const mate of shownByKey.get(key)?.mates ?? []) {
+      const other = positionOf.get(mate);
+      if (other === undefined) continue;
+      const a = rootOf(index);
+      const b = rootOf(other);
+      // 根は列で先に現れる側に寄せる（成分の代表が列の順を保つ）。
+      if (a !== b) chunkOf[Math.max(a, b)] = Math.min(a, b);
+    }
+  });
+  const chunks = new Map<number, number[]>();
+  keys.forEach((_unused, index) => {
+    const root = rootOf(index);
+    const chunk = chunks.get(root);
+    if (chunk === undefined) chunks.set(root, [index]);
+    else chunk.push(index);
+  });
+  return [...chunks.entries()].sort(([a], [b]) => a - b).map(([, chunk]) => chunk);
 }
 
 /** 列の Σ span。 */
@@ -1098,11 +1336,12 @@ function placeAt(column: readonly Assigned[], serveAt: EpochMillis): readonly Pl
 }
 
 /**
- * 列の配置の局所費用（ミリ秒相当）。placeWithLifts の pack / split の比較にだけ用いる。
+ * 列の配置の局所費用（ミリ秒相当）。placeWithLifts の pack / split / 前回を保つ分割の比較にだけ用いる。
  *
  * 卓の遅れは成員（走行中の仲間・先に置いた配置・この列）の最遅からの差の和で、目的関数の Table_Lag と同じ形。
  * 手伝いの費用は「この列を足す前後の Lift_Overflow の差」——既存の表が既に超えている窓の費用は候補に依らないので
- * 差分だけが比較に効く。
+ * 差分だけが比較に効く。変更費用（plan-stability）は、手前の一片とこの群で先に置いた配置に列の候補配置を足した途中の
+ * 計画に対して数える（`partialChangeCost`・列に依らない組の費用は候補の間で定数）。秒相当をミリ秒へ揃えて足す。
  */
 function localCost(
   placed: readonly Placement[],
@@ -1110,6 +1349,7 @@ function localCost(
   lifts: LiftTable,
   members: readonly EpochMillis[],
   params: ScheduleParams,
+  continuity: ColumnContinuity | null,
 ): number {
   let wait = 0;
   for (const [index, placement] of placed.entries()) {
@@ -1121,7 +1361,20 @@ function localCost(
   for (const serveAt of serves) lag += latest - serveAt;
   const overflow =
     liftOverflow(advanceLifts(lifts, liftsOf(placed)), params) - liftOverflow(lifts, params);
-  return wait + params.tableSyncWeight * lag + overflow * MILLIS_PER_SECOND;
+  const change =
+    continuity === null
+      ? 0
+      : partialChangeCost(
+          {
+            slices: [
+              ...continuity.slices,
+              { tableKey: continuity.tableKey, placements: [...continuity.placed, ...placed] },
+            ],
+          },
+          continuity.changeContext,
+          params,
+        );
+  return wait + params.tableSyncWeight * lag + (overflow + change) * MILLIS_PER_SECOND;
 }
 
 /**
@@ -1134,9 +1387,74 @@ function localCost(
  * 長い茹でから順に、早く空く釜を slotSpan 個ずつ連続した塊で配る（1 品目 1 釜では錨を最小にする対応づけ
  * だった。slotSpan が混在すると最小性は言えないが、要るのは決定性だけで、byRelease / byBoil の全順序——
  * 同点を index で断つ——から従う）。byBoil は上げ窓を当てる列の順でもある（AC 9.8・接頭辞をこの順で切る）。
+ *
+ * **前回の釜の第一候補（plan-stability AC 3.1）。** 前回の提案（`continuity`）が在れば、まず既存の規則で対応づけて
+ * 列の候補時刻（`candidateAt`——batch なら錨、合流なら合流先の提供時刻）を得て、品目ごとに前回の釜がその時刻までに
+ * 空くか（`chooseSlots` の `preferred`）を byBoil の順に見る。空く品目は前回の釜を取り置き、残りの品目は残った釜に
+ * 既存の対応づけで落とす（品目ごとに選び直すと対応づけの規則が二つになる）。前回の釜を採ったことで列の候補が
+ * 遅れる（残りの品目の earliest が候補を超える）なら、既存の規則の対応づけへ戻る——前回の釜は候補の時刻の内側で
+ * だけ守り、業務費用を黙って悪化させない。前回の釜が候補に間に合わなければ既存の規則（釜の変更費用 L を払う・AC 3.3）。
  */
 function assignSlots(
   batch: readonly Boiling[],
+  release: SlotRelease,
+  params: ScheduleParams,
+  continuity: Continuity | null,
+  candidateAt: (earliest: readonly number[]) => number | null,
+): {
+  readonly slotsOfItem: readonly (readonly number[])[];
+  readonly earliest: readonly number[];
+  readonly byBoil: readonly number[];
+} {
+  const byBoil = batchOrder(batch, continuity);
+  const base = distribute(batch, byBoil, release, params);
+  if (continuity === null) return base;
+  const deadline = candidateAt(base.earliest);
+  if (deadline === null) return base;
+
+  const slotsOfItem: (readonly number[] | undefined)[] = new Array(batch.length);
+  let free = release;
+  for (const index of byBoil) {
+    const boiling = batch[index]!;
+    const shown = continuity.shownByKey.get(itemKeyOf(boiling.order));
+    if (shown === undefined) continue;
+    const preferred = [...new Set(shown.slotIds.map(slotOf))];
+    const chosen = chooseSlots(
+      boiling.order.slotSpan,
+      free,
+      params,
+      preferred,
+      deadline - boiling.boilMillis,
+    );
+    // 前回の釜が採れた品目だけを取り置く（採れなければ残りの品目と一緒に既存の対応づけへ）。
+    if (!sameSlots(chosen, preferred)) continue;
+    slotsOfItem[index] = chosen;
+    free = reserve(free, chosen);
+  }
+  const deferred = byBoil.filter((index) => slotsOfItem[index] === undefined);
+  if (deferred.length === batch.length) return base;
+  const rest = distribute(
+    deferred.map((index) => batch[index]!),
+    deferred.map((_unused, position) => position),
+    free,
+    params,
+  );
+  deferred.forEach((index, position) => {
+    slotsOfItem[index] = rest.slotsOfItem[position]!;
+  });
+  const assigned = slotsOfItem as readonly (readonly number[])[];
+  const earliest = batch.map(
+    (boiling, index) =>
+      Math.max(...assigned[index]!.map((slot) => release[slot]!)) + boiling.boilMillis,
+  );
+  if (Math.max(...earliest) > deadline) return base;
+  return { slotsOfItem: assigned, earliest, byBoil };
+}
+
+/** 既存の規則の対応づけ——釜の組を一度に選び、早く空く順に長い茹でから slotSpan 個ずつ配る。 */
+function distribute(
+  batch: readonly Boiling[],
+  byBoil: readonly number[],
   release: SlotRelease,
   params: ScheduleParams,
 ): {
@@ -1149,9 +1467,6 @@ function assignSlots(
   const byRelease = [...slots].sort(
     (slot, other) => release[slot]! - release[other]! || slot - other,
   );
-  const byBoil = batch
-    .map((_unused, index) => index)
-    .sort((index, other) => batch[other]!.boilMillis - batch[index]!.boilMillis || index - other);
   const slotsOfItem: (readonly number[])[] = new Array(batch.length);
   let cursor = 0;
   for (const index of byBoil) {
@@ -1167,6 +1482,38 @@ function assignSlots(
 }
 
 /**
+ * batch の並び——茹で時間の長い順・同値は**前回の `startAt` 順**（plan-stability AC 3.2）・それも同値なら正準順序
+ * （batch の index）。前回に無い品目は前回に在る品目の後ろ（守る順を持たない）。
+ *
+ * 前回の順を先に使うのは、pack / split の接頭辞をこの順で切る（AC 9.8）ため——同値を正準順序で断つと、前回
+ * 「先に上げる」と示した品目が後ろの塊へ回り、順の逆転（Change_Cost (c-2)）を自前解自身が作る。
+ */
+function batchOrder(batch: readonly Boiling[], continuity: Continuity | null): readonly number[] {
+  const shownStartAt = (index: number): number | null =>
+    continuity?.shownByKey.get(itemKeyOf(batch[index]!.order))?.startAt ?? null;
+  return batch
+    .map((_unused, index) => index)
+    .sort(
+      (index, other) =>
+        batch[other]!.boilMillis - batch[index]!.boilMillis ||
+        compareShownStartAt(shownStartAt(index), shownStartAt(other)) ||
+        index - other,
+    );
+}
+
+/** 前回の startAt の比較。無い側を後ろへ、両方無ければ同値。 */
+function compareShownStartAt(a: number | null, b: number | null): number {
+  if (a === null) return b === null ? 0 : 1;
+  if (b === null) return -1;
+  return a - b;
+}
+
+/** 釜の組の一致（同じ本数で同じ番号の集合）。 */
+function sameSlots(slots: readonly number[], other: readonly number[]): boolean {
+  return slots.length === other.length && other.every((slot) => slots.includes(slot));
+}
+
+/**
  * count 本の釜を選ぶ。**「count 本すべてが空く最早時刻」が最小になる組**が第一の基準（design のアルゴリズム 2）。
  *
  * その最早時刻は解放時刻の count 番目に小さい値で、候補はそれ以下に空く釜の全体である。候補が count 本より
@@ -1177,13 +1524,33 @@ function assignSlots(
  * 同点は slot index 昇順で断つ。初期値を候補の先頭 count 本（index 昇順で最小の組）に置き、距離和が
  * **真に小さい**組でしか置き換えないため、同点は常に index の小さい組が残る。
  *
+ * **前回の釜の第一候補（plan-stability AC 3.1）。** `preferred` が count 本の相異なる実在の釜で、そのすべてが `freeBy`
+ * までに空く（解放時刻 ≤ freeBy＝候補の提供時刻 − 茹で時間）ならそれを採る。そうでなければ上の規則へ落ちる
+ * （前回の釜が埋まっていれば動く・AC 3.3）。候補の時刻までに空くなら、いま埋まっていても採る——待たされる列の
+ * 候補は前回の釜が空く前には来ないので、前回の釜を採ることで列が遅れることはない。
+ *
  * count ≤ release.length を前提とする（呼び出し側が釜の数で分割している）。
  */
 function chooseSlots(
   count: number,
   release: SlotRelease,
   params: ScheduleParams,
+  preferred?: readonly number[],
+  freeBy?: number,
 ): readonly number[] {
+  if (
+    preferred !== undefined &&
+    freeBy !== undefined &&
+    preferred.length === count &&
+    new Set(preferred).size === count &&
+    preferred.every((slot) => {
+      const at = release[slot];
+      return at !== undefined && at <= freeBy;
+    })
+  ) {
+    // 並びは既存の規則と同じ「早く空く順・同値は index 順」（配置の slotIds の並びが規則で揺れない）。
+    return [...preferred].sort((slot, other) => release[slot]! - release[other]! || slot - other);
+  }
   const byRelease = release
     .map((_unused, slot) => slot)
     .sort((slot, other) => release[slot]! - release[other]! || slot - other);

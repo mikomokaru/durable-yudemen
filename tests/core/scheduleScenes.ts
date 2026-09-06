@@ -222,7 +222,7 @@ export function externalPlan(
       : pending.filter(
           (order) => !victim.placements.some((placement) => refersTo(placement, order)),
         );
-  return baselineSchedule(planned, release, members, lifts, DEFAULT_NOODLE_PRESETS, params);
+  return baselineSchedule(planned, release, members, lifts, DEFAULT_NOODLE_PRESETS, params, null);
 }
 
 /**
@@ -244,6 +244,7 @@ export function baselinePlan(
     initialLifts(running),
     DEFAULT_NOODLE_PRESETS,
     params,
+    null,
   );
 }
 
@@ -288,6 +289,7 @@ export function shortestFirstPlan(
     initialLifts(running),
     DEFAULT_NOODLE_PRESETS,
     params,
+    null,
   );
 }
 

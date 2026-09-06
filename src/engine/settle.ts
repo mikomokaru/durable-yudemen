@@ -160,6 +160,9 @@ function requestPlan(
     params,
     noodlePresets: params.noodlePresets,
     digest,
+    // 確定したばかりの Shown_Plan（この Persist に載るもの）。届いた外部解はそのときの state.shownPlan——通常はこれ——を
+    // 相手に採点される（plan-stability AC 1.4・4.5）。
+    shownPlan: state.shownPlan,
   };
 }
 
@@ -303,6 +306,10 @@ export function toWireSnapshot(
 /**
  * 確定計画とその推奨を導く（`committedSchedule` → `recommend`）。settle は両方を要る——snapshot には推奨を、
  * Shown_Plan には配置（serveAt / anchor）と推奨の群の双方を載せるため、一度導いて両方に使う。
+ *
+ * **自前解の尾部は旧 Shown_Plan（`state.shownPlan`・遷移前の状態が運ぶもの）を相手に置く（plan-stability Requirement 3・
+ * 判断 4）。** 比較の文脈は再同期後の Timer 集合と、この時点の now（判断 8）。settle からは確定前の nextState、hydration
+ * からは確定済みの状態が来るが、どちらも shownPlan は直前に Persist したものである。
  */
 function deriveRecommendations(
   state: TimerState,
@@ -317,6 +324,13 @@ function deriveRecommendations(
     now,
     params.noodlePresets,
     params,
+    {
+      shown: state.shownPlan,
+      running: state.timers,
+      now,
+      pending: state.pendingOrders,
+      presets: params.noodlePresets,
+    },
   );
   return { committed, recommendations: recommend(committed) };
 }

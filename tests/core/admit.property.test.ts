@@ -221,6 +221,7 @@ function committedOf(scene: AdmitScene, accepted: readonly AcceptedSlice[]): Coo
     scene.now,
     DEFAULT_NOODLE_PRESETS,
     scene.params,
+    null,
   );
 }
 

@@ -13,6 +13,7 @@
 // `toCookSchedule`（engine/schedule.ts）がその唯一の関門である。
 
 import type { ScheduleParams } from "../engine/objective";
+import type { ShownPlan } from "../engine/stability";
 import type { Timer } from "../engine/timer";
 import type { PendingOrder } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
@@ -47,4 +48,9 @@ export interface PlanRequest {
    * 解釈しない——採否は DO 側のゲートが決めるため、外部が指紋で何かを判断する必要がない。
    */
   readonly digest: number;
+  /**
+   * 前回配信対象として確定した提案（Shown_Plan・plan-stability AC 1.4）。外部解は Business_Cost + Change_Cost で
+   * 採点される（ゲート・AC 4.1）ので、同じ費用で最適化するために運ぶ。指紋には畳まれない（AC 4.5）。空は比較の相手なし。
+   */
+  readonly shownPlan: ShownPlan;
 }

@@ -17,6 +17,7 @@ import type { InputDigest } from "./digest";
 import type { PendingOrder } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 import type { ServerMessage } from "../domain/messages";
+import type { ShownPlan } from "./stability";
 
 /** 純粋変換が返す作用の記述。shell が先頭から順に実行する。 */
 export type Effect =
@@ -36,6 +37,9 @@ export type Effect =
       readonly params: ScheduleParams; // 重み 3・arms・許容調整割合・許容幅 2・距離 1・上げの間隔・レイアウト 2 の 11 値
       readonly noodlePresets: readonly NoodlePreset[]; // 茹で時間の出所（外部解が serveAt = startAt + 茹で時間 を満たすために要る）
       readonly digest: InputDigest; // 要求時点の Input_Fingerprint（この要求がどの入力に対するものかの同定）
+      // 前回配信対象として確定した提案（plan-stability AC 1.4）。外部解は Business_Cost + Change_Cost で採点される
+      // （AC 4.1）ので、同じ費用で最適化できるよう運ぶ。指紋には畳まない（AC 4.5——前回の出力であって入力ではない）。
+      readonly shownPlan: ShownPlan;
     };
 
 /** 純粋変換の結果。成功なら新状態と Effect 列、失敗なら拒否理由。 */

@@ -126,7 +126,7 @@ function scoreOf(schedule: CookSchedule) {
 }
 
 /** 現行 Committed_Plan（採用済みが無い＝自前解そのもの）。 */
-const COMMITTED = committedSchedule([], PENDING, BLOCKED, NOW, PRESETS, PARAMS);
+const COMMITTED = committedSchedule([], PENDING, BLOCKED, NOW, PRESETS, PARAMS, null);
 
 /** ゲートへ通す。 */
 function gate(arrived: CookSchedule) {
@@ -161,7 +161,7 @@ describe("admit — 段 1（接頭辞の枝刈り）", () => {
 
     // 尾部は**再実行**される。外部が A に与えた開始時刻（+120 秒）ではなく、採用した接頭辞の解放表から
     // 引き直した +60 秒に入る——切り貼りではないことがここに現れる。
-    const composed = committedSchedule(admitted, PENDING, BLOCKED, NOW, PRESETS, PARAMS);
+    const composed = committedSchedule(admitted, PENDING, BLOCKED, NOW, PRESETS, PARAMS, null);
     expect(composed.slices.map((each) => [each.tableKey, each.placements[0]!.startAt])).toEqual([
       ["t-b", NOW],
       ["t-a", NOW + 60 * SECOND],
@@ -183,7 +183,15 @@ describe("admit — 段 2（合成後の総和による全体判定）", () => {
     expect(gate(arrived)).toEqual([]);
 
     // 悪化の事実を固定する（棄却の理由が「悪化」であって陳腐化や制約違反ではないこと）。
-    const wouldBe = committedSchedule([arrived.slices[0]!], PENDING, BLOCKED, NOW, PRESETS, PARAMS);
+    const wouldBe = committedSchedule(
+      [arrived.slices[0]!],
+      PENDING,
+      BLOCKED,
+      NOW,
+      PRESETS,
+      PARAMS,
+      null,
+    );
     expect(scoreOf(wouldBe).total).toBe(1720 + RUNNING_ONLY_OVERFLOW);
     expect(scoreOf(wouldBe).total).toBeGreaterThan(scoreOf(COMMITTED).total);
   });
@@ -263,7 +271,7 @@ describe("admit — slotSpan は釜番号で数える（レビュー指摘・AC 
   /** 2 釜を要する短い麺。空いている釜は 0 番だけなので、正しく数えれば今は置けない。 */
   const WIDE: PendingOrder = { ...SHORT, slotSpan: 2 };
   const PENDING_WIDE: readonly PendingOrder[] = [LONG, WIDE];
-  const COMMITTED_WIDE = committedSchedule([], PENDING_WIDE, BLOCKED, NOW, PRESETS, PARAMS);
+  const COMMITTED_WIDE = committedSchedule([], PENDING_WIDE, BLOCKED, NOW, PRESETS, PARAMS, null);
 
   function wide(slotIds: readonly SlotId[]): CookSchedule {
     return {
@@ -325,6 +333,7 @@ describe("admit — 同値と空", () => {
       initialLifts(BLOCKED),
       PRESETS,
       PARAMS,
+      null,
     );
 
     expect(gate(same)).toEqual([]);
@@ -337,7 +346,7 @@ describe("admit — 揃った群を 1 ms 崩した外部計画は通らない（
     order("o-x", "Short", "t-x"),
     { ...order("o-y", "Short", "t-x"), externalOrderId: "o-y" },
   ];
-  const committed = committedSchedule([], twin, BLOCKED, NOW, PRESETS, PARAMS);
+  const committed = committedSchedule([], twin, BLOCKED, NOW, PRESETS, PARAMS, null);
   const members = tableMembers(BLOCKED);
   const gateTwin = (arrived: CookSchedule) =>
     admit(arrived, committed, twin, BLOCKED, EMPTY_SHOWN_PLAN, NOW, PRESETS, PARAMS);
@@ -403,7 +412,7 @@ describe("admit — 揃った群を 1 ms 崩した外部計画は通らない（
         seq,
       }),
     );
-    const aligned = committedSchedule([], twin, running, NOW, PRESETS, PARAMS);
+    const aligned = committedSchedule([], twin, running, NOW, PRESETS, PARAMS, null);
     const [first, second] = aligned.slices[0]!.placements;
     expect(first!.serveAt).toBe(NOW + 60 * SECOND);
     expect(second!.serveAt).toBe(NOW + 60 * SECOND);
@@ -481,7 +490,7 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
     itemName: null,
     sizeName: null,
   }));
-  const COMMITTED_WIDE = committedSchedule([], REST, [FIRST], NOW, WIDE_PRESETS, PARAMS);
+  const COMMITTED_WIDE = committedSchedule([], REST, [FIRST], NOW, WIDE_PRESETS, PARAMS, null);
 
   /** 合流分の投入時刻（秒）。錨の窓 [360,405) には走行中の 2 本分が在り、4 本分の pack は次の窓 405 秒に上がる。 */
   const JOINED_START = 45;
@@ -527,6 +536,7 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
     NOW,
     WIDE_PRESETS,
     PARAMS,
+    null,
   );
 
   it("場面の前提: 自前解は 2 品を走行中の錨に合流させ（上げ窓で錨の次の窓 405 秒へ）、1 品を後に置く", () => {
@@ -717,6 +727,7 @@ describe("admit — 後続品のために合流分を遅らせた計画は棄却
     NOW,
     PRESETS,
     PARAMS,
+    null,
   );
 
   it("場面の前提: 採用済みの一片は維持され、Short を合流させたまま Long を 60 秒に始める計画は改善として採用される", () => {
@@ -778,7 +789,7 @@ describe("admit — 上げ窓の上限 arms + HELPER_ARMS を超える計画は 
     );
   }
   function gateWith(running: readonly Timer[], arrived: CookSchedule, params = PARAMS) {
-    const committed = committedSchedule([LATE], [ITEM], running, NOW, PRESETS, params);
+    const committed = committedSchedule([LATE], [ITEM], running, NOW, PRESETS, params, null);
     return admit(arrived, committed, [ITEM], running, EMPTY_SHOWN_PLAN, NOW, PRESETS, params);
   }
 
@@ -828,7 +839,7 @@ describe("admit — 前回提示した提案からの変更費用で採点する
         serveAt: NOW + (startSeconds + 60) * SECOND,
       },
     ]);
-    const committed = committedSchedule([accepted], TWO, BLOCKED, NOW, PRESETS, PARAMS);
+    const committed = committedSchedule([accepted], TWO, BLOCKED, NOW, PRESETS, PARAMS, null);
     const shown = shownPlanOf(committed, recommend(committed));
     const change = { shown, running: BLOCKED, now: NOW, pending: TWO, presets: PRESETS };
     const totalOf = (schedule: CookSchedule) =>

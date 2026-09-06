@@ -26,6 +26,7 @@ import {
   type SlotRelease,
 } from "./schedule";
 import type { TableMembers } from "./project";
+import type { ChangeContext } from "./stability";
 import type { Timer } from "./timer";
 import type { EpochMillis } from "./types";
 
@@ -52,6 +53,9 @@ import type { EpochMillis } from "./types";
  * (2) `slotCount` は引数に取らない——`params.unitOrigins` の要素数が unitCount であり（toUnitOrigins が
  *     長さを揃える）、slot 数はそこからの導出値である。引数で受ければ、レイアウトと釜の数という
  *     同じ事実の入口が二つになる。
+ * (3) `changeContext`（plan-stability Component 5）——尾部の自前解が前回の提案（旧 Shown_Plan）の釜とまとまりを
+ *     候補にするための文脈。null は比較の相手なし。接頭辞（採用済み一片）は前回の配置ではなく採用の事実ゆえ
+ *     文脈を読まない。
  */
 export function committedSchedule(
   accepted: readonly AcceptedSlice[],
@@ -60,6 +64,7 @@ export function committedSchedule(
   now: EpochMillis,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
+  changeContext: ChangeContext | null,
 ): CookSchedule {
   const targets = planTargets(pending);
   // 解放表は開始済み Timer の占有から始め、接頭辞の配置で順に進める（design の合成手順 2）。
@@ -81,7 +86,7 @@ export function committedSchedule(
   // 尾部の対象は「接頭辞が使わなかった計画対象」。全 Pending_Order から除くのではない——それでは
   // 65 件目以降が繰り上がって計画に現れ、計画対象を 64 件に限る AC 11.2 が破れる。
   const remaining = targets.filter((order) => !isPlaced(order, prefix));
-  const tail = baselineSchedule(remaining, release, members, lifts, presets, params);
+  const tail = baselineSchedule(remaining, release, members, lifts, presets, params, changeContext);
 
   return { slices: [...prefix, ...tail.slices] };
 }

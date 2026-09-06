@@ -20,8 +20,10 @@ import type { Event } from "../../src/engine/event";
 import type { SettleParams } from "../../src/engine/settle";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { CookRecommendation, ServerMessage } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
+import { itemKeyOf, type ItemKey, type PendingOrder } from "../../src/domain/order";
 import { DEFAULT_NOODLE_PRESETS, HELPER_ARMS, slotOf } from "../../src/domain/store";
+import type { ShownItem, ShownPlan } from "../../src/engine/stability";
 import { settleParams } from "../settleParams";
 import { nonEmpty } from "../nonEmpty";
 
@@ -91,6 +93,45 @@ function exceedsLiftCap(
   });
 }
 
+/**
+ * Shown_Plan を Head の共有導出に掛ける（stability.ts の内側と同じ形——同じ群だった品目を束ね、表示と同じ `headsOf`
+ * で先頭 arms 本を引く）。ここでは 1 卓だけなので、群は `recommend` と同じ「合流なら同じ錨・それ以外は同じ提供時刻」
+ * で束ねれば `mates` の成分に一致する。
+ */
+function headsOfShown(
+  shown: ShownPlan,
+  pending: readonly PendingOrder[],
+  state: TimerState,
+  now: EpochMillis,
+  arms: number,
+): readonly ItemKey[] {
+  const byKey = new Map(pending.map((order) => [itemKeyOf(order), order]));
+  const items: LiftItem[] = [];
+  for (const item of shown) {
+    const order = byKey.get(itemKeyOf(item));
+    if (order === undefined) continue;
+    items.push({
+      recommendation: {
+        externalOrderId: item.externalOrderId,
+        itemIndex: item.itemIndex,
+        slotIds: item.slotIds,
+        startAt: item.startAt,
+        group: item.anchor === null ? `${item.serveAt}` : `anchor:${item.anchor}`,
+        anchor: item.anchor,
+      },
+      order,
+      boilSeconds: BOIL_MILLIS / 1000,
+    });
+  }
+  const busy = new Set(state.timers.flatMap((timer) => timer.slotIds.map(slotOf)));
+  return headsOf(visibleGroupsOf(liftGroupsOf(items, now)), busy, now, arms);
+}
+
+/** 釜の集合の正準表現。 */
+function slotsOf(item: ShownItem): string {
+  return [...new Set(item.slotIds.map(slotOf))].sort((a, b) => a - b).join(",");
+}
+
 describe("連続投入の不変 — 同じ卓の同じ茹で時間の品目を 1 本ずつ順に投入し続ける", () => {
   for (const arms of [1, 2, 3]) {
     for (const gapSeconds of [0, 1, 3, 5]) {
@@ -106,6 +147,8 @@ describe("連続投入の不変 — 同じ卓の同じ茹で時間の品目を 1
           { type: "OrderArrived", arrival: nonEmpty([...ORDERS]), now: at(now) },
           params,
         );
+        // 前回の提案（直前の確定で Persist に載った Shown_Plan）と、それを見せていた時点。
+        let previous = current.state.shownPlan;
         // 到着直後：8 本すべてに推奨が付くが、now に始められるのは同じ窓の上限 arms + 2 本まで。残りは次の窓から
         // 茹で時間を引いた未来の startAt で薄く現れる（「全部 now」ではない・判断 20）。
         expect(current.snapshot.recommendations).toHaveLength(8);
@@ -151,6 +194,41 @@ describe("連続投入の不変 — 同じ卓の同じ茹で時間の品目を 1
             current.snapshot.recommendations.some((rec) => rec.startAt > at(now)),
             `投入 ${started} 本目の直後に「全部 now」`,
           ).toBe(true);
+
+          // **plan-stability（Requirement 3・性質 5.6 の横断）：投入のたびに残りの釜と順は変わらない。** 残りの品目
+          // （前回にも今回にも在る）について、釜は同じ集合、前回の投入の順（startAt 順）は逆転せず、前回同じ群だった組は
+          // 同じ群のまま、前回の先頭（今の時点・今の走行中で導く）で残っている品目は今回も先頭。時刻の移動だけは
+          // 上げ窓が押す分だけ起こりうる（走行中の上がりと同じ窓に arms + 2 本を超えて載せられない）。
+          const next = current.state.shownPlan;
+          const prevByKey = new Map(previous.map((item) => [itemKeyOf(item), item]));
+          const kept = next.filter((item) => prevByKey.has(itemKeyOf(item)));
+          expect(kept.length, `投入 ${started} 本目の直後に残りが減った`).toBe(8 - started);
+          for (const item of kept) {
+            const before = prevByKey.get(itemKeyOf(item))!;
+            expect(slotsOf(item), `${itemKeyOf(item)} の釜が動いた（投入 ${started} 本目）`).toBe(
+              slotsOf(before),
+            );
+            for (const other of kept) {
+              const earlier = prevByKey.get(itemKeyOf(other))!;
+              const wasBefore = Math.sign(before.startAt - earlier.startAt);
+              const isBefore = Math.sign(item.startAt - other.startAt);
+              expect(wasBefore * isBefore, `順が逆転した（投入 ${started} 本目）`).not.toBeLessThan(
+                0,
+              );
+              if (before.mates.includes(itemKeyOf(other))) {
+                expect(item.mates, `まとまりが割れた（投入 ${started} 本目）`).toContain(
+                  itemKeyOf(other),
+                );
+              }
+            }
+          }
+          const remaining = current.state.pendingOrders;
+          const oldHead = headsOfShown(previous, remaining, current.state, at(now), arms);
+          const newHead = headsOfShown(next, remaining, current.state, at(now), arms);
+          for (const key of oldHead) {
+            expect(newHead, `先頭 ${key} が外れた（投入 ${started} 本目）`).toContain(key);
+          }
+          previous = next;
         }
       });
     }

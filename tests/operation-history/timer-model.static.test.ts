@@ -74,10 +74,11 @@ type ModelShapeAssertions = [
   Assert<Equal<VariantKeys<"ClearAlarm">, "type">>,
   Assert<Equal<VariantKeys<"Broadcast">, "type" | "message">>,
   // lift-group-planning が RequestPlan に noodlePresets を足した（要求の入力を engine の決定として一箇所に定める）。
+  // plan-stability（タスク 4）が shownPlan を足した（外部解も同じ変更費用で採点されるため・AC 1.4。指紋には畳まない）。
   Assert<
     Equal<
       VariantKeys<"RequestPlan">,
-      "type" | "pending" | "running" | "params" | "noodlePresets" | "digest"
+      "type" | "pending" | "running" | "params" | "noodlePresets" | "digest" | "shownPlan"
     >
   >,
   Assert<Equal<Extract<Effect, { readonly type: "Persist" }>["snapshot"], StoreSnapshot>>,

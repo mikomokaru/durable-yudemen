@@ -266,8 +266,10 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
    * 始めると B は走行中の錨 600 秒に合流し（startAt 240 秒・anchor 600 秒）、C は釜が空く 600 秒に置かれる
    * （別卓の G2・anchor null）。
    *
-   * 塞ぐ釜と A を始める釜は変種ごとに違う。再計画は同点の釜を index で断つので、発火後に残りの B が boiled の
-   * 釜へ置き直されるか（index 最小）、自分の釜に留まるか（index 最大）は釜の割当だけで決まる。
+   * 塞ぐ釜と A を始める釜は変種ごとに違う。**再計画は前回の提案の釜を第一候補にする（plan-stability AC 3.1）**ので、
+   * A を推奨と違う釜で始めても B は前回の釜に留まり、発火後も boiled の釜（A の釜）へ置き直されない——かつては
+   * 同点の釜を index で断ち、index 最小の変種では B が boiled の釜 0 へ移って Complete まで提案が消えていた。
+   * 変種の違いは釜の番号だけになり、どちらでも B の提案は発火の snapshot から自分の釜に濃く出る。
    */
   const A = order("a", { noodleType: "Long", tableId: "t-1", arrivalTime: at(-20) });
   const B = order("b", { noodleType: "Mid", tableId: "t-1", arrivalTime: at(-20) });
@@ -295,56 +297,57 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
 
   const VARIANTS: readonly Variant[] = [
     {
-      name: "boiled の釜が index 最小（釜 0 で始めた・残りは釜 4・別卓は釜 4・5）",
+      name: "A の釜が index 最小（釜 0 で始めた・残りは釜 5・別卓は釜 4・5）",
       blocked: [
         [1, 900],
         [2, 1800],
         [3, 1800],
       ],
       pressed: 0,
+      // 到着時の提案は A 釜 4・B 釜 5・C 釜 4・5（釜距離の近い組）。A を釜 0 で始めても B と C は前回の釜に留まる。
       plan: [
-        ["b#0", ["4"], 240, 600],
-        ["c#0", ["5", "4"], 600, null],
-      ],
-      at599: [
-        [4, ["b#0 now", "c#0 queued"]],
-        [5, ["c#0 queued"]],
-      ],
-      at600: [[4, ["b#0 now"]]],
-      // 再計画は 600 秒に空く釜（boiled の 0・計画上の 4・空きの 5）のうち index 最小の釜 0 へ B を置き直す。
-      // 釜 0 は Complete 待ちで埋まっているので、B の提案はどこにも出ない（Error Handling「Complete までは残りの
-      // 提案が出ないことがある」）。
-      firedPlan: [
-        ["b#0", ["0"], 600, null],
+        ["b#0", ["5"], 240, 600],
         ["c#0", ["4", "5"], 600, null],
       ],
-      fired: [],
-      completed: [[0, ["b#0 now"]]],
+      at599: [
+        [4, ["c#0 queued"]],
+        [5, ["b#0 now", "c#0 queued"]],
+      ],
+      at600: [[5, ["b#0 now"]]],
+      // 再計画は 600 秒に空く釜（boiled の 0・空きの 4・前回の 5）のうち前回の釜 5 に B を留める。C の前回の釜 4・5 は
+      // 5 を B が使うので既存の規則へ落ち、600 秒に空く釜 0・4 を採る。
+      firedPlan: [
+        ["b#0", ["5"], 600, null],
+        ["c#0", ["0", "4"], 600, null],
+      ],
+      fired: [[5, ["b#0 now"]]],
+      completed: [[5, ["b#0 now"]]],
     },
     {
-      name: "boiled の釜が index 最大（釜 5 で始めた・残りは釜 2・別卓は釜 2・4）",
+      name: "A の釜が index 最大（釜 5 で始めた・残りは釜 4・別卓は釜 2・4）",
       blocked: [
         [0, 900],
         [1, 1800],
         [3, 1800],
       ],
       pressed: 5,
+      // 到着時の提案は A 釜 2・B 釜 4・C 釜 2・4。A を釜 5 で始めても B と C は前回の釜に留まる。
       plan: [
-        ["b#0", ["2"], 240, 600],
-        ["c#0", ["4", "2"], 600, null],
+        ["b#0", ["4"], 240, 600],
+        ["c#0", ["2", "4"], 600, null],
       ],
       at599: [
-        [2, ["b#0 now", "c#0 queued"]],
-        [4, ["c#0 queued"]],
+        [2, ["c#0 queued"]],
+        [4, ["b#0 now", "c#0 queued"]],
       ],
-      at600: [[2, ["b#0 now"]]],
-      // index 最小は B 自身の釜 2 なので B はそこに留まり、釜 2 は idle ゆえ濃く出る。
+      at600: [[4, ["b#0 now"]]],
+      // B は前回の釜 4 に留まる。C の前回の釜 2・4 は 4 を B が使うので既存の規則へ落ち、600 秒に空く釜 2・5 を採る。
       firedPlan: [
-        ["b#0", ["2"], 600, null],
-        ["c#0", ["4", "5"], 600, null],
+        ["b#0", ["4"], 600, null],
+        ["c#0", ["2", "5"], 600, null],
       ],
-      fired: [[2, ["b#0 now"]]],
-      completed: [[2, ["b#0 now"]]],
+      fired: [[4, ["b#0 now"]]],
+      completed: [[4, ["b#0 now"]]],
     },
   ];
 
@@ -399,10 +402,11 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
         expect(suggestionsAt(started, at(600))).toEqual(variant.at600);
       });
 
-      it("発火 snapshot：B は錨を持たない新しい群として届き、G2 は引き続き隠れる", () => {
+      it("発火 snapshot：B は錨を持たない新しい群として前回の釜のまま届き、G2 は引き続き隠れる", () => {
         expect(planOf(fired)).toEqual(variant.firedPlan);
         // 残りは「いま始める群」に組み直される——boiled の A（600 秒）にはもう合流せず anchor は null で started でない。
-        // G2 との startAt の同値は到着順で断たれ、先に届いた t-1 が先頭に立つ（AC 1.4）。
+        // 釜は前回のまま（plan-stability AC 3.1）。G2 との startAt の同値は到着順で断たれ、先に届いた t-1 が先頭に
+        // 立つ（AC 1.4）。
         expect(groupsAt(fired, at(600))).toEqual([
           { anchor: null, items: ["b#0"], started: false },
           { anchor: null, items: ["c#0"], started: false },
@@ -411,7 +415,7 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
         expect(suggestionsAt(fired, at(600))).toEqual(variant.fired);
       });
 
-      it("A を Complete した snapshot：B の釜が idle になり、B が先頭として濃く出る。G2 はまだ隠れる", () => {
+      it("A を Complete した snapshot：B は引き続き自分の釜に先頭として濃く出る。G2 はまだ隠れる", () => {
         expect(visibleAt(completed, at(600))).toEqual([["b#0"]]);
         expect(suggestionsAt(completed, at(600))).toEqual(variant.completed);
       });
@@ -448,12 +452,14 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
     ]);
   });
 
-  it("1 本目を始めた後：合流する 2 品が G1（started・anchor ＝ 走行中の endTime）。走行中の 2 本分と同じ窓には載らず 45 秒後に濃くなる。G2 の item4 は釜 0・1 が走行中の間は出ない", () => {
+  it("1 本目を始めた後：合流する 2 品が G1（started・anchor ＝ 走行中の endTime）。前回「今」だった item2 は走行中と同じ窓に留まり、item3 だけが 45 秒後へ動く。G2 の item4 は釜 0・1 が走行中の間は出ない", () => {
     // 走行中の 1 本目は 2 釜＝2 本分で 360 秒の窓を arms の分だけ埋めている。合流分 2 品（4 本分）を足すと上限 4 を
-    // 超えるので、pack は錨の次の窓 405 秒（startAt 45 秒）へ動く。所属（anchor 360）は変わらず started のまま
-    // （lift-group-planning 判断 20・AC 9.9）。
+    // 超えるので、pack なら錨の次の窓 405 秒（startAt 45 秒）へ動く。**前回の提案は item2 を「今」（先頭）と示して
+    // いた**ので、pack は先頭の消失（2L）と時刻の移動を払い、item2 を同じ窓に残す split（item3 だけ 45 秒後）が
+    // 総費用で勝つ（plan-stability design Component 5 の局所比較）。所属（anchor 360）はどちらも変わらず started
+    // のまま（lift-group-planning 判断 20・AC 9.9）。
     expect(planOf(firstStarted.snapshot)).toEqual([
-      ["o#1", ["2", "3"], 45, 360],
+      ["o#1", ["2", "3"], 0, 360],
       ["o#2", ["4", "5"], 45, 360],
       ["o#3", ["0", "1"], 360, null],
     ]);
@@ -461,11 +467,12 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
       { anchor: 360, items: ["o#1", "o#2"], started: true },
       { anchor: null, items: ["o#3"], started: false },
     ]);
-    // 釜が空いていても窓が埋まっていれば startAt は未来——提案は Prep_Lead の内側で薄く現れ、時刻が来たら濃くなる。
-    expect(headsAt(firstStarted.snapshot, at(0))).toEqual([]);
+    // item2 は時刻が来ていて濃い。item3 は窓が埋まっていて startAt が未来——提案は Prep_Lead の内側で薄く現れ、
+    // 時刻が来たら濃くなる。
+    expect(headsAt(firstStarted.snapshot, at(0))).toEqual(["o#1"]);
     expect(suggestionsAt(firstStarted.snapshot, at(0))).toEqual([
-      [2, ["o#1 queued"]],
-      [3, ["o#1 queued"]],
+      [2, ["o#1 now"]],
+      [3, ["o#1 now"]],
       [4, ["o#2 queued"]],
       [5, ["o#2 queued"]],
     ]);
@@ -517,35 +524,40 @@ describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・
     ]);
   });
 
-  it("(ii) 2 品を始めないまま 360 秒に 1 本目が発火 → 残り 3 品は同じ batch に再統合され、上げ窓で 2 品（720 秒）と 1 品（765 秒）の群に割れる。item4 の群は先頭の群が始まるまで隠れる", () => {
+  it("(ii) 2 品を始めないまま 360 秒に 1 本目が発火 → 残り 3 品は同じ batch に再統合され、上げ窓で 2 品（720 秒）と 1 品（765 秒）の群に割れる。釜は前回のまま。item4 の群は先頭の群が始まるまで隠れる", () => {
     const fired = step(firstStarted.state, fire(at(360)));
     // 走行中の錨（360 秒）は過去ゆえ誰も合流できず、3 品が候補 720 秒の同じ batch（錨なし）になる。6 本分は
     // 同じ窓に載らない（上限 4 本分）ので、3 品目は次の窓 765 秒（startAt 405 秒）へ（lift-group-planning 判断 20）。
+    // 釜は前回の提案のまま（plan-stability AC 3.1）——boiled の釜 0・1 は空くが、そこへ置き直す理由が無い。
+    // batch の並びも前回の startAt 順（item2・item3・item4）で、先頭の塊はその順に切られる（AC 3.2）。
     expect(planOf(fired.snapshot)).toEqual([
-      ["o#1", ["0", "1"], 360, null],
-      ["o#2", ["2", "3"], 360, null],
-      ["o#3", ["4", "5"], 405, null],
+      ["o#1", ["2", "3"], 360, null],
+      ["o#2", ["4", "5"], 360, null],
+      ["o#3", ["0", "1"], 405, null],
     ]);
     expect(groupsAt(fired.snapshot, at(360))).toEqual([
       { anchor: null, items: ["o#1", "o#2"], started: false },
       { anchor: null, items: ["o#3"], started: false },
     ]);
-    // 釜 0・1 は boiled で item2 は出ない。item3 は濃い。item4 は後の群で、先頭の群が始まるまで表示できない
-    // （lift-group-display 判断 19・AC 1.8）。
-    expect(headsAt(fired.snapshot, at(360))).toEqual(["o#2"]);
+    // 先頭の群の item2・item3 は自分の釜が空いていて濃い（arms 2 の内側）。item4 は後の群で、先頭の群が始まるまで
+    // 表示できない（lift-group-display 判断 19・AC 1.8）。
+    expect(headsAt(fired.snapshot, at(360))).toEqual(["o#1", "o#2"]);
     expect(suggestionsAt(fired.snapshot, at(360))).toEqual([
-      [2, ["o#2 now"]],
-      [3, ["o#2 now"]],
+      [2, ["o#1 now"]],
+      [3, ["o#1 now"]],
+      [4, ["o#2 now"]],
+      [5, ["o#2 now"]],
     ]);
 
-    // Complete で item2 の釜が空くと、同じ群の item2・item3 が濃い（arms 2 の内側）。item4 の群は引き続き隠れる。
+    // Complete で釜 0・1 が idle になっても、そこを指す item4 の群は引き続き隠れ、提案は変わらない。
     const completed = step(fired.state, complete(ITEM1, at(360)));
+    expect(planOf(completed.snapshot)).toEqual(planOf(fired.snapshot));
     expect(headsAt(completed.snapshot, at(360))).toEqual(["o#1", "o#2"]);
     expect(suggestionsAt(completed.snapshot, at(360))).toEqual([
-      [0, ["o#1 now"]],
-      [1, ["o#1 now"]],
-      [2, ["o#2 now"]],
-      [3, ["o#2 now"]],
+      [2, ["o#1 now"]],
+      [3, ["o#1 now"]],
+      [4, ["o#2 now"]],
+      [5, ["o#2 now"]],
     ]);
   });
 });
@@ -640,11 +652,13 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
     // そのまま（合成は導出で、永続を書き換えない）。
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
     // 自前解の置き直し：空いている釜は 0 だけ（釜 1 は U が 605 秒まで占める）。正準順の P#0 が錨 605 秒に合流し
-    // （305 秒に始める）、P#1 と Q（2 釜）は釜が空く 605 秒に始める後続の batch（合流の窓に届かない）。
+    // （305 秒に始める）、P#1 と Q（2 釜）は釜が空く 605 秒に始める後続の batch（合流の窓に届かない）。batch の
+    // 並びは前回の startAt 順（Q 300 秒・P#1 600 秒）で Q が先に釜を取り、前回の釜 0・1 に留まる（plan-stability
+    // AC 3.1 / 3.2）。P#1 の前回の釜 1 は Q が使うので既存の規則へ落ち、605 秒に空く釜 5 を採る。
     expect(planOf(shifted.snapshot)).toEqual([
       ["p#0", ["0"], 305, 605],
-      ["p#1", ["0"], 605, null],
-      ["q#0", ["1", "5"], 605, null],
+      ["p#1", ["5"], 605, null],
+      ["q#0", ["0", "1"], 605, null],
     ]);
     // 運ぶ錨は現在の実効 endTime そのもの。client は `anchor > Corrected_Now` で started を読む（AC 1.7）。
     expect(groupsAt(shifted.snapshot, at(10))).toEqual([
@@ -665,10 +679,12 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
     expect(shifted.state.acceptedSlices).toEqual(EXTERNAL.slices);
     // 自前解の置き直し：空いている釜は 0 だけ。P#0 の earliest 590 秒は錨 570 秒から h_i の内側なので earliest に
     // 置いて（いま始める・判断 18）錨は 570 秒。P#1 と Q は釜が空いてからの後続の batch（590 秒に始めて 890 秒）。
+    // Q は前回の startAt 順で先に釜を取り、前回の釜 0・1 に留まる（plan-stability AC 3.1 / 3.2・釜の並びは解放時刻順で
+    // 570 秒に空く釜 1 が先）。P#1 は釜 5 へ。
     expect(planOf(shifted.snapshot)).toEqual([
       ["p#0", ["0"], 290, 570],
-      ["p#1", ["1"], 590, null],
-      ["q#0", ["5", "0"], 590, null],
+      ["p#1", ["5"], 590, null],
+      ["q#0", ["1", "0"], 590, null],
     ]);
     expect(groupsAt(shifted.snapshot, at(290))).toEqual([
       { anchor: 570, items: ["p#0"], started: true },
@@ -691,10 +707,12 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
     // 自前解の置き直し：P#0 の earliest 590 秒は錨 547 秒から 43 秒——h_i の外で、後の走行中も無いので卓の誰も
     // 合流できない。3 品（4 釜分）は一つの batch として最遅の earliest に揃う（判断 4——揃えは採点の帰結）：
     // 1620 秒まで空く釜は 0・1・5 の 3 つで 4 釜分に足りず、4 つ目の釜（2）が空く 1620 秒に全員が始める。
+    // 釜は前回の startAt 順（Q 300 秒が先）に前回の釜を採る——Q が 0・1 に留まり、前回 0・1 を指した P の 2 品は
+    // 既存の規則で 2・3 へ（plan-stability AC 3.1 / 3.2。先に選ぶ品目が後の品目の前回の釜を取ることはある）。
     expect(planOf(shifted.snapshot)).toEqual([
-      ["p#0", ["0"], 1620, null],
-      ["p#1", ["1"], 1620, null],
-      ["q#0", ["2", "3"], 1620, null],
+      ["p#0", ["2"], 1620, null],
+      ["p#1", ["3"], 1620, null],
+      ["q#0", ["0", "1"], 1620, null],
     ]);
     // 錨を持たない群は started でない（判断 17：もう届かない品目の一片は「開始済み」を要求しない）。
     expect(groupsAt(shifted.snapshot, at(290))).toEqual([
