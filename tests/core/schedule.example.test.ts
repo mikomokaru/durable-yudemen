@@ -41,7 +41,12 @@ import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
-import { DEFAULT_NOODLE_PRESETS, HELPER_ARMS, type NoodlePreset } from "../../src/domain/store";
+import {
+  DEFAULT_NOODLE_PRESETS,
+  HELPER_ARMS,
+  occupiedSlotsOf,
+  type NoodlePreset,
+} from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
 import {
@@ -200,6 +205,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -235,6 +241,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
         NOW,
+        occupiedSlotsOf([]),
         null,
       ),
     ).toEqual({
@@ -252,6 +259,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
         NOW,
+        occupiedSlotsOf([]),
         null,
       ),
     ).toEqual({
@@ -277,6 +285,7 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -300,6 +309,7 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -341,6 +351,7 @@ describe("baselineSchedule — 釜が埋まっている", () => {
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf(running),
       null,
     );
 
@@ -382,6 +393,7 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
     const placed = schedule.slices.flatMap((slice) => slice.placements);
@@ -400,6 +412,7 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
     const split = schedule.slices.find((slice) => slice.tableKey === "t-big")!;
@@ -540,6 +553,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf(running),
       null,
     );
 
@@ -566,6 +580,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf(running),
       null,
     );
 
@@ -591,6 +606,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf(running),
       null,
     );
 
@@ -624,6 +640,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf(running),
       null,
     );
 
@@ -647,6 +664,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -673,6 +691,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
     const serveSeconds = schedule.slices[0]!.placements.map(
@@ -744,6 +763,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
         NOW,
+        occupiedSlotsOf([]),
         null,
       );
       expect(before.slices[0]!.placements.map((p) => (p.serveAt - NOW) / 1000)).toEqual([
@@ -762,6 +782,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
         NOW,
+        occupiedSlotsOf(running),
         null,
       );
       // A#1・A#2 は空いている 4 釜で走行中の錨（60 秒）に合流し、A#3 だけが釜の空く 60 秒後に回る。
@@ -805,6 +826,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         presets,
         PARAMS,
         NOW,
+        occupiedSlotsOf(running),
         null,
       );
 
@@ -831,6 +853,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
         NOW,
+        occupiedSlotsOf(running),
         null,
       );
 
@@ -868,6 +891,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
         NOW,
+        occupiedSlotsOf(running),
         null,
       );
 
@@ -888,6 +912,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
         NOW,
+        occupiedSlotsOf(roomier),
         null,
       );
       expect(readable(joined.slices[0]!.placements[0]!)).toEqual({
@@ -950,6 +975,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -970,6 +996,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
     const placements = schedule.slices[0]!.placements;
@@ -995,6 +1022,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       DEFAULT_NOODLE_PRESETS,
       roomy,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -1020,6 +1048,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -1047,6 +1076,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       DEFAULT_NOODLE_PRESETS,
       narrow,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -1063,6 +1093,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
         DEFAULT_NOODLE_PRESETS,
         narrow,
         NOW,
+        occupiedSlotsOf([]),
         null,
       ),
     ).toEqual({ slices: [] });
@@ -1085,6 +1116,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       DEFAULT_NOODLE_PRESETS,
       narrow,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -1101,6 +1133,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
         DEFAULT_NOODLE_PRESETS,
         narrow,
         NOW,
+        occupiedSlotsOf([]),
         null,
       ).slices[0]!.placements.map(readable),
     ).toEqual([{ item: "F#0", slots: ["0", "1"], startSeconds: 0, serveSeconds: 60 }]);
@@ -1127,6 +1160,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
             tableSyncWeight,
           },
           NOW,
+          occupiedSlotsOf(running),
           null,
         ),
       );
@@ -1157,6 +1191,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
 
@@ -1240,6 +1275,7 @@ describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10�
       PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf(running),
       null,
     ).slices[0]!.placements;
   }
@@ -1434,6 +1470,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
       PRESETS,
       params,
       NOW,
+      occupiedSlotsOf(running),
       changeContext,
     );
   }
@@ -1672,6 +1709,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         PRESETS,
         params,
         NOW,
+        occupiedSlotsOf([]),
         changeContext,
       );
     const first = planWide(null);
@@ -1735,6 +1773,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         PRESETS,
         params,
         NOW,
+        occupiedSlotsOf(running),
         changeContext,
       );
     const first = planWide(null);
@@ -1844,6 +1883,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         PRESETS,
         params,
         NOW,
+        occupiedSlotsOf(running),
         changeContext,
       );
     const first = planWide(null);
@@ -1898,6 +1938,7 @@ describe("planTargets — 期限切れの品目は計画対象に入らない（
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf([]),
       null,
     );
     const placed = schedule.slices.flatMap((slice) => slice.placements);
@@ -1920,6 +1961,7 @@ describe("baselineSchedule — 期限切れの旧先頭を文脈から外す（p
       EXPIRY_PRESETS,
       EXPIRY_PARAMS,
       NOW,
+      occupiedSlotsOf(scene.running),
       pending === null
         ? null
         : {

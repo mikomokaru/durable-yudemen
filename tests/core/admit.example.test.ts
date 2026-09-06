@@ -33,7 +33,7 @@ import { tableMembers } from "../../src/engine/project";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
-import type { NoodlePreset } from "../../src/domain/store";
+import { occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
 import type { ShownPlan } from "../../src/engine/stability";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -336,6 +336,7 @@ describe("admit — 同値と空", () => {
       PRESETS,
       PARAMS,
       NOW,
+      occupiedSlotsOf(BLOCKED),
       null,
     );
 

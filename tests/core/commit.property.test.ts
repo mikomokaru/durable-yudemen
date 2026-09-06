@@ -53,6 +53,7 @@ import type { PendingOrder } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
+  occupiedSlotsOf,
   UNIT_COUNT_MAX,
   UNIT_COUNT_MIN,
 } from "../../src/domain/store";
@@ -136,6 +137,7 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
         DEFAULT_NOODLE_PRESETS,
         plannedParams,
         NOW,
+        occupiedSlotsOf(running),
         null,
       ).slices;
 
@@ -336,6 +338,7 @@ describe("engine/commit — committedSchedule", () => {
           DEFAULT_NOODLE_PRESETS,
           scene.params,
           scene.now,
+          occupiedSlotsOf(scene.running),
           null,
         );
 

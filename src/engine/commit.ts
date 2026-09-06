@@ -73,8 +73,8 @@ export function committedSchedule(
   const initial = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
   const members = tableMembers(running);
   // 「今、開始操作できるか」の事実——Timer（running / boiled とも）の載る釜。解放表（予測・boiled は `now` に空く）
-  // とは別に一度だけ作り、接頭辞の失効（開始を妨げる配置）が読む（startable-placement 判断 1・8）。client の全釜
-  // idle と同じ domain の述語。
+  // とは別に一度だけ作り、接頭辞の失効（開始を妨げる配置）と尾部の自前解の配分（「今」置く品目の釜の選択）が読む
+  // （startable-placement 判断 1・8）。client の全釜 idle と同じ domain の述語。
   const occupied = occupiedSlotsOf(running);
   // 上げ表（「店舗全体でいつ上がるか」）も同じ走行中から引く第三の表（lift-group-planning 判断 20）。
   const { prefix, release, lifts } = livePrefix(
@@ -100,6 +100,7 @@ export function committedSchedule(
     presets,
     params,
     now,
+    occupied,
     changeContext,
   );
 

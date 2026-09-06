@@ -43,6 +43,7 @@ import {
   WEIGHT_MAX,
   WEIGHT_MIN,
   defaultUnitOrigins,
+  occupiedSlotsOf,
   slotOf,
 } from "../../src/domain/store";
 import { nonEmpty } from "../nonEmpty";
@@ -230,6 +231,7 @@ export function externalPlan(
     DEFAULT_NOODLE_PRESETS,
     params,
     NOW,
+    occupiedSlotsOf(running),
     null,
   );
 }
@@ -254,6 +256,7 @@ export function baselinePlan(
     DEFAULT_NOODLE_PRESETS,
     params,
     NOW,
+    occupiedSlotsOf(running),
     null,
   );
 }
@@ -300,6 +303,7 @@ export function shortestFirstPlan(
     DEFAULT_NOODLE_PRESETS,
     params,
     NOW,
+    occupiedSlotsOf(running),
     null,
   );
 }

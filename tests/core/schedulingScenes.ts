@@ -24,6 +24,7 @@ import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
+  occupiedSlotsOf,
   UNIT_COUNT_MAX,
   UNIT_COUNT_MIN,
 } from "../../src/domain/store";
@@ -186,6 +187,7 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
       DEFAULT_NOODLE_PRESETS,
       seed.schedule,
       NOW,
+      occupiedSlotsOf(timers),
       null,
     );
     const state: TimerState = {

@@ -11,7 +11,9 @@
 // 読まない。同じ操作列からは同じ trace が出る。snapshot は一切手書きしない（engine が実際に出したものだけを読む）。
 
 import { decide } from "../../src/engine/decide";
+import { committedSchedule } from "../../src/engine/commit";
 import { adjustedEndTime } from "../../src/engine/project";
+import { EMPTY_SHOWN_PLAN } from "../../src/engine/stability";
 import { advanceLifts, initialLifts, liftCap, loadWith, type Lift } from "../../src/engine/lift";
 import type { Event } from "../../src/engine/event";
 import type { SettleParams } from "../../src/engine/settle";
@@ -27,7 +29,7 @@ import {
   type SlotSuggestion,
 } from "../../src/client/components/liftGroups";
 import type { ServerMessage } from "../../src/domain/messages";
-import { compareArrival, itemKeyOf, type PendingOrder } from "../../src/domain/order";
+import { compareArrival, itemKeyOf, liveOrders, type PendingOrder } from "../../src/domain/order";
 import { occupiedSlotsOf, SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { configResidualDefaults } from "../storeConfigDefaults";
@@ -491,6 +493,17 @@ export interface OperationPolicy {
   readonly fromSeconds: number;
   /** 最後の刻み（秒）。 */
   readonly untilSeconds: number;
+  /**
+   * 各遷移の前に前回の提案（Shown_Plan）を忘れる——履歴の無い場面（観測事実 8「plan-stability の履歴は必要条件ではない」を
+   * 両側で踏む）。既定は忘れない（engine が Persist した Shown_Plan をそのまま次の遷移が読む）。
+   */
+  readonly forgetShownPlan?: boolean;
+  /**
+   * 各遷移の後に、その時点の確定計画をそのまま採用済み一片に見立てる——採用済み接頭辞の在る場面。外部ソルバが自前解と同じ
+   * 計画を届けて採用された形で、`schedulingScenes` が採用済み計画を持つ状態を組むのと同じ見立て。次の遷移の合成は
+   * その一片を接頭辞として維持し（陳腐化・開始できない配置・錨・上限で切れるまで）、尾部を置き直す。既定は採用しない。
+   */
+  readonly adoptCommitted?: boolean;
 }
 
 /**
@@ -508,13 +521,19 @@ export function operate(
 ): readonly Transition[] {
   const trace: Transition[] = [];
   let current = from;
-  const record = (operation: string, next: Step) => {
-    current = next;
+  // 遷移に渡す状態（履歴を忘れる場面では Shown_Plan を空にする）。
+  const stateOf = (before: Step): TimerState =>
+    policy.forgetShownPlan === true
+      ? { ...before.state, shownPlan: EMPTY_SHOWN_PLAN }
+      : before.state;
+  const record = (operation: string, event: Event) => {
+    const next = step(kitchen, stateOf(current), event);
+    current = policy.adoptCommitted === true ? adoptCommitted(kitchen, next) : next;
     trace.push({
       at: seconds(next.now),
       operation,
-      step: next,
-      gap: startableGapOf(kitchen, next),
+      step: current,
+      gap: startableGapOf(kitchen, current),
     });
   };
   for (let tick = policy.fromSeconds; tick <= policy.untilSeconds; tick += policy.tickSeconds) {
@@ -522,7 +541,7 @@ export function operate(
     for (;;) {
       const due = nextBoilEndOf(current.state);
       if (due === null || seconds(due) > tick) break;
-      record(`fire ${seconds(due)}`, step(kitchen, current.state, fire(due)));
+      record(`fire ${seconds(due)}`, fire(due));
     }
     const now = at(tick);
     // 2. Complete（猶予を過ぎた boiled の釜を順に 1 釜）。
@@ -536,19 +555,44 @@ export function operate(
     const target = ripe[0];
     if (target !== undefined) {
       const event = completeOn(current.state, target, now);
-      if (event !== null) record(`complete slot ${target}`, step(kitchen, current.state, event));
+      if (event !== null) record(`complete slot ${target}`, event);
     }
     // 3. 開始（表示された先頭）。
     const heads = displayedHeadsOf(kitchen, current.snapshot, now).slice(0, policy.startsPerTick);
     for (const head of heads) {
       record(
         `start ${nameOf(head.order)} on ${head.suggestion.slotIds.join(",")}`,
-        step(kitchen, current.state, startItem(head.order, head.suggestion.slotIds, now)),
+        startItem(head.order, head.suggestion.slotIds, now),
       );
     }
     if (current.state.pendingOrders.length === 0 && current.state.timers.length === 0) break;
   }
   return trace;
+}
+
+/**
+ * 遷移の直後の確定計画をそのまま採用済み一片に見立てた状態（`OperationPolicy.adoptCommitted`）。確定計画の導き方は
+ * settle と同じ（採用済み一片・生きている待ち行列・Timer・旧 Shown_Plan を文脈に）。snapshot はその遷移が配信したまま。
+ */
+function adoptCommitted(kitchen: Kitchen, current: Step): Step {
+  const { state, now } = current;
+  const live = liveOrders(state.pendingOrders, now);
+  const committed = committedSchedule(
+    state.acceptedSlices,
+    live,
+    state.timers,
+    now,
+    kitchen.params.noodlePresets,
+    kitchen.params,
+    {
+      shown: state.shownPlan,
+      running: state.timers,
+      now,
+      pending: live,
+      presets: kitchen.params.noodlePresets,
+    },
+  );
+  return { ...current, state: { ...state, acceptedSlices: committed.slices } };
 }
 
 /** trace のうち空白（例外に当たらない「提案ゼロ」）だけ。 */

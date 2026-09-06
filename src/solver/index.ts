@@ -20,7 +20,7 @@ import { baselineSchedule, initialRelease, type CookSchedule } from "../engine/s
 import { tableMembers } from "../engine/project";
 import type { EpochMillis } from "../engine/types";
 import { liveOrders } from "../domain/order";
-import { SLOTS_PER_UNIT } from "../domain/store";
+import { occupiedSlotsOf, SLOTS_PER_UNIT } from "../domain/store";
 import type { PlanRequest } from "./request";
 import type { StoreTimerDO } from "../shell/store-timer-do";
 
@@ -122,6 +122,7 @@ function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null
   // 上げ表（「店舗全体でいつ上がるか」）も同じ running から引く第三の表（lift-group-planning 判断 20）。
   // 前回の提案（Shown_Plan）も要求が運ぶ——外部解は同じ変更費用で採点されるので、自前解と同じ文脈で置く
   // （plan-stability Component 6）。比較の時点の now は自分の時計、Timer 集合は要求の running。
+  // 「今、開始操作できるか」（Timer の載る釜）も同じ running から引く——自前解と同じ配分を通る（startable-placement）。
   return baselineSchedule(
     live,
     release,
@@ -130,6 +131,7 @@ function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null
     request.noodlePresets,
     request.params,
     now,
+    occupiedSlotsOf(request.running),
     {
       shown: request.shownPlan,
       running: request.running,

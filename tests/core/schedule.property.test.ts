@@ -51,6 +51,7 @@ import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
+  occupiedSlotsOf,
   UNIT_COUNT_MAX,
   UNIT_COUNT_MIN,
 } from "../../src/domain/store";
@@ -134,7 +135,7 @@ describe("engine/schedule — baselineSchedule", () => {
   // 他の品目の配置を壊さないことを、同じ述語が同時に検査する。
   it("Property 1: ハード制約 (a) 重複なし (b) 同時本数 ≤ slot 数 (c) 解放時刻より前に開始しない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -143,6 +144,7 @@ describe("engine/schedule — baselineSchedule", () => {
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const placements = allPlacements(schedule.slices);
@@ -187,6 +189,7 @@ describe("engine/schedule — baselineSchedule", () => {
             DEFAULT_NOODLE_PRESETS,
             scene.params,
             NOW,
+            occupiedSlotsOf(scene.running),
             null,
           );
           const permuted = baselineSchedule(
@@ -197,6 +200,7 @@ describe("engine/schedule — baselineSchedule", () => {
             DEFAULT_NOODLE_PRESETS,
             scene.params,
             NOW,
+            occupiedSlotsOf(scene.running),
             null,
           );
 
@@ -216,7 +220,7 @@ describe("engine/schedule — baselineSchedule", () => {
   // 麺種は既知のみで振る——茹で時間が引けない品目の除外が混ざると「64 件で切れた」ことが観測できない。
   it("Property 15: 計画対象は正準順序の先頭 64 件と厳密に一致する", () => {
     fc.assert(
-      fc.property(genLargeScene, ({ pending, release, members, lifts, params }) => {
+      fc.property(genLargeScene, ({ pending, release, members, lifts, running, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -225,6 +229,7 @@ describe("engine/schedule — baselineSchedule", () => {
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const placed = allPlacements(schedule.slices).map((placement) =>
@@ -307,7 +312,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // （判断 20）。容量を超える一片は batch に割れるので対象外（Property 14）。
   it("Property 1 / 16: 容量に収まる一片は、群の錨から後ろへしか動かず、合流分は仲間の錨を所属に持つ", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -316,6 +321,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const spanOf = new Map(
@@ -378,7 +384,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // 見る。1 品で上限を超える品目は配置されない（AC 9.12）。
   it("Property 7.8: 自前解の各配置を含む窓の負荷は arms + HELPER_ARMS を超えず、1 品で超える品目は置かれない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -387,6 +393,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const placements = allPlacements(schedule.slices);
@@ -422,7 +429,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // ——も真であること（AC 9.5・9.14。firstFit の最小性から従う）。
   it("Property 17: 自前解の一片は keepsAnchor と withinLiftCap を守る（錨は仲間に在り・pack は窓の分だけ延期し・押し出さず・上限内）", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -431,6 +438,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const targets = planTargets(pending, NOW);
@@ -462,7 +470,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // **Validates: Requirements 4.1, 4.4, 4.5, 7.3**
   it("Property 3 / 14: 各配置は slotSpan 個の相異なる釜を持ち、同時刻の占有は釜数を超えない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -471,6 +479,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const spanOf = new Map(
@@ -507,6 +516,16 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // 23 秒改善・変更費用 6 秒）、これは性質 5.7 の「利益が上回れば変わる」そのもの。変わるのは総費用が真に下がるとき
   // だけで、前回そのものは変更費用 0 ゆえ、業務入力（now を含む）を固定すれば業務費用そのものが厳密に下がる。続けて
   // 計画し直すと有限回で同じ計画に落ち着く——3 回目は 2 回目と同じか、更に下がる（業務費用でも見る）。
+  //
+  // **1 段目（占有なし）で見る（startable-placement task 3）。** この性質は plan-stability の機構（前回の釜の第一候補・並びの
+  // 同値・まとまりと先頭の候補・忠実な計画）が自前解を自分自身の不動点にすることを言う。2 段目（1 段目の「今」の品目を
+  // Timer の無い釜へ配って組み直す）の計画は、一片の順に表を進めて組み直す 1 段目がそのまま再現できる形とは限らない
+  // ——1 段目の startAt を下限に残した時刻（AC 1.8）は自然な firstFit の時刻より後ろで、次回はその分だけ早い時刻を見つけ
+  // （実測：209.821 秒が 209 秒に・0.8 秒の業務改善に遠さで割った変更費用 4 秒）、後の群の固定配置に取り置いた釜は
+  // 一片の順では手前の群が先に取る（実測：卓 t-2 が釜 0 を 45 秒から使い、後の単独品が「今」を失って総費用 116 秒悪化）。
+  // 占有なしなら配分は 1 段目の釜をそのまま採り 2 段目は組まれないので、主張は従来どおり厳密に成り立つ。占有ありの
+  // 再計画の単調性は startable-placement の未決として報告する（下限を「今にならない範囲」へ緩める案・前回の「今」の釜を
+  // 1 段目でも手前の群に対して取り置く案）。
   it("Property 5.6: 同じ入力で続けて計画すると、同じ計画（Change_Cost 0）か総費用が真に下がる計画になる", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
@@ -519,6 +538,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             DEFAULT_NOODLE_PRESETS,
             params,
             NOW,
+            new Set(),
             changeContext,
           );
         const contextOf = (previous: CookSchedule): ChangeContext => ({
@@ -578,6 +598,14 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   //       arms 1 で、前回 +30 秒に置いた品目が正準順序で後ろの品目より先に釜を取る）。
   //   (ii) 前回の釜を遠い未来まで塞ぐ——ハード制約（重複なし・同時本数・解放時刻）を守る。塞がれた釜が空く時刻まで
   //       列が待たされる場面では前回の釜が候補に間に合う（採ってよい）ので、一致は主張しない。
+  //
+  // (i) は **1 段目（占有なし）で見る**（startable-placement task 3）。前回の釜の第一候補は 1 段目の `assignSlots` の規則で、
+  // (i) はその規則が効かないときの一致を言う。2 段目（1 段目の「今」の品目を Timer の無い釜へ配って組み直す）は 1 段目の
+  // startAt を下限に残す（AC 1.8）ので、釜の組が変わって解放が早まった品目の時刻が自然な firstFit の時刻より後ろに残り、
+  // 前回の時刻を手がかりに組み直す計画（前回の配置を再現する分割は塊を前回の提供時刻で切るが、時刻は今の表の firstFit で
+  // 決める）がそれより早い時刻を見つける（実測：卓 t-1 の 2 釜の Thin が固定配置の釜を避けて 75 秒から 80 秒の窓へ動き、
+  // 卓 t-2 の 2 品は下限で 80 秒に残るが、前回を持つ計画は空いた 75 秒の窓に置く）。占有なしなら配分は 1 段目の釜をそのまま
+  // 採り 2 段目は組まれないので、(i) の主張は従来どおり厳密に成り立つ。(ii) は占有ありのまま（ハード制約は 2 段目にも及ぶ）。
   it("Property 5.7: 前回の釜が存在しなければ時刻は前回の無い計画に一致し、塞がれていればハード制約を守る", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
@@ -589,6 +617,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          new Set(),
           null,
         );
         const shown = shownPlanOf(previous, recommend(previous));
@@ -608,6 +637,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          new Set(),
           { shown: elsewhere, running, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
         );
         expect(timingsOf(withElsewhere.slices)).toEqual(timingsOf(previous.slices));
@@ -635,6 +665,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(later),
           { shown, running: later, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
         );
         const placements = allPlacements(withBlocked.slices);
