@@ -52,11 +52,14 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
  *     待ち行列に現れない麺種の秒がいくら動いても計画は変わらないので、畳めば無駄な要求が出る
  *     （計画対象外の 65 件目以降を落とすのと同じ判断）。**麺種の粒度で切り、硬さの粒度までは切らない**
  *     ——プリセットは麺種 1 件が設定の単位であり、硬さごとに切り出すと「使われている」の定義が二つになる。
- *   - **`arms` は畳む。** 計画が Arms_Overflow で読む（lift-group-planning）ので、変われば採点が変わりうる。
- *   - **`toleranceRatio`（SyncParams）は畳まない。** 計画へ届く経路は Boil_Sync による running の実効
- *     endTime の変化ただ一つで、その実効 endTime は既に上で畳んである。二重に畳めば、「解放表が 1 ミリ秒も
- *     動かないパラメータ変更」で要求が出る——変わっても計画が変わらない値を含めないという上の基準に
- *     そのまま反する。畳まないことで抑制の判定は「計画の入力が変わったか」に厳密に留まる。
+ *   - **`arms` は畳む。** 計画が Lift_Overflow（上げ窓で arms を超えた本数）と pack / split の分岐で読む
+ *     （lift-group-planning 判断 20）ので、変われば配置も採点も変わりうる。
+ *   - **`toleranceRatio`（SyncParams）も畳む。** かつては「計画へ届く経路は Boil_Sync による running の実効
+ *     endTime の変化ただ一つで、それは既に上で畳んである」として畳まなかったが、合流の窓 h_i
+ *     （茹で時間 × toleranceRatio / 100）を計画が直接読むようになった（lift-group-planning 判断 18）。
+ *     変われば同じ待ち行列から別の計画が出るので、含めないと改善の機会を落とす。
+ *   - **`liftIntervalSeconds` は畳む。** 上げ窓の長さ L と手伝いの費用（1 本あたり L 秒相当）の両方を
+ *     導く（lift-group-planning 判断 20・AC 9.1）。
  *   - **`now` は含めない。** 含めれば指紋は毎回変わり、抑制（AC 5.6）が一度も働かない——「前回依頼時から
  *     入力が変わったか」を問う仕組みが、時計が進んだだけで常に「変わった」と答えることになる。時間の経過は
  *     確かに計画（解放表の下限・過ぎた推奨の陳腐化）を動かすが、それは**状態変化のたびに再評価される**もので
@@ -117,6 +120,7 @@ export function digestInput(
   fold(params.orderSyncToleranceSeconds);
   fold(params.tableSyncToleranceSeconds);
   fold(params.affinityToleranceDistance);
+  fold(params.liftIntervalSeconds); // 上げ窓の長さ L と手伝いの費用（判断 20）
   // レイアウトは距離の唯一の出所ゆえ座標そのものを畳む。原点の数は unitCount（釜の数）＝置ける場所の全体。
   fold(params.unitOrigins.length);
   for (const origin of params.unitOrigins) {

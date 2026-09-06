@@ -1,6 +1,7 @@
 // tests/core/store-config.property.test.ts — StoreConfig 検証関数（src/domain/store.ts）の property test。
 //
-// 対象は online-cook-scheduling で足した 8 パラメータの to*（重み 3・許容幅 3・unitOrigins・slotOffsets）。
+// 対象は online-cook-scheduling で足した 8 パラメータの to*（重み 3・許容幅 3・unitOrigins・slotOffsets）と、
+// lift-group-planning が足した上げの間隔（liftIntervalSeconds・判断 20・AC 9.1）の計 9 個。
 // 検証は workerd に依らない純粋関数ゆえ既定 pool で走る。
 
 import * as fc from "fast-check";
@@ -9,12 +10,15 @@ import {
   AFFINITY_TOLERANCE_DISTANCE_MIN,
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_AFFINITY_WEIGHT,
+  DEFAULT_LIFT_INTERVAL_SECONDS,
   DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
   DEFAULT_ORDER_SYNC_WEIGHT,
   DEFAULT_SLOT_OFFSETS,
   DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
   DEFAULT_TABLE_SYNC_WEIGHT,
   GRID_COORDINATE_MIN,
+  LIFT_INTERVAL_SECONDS_MAX,
+  LIFT_INTERVAL_SECONDS_MIN,
   SLOTS_PER_UNIT,
   SYNC_TOLERANCE_SECONDS_MAX,
   SYNC_TOLERANCE_SECONDS_MIN,
@@ -25,6 +29,7 @@ import {
   defaultUnitOrigins,
   toAffinityToleranceDistance,
   toAffinityWeight,
+  toLiftIntervalSeconds,
   toOrderSyncToleranceSeconds,
   toOrderSyncWeight,
   toSlotOffsets,
@@ -38,7 +43,7 @@ import {
 // パラメータ表 — 各パラメータの妥当域・既定・検証関数を一箇所に束ねる。
 //
 // property は「あるパラメータへ不正値を差し込んでも他は巻き込まれない」を主張するため、パラメータの集合を
-// データとして持ち、キーを振って回す形にする（8 個の it を並べるとパラメータ独立の主張が書けない）。
+// データとして持ち、キーを振って回す形にする（9 個の it を並べるとパラメータ独立の主張が書けない）。
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -54,45 +59,64 @@ interface ScalarDomain {
   /** 上限。上限を持たないパラメータでは省く。 */
   readonly max?: number;
   readonly fallback: number;
+  /**
+   * 域外の整数の畳み方。重み・許容幅・距離は境界へクランプし（強すぎる希望を境界で受ける）、上げの間隔は
+   * 既定へ戻す（現場で測る物理の値ゆえ域外は計測の誤り・toArms / toToleranceRatio と同じ規律・AC 9.1）。
+   */
+  readonly outOfRange: "clamp" | "fallback";
 }
 
-/** 数値スカラーのパラメータ表（重み 3・許容幅 3）。妥当域と既定は domain の定数を正本とする。 */
+/** 数値スカラーのパラメータ表（重み 3・許容幅 3・上げの間隔 1）。妥当域と既定は domain の定数を正本とする。 */
 const SCALAR_PARAMS = {
   orderSyncWeight: {
     validate: toOrderSyncWeight,
     min: WEIGHT_MIN,
     max: WEIGHT_MAX,
     fallback: DEFAULT_ORDER_SYNC_WEIGHT,
+    outOfRange: "clamp",
   },
   tableSyncWeight: {
     validate: toTableSyncWeight,
     min: WEIGHT_MIN,
     max: WEIGHT_MAX,
     fallback: DEFAULT_TABLE_SYNC_WEIGHT,
+    outOfRange: "clamp",
   },
   affinityWeight: {
     validate: toAffinityWeight,
     min: WEIGHT_MIN,
     max: WEIGHT_MAX,
     fallback: DEFAULT_AFFINITY_WEIGHT,
+    outOfRange: "clamp",
   },
   orderSyncToleranceSeconds: {
     validate: toOrderSyncToleranceSeconds,
     min: SYNC_TOLERANCE_SECONDS_MIN,
     max: SYNC_TOLERANCE_SECONDS_MAX,
     fallback: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
+    outOfRange: "clamp",
   },
   tableSyncToleranceSeconds: {
     validate: toTableSyncToleranceSeconds,
     min: SYNC_TOLERANCE_SECONDS_MIN,
     max: SYNC_TOLERANCE_SECONDS_MAX,
     fallback: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
+    outOfRange: "clamp",
   },
   // 上限の行を持たない 1 個。妥当域は「AFFINITY_TOLERANCE_DISTANCE_MIN 以上の整数」で閉じる。
   affinityToleranceDistance: {
     validate: toAffinityToleranceDistance,
     min: AFFINITY_TOLERANCE_DISTANCE_MIN,
     fallback: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
+    outOfRange: "clamp",
+  },
+  // 域外を既定へ戻す 1 個（lift-group-planning AC 9.1）。
+  liftIntervalSeconds: {
+    validate: toLiftIntervalSeconds,
+    min: LIFT_INTERVAL_SECONDS_MIN,
+    max: LIFT_INTERVAL_SECONDS_MAX,
+    fallback: DEFAULT_LIFT_INTERVAL_SECONDS,
+    outOfRange: "fallback",
   },
 } as const satisfies Record<string, ScalarDomain>;
 
@@ -122,7 +146,7 @@ const PARAM_KEYS: readonly ParamKey[] = [...SCALAR_KEYS, ...LAYOUT_KEYS];
 /** 生の設定（各キーが検証前の任意値）。shell の設定ロードが受け取る形を模す。 */
 type RawConfig = Readonly<Record<ParamKey, unknown>>;
 
-/** 検証後の設定（8 パラメータ分）。 */
+/** 検証後の設定（9 パラメータ分）。 */
 interface ValidatedConfig {
   readonly orderSyncWeight: number;
   readonly tableSyncWeight: number;
@@ -130,6 +154,7 @@ interface ValidatedConfig {
   readonly orderSyncToleranceSeconds: number;
   readonly tableSyncToleranceSeconds: number;
   readonly affinityToleranceDistance: number;
+  readonly liftIntervalSeconds: number;
   readonly unitOrigins: readonly GridPoint[];
   readonly slotOffsets: readonly GridPoint[];
 }
@@ -143,6 +168,7 @@ function validateAll(raw: RawConfig, unitCount: number): ValidatedConfig {
     orderSyncToleranceSeconds: toOrderSyncToleranceSeconds(raw.orderSyncToleranceSeconds),
     tableSyncToleranceSeconds: toTableSyncToleranceSeconds(raw.tableSyncToleranceSeconds),
     affinityToleranceDistance: toAffinityToleranceDistance(raw.affinityToleranceDistance),
+    liftIntervalSeconds: toLiftIntervalSeconds(raw.liftIntervalSeconds),
     unitOrigins: toUnitOrigins(raw.unitOrigins, unitCount),
     slotOffsets: toSlotOffsets(raw.slotOffsets),
   };
@@ -173,6 +199,10 @@ function genValidRaw(unitCount: number): fc.Arbitrary<RawConfig> {
     affinityToleranceDistance: fc.integer({
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
       max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
+    }),
+    liftIntervalSeconds: fc.integer({
+      min: LIFT_INTERVAL_SECONDS_MIN,
+      max: LIFT_INTERVAL_SECONDS_MAX,
     }),
     unitOrigins: fc.array(genGridPoint, { minLength: unitCount, maxLength: unitCount }),
     slotOffsets: fc.array(genGridPoint, { minLength: SLOTS_PER_UNIT, maxLength: SLOTS_PER_UNIT }),
@@ -242,8 +272,9 @@ function genIntrusion(key: ParamKey): fc.Arbitrary<Intrusion> {
       genMixedPoints.map((value) => ({ value, foldsToDefault: false })),
     );
   }
-  // スカラーの下限未満は既定ではなく境界へクランプされる（畳み方の違いを札で区別する）。
-  const { min, max } = scalarDomain(key);
+  // スカラーの域外は、クランプする側では既定ではなく境界へ寄り、既定へ戻す側（上げの間隔）ではまるごと既定に
+  // なる（畳み方の違いを表の outOfRange で区別し、札へ写す）。
+  const { min, max, outOfRange } = scalarDomain(key);
   const belowMin = fc.integer({ min: min - 5000, max: min - 1 });
   // 上限を持たない 1 個には「上限超え」が存在しない。代わりに大きな整数を差し込み、クランプされずに
   // 妥当域内へ残ることを見る（上限の無さが検査に掛かる唯一の入口ゆえ、ここを空にはしない）。
@@ -254,7 +285,7 @@ function genIntrusion(key: ParamKey): fc.Arbitrary<Intrusion> {
   // 「範囲外」とは呼べない——上限が無い 1 個では大きな値は範囲内である。境界の外側へ振る値、と読む。
   const beyondBounds = fc
     .oneof(belowMin, beyondMax)
-    .map((value) => ({ value, foldsToDefault: false }));
+    .map((value) => ({ value, foldsToDefault: outOfRange === "fallback" }));
   return fc.oneof(unusable, beyondBounds);
 }
 
@@ -313,7 +344,7 @@ describe("domain/store — 新パラメータの検証", () => {
   //   1. 他のパラメータの妥当な値はそのまま保たれる（当該パラメータのみが畳まれる）、
   //   2. 結果は常に当該パラメータの妥当域内に収まる、
   //   3. 使いようのない生値（型不一致・非整数・非有限）はまるごと既定へ畳まれる。
-  // toArms / toToleranceRatio と同じ規律であることを、同一の主張で 8 パラメータに対して検査する。
+  // toArms / toToleranceRatio と同じ規律であることを、同一の主張で 9 パラメータに対して検査する。
   it("Property: 不正値は当該パラメータのみを妥当域へ畳み、他の妥当な値を巻き込まない", () => {
     fc.assert(
       fc.property(genScenario, ({ unitCount, raw, key, intrusion }) => {

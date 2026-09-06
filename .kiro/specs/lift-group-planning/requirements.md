@@ -67,6 +67,16 @@
 
 19. **群の所属と合流の状態は engine が決め、ワイヤで運ぶ。client は逆算しない。** 合流した品目の `serveAt` は錨と h_i 以内でずれるので、client が `serveAt` の等号で群を組み `endTime === serveAt` で開始済みを判定する形（`lift-group-display` 判断 2・16）は保てず、client に許容幅を持ち込めば同 spec の判断 2 に反する。engine は自前解でも採用済み外部解でも現在の確定計画から群と合流を決めているので、それを `CookRecommendation` に載せる——`group`（snapshot 内の群の識別子。永続的な履歴は持たない）と `anchor`（合流した走行中の錨の実効 endTime。合流していなければ null）。開始済みの失効（錨の Timer が茹で上がると開始済みでなくなる・`lift-group-display` 判断 16）は、client が `anchor > Corrected_Now` で読む——boolean ではなく錨の時刻を運ぶのはこのため。ADR-0004（群の識別は client の再計算）を改める（ADR-0008）。
 
+20. **走行中の状況を計画に考慮する——上げ窓（Lift_Window）を持ち、arms はソフト・arms + 手伝い（定数 2）はハードにする（実機の差し戻し・2026-09-06）。** #30・#31 の後も「次の品目は常に now」だった。計画が走行中を読むのは釜の占有・同じ卓の揃え先・同卓の同時上げの減点（1 本 1 秒相当）だけで、店舗全体の走行中が**いつ上がるか**を新しい品目の置き場所に反映していない。腕は arms 本で、上げて湯を切って盛り付けるまでに時間が要るのに、9 本が 1 分以内に上がる計画が出て、後の 7 本は茹で過ぎになる。Boil_Sync の maximin は ±h_i の内側でしか散らせず（60 秒の麺なら 12 秒幅）、上げの間隔にはならない。**上げと上げの間に要る秒数は設定にも定数にも無かった。**
+    - **`liftIntervalSeconds`** を StoreConfig に足す（arms 本を上げて次を上げられるまでの秒数・現場で測る物理の値・既定 45 秒・妥当域 5〜120）。新しい設定であり、既存の許容幅の転用ではない。
+    - **Lift_Window**：店舗全体で「上がる時刻」（走行中の実効 endTime と計画済みの serveAt）を並べ、任意の長さ `liftIntervalSeconds` の窓に上がる**品目の slotSpan の合計**（大盛は 2 本分・ユーザー確定）を数える。数える範囲は店舗全体（arms は店舗の設定）。
+    - **arms はソフト、arms + HELPER_ARMS はハード（ユーザー確定）。** 腕は 2 本でも「ちょっと手伝って」で一時的に増やせる——4 人家族の上げを同時にやりたいときがそれで、計画がそれを禁じる筋はない。ただし手伝えるのは物理的に 1 人なので、増やせるのは 2 本まで。窓の本数が arms を超えた分は**手伝いを頼む費用**として減点し（1 本あたり `liftIntervalSeconds` 秒相当（既定 45）・手伝いが無ければその 1 本は次の窓まで待つ、という時間の等価。新しい重みは足さない）、arms + 2 を超える計画は成立しない（ハード制約 (f)）。HELPER_ARMS = 2 は domain の定数（設定にしない・店舗差が実在するまで）。
+    - **配置**：新しい品目の serveAt は、合流の規則（判断 18）で決めた候補（earliest か合流先の走行中）から、arms + 2 の窓を満たす最初の時刻へ後ろに動かす。同じ卓の群は「窓に arms 本ずつ」を基本に、arms を超えて arms + 2 までを同じ窓に載せるかは、その卓の遅れ（Table_Lag × w_table）と手伝いの費用の比較で決める（局所・決定的）。4 人家族・arms 2 なら 2+2 に分けると卓の遅れ 45 秒 × 2 本 × 2 に待ち 90 で 270、4 本同時なら超過 2 本 × 45 = 90 で、同時に上げる方を置く。9 本なら窓あたり 4 本が上限で 4・4・1 の 3 窓に割れ、「全部 now」は消える。釜が空いていても窓が埋まっていれば startAt は未来になり、提案は薄く現れて時刻が来たら濃くなる。計画は開始のたびに実際の走行中の上がり時刻から窓を引き直す。
+    - **ゲート**：外部計画にも同じ窓を検査する。arms + 2 の超過は feasible と認めず（ハード制約 (f)）、arms の超過は採点（Lift_Overflow）に委ねる。目的関数の既存の Arms_Overflow 項（同卓・同時刻・1 本 1 秒）は Lift_Overflow（店舗全体・窓・1 本 `liftIntervalSeconds` 秒）に置き換える。`max(0, w_table − 1)` の導出は消える。
+    - **群と合流は残る**（判断 18・19）。錨は群の所属のために残し、合流した品目の serveAt は錨そのものではなく錨の後の空いた窓になりうる。`anchor` は合流先の走行中の実効 endTime のまま運び、client の `started = anchor > now` は変えない。合流の判定 → 窓の適用の順で行う（窓で後ろへ動いても合流の所属は変わらない）。
+    - **Boil_Sync は変えない。** 開始後の ±h_i の微調整と arms 本ずつのセット分割のまま。手伝いの有無は現場が決める。
+    - ADR-0002「計画では arms はソフト」は**保つ**。足すのは「ソフトの上限（手伝いの分）」と上げの間隔だけである（ADR-0009）。「腕を釜と同じ資源として扱う」という言い方はユーザーの像と違った——扱うのは「走行中の上がり時刻を避けて置く」で、上げ窓の表は上がり時刻の並びから毎回導く導出値。
+
 ### スコープ外
 
 - 表示（client）。`lift-group-display` が担う。
@@ -97,7 +107,7 @@
 | `orderItem.tableId`（入れ子） | engine の `Ordered.orderItem` | Timer が由来する卓。`null` は卓なし。`orderItem` の内側に置くことで、POS を経ない Timer が卓を持つ状態を表現不能にする |
 | `Lift_Group` | 要件語彙（識別子にしない） | 同時に上げる群。同じ卓の計画対象の未着手品目全部 |
 | `tableLagSeconds`（仮） | `objective.ts` の卓同期項 | 卓の最遅からの各成員（走行中を含む）の遅れの和 |
-| `armsOverflow`（仮） | `objective.ts` の新しい項 | 群の本数が arms を超える分 |
+| ~~`armsOverflow`（仮）~~ | ~~`objective.ts` の新しい項~~ | ~~群の本数が arms を超える分~~ 判断 20 で `lift.ts` の `liftOverflow`（店舗全体の上げ窓）に置き換え |
 | `occupiesSlotSpan` | `schedule.ts` の述語（コードレビュー対応で追加・事後承認） | 配置が品目の `slotSpan` を満たすか（本数一致・釜番号で相異なる）。`isStale` と Acceptance_Gate が共用 |
 | `scoreSchedule(slices, pending, running, params)` | `objective.ts` | 走行中を成員として採点する |
 | `ScheduleParams` の項目変更（`arms` の追加） | `objective.ts` / `effect.ts` | 採点が `arms` を読む。値の意味を定めるのは目的関数の側ゆえ `SyncParams` から借りずここへ置く。外部契約に及ぶ |
@@ -111,7 +121,7 @@
 - **Group_Anchor（群の錨）**: `max(同じ卓の走行中 Timer の実効 endTime の最大, 未着手の品目の earliest の最大)`。一つの max であり、走行中が boiled（実効 endTime が過去）でも錨が過去へ落ちず、`earliest` が錨を超える品目も存在しない。群が釜容量を超えて batch に割れる場合は batch ごとに取り直す。
 - **earliest**: ある品目を最も早く始めたときの提供時刻。`割り当てた全釜の解放時刻の最大 + 茹で時間`。
 - **Table_Lag（卓の遅れ）**: 卓の成員のうち最も遅い `serveAt` から各成員の `serveAt` までの差。卓同期の項はこの和。
-- **Arms_Overflow（arms 超過）**: 同時刻（同じ `serveAt`）に上がる Table_Member の本数のうち `arms` を超える分。群の本数ではない——腕が競合するのは同時刻だけで、batch に割れて同時に上がらない本数は数えない。卓同期項と同じ成員集合の上で数える。重みは `max(0, tableSyncWeight − 1)` の導出値で、実質はタイブレーク。
+- **Arms_Overflow（arms 超過）**（判断 20 で Lift_Overflow に置き換え・Requirement 9.6。以下は撤回前の定義）: 同時刻（同じ `serveAt`）に上がる Table_Member の本数のうち `arms` を超える分。群の本数ではない——腕が競合するのは同時刻だけで、batch に割れて同時に上がらない本数は数えない。卓同期項と同じ成員集合の上で数える。重みは `max(0, tableSyncWeight − 1)` の導出値で、実質はタイブレーク。
 - **Wait_Time**: `serveAt − arrivalTime`。揃えのための待ちを含む。
 - **Acceptance_Gate**: 外部計画の受け入れ判定。feasibility は釜の排他・解放表・`serveAt = startAt + 茹で時間`・`slotSpan` の充足。群の一致は見ない。改善判定は外部解と現行 Committed_Plan を、比較の時点の `running` で採点し直して比べる（基準は Committed_Plan）。
 - **Boil_Sync**: 開始後の茹で上がり調整（`synchronized-boil-adjustment`）。本 spec は触れない。
@@ -151,7 +161,7 @@ _出所: 判断 1・2・3・4・5・16, 観測事実 1・9・10・17_
 1. THE 目的関数 SHALL 卓同期の項を、卓の成員（未着手の Placement と同じ卓の走行中 Timer）のうち最遅の `serveAt` からの各成員の遅れの和（Table_Lag の和）× w_table とする。`tableId` が `null` の走行中 Timer はどの卓の成員にもならない（卓なし同士を束ねず、単独キーの一片の成員にもしない）
 2. THE 卓同期の項 SHALL 許容幅（`tableSyncToleranceSeconds`）を用いない
 3. THE 目的関数 SHALL 走行中 Timer の `serveAt` を実効 endTime（Boil_Sync 調整後）とし、動かせない成員として扱う
-4. THE 目的関数 SHALL Arms_Overflow の項を持ち、その重みを `max(0, tableSyncWeight − 1)` から導く（設定項目も定数も足さない）
+4. ~~THE 目的関数 SHALL Arms_Overflow の項を持ち、その重みを `max(0, tableSyncWeight − 1)` から導く（設定項目も定数も足さない）~~ **改訂（判断 20）**：Lift_Overflow（店舗全体の上げ窓で arms を超えた本数 × `liftIntervalSeconds`）に置き換える。`max(0, w_table − 1)` の導出は消える
 5. THE 目的関数 SHALL Σ Wait_Time に揃えるための待ちを含める（`serveAt − arrivalTime` の定義を変えない）
 6. THE 目的関数 SHALL オーダー同期の項（既存の形＝同一オーダー内の最大差の許容超過分）と釜距離の項を残す
 7. THE 目的関数 SHALL 品目自身の `slotIds` どうしの距離を採点しない
@@ -199,11 +209,11 @@ _出所: 判断 11, 観測事実 8・9・12_
 
 #### Acceptance Criteria
 
-1. THE `RequestPlan` SHALL 改めた目的関数に要る値（重み・`arms`・`toleranceRatio`（合流の窓）・レイアウト）と `noodlePresets` を運び、使われなくなった許容幅に依存しない。外部ソルバは arms 超過の重みを `max(0, tableSyncWeight − 1)` で導く（契約として明記し、別の重みで採点した外部解が同じ物差しに乗らないことを防ぐ）
+1. THE `RequestPlan` SHALL 改めた目的関数に要る値（重み・`arms`・`toleranceRatio`（合流の窓）・レイアウト）と `noodlePresets` を運び、使われなくなった許容幅に依存しない。~~外部ソルバは arms 超過の重みを `max(0, tableSyncWeight − 1)` で導く（契約として明記し、別の重みで採点した外部解が同じ物差しに乗らないことを防ぐ）~~ **改訂（判断 20）**：`RequestPlan` は `liftIntervalSeconds` も運ぶ（AC 9.1・`ScheduleParams` の 11 値・`PlanRequest.params` も同じ）。外部ソルバは Lift_Overflow を AC 9.6 の一意な貪欲（上がる時刻を昇順に走査し、未割当の最早の時刻 e を起点に窓 `[e, e + L)` の負荷から `max(0, 負荷 − arms)` を足して窓の内側を割当済みにする・重みは L = `liftIntervalSeconds` 秒/本・`total` にだけ（AC 9.7））で再現し、ハード制約 (f)（当該配置を含む窓の負荷 ≤ `arms + HELPER_ARMS`・HELPER_ARMS = 2・AC 9.5）を守る。`max(0, tableSyncWeight − 1)` の導出は消えた。契約として明記する目的——別の物差しで採点した外部解が同じ物差しに乗らないことを防ぐ——は変わらない（レビュー追記・2026-09-06）
 2. THE `RequestPlan` の `running` SHALL `Timer.tableId` を含む（錨の再現に要る）
 7. THE `CookRecommendation` SHALL `group: string`（snapshot 内で群を識別する。同じ確定計画の同じ群の品目は同じ値・永続しない）と `anchor: number | null`（合流した走行中の錨の実効 endTime。合流していなければ null）を運ぶ。`recommend` が確定計画（自前解・採用済み外部解とも）から導く（判断 19）
 8. THE `recommend` SHALL 群を次で決める——一片の中で、走行中の仲間 A に `|serveAt − A| ≤ h_i` で続く配置は「合流」で、同じ A に続くものが一つの群（`anchor = A`・複数が該当すれば最も近い A）。それ以外は `serveAt` の等しい配置ごとに一つの群（`anchor = null`）。卓を持たない品目は 1 品 1 群
-3. THE Acceptance_Gate SHALL feasibility を釜の排他・解放表の整合・`serveAt = startAt + 茹で時間`・`slotSpan` の充足・始めたまとまりを崩さないこと（AC 1.11・ハード制約 (e)）で判定し、Lift_Group の `serveAt` の一致を求めない
+3. THE Acceptance_Gate SHALL feasibility を釜の排他・解放表の整合・`serveAt = startAt + 茹で時間`・`slotSpan` の充足・始めたまとまりを崩さないこと（AC 1.11・ハード制約 (e)）・上げ窓の上限 arms + 2（AC 9.3・ハード制約 (f)）で判定し、Lift_Group の `serveAt` の一致を求めない
 4. THE Acceptance_Gate の改善判定 SHALL 基準を現行 Committed_Plan に置いたまま（既存 AC 6.2(d)）、外部解と Committed_Plan の両方を比較の時点の `running` で採点し直して比べる
 5. THE Input_Fingerprint SHALL `arms` と `slotSpan` を含める
 6. THE `PlanSlice`（したがって `AcceptedSlice`）および `CookSchedule` SHALL `score` を持たない。`baselineSchedule` / `committedSchedule` は採点を呼ばず、採点は比較の時点だけで行う。`settle` の等価判定は placements の比較で行い、外部計画の契約から score を外す（ソルバが添えても読まない）
@@ -220,7 +230,7 @@ _出所: 判断 7・13・14, 観測事実 7・11・14・15・16_
 2. THE 変更 SHALL client ワイヤ契約の変更を `CookRecommendation` への `group` / `anchor` の追加（AC 5.7・判断 19）に限る。`ServerMessage` / `ClientMessage` の他の項目は変更しない（`TimerFact.orderItem` は `lift-group-display` が足したが、`anchor` が同じ事実を運ぶので読み手が無くなる。撤去は同 spec が判断する）
 3. THE 変更 SHALL `recommend` の形（確定計画の全品目を計画順に配る）を変更しない
 4. THE 変更 SHALL `hasLapsedStart` の規律を変更しない
-5. THE 変更 SHALL `StoreConfig` の項目と妥当域を増減・変更しない（許容幅の設定は残し、撤去候補として記録する）
+5. THE 変更 SHALL `StoreConfig` の項目と妥当域を増減・変更しない（許容幅の設定は残し、撤去候補として記録する）。**判断 20 の改訂**：`liftIntervalSeconds` を 1 項目足す（既定 45・妥当域 5〜120・整数秒）。config ワイヤ・registry の compose・`RequestPlan` が運ぶ
 6. THE 変更 SHALL 開始時に `slotIds` の数と `slotSpan` の一致を検査しない規律（既存 AC 8.3）を変更しない。計画がハード制約にした後も、開始は現場の判断に委ねる
 7. THE 変更 SHALL Alarm・時刻起動の失効判定を導入しない（AC 7.5）
 8. THE 変更 SHALL 推奨開始時刻の到来で Timer を自動開始しない（AC 8.2）
@@ -234,19 +244,46 @@ _出所: 判断 10・12・15・16, 観測事実 20_
 #### Acceptance Criteria
 
 1. **錨への一致** — 釜容量に収まる任意の卓について、自前解が配置した未着手の品目の `serveAt` はすべて Group_Anchor に等しい（走行中の仲間の有無で場合を分けない。茹で時間が引けず配置されない品目は対象外）
-2. **採点の単調性** — w_table ≥ 2 の下で、釜容量に収まる卓の揃えた配置から一部の品目だけを早めて `serveAt` を散らした計画は、揃えた計画より目的関数の値が真に良くならない（Arms_Overflow が無ければ真に大きい。超過が立っている一片では超過項が `w_table − 1` 減るため最悪で同値になり、同値は Acceptance_Gate が棄却する）。**ずれが 1 ミリ秒でも成り立つ**（client は `serveAt` の等号で群を組むため、秒未満のずれでも群が割れる。Table_Lag の秒換算を切り上げにすることでこれを担う・ADR-0006）
+2. **採点の単調性** — w_table ≥ 2 の下で、釜容量に収まる卓の揃えた配置から一部の品目だけを早めて `serveAt` を散らした計画は、揃えた計画より目的関数の値が真に良くならない（~~Arms_Overflow が無ければ真に大きい。超過が立っている一片では超過項が `w_table − 1` 減るため最悪で同値になり、同値は Acceptance_Gate が棄却する~~ **判断 20 の改訂**：散らした一片の**部分和**は条件なしに真に大きい——Lift_Overflow は部分和に入らず、段 1 (d) が比べるのは部分和ゆえ散らした外部計画はそこで棄却される。`total` は Lift_Overflow が両計画で等しい場合に真に大きく——上げ表が空（走行中の上がりが無い）で全配置の `slotSpan` の合計が `arms` 以下なら 7.10 によりそうなる——それ以外は `total` の差 = 部分和の差 + Lift_Overflow の差である。**走行中の上がりが窓の境界に在れば Σ `slotSpan` ≤ `arms` でも `total` は真に下がりうる**（実測：arms 2・L 45・走行中が T − 45 秒と T + 1 秒に 1 本ずつ・卓の 2 本を T に揃えると Lift_Overflow 45、1 本を 1 ms 早めると 0。部分和の差は高々 w_table − 1 程度なので total は下がる）。ゆえに ADR-0006 の「1 ms 崩した計画は通らない」を担うのは段 1 (d) の部分和比較であって、`total` の性質ではない。1 本を隣の窓へ逃がして手伝いの費用が減る形は pack / split の費用比較そのものであり、目的関数が意図して払う差）。**ずれが 1 ミリ秒でも成り立つ**（client は `serveAt` の等号で群を組むため、秒未満のずれでも群が割れる。Table_Lag の秒換算を切り上げにすることでこれを担う・ADR-0006）
 3. **実行可能性** — 自前解のすべての配置は `startAt ≥ 割り当てた全釜の解放時刻の最大` かつ `serveAt = startAt + 茹で時間` を満たし、`slotSpan` 個の釜を持つ
 4. **両端の一致** — 任意の配置について、client が `startAt + 茹で秒` で再計算する `serveAt` は計画の `serveAt` と一致する
 5. **移行（追加）** — v9 以前の永続 Timer は `tableId = null` として保持され、落ちない
-6. **連続投入の不変** — 同じ卓の同じ茹で時間の品目 n 本（n ≤ 釜の数）が「now」で並ぶ状態から、現場が 1 本ずつ任意の間隔（0 秒〜h_i 未満）で順に投入し続けるとき、各投入の直後の確定計画で、空いている釜に入る残りの品目はすべて走行中に合流し（`anchor` 非 null・`startAt ≤ now`）、走行中の釜が空くまで押し出されない。arms を 1〜3、間隔を 0 / 1 / 3 / 5 秒で振っても成り立つ（判断 18・実運用の再現）
+6. **連続投入の不変** — 同じ卓の同じ茹で時間の品目 n 本（n ≤ 釜の数）が「now」で並ぶ状態から、現場が 1 本ずつ任意の間隔（0 秒〜h_i 未満）で順に投入し続けるとき、各投入の直後の確定計画で、空いている釜に入る残りの品目はすべて走行中に合流し（`anchor` 非 null）、走行中の釜が空くまで押し出されない。arms を 1〜3、間隔を 0 / 1 / 3 / 5 秒で振っても成り立つ（判断 18・実運用の再現）。**判断 20 の改訂**：合流した品目の `startAt` は「now 以下」ではなく「上げ窓を満たす最初の時刻から茹で時間を引いた値」で、走行中の上がりと同じ窓に arms（slotSpan の合計）を超えて上がらない
 7. **群と Sync_Set の分離** — 7.6 の連続投入で Boil_Sync が走行中を arms に応じて複数の Sync_Set に分けても（実測：arms 2 で 70 / 70 / 85 秒）、残りの品目は合流し続ける（7.6 に含めて検査する）
+8. **上げ窓の上限** — 任意の確定計画について、計画済みの各配置を含むすべての窓（半開・長さ L）の負荷は arms + 2 を超えない。走行中だけ・過去の boiled だけで超えている窓は対象外。`firstFit` の結果は候補以上で、その条件を満たす最小の時刻である（境界：ちょうど L 離れた上がりは同じ窓に入らない）
+9. **上げの間隔** — 同じ卓の同じ茹で時間の品目 9 本・6 釜・arms 2・間隔 45 秒で、確定計画の serveAt は窓あたり 4 本（arms + 2）までで 45 秒以上離れた窓に並び、「全部 now」にならない（実機の再現）。4 人家族（同じ卓 4 本・arms 2）は同じ窓に 4 本載る（手伝いの費用 90 < 分けた卓の遅れ 270）
 6. **移行（除去）** — v9 の永続 `AcceptedSlice`（`score` を持つ）は v10 で `score` を捨てて保持され、落ちない（`migrate.ts:219-232` の整数性検証を外し忘れた実装はこの性質で落ちる）
-7. **部分和** — 目的関数の総和は卓ごとの部分和の和に等しい
+7. **部分和** — 目的関数の総和は卓ごとの部分和の和に等しい（**判断 20 の改訂**：店舗全体の項 Lift_Overflow を除く。総和 = 部分和の和 + Lift_Overflow・AC 9.7）
 8. **整数** — 目的関数の値は整数である
 9. **卓同期項の下限** — 走行中の仲間が無い、釜容量に収まる卓について、自前解の卓同期項は 0 である（下限 0 に到達できる）
-10. **Arms_Overflow の下限** — 群の本数が `arms` 以下なら Arms_Overflow は 0 である
+10. ~~**Arms_Overflow の下限** — 群の本数が `arms` 以下なら Arms_Overflow は 0 である~~ **判断 20 の改訂**：**Lift_Overflow の下限** — 上げ表が空で群の `slotSpan` の合計が `arms` 以下なら Lift_Overflow は 0 である
 
 _出所: 判断 4・5・6・7・8・11・12_
+
+### Requirement 9: 上げ窓（Lift_Window）
+
+**User Story:** As a 厨房スタッフ, I want 腕で上げられる本数と間隔に合わせて次の投入が提案され、手伝えば同時に上げられる分は同時に上がる, so that 一度に上がりすぎて茹で過ぎにならず、家族の卓は揃って出せる。
+
+#### Acceptance Criteria
+
+1. THE `StoreConfig` SHALL `liftIntervalSeconds`（arms 本を上げて次を上げられるまでの秒数・整数・既定 `DEFAULT_LIFT_INTERVAL_SECONDS = 45`・妥当域 5〜120）を持ち、config ワイヤと `RequestPlan` が運ぶ。妥当域外・非整数・**欠如**は既定へ畳む（他の採点パラメータと同じ規律。store DO は投影 config に無ければ定数 45 を採る）
+2. THE domain SHALL `HELPER_ARMS = 2`（手伝いで増える腕・物理的に 1 人）を定数に持つ（設定にしない）
+3. THE 上げ窓 SHALL 長さ L = `liftIntervalSeconds` 秒の**半開区間** `[x, x + L)` とし、上がる時刻の集合（走行中の実効 endTime と計画済みの `serveAt`・boiled の過去の時刻も含む）に対して、区間に上がる品目の `slotSpan` の合計を負荷（Lift_Load）と呼ぶ。ちょうど L 離れた 2 つの上がりは同じ窓に入らない
+4. THE 計画 SHALL 新しい配置の `serveAt` を、候補（判断 18 の合流の規則で決めた時刻）以降で「その配置を**含む**すべての窓の負荷が `arms + HELPER_ARMS` 以下」となる最初の時刻に置く（`firstFit`）。含まない窓の過負荷（走行中だけ・過去の boiled だけで既に超えている窓）は検査の対象外である
+5. THE Acceptance_Gate SHALL 外部計画の各配置について、走行中の上がり時刻と計画順に見た手前の配置で埋めた表に当該配置を足したとき、**当該配置を含む**窓の負荷が `arms + HELPER_ARMS` を超えれば feasible と認めない（ハード制約 (f)）。含まない窓は見ない。`arms` の超過は採点に委ねる
+6. THE 目的関数 SHALL Lift_Overflow を次で一意に定める——上がる時刻を昇順に走査し、未割当の最早の時刻 e を起点に窓 `[e, e + L)` の負荷を取り、`max(0, 負荷 − arms)` を足して窓の内側を割当済みにする（重なる窓を二度数えない・外部ソルバが再現できる）。重みは `liftIntervalSeconds` 秒/本（新しい重みを足さない）。既存の Arms_Overflow 項と `max(0, w_table − 1)` の導出を置き換える
+7. THE 目的関数 SHALL Lift_Overflow を店舗全体の項として `total` にだけ足し、一片の部分和（`bySlice`）には入れない（Requirement 2.9 の例外。段 1 の部分和比較は枝刈り、段 2 の総和比較が単調改善を担う）
+8. THE 自前解 SHALL 同じ時刻に上げたい品目の列（列の順は配置の対応づけと同じ・茹で時間の長い順・同値は正準順序。Σ span = S）について、S ≤ `arms` なら `firstFit` へ、S > `arms + HELPER_ARMS` なら **候補の窓の残り容量（上限 − 候補を含む窓の既存の負荷。残りが先頭の品目に足りなければ上限）に Σ span が収まる最長の非空の接頭辞**と残りに割って再帰し（上限そのもので切ると、走行中が窓の一部を占めているとき先頭の塊が次の窓へ押され、余りだけが今の窓に入る）、その間なら **pack（同じ窓へ）と split（Σ span が `arms` 以下に収まる最長の非空の接頭辞と、残りの窓）の両方の配置を同じ既存の表に対して作り**、局所の費用 Σ wait + w_table × Σ Table_Lag（走行中の仲間を含む）+ ΔLift_Overflow（`liftOverflow` は秒相当を返すので L は掛けない）を比べて安い方を置く（同点は pack）。費用は候補を後ろへ動かした待ちと遅れを含む。**品目は不可分**——split の接頭辞が空になる（先頭の品目の span が `arms` を超える）場合は split を候補にせず pack を置く（例：arms 1 の大盛は単独で pack）
+9. THE 計画 SHALL `Placement` に `anchor`（合流先の走行中の実効 endTime・合流でなければ null）を持たせ、配置の時点で決めて以後変えない。窓で `serveAt` が後ろへ動いても `anchor` は変わらず、`recommend` はそれを運ぶ。`AcceptedSlice` も持つ（永続 v11。**v10 の一片は推定せず null で移行する**——h_i の toleranceRatio は `StoreConfig` にあって永続に無く、移行は設定を要求しない。所属を失った合流分は合成が 1 品の単位として再検証し、押し出しなら切って自前解が置き直す。代償は「v10 → v11 の直後、採用済みの合流分が次の再計画まで『開始済み』に見えない」ことで、自動では回復せず、次の外部計画の採用か品目の開始か錨の Timer の茹で上がりで解消する。レビュー追記・2026-09-06）
+10. THE Acceptance_Gate と確定計画の合成 SHALL 一片の配置を**単位**（`anchor` を持つ配置は同じ `anchor`・同じ `serveAt` のものを一つの pack に、`anchor` を持たない配置は 1 品ずつ）にまとめ、単位を（`serveAt` 昇順・同値は `startAt` 昇順・代表釜の番号）に一つずつ解放表と上げ表へ載せながら検査する。pack には次の 4 条件を要る——(a) `anchor` は現在の走行中の仲間の実効 endTime のいずれかに等しい、(b) `serveAt ≥ anchor − h_i`（手前に散らさない）、(c) **集合として窓を当てる前に合流できた**：pack の各配置が使う釜が、**手前の単位で進めた**解放表で `anchor + h_i − 茹で時間` までに空いていた（空きが 1 釜だけなら、その釜を順に使う 2 品のうち後の品は仲間に合流できない）、(d) **延期の理由が窓だけである**：pack の `serveAt` が、各配置の釜の解放から取った判断 18 の候補時刻（`joinedServeAt`）の**最大**を候補とし、手前の単位で進めた上げ表の下で **pack 全体の span の合計**で `firstFit` した最早の時刻に一致する（自前解が 2 品を pack して 99 秒に置いた配置は、1 品ずつなら 60 秒でも、pack の span 2 では 99 秒が最早なので守っている。後続品のために合流分を遅らせた配置——Thin と茹で 600 秒の品目を両方 600 秒に置き Thin に `anchor: 60` を付ける——は、600 秒の品目は合流不能で pack に入れず、Thin の pack の firstFit が 60 秒ゆえ棄却）。`anchor` を持たない配置には押し出し（(e)）を判定する——手前の単位で進めた解放表の下でいずれかの仲間に合流できた（`earliest ≤ 最遅の仲間 + h_i`）ものが、候補時刻からの `firstFit` より後ろに置かれていれば押し出し。合流できない品目は保護の対象外で、仲間 60 秒・残りが茹で 300 秒と 600 秒（どちらも合流不能）を後の batch で 600 秒に揃える配置は押し出しではない。外部解が選ぶ合流の部分集合と pack の切り方を自前解と同じにする必要はない（順に載せて成り立てばよい。正当な pack の待ち合わせは許す）（レビュー追記・2026-09-06：実装の単位の順は「pack をすべて載せてから `anchor` 無しの 1 品」——自前解が合流の判定を batch より先に行うため。serveAt 順に混ぜると、上げ窓で batch より後ろへ動いた pack の釜を 1 品が「空いていた」と読み、正当な batch を押し出しと判定する。design Component 10 の注記）
+11. THE 計画 SHALL 大盛（`slotSpan` 2）を 2 本分として数える
+12. IF 品目の `slotSpan` が `arms + HELPER_ARMS` を超える, THEN THE 計画 SHALL その品目を配置しない（茹で時間が引けない品目と同じ扱い——待ち行列に残り推奨が付かない。ラジアルからは始められる）。`firstFit` は null を返し、ゲートはその配置を feasible と認めない
+13. THE 変更 SHALL Boil_Sync を変えない
+14. THE 確定計画の合成 SHALL 採用済み一片の `serveAt` を上げ表に載せ、尾部はそれを避けて置く。採用済み一片の配置が現在の走行中と合わせて**その配置を含む**窓で上限を超えるときは陳腐化と見なして切る
+
+15. THE Lift_Overflow の貪欲の割当 SHALL 起点を上がり時刻に限る近似であることを採点の判断として明記する——arms 2・L 45 で {60:1 本, 104:1 本, 105:2 本} は割当が [60,105) と [105,150) になり超過 0 だが、窓 [104,149) には 3 本ある。「手伝いが要る窓には必ず費用が付く」定義ではない。ハード上限（AC 9.4・9.5 の `loadWith`）は t を含むすべての窓を見るので近似ではない。近似を許すのは、一意で外部再現できる式を優先するため（Boil_Sync のセット分割と同じ前から詰める形）
+
+_出所: 判断 20_
 
 ### Requirement 8: 文書の整合
 

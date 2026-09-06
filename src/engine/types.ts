@@ -42,5 +42,9 @@ export const EPSILON_MS = 500 as const;
  *  v9: PendingOrder に POS 申告の商品名 itemName / sizeName を追加（slot-suggested-start）。欠如は null で埋める。
  *  v10: Timer.orderItem に由来する卓 tableId を追加（欠如は null）。AcceptedSlice から score を除去
  *      （一片は点数を持たない・採点は比較の時点の導出）。v9 の score は余剰として読まずに捨てる
- *      （lift-group-planning・ADR-0001 / 0003）。 */
-export const CURRENT_SCHEMA_VERSION = 10 as const;
+ *      （lift-group-planning・ADR-0001 / 0003）。
+ *  v11: AcceptedSlice の配置に anchor（合流先の走行中の実効 endTime・合流でなければ null）を追加
+ *      （lift-group-planning 判断 20・AC 9.9・ADR-0009）。v10 の一片は null で移行する——移行は設定
+ *      （toleranceRatio・プリセット）を持たず h_i の窓を引けないため推定できない（design Component 10 の
+ *      「推定できなければ null」）。合成（committedSchedule）が現在の走行中で再検証し、切るか維持する。 */
+export const CURRENT_SCHEMA_VERSION = 11 as const;

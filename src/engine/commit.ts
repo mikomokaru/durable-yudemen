@@ -10,6 +10,7 @@
 
 import { SLOTS_PER_UNIT, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
+import { advanceLifts, initialLifts, liftsOf, withinLiftCap, type LiftTable } from "./lift";
 import type { ScheduleParams } from "./objective";
 import { tableMembers } from "./project";
 import {
@@ -65,51 +66,75 @@ export function committedSchedule(
   // 卓の成員表も同じ走行中から引く（「その釜がいつ空くか」と「その卓がいつ上がるか」の二つの表）。
   const initial = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
   const members = tableMembers(running);
-  const { prefix, release } = livePrefix(accepted, targets, now, initial, members, presets, params);
+  // 上げ表（「店舗全体でいつ上がるか」）も同じ走行中から引く第三の表（lift-group-planning 判断 20）。
+  const { prefix, release, lifts } = livePrefix(
+    accepted,
+    targets,
+    now,
+    initial,
+    initialLifts(running),
+    members,
+    presets,
+    params,
+  );
 
   // 尾部の対象は「接頭辞が使わなかった計画対象」。全 Pending_Order から除くのではない——それでは
   // 65 件目以降が繰り上がって計画に現れ、計画対象を 64 件に限る AC 11.2 が破れる。
   const remaining = targets.filter((order) => !isPlaced(order, prefix));
-  const tail = baselineSchedule(remaining, release, members, presets, params);
+  const tail = baselineSchedule(remaining, release, members, lifts, presets, params);
 
   return { slices: [...prefix, ...tail.slices] };
 }
 
 /**
  * 採用済み列のうち、計画順に見て最初に陳腐化した一片の手前まで（design の合成手順 1）と、その接頭辞で進めた
- * 解放表。尾部はその表から再計算する。
+ * 解放表・上げ表。尾部はその表から再計算する（採用済み一片の上がりを避けて置く・AC 9.14）。
  *
- * 陳腐化は 3 つの理由で立つ。**判定を分けているのは概念が違うから**である。
+ * 陳腐化は 4 つの理由で立つ。**判定を分けているのは概念が違うから**である。
  *   - `isStale` — 対象品目が計画対象と食い違った（陳腐化A・B）、または配置が品目の現在の slotSpan を
  *     満たさない（v9 で採用された 1 釜の配置は v10 の制約で再検証され、ここで切れる）。`admit` と共有する
  *     述語（schedule.ts）。
  *   - `hasLapsedStart` — 推奨開始時刻を過ぎた。合成側だけの関心事ゆえここに置く。
- *   - `keepsAnchor` の否定 — 走行中の錨が在る卓で、合流分が現在の錨に一致しない、または合流できる品目を
- *     押し出している。採用済み一片は採用時の錨の上に組まれ、錨は Boil_Sync で動くので、ここで再検証しなければ
- *     「1 本目に揃う」という一片の主張が黙って嘘になる（lift-group-planning 判断 17）。`admit` の (e) と同じ述語。
- *     一片ごとに、その一片を置く前の解放表で判定する（ゲートと同じ位置・同じ表）。
+ *   - `keepsAnchor` の否定 — 配置の `anchor` が現在の走行中の仲間の実効 endTime に無い（AC 9.10 (a)）、走行中の
+ *     錨が在る卓で pack が集合として合流できていない・窓以外の理由で延期している（(b)〜(d)）、または合流できる
+ *     品目を押し出している。採用済み一片は採用時の
+ *     錨の上に組まれ、錨は Boil_Sync で動くので、ここで再検証しなければ「1 本目に揃う」という一片の主張が
+ *     黙って嘘になる（lift-group-planning 判断 17）——`recommend` は `Placement.anchor` を無条件に運ぶので、
+ *     嘘の錨を運ばない保証はここにしか無い。`admit` の (e) と同じ述語。一片ごとに、その一片を置く前の解放表と
+ *     上げ表で判定する（ゲートと同じ位置・同じ表）。
+ *   - `withinLiftCap` の否定 — 採用済み一片の上がりを、現在の走行中と手前の一片で埋めた上げ表に載せたとき、
+ *     当該配置を含む窓が arms + HELPER_ARMS を超える（ハード制約 (f)・AC 9.5・9.14・ADR-0009）。採用時には収まって
+ *     いた窓も、その後に始まった無関係な Timer（ラジアルからの開始は上限を検査しない・AC 8.3）で埋まりうる。
+ *     走行中だけで超えている窓は当該一片を含まない限り見ない。`admit` の (f) と同じ述語（lift.ts）。
  */
 function livePrefix(
   accepted: readonly AcceptedSlice[],
   targets: readonly PendingOrder[],
   now: EpochMillis,
   initial: SlotRelease,
+  initialLiftTable: LiftTable,
   members: TableMembers,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
-): { readonly prefix: readonly AcceptedSlice[]; readonly release: SlotRelease } {
+): {
+  readonly prefix: readonly AcceptedSlice[];
+  readonly release: SlotRelease;
+  readonly lifts: LiftTable;
+} {
   const prefix: AcceptedSlice[] = [];
   let release = initial;
+  let lifts = initialLiftTable;
   for (const slice of accepted) {
     if (isStale(slice, targets) || hasLapsedStart(slice, now)) break;
-    const siblings = members.get(slice.tableKey);
-    if (siblings !== undefined) {
-      if (!keepsAnchor(slice.placements, release, siblings, targets, presets, params)) break;
-    }
+    // 仲間が無い卓（null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
+    const siblings = members.get(slice.tableKey) ?? null;
+    if (!keepsAnchor(slice.placements, release, lifts, siblings, targets, presets, params)) break;
+    if (!withinLiftCap(lifts, liftsOf(slice.placements), params)) break;
     prefix.push(slice);
     release = advanceRelease(release, slice.placements);
+    lifts = advanceLifts(lifts, liftsOf(slice.placements));
   }
-  return { prefix, release };
+  return { prefix, release, lifts };
 }
 
 /**

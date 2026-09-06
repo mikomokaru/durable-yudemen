@@ -48,6 +48,7 @@ const FROM_V9: AcceptedSlice = {
       slotIds: nonEmpty(["0" as SlotId]),
       startAt: (NOW + 30 * SECOND) as EpochMillis,
       serveAt: (NOW + 90 * SECOND) as EpochMillis,
+      anchor: null,
     },
   ],
 };
@@ -108,6 +109,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
         slotIds: nonEmpty(["0" as SlotId]),
         startAt: (NOW + 540 * SECS) as EpochMillis,
         serveAt: (NOW + 600 * SECS) as EpochMillis,
+        anchor: (NOW + 600 * SECS) as EpochMillis,
       },
     ],
   };
@@ -123,6 +125,12 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
 
   it("錨が動いていなければ一片は維持される", () => {
     expect(serveSecondsOf([sibling(0)])).toEqual([600]);
+  });
+
+  it("錨が h_i の内側で +Δ 動いても、配置の錨（600 秒）は現在の仲間に無く、一片は捨てられて自前解が新しい錨（605 秒）へ置き直す", () => {
+    // Thin 60 秒の h_i は 6 秒。serveAt 600 秒は錨 605 秒から手前 5 秒——散らしではないが、`anchor: 600` は
+    // 現在の仲間の実効 endTime に等しくない（AC 9.10 (a)）。錨は等号で運ぶ約束であり、近似では運ばない（判断 17）。
+    expect(serveSecondsOf([sibling(5 * SECS)])).toEqual([605]);
   });
 
   it("錨が +Δ 動くと合流分は錨より手前になり、一片は捨てられて自前解が新しい錨（630 秒）へ揃え直す", () => {
@@ -142,14 +150,18 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
           ...JOINED_AT_600.placements[0]!,
           startAt: (NOW + 30 * SECS) as EpochMillis,
           serveAt: (NOW + 90 * SECS) as EpochMillis,
+          anchor: null,
         },
       ],
     };
     expect(serveSecondsOf([sibling(-30 * SECS, 60)], [late])).toEqual([90]);
   });
 
-  it("容量分割の一片（合流分は錨に一致・残りは後続）は維持される", () => {
-    // 6 釜。仲間が釜 4・5 を占めて 600 秒に上がる。同卓の 1 釜の品目 5 本：4 本が合流し、5 本目は釜が空く 600 秒に始める。
+  it("容量分割の一片（合流分は錨の次の窓に pack・残りは後続）は維持される", () => {
+    // 6 釜。仲間が釜 4・5 を占めて 600 秒に上がる。同卓の 1 釜の品目 5 本：4 本が合流し、5 本目は釜が空いてから始める。
+    // 合流分の候補は錨の 600 秒だが、その窓には走行中の 2 本分が在り、4 本を足すと上限 4 を超えるので pack は次の窓
+    // 645 秒へ（判断 20・AC 9.10 (d) は pack 全体の span で firstFit した時刻との一致を求める）。5 本目は釜 4 が空く
+    // 600 秒からの候補 660 秒が [645,690) の 4 本を避けて 690 秒へ。
     const first = createTimer({
       id: "t-first" as TimerId,
       slotIds: nonEmpty(["4" as SlotId, "5" as SlotId]),
@@ -171,15 +183,17 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
       slotIds: nonEmpty([slot as SlotId]),
       startAt: (NOW + startSeconds * SECS) as EpochMillis,
       serveAt: (NOW + (startSeconds + 60) * SECS) as EpochMillis,
+      // 錨の次の窓 645 秒に上がる配置は仲間（600 秒）へ合流。釜が空いてから始める 5 本目は合流ではない。
+      anchor: startSeconds + 60 === 645 ? ((NOW + 600 * SECS) as EpochMillis) : null,
     });
     const split: AcceptedSlice = {
       tableKey: "t-a",
       placements: [
-        place(1, "0", 540),
-        place(2, "1", 540),
-        place(3, "2", 540),
-        place(4, "3", 540),
-        place(5, "4", 600),
+        place(1, "0", 585),
+        place(2, "1", 585),
+        place(3, "2", 585),
+        place(4, "3", 585),
+        place(5, "4", 630),
       ],
     };
     const schedule = committedSchedule([split], items, [first], NOW, PRESETS, PARAMS);
@@ -215,6 +229,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
           slotIds: nonEmpty(["0" as SlotId]),
           startAt: (NOW + 540 * SECS) as EpochMillis,
           serveAt: (NOW + 600 * SECS) as EpochMillis,
+          anchor: (NOW + 600 * SECS) as EpochMillis,
         },
         {
           externalOrderId: "o-A",
@@ -222,6 +237,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
           slotIds: nonEmpty(["5" as SlotId]),
           startAt: (NOW + 600 * SECS) as EpochMillis,
           serveAt: (NOW + 660 * SECS) as EpochMillis,
+          anchor: null,
         },
       ],
     };
@@ -238,5 +254,59 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
     const own = committedSchedule([], [A, B], [sibling(0), ...blocked], NOW, PRESETS, PARAMS);
     const joined = own.slices[0]!.placements.find((p) => p.serveAt === NOW + 600 * SECS)!;
     expect(joined.externalOrderId).toBe("o-A");
+  });
+});
+
+describe("committedSchedule — 採用済み一片は現在の上げ窓の上限で再検証する（AC 9.14・ハード制約 (f)・task 21.8）", () => {
+  // Feature: lift-group-planning, 判断 20・ADR-0009
+  // **Validates: Requirements 9.4, 9.14**
+  //
+  // 卓を持たない走行中 Thin（成員にならず、上げ表にだけ載る）が 60 秒に上がる。arms 2 → 上限 4・L 45 秒。
+  // ラジアルからの開始は上限を検査しない（AC 8.3）ので、採用時に収まっていた窓が後から埋まりうる。
+  function others(count: number): readonly Timer[] {
+    return Array.from({ length: count }, (_, index) =>
+      createTimer({
+        id: `t-other-${index}` as TimerId,
+        slotIds: nonEmpty([String(5 - index) as SlotId]),
+        noodleType: "Thin" as NoodleType,
+        firmness: "normal",
+        startTime: NOW,
+        endTime: (NOW + 60 * SECOND) as EpochMillis,
+        seq: 20 + index,
+      }),
+    );
+  }
+  const ONE: PendingOrder = { ...WIDE, externalOrderId: "o-one", slotSpan: 1 };
+  /** 釜 0 で serveSeconds に上がる採用済み一片（合流の所属は無い）。 */
+  function acceptedAt(serveSeconds: number): AcceptedSlice {
+    return {
+      tableKey: "t-a",
+      placements: [
+        {
+          externalOrderId: ONE.externalOrderId,
+          itemIndex: 0,
+          slotIds: nonEmpty(["0" as SlotId]),
+          startAt: (NOW + (serveSeconds - 60) * SECOND) as EpochMillis,
+          serveAt: (NOW + serveSeconds * SECOND) as EpochMillis,
+          anchor: null,
+        },
+      ],
+    };
+  }
+  function serveSecondsOf(running: readonly Timer[], accepted: AcceptedSlice): number[] {
+    return committedSchedule([accepted], [ONE], running, NOW, PRESETS, PARAMS)
+      .slices.flatMap((slice) => slice.placements)
+      .map((placement) => (placement.serveAt - NOW) / 1000);
+  }
+
+  it("当該配置を含む窓が無関係な走行中で上限を超えれば陳腐化と見なし、自前解が次の窓へ置き直す", () => {
+    // 3 本 + 1 本 = 4 ≤ 4 で維持。4 本 + 1 本 = 5 > 4 で切られ、自前解が firstFit の 105 秒へ置く。
+    expect(serveSecondsOf(others(3), acceptedAt(60))).toEqual([60]);
+    expect(serveSecondsOf(others(4), acceptedAt(60))).toEqual([105]);
+  });
+
+  it("走行中だけで超えている窓は、それを含まない一片を落とさない（AC 9.4）", () => {
+    // 5 本が 60 秒の窓 [60,105) は既に 5 > 4 だが、200 秒の一片はその窓に入らない。
+    expect(serveSecondsOf(others(5), acceptedAt(200))).toEqual([200]);
   });
 });

@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted（0009 が上げ窓と手伝いの上限 arms + 2 を足す。arms ソフトの立場は維持）
 date: 2026-09-04
 specs: lift-group-planning
 ---

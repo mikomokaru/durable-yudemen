@@ -52,6 +52,7 @@
 | --- | --- | --- | --- | --- |
 | v9 | `slot-suggested-start`（#26） | `PendingOrder.itemName` / `sizeName`（欠如は null） | — | `version` を 8 にするだけ。v8 の reviver は `itemName` / `sizeName` を読まないので放置してよい（次の `Persist` で消える。POS の再送で戻る） |
 | v10 | `lift-group-planning` | `Timer.orderItem.tableId`（欠如は null） | `AcceptedSlice.score` | `version` を 9 にし、**`acceptedSlices` を空・`requestedDigest` を欠如**にする。v9 の reviver は `score` を整数として必須とし（`migrate.ts@1b84169:219`）、v10 の一片は `score` を持たないため、残したままでは `MigrationFailed` になる。採用済み計画は導出値で、空にすれば v9 が自前解から立て直す。`tableId` は v9 の `reviveOrderItem` が読まないので放置してよい（次の `Persist` で消える。**走行中の卓の記憶は失われ**、v9 の計画はその走行中を群の錨に使わない——v9 には錨の概念が無いので、それが v9 の正常動作である） |
+| v11 | `lift-group-planning`（判断 20・上げ窓） | `AcceptedSlice.placements[].anchor`（合流先の走行中の実効 endTime・合流でなければ null。欠如は null。**v10 → v11 では推定せず null で移行する**——`migrate` は設定（toleranceRatio）を持たず h_i の窓を引けない。代償は、v10 で採用済みだった合流分が次の再計画（外部計画の採用・品目の開始・錨の Timer の茹で上がり）まで client で「開始済み」に見えないこと。走行中の計時には触れない） | — | `version` を 10 にするだけ。v10 の `revivePlacement` は `anchor` を読まないので放置してよい（次の `Persist` で消える）。v10 の合成は所属を持たず `serveAt` と錨の近さ（±h_i）で合流を推定し直すので、v11 が上げ窓で錨より後ろへ置いた合流分は v10 では「合流していない」と読まれ、押し出しなら切られて v10 の自前解が置き直す——v10 には上げ窓の概念が無いので、それが v10 の正常動作である |
 
 `score` を埋めて残す案は採らない。v9 のゲートは永続された `score` を Committed_Plan の基準にするため、でたらめな値（0 など）を入れると外部解が永遠に棄却されるか、逆に何でも通る。空にして立て直させる方が v9 の規律に沿う。
 

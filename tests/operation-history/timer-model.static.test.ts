@@ -171,7 +171,7 @@ describe("Operation History の Timer モデル規律", () => {
               "startTime": 1700000000000,
             },
           ],
-          "version": 10,
+          "version": 11,
         },
         "type": "Persist",
       }

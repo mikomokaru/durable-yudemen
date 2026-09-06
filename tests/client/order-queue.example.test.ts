@@ -135,6 +135,7 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
         orderSyncToleranceSeconds: 30,
         tableSyncToleranceSeconds: 60,
         affinityToleranceDistance: 14,
+        liftIntervalSeconds: 45,
         unitOrigins: [
           { x: 0, y: 0 },
           { x: 4, y: 0 },

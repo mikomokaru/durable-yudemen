@@ -71,6 +71,9 @@ const EXPECTED_CORE_FILES = [
   "src/engine/effect.ts",
   "src/engine/event.ts",
   "src/engine/fire.ts",
+  // lift.ts は上げ窓（lift-group-planning 判断 20・ADR-0009）が足した純粋な表の導出と窓の数え方。receive.ts と
+  // 同じ判断で追随させる（禁止トークン検査・import 検査はこのファイルにも掛かる）。
+  "src/engine/lift.ts",
   "src/engine/migrate.ts",
   "src/engine/objective.ts",
   "src/engine/order.ts",

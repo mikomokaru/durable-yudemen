@@ -27,6 +27,7 @@ import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Effect } from "../../src/engine/effect";
 import type { Event } from "../../src/engine/event";
 import type { ScheduleParams } from "../../src/engine/objective";
+import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import type { SettleParams } from "../../src/engine/settle";
 import type { SyncParams } from "../../src/engine/sync";
@@ -93,6 +94,7 @@ const genAlarmScene: fc.Arbitrary<AlarmScene> = fc
         pending,
         initialRelease(timers, NOW, seed.slotCount),
         tableMembers(timers),
+        initialLifts(timers),
         DEFAULT_NOODLE_PRESETS,
         seed.params,
       ).slices;
@@ -195,13 +197,7 @@ function recommendationsOf(state: TimerState, scene: AlarmScene) {
     DEFAULT_NOODLE_PRESETS,
     scene.params,
   );
-  return recommend(
-    committed,
-    state.pendingOrders,
-    state.timers,
-    DEFAULT_NOODLE_PRESETS,
-    scene.params,
-  );
+  return recommend(committed);
 }
 
 describe("engine/recommend — 推奨と Alarm の独立", () => {

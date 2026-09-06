@@ -20,6 +20,7 @@ import {
   type SlotRelease,
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
+import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import {
   ARMS_MAX,
@@ -33,6 +34,8 @@ import type { PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import {
   AFFINITY_TOLERANCE_DISTANCE_MIN,
+  LIFT_INTERVAL_SECONDS_MAX,
+  LIFT_INTERVAL_SECONDS_MIN,
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_SLOT_OFFSETS,
   SYNC_TOLERANCE_SECONDS_MAX,
@@ -130,6 +133,10 @@ export function genParams(unitCount: number): fc.Arbitrary<ScheduleParams> {
       min: AFFINITY_TOLERANCE_DISTANCE_MIN,
       max: AFFINITY_TOLERANCE_DISTANCE_GEN_MAX,
     }),
+    liftIntervalSeconds: fc.integer({
+      min: LIFT_INTERVAL_SECONDS_MIN,
+      max: LIFT_INTERVAL_SECONDS_MAX,
+    }),
     unitOrigins: fc.constant(defaultUnitOrigins(unitCount)),
     slotOffsets: fc.constant(DEFAULT_SLOT_OFFSETS),
   });
@@ -206,7 +213,8 @@ export function externalPlan(
 ): CookSchedule {
   const release = initialRelease(running, NOW, slotCount);
   const members = tableMembers(running);
-  const full = baselineSchedule(pending, release, members, DEFAULT_NOODLE_PRESETS, params);
+  const lifts = initialLifts(running);
+  const full = baselineSchedule(pending, release, members, lifts, DEFAULT_NOODLE_PRESETS, params);
   const victim = full.slices[dropPick % (full.slices.length + 1)];
   const planned =
     victim === undefined
@@ -214,7 +222,7 @@ export function externalPlan(
       : pending.filter(
           (order) => !victim.placements.some((placement) => refersTo(placement, order)),
         );
-  return baselineSchedule(planned, release, members, DEFAULT_NOODLE_PRESETS, params);
+  return baselineSchedule(planned, release, members, lifts, DEFAULT_NOODLE_PRESETS, params);
 }
 
 /**
@@ -255,6 +263,7 @@ export function shortestFirstPlan(
     resequenced,
     initialRelease(running, NOW, slotCount),
     tableMembers(running),
+    initialLifts(running),
     DEFAULT_NOODLE_PRESETS,
     params,
   );

@@ -15,6 +15,7 @@
 // engine 自身の採点で決める）、engine の内部形に縛られたままでは Rust → WASM への差し替えが engine の型に
 // 引きずられるためである（design「意図的な重複」）。
 
+import { initialLifts } from "../engine/lift";
 import { baselineSchedule, initialRelease, type CookSchedule } from "../engine/schedule";
 import { tableMembers } from "../engine/project";
 import type { EpochMillis } from "../engine/types";
@@ -113,5 +114,13 @@ function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null
   );
   // 卓の成員表も同じ running から引く（engine の commit.ts と同じ二つの表）。
   const members = tableMembers(request.running);
-  return baselineSchedule(request.pending, release, members, request.noodlePresets, request.params);
+  // 上げ表（「店舗全体でいつ上がるか」）も同じ running から引く第三の表（lift-group-planning 判断 20）。
+  return baselineSchedule(
+    request.pending,
+    release,
+    members,
+    initialLifts(request.running),
+    request.noodlePresets,
+    request.params,
+  );
 }

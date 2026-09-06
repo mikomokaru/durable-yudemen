@@ -100,6 +100,7 @@ const genStoreConfig: fc.Arbitrary<StoreConfig> = fc
       orderSyncToleranceSeconds: fc.integer({ min: 0, max: 120 }),
       tableSyncToleranceSeconds: fc.integer({ min: 0, max: 120 }),
       affinityToleranceDistance: fc.integer({ min: 0, max: 60 }),
+      liftIntervalSeconds: fc.integer({ min: 5, max: 120 }),
       unitOrigins: fc.constant(defaultUnitOrigins(unitCount)),
       slotOffsets: fc.constant(DEFAULT_SLOT_OFFSETS),
       firmnessCodes: fc.constant([]),

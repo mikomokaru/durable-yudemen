@@ -39,6 +39,13 @@ import {
   type SlotRelease,
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
+import {
+  advanceLifts,
+  initialLifts,
+  liftsOf,
+  withinLiftCap,
+  type LiftTable,
+} from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
@@ -125,6 +132,7 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
         planned,
         initialRelease(running, NOW, slotCount),
         tableMembers(running),
+        initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         plannedParams,
       ).slices;
@@ -199,24 +207,29 @@ function prefixLength(scene: CommitScene): number {
   const targets = planTargets(scene.pending);
   const members = tableMembers(scene.running);
   let release = initialRelease(scene.running, scene.now, scene.slotCount);
+  let lifts = initialLifts(scene.running);
   for (let index = 0; index < bound; index++) {
     const slice = scene.accepted[index]!;
-    const siblings = members.get(slice.tableKey);
-    if (siblings !== undefined) {
-      if (
-        !keepsAnchor(
-          slice.placements,
-          release,
-          siblings,
-          targets,
-          DEFAULT_NOODLE_PRESETS,
-          scene.params,
-        )
-      ) {
-        return index;
-      }
+    // 仲間が無い卓（null）でも述語を通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず見る。
+    const siblings = members.get(slice.tableKey) ?? null;
+    if (
+      !keepsAnchor(
+        slice.placements,
+        release,
+        lifts,
+        siblings,
+        targets,
+        DEFAULT_NOODLE_PRESETS,
+        scene.params,
+      )
+    ) {
+      return index;
     }
+    // 上げ窓の上限 (f)：別のパラメータ（arms が違う）で組まれた一片は、現在の上限では当該配置を含む窓が超えうる
+    // （lift-group-planning AC 9.14）。合成と同じ述語で同じ位置の上げ表を読む。
+    if (!withinLiftCap(lifts, liftsOf(slice.placements), scene.params)) return index;
     release = advanceRelease(release, slice.placements);
+    lifts = advanceLifts(lifts, liftsOf(slice.placements));
   }
   return bound;
 }
@@ -226,6 +239,14 @@ function releaseAfterPrefix(scene: CommitScene, prefix: readonly AcceptedSlice[]
   return prefix.reduce(
     (release, slice) => advanceRelease(release, slice.placements),
     initialRelease(scene.running, scene.now, scene.slotCount),
+  );
+}
+
+/** 接頭辞の上がりで進めた上げ表（尾部は採用済み一片の上がりを避けて置く・lift-group-planning AC 9.14）。 */
+function liftsAfterPrefix(scene: CommitScene, prefix: readonly AcceptedSlice[]): LiftTable {
+  return prefix.reduce(
+    (lifts, slice) => advanceLifts(lifts, liftsOf(slice.placements)),
+    initialLifts(scene.running),
   );
 }
 
@@ -300,6 +321,7 @@ describe("engine/commit — committedSchedule", () => {
           remaining,
           releaseAfterPrefix(scene, prefix),
           tableMembers(scene.running),
+          liftsAfterPrefix(scene, prefix),
           DEFAULT_NOODLE_PRESETS,
           scene.params,
         );

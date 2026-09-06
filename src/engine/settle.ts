@@ -127,7 +127,7 @@ export function settle(
  * 受け取るため——外部が別の集合から解放表を組めば、こちらの feasibility 判定と噛み合わない。
  *
  * params は SettleParams（ScheduleParams の上位集合）をそのまま載せる。Effect が契約として宣言するのは
- * ScheduleParams の 9 値であり、読み手はそこだけを見る。同期パラメータを 9 値へ削ぐ射影を立てないのは、
+ * ScheduleParams の 11 値であり、読み手はそこだけを見る。同期パラメータを 11 値へ削ぐ射影を立てないのは、
  * 削ぐために同じフィールド名の列挙をもう一箇所に置くことになるためである。麺プリセットは Effect が自分の
  * 項目として運ぶ——要求の入力を engine の決定として一箇所に定める（lift-group-planning 判断 13）。
  */
@@ -289,13 +289,7 @@ export function toWireSnapshot(
     timers: state.timers.map(toWireTimer),
     // 待ち行列は全量（計画対象 64 件を超える分も含む・AC 2.3 / 2.4）。推奨は確定計画からの導出値。
     pendingOrders: state.pendingOrders,
-    recommendations: recommend(
-      committed,
-      state.pendingOrders,
-      state.timers,
-      params.noodlePresets,
-      params,
-    ),
+    recommendations: recommend(committed),
   };
 }
 

@@ -6,13 +6,14 @@
 // ここは超過分を計上するだけ——client の釜の組も同じ尺度を要るため、engine には置かない
 // （lift-group-display Requirement 6.7）。
 //
-// 採点のパラメータ（ScheduleParams）もここに置く。計画の算出・合成・受け入れも同じ 9 値を要するが、
+// 採点のパラメータ（ScheduleParams）もここに置く。計画の算出・合成・受け入れも同じ 11 値を要するが、
 // それらは採点を経由して要求するのであって、値の意味を定めているのは目的関数である（sync.ts が
 // SyncParams を持つのと同じ置き方）。
 
 import { position, slotDistance, slotOf, type SlotOffsets, type UnitOrigin } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
+import { advanceLifts, liftOverflow, liftsOf, type LiftTable } from "./lift";
 import type { TableMembers } from "./project";
 import type { Placement, PlanSlice } from "./schedule";
 import type { EpochMillis, SlotId } from "./types";
@@ -22,18 +23,22 @@ import type { EpochMillis, SlotId } from "./types";
  *
  * engine は domain の設定型（StoreConfig）を知らない。StoreConfig をそのまま渡せば、麺プリセットのように
  * 採点と無関係な項目まで engine が引き連れることになる（SyncParams が arms / toleranceRatio だけを受けるのと
- * 同じ規律）。重み 3・arms 1・許容幅 2・距離 1・レイアウト 2 の 9 値が、この計算の全入力である。
+ * 同じ規律）。重み 3・arms 1・許容調整割合 1・許容幅 2・距離 1・上げの間隔 1・レイアウト 2 の 11 値が、この
+ * 計算の全入力である。
  * arms は本数であって重みではない。SyncParams も arms を持つが、SettleParams が両者を継承するので実体は一つで
  * 足りる——値の意味（同時に上がる本数の超過を数える）を定めるのは目的関数の側ゆえ、ここにも置く。
  */
 export interface ScheduleParams {
   /** w_order。同一オーダーの提供時刻差の超過分に掛かる係数。 */
   readonly orderSyncWeight: number;
-  /** w_table。卓の遅れ（Table_Lag）の和に掛かる係数。arms 超過の重みもここから導く（w_table − 1）。 */
+  /** w_table。卓の遅れ（Table_Lag）の和に掛かる係数。 */
   readonly tableSyncWeight: number;
   /** w_affinity。代表 slot 間距離の超過分に掛かる係数。 */
   readonly affinityWeight: number;
-  /** 同時に上げられる本数（腕の本数）。同じ時刻に上がる卓の成員がこれを超えた分を数える。 */
+  /**
+   * 同時に上げられる本数（腕の本数）。店舗全体の上げ窓に上がる本数がこれを超えた分を、手伝いを頼む費用として
+   * 数える（Lift_Overflow・lift-group-planning 判断 20）。
+   */
   readonly arms: number;
   /**
    * 許容調整割合（整数パーセント・Boil_Sync と同じ値）。計画では合流の窓 h_i = 茹で時間 × toleranceRatio / 100 を
@@ -51,6 +56,11 @@ export interface ScheduleParams {
   readonly tableSyncToleranceSeconds: number;
   /** 許容 slot 距離。超過分のみ計上する。 */
   readonly affinityToleranceDistance: number;
+  /**
+   * 上げの間隔（秒・整数）。上げ窓の長さ L であり、Lift_Overflow の 1 本あたりの費用（秒相当）でもある
+   * （lift-group-planning 判断 20・AC 9.3・9.6）。採点（Lift_Overflow）と配置（`firstFit`）の両方が読む。
+   */
+  readonly liftIntervalSeconds: number;
   /** ユニット原点の列。slot 座標は原点とオフセットの合成で導く。 */
   readonly unitOrigins: readonly UnitOrigin[];
   /** ユニット内 slot のオフセット（全ユニット共通）。 */
@@ -65,7 +75,10 @@ export interface ScheduleParams {
  * 別に持たない——tableKey を鍵にすると同一の Table_Group が二度現れる計画で部分和が潰れる）。
  */
 export interface ScheduleScore {
-  /** 計画全体の目的関数値（bySlice の総和に厳密に一致する）。 */
+  /**
+   * 計画全体の目的関数値。bySlice の総和に、店舗全体の項 Lift_Overflow を足した値（Requirement 2.9 の例外・
+   * lift-group-planning AC 9.7）。Lift_Overflow が 0 の計画では総和は部分和の和に厳密に一致する。
+   */
   readonly total: number;
   /** PlanSlice ごとの部分和（入力の slices と同じ順序・同じ長さ）。 */
   readonly bySlice: readonly number[];
@@ -84,9 +97,9 @@ const MILLIS_PER_SECOND = 1000;
  *
  * = Σ Wait_Time（未着手の配置のみ）
  *   + w_table × Σ Table_Lag（卓の成員＝未着手の配置と同じ卓の走行中 Timer。最遅からの各成員の遅れの和）
- *   + (w_table − 1) × Σ Arms_Overflow（同じ時刻に上がる成員の本数のうち arms を超える分）
  *   + w_order × Σ(同一オーダーの提供時刻最大差の許容幅 超過分)
  *   + w_affinity × Σ max(0, slotDistance − 許容距離)
+ *   + Lift_Overflow（店舗全体の上げ窓で arms を超えて上がる本数 × liftIntervalSeconds 秒・**total にだけ**）
  *
  * 卓同期の項だけ形が違う。最大差の許容超過では 3 本目以降を揃える得が無く、遅れの和なら w_table > 1 の下で
  * 「揃える方が点が良い」が何本の卓でも成り立つ。揃えることは制約でも保証でもなく、この式の最適点である
@@ -103,6 +116,15 @@ const MILLIS_PER_SECOND = 1000;
  * 持たないもの——は Σ Wait_Time に寄与しない（Requirement 8 の確定注記）。0 秒待ったと数えるのは嘘であり、
  * 寄与しないことが真である。
  *
+ * **上げ表（`lifts`）を受け取る。** Lift_Overflow は「店舗全体でいつ上がるか」の項で、走行中の上がり
+ * （`initialLifts(running)`）に計画の全配置の上がりを足した表の上で数える（lift-group-planning 判断 20・AC 9.6）。
+ * 卓の内側に閉じないので **`total` にだけ足し、`bySlice` には入れない**（Requirement 2.9「部分和の和 = 総和」の
+ * 例外・AC 9.7）。段 1 の部分和比較は枝刈りであり、単調改善は段 2 の総和比較が担うという既存の分担に乗る。
+ * 重みは L 秒/本——手伝いが無ければその 1 本は次の窓まで待つ、という時間の等価で、新しい重みを足さない。
+ * かつての Arms_Overflow（同卓・同時刻・1 本 1 秒）と `max(0, w_table − 1)` の導出はこれに置き換わった。
+ * 卓の成員表と同じく走行中の射影を受ける——`running` を受けて表を引き直せば、admit が 3 回採点するたびに
+ * 射影が走る。
+ *
  * 一片は点数を持たない。採点は比較の時点（Acceptance_Gate）だけの導出で、配置（baselineSchedule）は
  * 採点を呼ばない。外部から届いた計画もそのまま渡して採点できる。
  *
@@ -113,6 +135,7 @@ export function scoreSchedule(
   slices: readonly PlanSlice[],
   pending: readonly PendingOrder[],
   members: TableMembers,
+  lifts: LiftTable,
   params: ScheduleParams,
 ): ScheduleScore {
   const arrivals = new Map(pending.map((order) => [itemKey(order), order.arrivalTime]));
@@ -120,12 +143,14 @@ export function scoreSchedule(
     scoreSlice(slice.placements, arrivals, members.get(slice.tableKey) ?? [], params),
   );
 
-  // 全項が卓（Table_Group とその卓の走行中）の内部に閉じるため、総和は部分和の和で尽きる
-  // （AC 6.2(d) の部分比較の成立条件）。走行中は一つの卓にしか属さない。
-  return { total: bySlice.reduce((sum, score) => sum + score, 0), bySlice };
+  // 卓の内側に閉じる項は部分和の和で尽きる（AC 6.2(d) の部分比較の成立条件・走行中は一つの卓にしか属さない）。
+  // Lift_Overflow だけは店舗全体の項ゆえ、走行中と全配置の上がりを並べた表の上で一度だけ数え、総和にだけ足す。
+  const placements = slices.flatMap((slice) => slice.placements);
+  const overflow = liftOverflow(advanceLifts(lifts, liftsOf(placements)), params);
+  return { total: bySlice.reduce((sum, score) => sum + score, 0) + overflow, bySlice };
 }
 
-/** 一片（Table_Group）の部分和。Σ Wait_Time と 4 つのソフト制約項をこの範囲だけで閉じて足す。 */
+/** 一片（Table_Group）の部分和。Σ Wait_Time と 3 つのソフト制約項をこの範囲だけで閉じて足す。 */
 function scoreSlice(
   placements: readonly Placement[],
   arrivals: ReadonlyMap<string, number>,
@@ -136,7 +161,6 @@ function scoreSlice(
   return (
     waitSeconds(placements, arrivals) +
     params.tableSyncWeight * tableLagSeconds(serveTimes) +
-    armsOverflowWeight(params) * armsOverflow(serveTimes, params.arms) +
     params.orderSyncWeight * orderExcessSeconds(placements, params.orderSyncToleranceSeconds) +
     params.affinityWeight * affinityExcess(placements, params)
   );
@@ -157,31 +181,6 @@ function tableLagSeconds(serveTimes: readonly number[]): number {
   let total = 0;
   for (const serveAt of serveTimes) total += ceilSeconds(latest - serveAt);
   return total;
-}
-
-/**
- * arms 超過（Arms_Overflow）。同じ提供時刻に上がる成員を束ね、本数のうち arms を超える分を足す。
- *
- * 「群の本数」ではなく同時刻で数える——腕が競合するのは同時刻だけで、batch に割れて同時に上がらない本数は
- * 数えない。卓同期の項と同じ成員集合（走行中を含む）の上で数える。
- */
-function armsOverflow(serveTimes: readonly number[], arms: number): number {
-  const counts = new Map<number, number>();
-  for (const serveAt of serveTimes) counts.set(serveAt, (counts.get(serveAt) ?? 0) + 1);
-  let total = 0;
-  for (const count of counts.values()) total += Math.max(0, count - arms);
-  return total;
-}
-
-/**
- * arms 超過の重み。設定にも定数にもせず w_table から導く（lift-group-planning 判断 8）。
- *
- * 任意の w_table ≥ 1 で「卓同期 > arms 超過」が式から出る——arms 超過は卓の群を組むときにだけ生まれる費用で、
- * 群を組む価値の一段下に群を組む代償を置く。単位は秒 対 本数で既定（w_table = 2）では 1 本 1 秒に相当し、
- * 実質はタイブレークである。効かせるには「arms を超えた 1 本が上げ遅れる秒数」という計測値が要る。
- */
-function armsOverflowWeight(params: ScheduleParams): number {
-  return Math.max(0, params.tableSyncWeight - 1);
 }
 
 /** Σ Wait_Time（秒）。起点を持たない配置は寄与しない。 */

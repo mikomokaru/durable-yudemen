@@ -44,6 +44,7 @@ const configMessage = {
   orderSyncToleranceSeconds: 30,
   tableSyncToleranceSeconds: 60,
   affinityToleranceDistance: 14,
+  liftIntervalSeconds: 45,
   unitOrigins: [
     { x: 0, y: 0 },
     { x: 4, y: 0 },
@@ -65,6 +66,7 @@ const CONFIG_KEYS = [
   "affinityWeight",
   "arms",
   "firmnessCodes",
+  "liftIntervalSeconds",
   "menuItems",
   "noodlePresets",
   "orderSyncToleranceSeconds",

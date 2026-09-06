@@ -22,12 +22,23 @@ import {
   advanceRelease,
   baselineSchedule,
   initialRelease,
-  isPushedOut,
   joinWindowMillis,
+  keepsAnchor,
   planTargets,
+  refersTo,
+  type Placement,
   type SlotRelease,
 } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
+import {
+  advanceLifts,
+  initialLifts,
+  liftCap,
+  liftsOf,
+  loadWith,
+  withinLiftCap,
+  type LiftTable,
+} from "../../src/engine/lift";
 import { tableMembers, type TableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { PendingOrder } from "../../src/domain/order";
@@ -58,6 +69,7 @@ interface Scene {
   readonly pending: readonly PendingOrder[];
   readonly release: SlotRelease;
   readonly members: TableMembers;
+  readonly lifts: LiftTable;
   readonly running: readonly Timer[];
   readonly slotCount: number;
   readonly params: ScheduleParams;
@@ -83,6 +95,7 @@ const genScene: fc.Arbitrary<Scene> = fc
       pending: toPending(orders),
       release: initialRelease(timers, NOW, slotCount),
       members: tableMembers(timers),
+      lifts: initialLifts(timers),
       running: timers,
       slotCount,
       params,
@@ -99,11 +112,12 @@ describe("engine/schedule — baselineSchedule", () => {
   // 他の品目の配置を壊さないことを、同じ述語が同時に検査する。
   it("Property 1: ハード制約 (a) 重複なし (b) 同時本数 ≤ slot 数 (c) 解放時刻より前に開始しない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
           members,
+          lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
         );
@@ -145,6 +159,7 @@ describe("engine/schedule — baselineSchedule", () => {
             scene.pending,
             scene.release,
             scene.members,
+            scene.lifts,
             DEFAULT_NOODLE_PRESETS,
             scene.params,
           );
@@ -152,6 +167,7 @@ describe("engine/schedule — baselineSchedule", () => {
             shuffled,
             scene.release,
             scene.members,
+            scene.lifts,
             DEFAULT_NOODLE_PRESETS,
             scene.params,
           );
@@ -172,11 +188,12 @@ describe("engine/schedule — baselineSchedule", () => {
   // 麺種は既知のみで振る——茹で時間が引けない品目の除外が混ざると「64 件で切れた」ことが観測できない。
   it("Property 15: 計画対象は正準順序の先頭 64 件と厳密に一致する", () => {
     fc.assert(
-      fc.property(genLargeScene, ({ pending, release, members, params }) => {
+      fc.property(genLargeScene, ({ pending, release, members, lifts, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
           members,
+          lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
         );
@@ -242,6 +259,7 @@ const genLargeScene: fc.Arbitrary<Scene> = fc
     pending: toPending(orders),
     release: initialRelease([], NOW, slotCount),
     members: tableMembers([]),
+    lifts: initialLifts([]),
     running: [],
     slotCount,
     params,
@@ -249,19 +267,22 @@ const genLargeScene: fc.Arbitrary<Scene> = fc
 
 describe("engine/schedule — 同時に上げる群（lift-group-planning）", () => {
   // Feature: lift-group-planning, Property 1 — 錨への一致
-  // **Validates: Requirements 1.4, 3.3, 3.4, 7.1**
+  // **Validates: Requirements 1.4, 3.3, 3.4, 7.1, 9.4, 9.9**
   //
-  // 釜容量に収まる一片では、走行中の仲間が居なければ未着手の配置の serveAt がすべて等しく、各配置の
-  // earliest 以上である。走行中の仲間が居れば（Property 16・判断 16・ADR-0007）配置は高々 2 つの serveAt に
-  // 分かれる——走行中の錨に**合流した**配置はちょうど錨に一致し、残りは一つの値に揃って錨より後ろにある。
-  // 容量を超える一片は batch に割れるので対象外（Property 14）。
-  it("Property 1 / 16: 容量に収まる一片は、走行中が無ければ一つの serveAt に揃い、在れば合流分が錨から h_i 以内で残りが一つに揃う", () => {
+  // 釜容量に収まる一片では、群の候補時刻（錨）はひとつで、上げ窓はそこから後ろへしか動かさない（AC 9.4）。
+  // 走行中の仲間が居なければ未着手の配置はすべて自分の earliest 以上かつ群の最遅の earliest 以上（全員が同じ錨から
+  // 出発する）で、合流の所属は無い（AC 9.9）。走行中の仲間が居れば（Property 16・判断 16・ADR-0007）合流分は錨を
+  // 仲間の中に持ち、錨より h_i を超えて手前には置かれず（AC 9.10 (b)）、残りは走行中の最遅以上に置かれる。
+  // 錨との一致そのもの（serveAt = anchor）は上げ窓が破りうるので主張しない——窓で動いても所属は変わらない
+  // （判断 20）。容量を超える一片は batch に割れるので対象外（Property 14）。
+  it("Property 1 / 16: 容量に収まる一片は、群の錨から後ろへしか動かず、合流分は仲間の錨を所属に持つ", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
           members,
+          lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
         );
@@ -278,36 +299,38 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             0,
           );
           if (totalSpan > slotCount) continue;
-          const serveTimes = [...new Set(slice.placements.map((placement) => placement.serveAt))];
+          // 各配置は自分の釜の解放時刻 + 茹で時間 以上（下限のクランプ無しで構成から従う）。
+          const earliestOf = (placement: Placement) =>
+            Math.max(...placement.slotIds.map((slotId) => release[Number(slotId)]!)) +
+            (placement.serveAt - placement.startAt);
+          for (const placement of slice.placements) {
+            expect(placement.serveAt).toBeGreaterThanOrEqual(earliestOf(placement));
+          }
           const siblings = members.get(slice.tableKey);
           if (siblings === undefined) {
-            expect(serveTimes).toHaveLength(1);
+            // 走行中の仲間が居なければ合流の所属は無く（AC 9.9）、全員が群の錨（最遅の earliest）以上に上がる。
+            const anchor = Math.max(...slice.placements.map(earliestOf));
+            for (const placement of slice.placements) {
+              expect(placement.anchor).toBeNull();
+              expect(placement.serveAt).toBeGreaterThanOrEqual(anchor);
+            }
           } else {
             const earliestSibling = siblings[0];
             const latestSibling = siblings[siblings.length - 1]!;
-            // 走行中の最早より h_i を超えて手前に散らさない。合流分はいずれかの走行中から h_i 以内（判断 18）、
-            // 残りは最遅の走行中 + h_i より後ろで一つに揃う。
             for (const placement of slice.placements) {
               const window = joinWindowMillis(placement.serveAt - placement.startAt, params);
+              // 走行中の最早より h_i を超えて手前に散らさない。
               expect(placement.serveAt).toBeGreaterThanOrEqual(earliestSibling - window);
+              if (placement.anchor !== null) {
+                // 合流の所属は配置が持つ（AC 9.9）：錨は走行中の仲間の実効 endTime のいずれかで、錨より h_i を
+                // 超えて手前には置かれない（AC 9.10 (b)）。錨より後ろへは上げ窓がいくらでも動かしうる。
+                expect(siblings).toContain(placement.anchor);
+                expect(placement.serveAt).toBeGreaterThanOrEqual(placement.anchor - window);
+              } else {
+                // 合流していない残りは走行中の最遅を下限に置かれる（Group_Anchor・AC 3.3）。
+                expect(placement.serveAt).toBeGreaterThanOrEqual(latestSibling);
+              }
             }
-            const beyond = new Set(
-              slice.placements
-                .filter(
-                  (placement) =>
-                    placement.serveAt >
-                    latestSibling + joinWindowMillis(placement.serveAt - placement.startAt, params),
-                )
-                .map((placement) => placement.serveAt),
-            );
-            expect(beyond.size).toBeLessThanOrEqual(1);
-          }
-          // 各配置は自分の釜の解放時刻 + 茹で時間 以上（下限のクランプ無しで構成から従う）。
-          for (const placement of slice.placements) {
-            const boil = placement.serveAt - placement.startAt;
-            const earliest =
-              Math.max(...placement.slotIds.map((slotId) => release[Number(slotId)]!)) + boil;
-            expect(placement.serveAt).toBeGreaterThanOrEqual(earliest);
           }
         }
       }),
@@ -315,38 +338,84 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
     );
   });
 
-  // Feature: lift-group-planning, Property 17 — 自前解は始めたまとまりを崩さない（ハード制約 (e)）
-  // **Validates: Requirements 1.9, 1.11, 5.3**
+  // Feature: lift-group-planning, Property 7.8 — 上げ窓の上限
+  // **Validates: Requirements 7.8, 9.3, 9.4, 9.11, 9.12**
   //
-  // 計画順に解放表を進めながら、走行中の仲間が在る一片ごとに isPushedOut（Acceptance_Gate と同じ述語）が
-  // 偽であること。自前解がゲートの (e) を構成から満たすことの検査で、joinable の貪欲と述語の整合を固定する。
-  it("Property 17: 走行中の仲間が在る一片で、合流できた品目を錨より後ろへ押し出さない", () => {
+  // 自前解のどの配置についても、それを含むすべての窓（半開・長さ L）の負荷——走行中の上がりと計画済みの
+  // すべての配置の slotSpan の合計——は arms + HELPER_ARMS を超えない。窓は店舗全体で数えるので一片を跨いで
+  // 見る。1 品で上限を超える品目は配置されない（AC 9.12）。
+  it("Property 7.8: 自前解の各配置を含む窓の負荷は arms + HELPER_ARMS を超えず、1 品で超える品目は置かれない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
           members,
+          lifts,
+          DEFAULT_NOODLE_PRESETS,
+          params,
+        );
+        const placements = allPlacements(schedule.slices);
+        const cap = liftCap(params);
+        for (const placement of placements) {
+          const others = advanceLifts(
+            lifts,
+            liftsOf(placements.filter((other) => other !== placement)),
+          );
+          expect(placement.slotIds.length).toBeLessThanOrEqual(cap);
+          expect(
+            loadWith(others, placement.serveAt, placement.slotIds.length, params),
+          ).toBeLessThanOrEqual(cap);
+        }
+        for (const order of planTargets(pending)) {
+          if (order.slotSpan <= cap) continue;
+          expect(placements.some((placement) => refersTo(placement, order))).toBe(false);
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: lift-group-planning, Property 17 — 自前解は始めたまとまりを崩さない（ハード制約 (e)）
+  // **Validates: Requirements 1.9, 1.11, 5.3, 9.9, 9.10**
+  //
+  // 計画順に解放表と上げ表を進めながら、一片ごとに keepsAnchor（Acceptance_Gate・合成と同じ述語）が真であること
+  // ——`anchor` の主張が現在の仲間に在り（AC 9.10 (a)・仲間が無い卓では null）、合流分の pack が手前に散らさず・
+  // 集合として合流でき・延期の理由が窓だけで（(b)〜(d)）、合流できた品目を押し出さない。自前解がゲートの (e) を
+  // 構成から満たすことの検査で、joinTarget が錨を仲間から選ぶこと・joinable の増分の対応づけと述語の整合・
+  // placeWithLifts が pack 全体の span で firstFit することを固定する（design Component 10）。
+  // 併せて (f)——一片を手前の表に載せたとき、各配置を含む窓が上限以下（withinLiftCap・ゲートと合成が同じ位置で読む）
+  // ——も真であること（AC 9.5・9.14。firstFit の最小性から従う）。
+  it("Property 17: 自前解の一片は keepsAnchor と withinLiftCap を守る（錨は仲間に在り・pack は窓の分だけ延期し・押し出さず・上限内）", () => {
+    fc.assert(
+      fc.property(genScene, ({ pending, release, members, lifts, params }) => {
+        const schedule = baselineSchedule(
+          pending,
+          release,
+          members,
+          lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
         );
         const targets = planTargets(pending);
         let free = release;
+        let ends = lifts;
         for (const slice of schedule.slices) {
-          const siblings = members.get(slice.tableKey);
-          if (siblings !== undefined) {
-            expect(
-              isPushedOut(
-                slice.placements,
-                free,
-                siblings,
-                targets,
-                DEFAULT_NOODLE_PRESETS,
-                params,
-              ),
-            ).toBe(false);
-          }
+          const siblings = members.get(slice.tableKey) ?? null;
+          expect(
+            keepsAnchor(
+              slice.placements,
+              free,
+              ends,
+              siblings,
+              targets,
+              DEFAULT_NOODLE_PRESETS,
+              params,
+            ),
+          ).toBe(true);
+          expect(withinLiftCap(ends, liftsOf(slice.placements), params)).toBe(true);
           free = advanceRelease(free, slice.placements);
+          ends = advanceLifts(ends, liftsOf(slice.placements));
         }
       }),
       { numRuns: 300 },
@@ -357,11 +426,12 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // **Validates: Requirements 4.1, 4.4, 4.5, 7.3**
   it("Property 3 / 14: 各配置は slotSpan 個の相異なる釜を持ち、同時刻の占有は釜数を超えない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
           members,
+          lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
         );

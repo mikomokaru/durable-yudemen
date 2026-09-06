@@ -18,7 +18,7 @@
 1. **卓同期の項を Table_Lag の和にし、走行中 Timer を動かせない成員として同じ和に入れる**（判断 5）。これで「全員を Group_Anchor に揃える」が目的関数の唯一の最適点になり、自前解と外部解が同じ物差しに乗る。
 2. **走行中 Timer が卓の事実を持つ**（判断 6）。群の 1 本目を入れた後も、残りが 1 本目に揃う。
 3. **`slotSpan` 個の釜を割り当てる**（判断 11）。釜容量は本数ではなく `slotSpan` の合計で数える。
-4. **`arms` 超過をソフト制約として加える**。重みは `max(0, tableSyncWeight − 1)` の導出値で、設定も定数も足さない（判断 8・9）。
+4. ~~**`arms` 超過をソフト制約として加える**。重みは `max(0, tableSyncWeight − 1)` の導出値で、設定も定数も足さない（判断 8・9）。~~ **改訂（判断 20・Component 10）**：`arms` はソフトのまま、店舗全体の上げ窓で `arms` を超えた本数を Lift_Overflow（1 本 `liftIntervalSeconds` 秒相当・`total` にだけ）で減点し、`arms + HELPER_ARMS` をハード制約 (f) に置く。導出値の重みは消えた。
 5. **`score` を計画の型から落とす**（判断 7）。採点は比較の時点だけの導出になり、配置（`baselineSchedule` / `committedSchedule`）と採点（`admit`）が分離する。
 6. **要求の入力を engine 側へ一元化する**。`RequestPlan` が `noodlePresets` を運び、shell は Effect の写しを送るだけになる。
 
@@ -61,7 +61,7 @@ running: Timer[]  ──┬─→ initialRelease(running, now, slotCount) ─→
         ┌───────────────────────────┴───────────────────────────┐
         ↓                                                       ↓
   baselineSchedule(…, members, …)                     scoreSchedule(…, members, …)
-  Group_Anchor = max(members[key] ∪ earliest)          Table_Lag / Arms_Overflow の成員
+  Group_Anchor = max(members[key] ∪ earliest)          Table_Lag の成員（Arms_Overflow は判断 20 で Lift_Overflow へ・Component 10）
 ```
 
 **解放表と同じ資格の第二の表を立てる。** `baselineSchedule` が `running` ではなく `SlotRelease` を受けるのは、「過去に開始しない」という事実の置き場所を表ひとつに定めるためだった（既存の注記）。卓の錨も同じ形にする——走行中 Timer から射影した表を渡し、配置と採点は表だけを読む。射影が一箇所なら、実効 endTime（`adjustedEndTime`）を二度書く余地が消える。
@@ -96,7 +96,7 @@ export function scoreSchedule(
 ): ScheduleScore;
 ```
 
-`Omit<PlanSlice, "score">` が消える（`PlanSlice` が `score` を持たなくなるため）。第 3 引数は `running: Timer[]` ではなく射影表を採る——`baselineSchedule` が `SlotRelease` を採るのと同じ判断で、`admit` が 3 回採点しても射影は 1 回で済む。
+`Omit<PlanSlice, "score">` が消える（`PlanSlice` が `score` を持たなくなるため）。第 3 引数は `running: Timer[]` ではなく射影表を採る——`baselineSchedule` が `SlotRelease` を採るのと同じ判断で、`admit` が 3 回採点しても射影は 1 回で済む。**21.7 で改訂**：第 4 引数に上げ表 `lifts: LiftTable`（`initialLifts(running)`）を足す。Lift_Overflow は店舗全体の項で、走行中の上がりに全配置の上がりを足した表の上で数える（Component 10）。
 
 #### 一片の部分和
 
@@ -106,7 +106,7 @@ function scoreSlice(placements, arrivals, memberEnds: readonly EpochMillis[], pa
   return (
     waitSeconds(placements, arrivals) +
     params.tableSyncWeight * tableLagSeconds(serveTimes) +
-    armsOverflowWeight(params) * armsOverflow(serveTimes, params.arms) +
+    // armsOverflowWeight(params) * armsOverflow(serveTimes, params.arms) +   ← 判断 20 で撤去（Component 10 の Lift_Overflow が total にだけ載る）
     params.orderSyncWeight * orderExcessSeconds(placements, params.orderSyncToleranceSeconds) +
     params.affinityWeight * affinityExcess(placements, params)
   );
@@ -114,8 +114,8 @@ function scoreSlice(placements, arrivals, memberEnds: readonly EpochMillis[], pa
 ```
 
 - **`tableLagSeconds(serveTimes)`** = `Σ ceilSeconds(max(serveTimes) − t)`。空列は 0。**切り上げである**（`waitSeconds` の切り捨てとは規則を分ける・次節）。
-- **`armsOverflow(serveTimes, arms)`** = 同じ `serveAt` を持つ成員を束ね、`Σ max(0, 本数 − arms)`。
-- **`armsOverflowWeight(params)`** = `max(0, params.tableSyncWeight − 1)`。定数を置かず `params` から導く（判断 8）。
+- ~~**`armsOverflow(serveTimes, arms)`** = 同じ `serveAt` を持つ成員を束ね、`Σ max(0, 本数 − arms)`。~~
+- ~~**`armsOverflowWeight(params)`** = `max(0, params.tableSyncWeight − 1)`。定数を置かず `params` から導く（判断 8）。~~（判断 20・21.7 で撤去。店舗全体の Lift_Overflow が `total` にだけ載る——Component 10）
 - `serveSpread` / `excessSeconds` は**オーダー同期の項が使い続ける**ので残す。卓同期だけが使わなくなる。
 - `waitSeconds` は `placements` だけを見る。走行中の成員は `Wait_Time` に寄与しない（Placement ではなく、その待ちは既に実現済み）。AC 2.5 の「定義を変えない」はこの非対称のことである。
 
@@ -272,10 +272,10 @@ placeBatch(batch, release, runningAnchor: EpochMillis | null, params):
 #### 判断 18・19 の改訂（実装で確定・2026-09-05）
 
 - **`ScheduleParams.toleranceRatio`** を足し、合流の窓 `joinWindowMillis(boil, params) = floor(boil × toleranceRatio / 100)` を `schedule.ts` に置く。指紋（`digest.ts`）に畳む。`RequestPlan` の `params` は SettleParams をそのまま載せるので追加の配線は無い。
-- `placeGroup(items, release, siblings, presets, params)`——`runningAnchor` の代わりに同じ卓の走行中の提供時刻の列（`tableMembers` の値・昇順）を受ける。`joinable` / `fits` は `catchable(earliest, siblings, boil, params)`（`A ≥ earliest − h_i` を満たす最早の A）で合流の可否を判定し、`placeJoined` は `joinedServeAt`——いずれかの A が `|earliest − A| ≤ h_i` なら **earliest**、無ければ earliest より後の最早の A——に置く。残りの batch は従来どおり `placeBatch(…, max(siblings))`。
-- `keepsAnchor(placements, release, siblings, targets, presets, params)`：(1) 走行中の最早より h_i を超えて手前に散らさない、(2) `isPushedOut`——合流分（`joinedAnchor` が非 null＝いずれかの A から h_i 以内）だけで解放表を進め、合流していない配置の釜が「最遅の A + h_i − 茹で時間」までに空いていたら押し出し。
+- `placeGroup(items, release, siblings, presets, params)`——`runningAnchor` の代わりに同じ卓の走行中の提供時刻の列（`tableMembers` の値・昇順）を受ける。`joinable` / `fits` は `catchable(earliest, siblings, boil, params)`（`A ≥ earliest − h_i` を満たす最早の A）で合流の可否を判定し、`placeJoined` は `joinedServeAt`——いずれかの A が `|earliest − A| ≤ h_i` なら **earliest**、無ければ earliest より後の最早の A——に置く。残りの batch は従来どおり `placeBatch(…, max(siblings))`。**21.6 で改訂**：`joinable` は増分——品目ごとに `joinTarget`（非 null＝いずれかの A に h_i で届く）で判定し、確定した品目の釜を取り置いて次を単独で判定する（`fits` / `catchable` は撤去）。対応づけは `placeJoined` がそのまま置き、判定は置いた後の解放表で繰り返す（Component 10 の注記）。
+- `keepsAnchor(placements, release, lifts, siblings, targets, presets, params)`：**21.6 で改訂**——配置を単位（`anchor` 付きは同じ anchor・同じ serveAt の pack、無しは 1 品）にまとめ、pack を (serveAt, startAt, 代表釜) 順に解放表と上げ表へ載せながら (a) 錨は現在の仲間に在る（21.4 のレビュー追記で先に据えた・仲間が無い卓では `anchor` を持てない）(b) 手前に散らさない (c) 集合として合流できた (d) serveAt が候補の最大から pack 全体の span で firstFit した時刻に一致、を検査し、その後 1 品の配置を同じ順に載せながら押し出し（`isPushedOut`——置いた後の表で合流できた品目が候補時刻からの firstFit より後ろ）を検査する（Component 10「(e) の契約」）。加えてどの配置も走行中の最早より h_i を超えて手前に散らさない。`joinedAnchor` の h_i 推定は撤去。
 - `boilMillisOf` を `schedule.ts` から export し、admit.ts の重複を消した。
-- `recommend(committed, pending, running, presets, params)`：配置ごとに `joinedAnchor` を引き、`group = joined ? \`${slice}:anchor:${A}\` : \`${slice}:${serveAt}\``、`anchor = A | null`。
+- `recommend(committed, pending, running, presets, params)`：配置ごとに `joinedAnchor` を引き、`group = joined ? \`${slice}:anchor:${A}\` : \`${slice}:${serveAt}\``、`anchor = A | null`。**21.4 で改訂**：`recommend(committed)` は `Placement.anchor` を運ぶだけで、`joinedAnchor` の推定は撤去（Component 10「`Placement.anchor`」）。引数の待ち行列・走行中・プリセット・採点パラメータは推定のためだけに要したので消える。
 - 検証：`tests/core/continuous-input.example.test.ts`（arms 1〜3 × 間隔 0 / 1 / 3 / 5 秒・6 本を順に投入し、各投入の直後に空いている釜の残りがすべて `anchor` 非 null で `startAt ≤ now`、いま押せる推奨が使わない空き釜に後ろへ置かれた品目が無い）。Property 1 は「最早の走行中 − h_i より手前に散らさない・最遅 + h_i より後ろは一つに揃う」へ。`digest.example` は toleranceRatio が指紋を変える形へ。
 
 ### Component 4: `admit.ts` — 再採点で比べ、`slotSpan` を見る
@@ -389,6 +389,121 @@ orderItem: { externalOrderId: args.externalOrderId, itemIndex: args.itemIndex, t
 - shell の `scheduleParams` 束に `arms` を含め、`private arms` フィールドを廃す。`SettleParams` は `SyncParams` と `ScheduleParams` の両方を継承するので、`arms` の実体は 1 つで足りる。**同じ値の置き場を二つ持たない。** 移す箇所は 3 つ——`:635` の投影反映（`this.arms = config.arms` → `scheduleParams` の更新へ畳む）、`:667` と `:683` の config メッセージ（broadcast と hydration の 2 経路・`arms: this.scheduleParams.arms`）。config ワイヤの形は変わらない（既に `arms` を運んでいる）。
 - `solver/index.ts:113` は新しい署名に合わせる。`PlanRequest` は `running` を運んでいるので、solver 側でも `initialRelease` と `tableMembers` の 2 表を作れる。`request.ts` は変更なし。
 
+### Component 10: 上げ窓（Lift_Window）——判断 20・ADR-0009（レビュー 6 件を契約に反映・2026-09-06）
+
+走行中の状況を「いつ上がるか」として計画に入れる。釜の解放表（`initialRelease`）・卓の成員表（`tableMembers`）と同じ資格の第三の表で、状態ではなく毎回導く。
+
+```ts
+// src/domain/store.ts
+export const LIFT_INTERVAL_SECONDS_MIN = 5;
+export const LIFT_INTERVAL_SECONDS_MAX = 120;
+export const DEFAULT_LIFT_INTERVAL_SECONDS = 45;   // store DO は投影 config に無ければこれを採る
+export const HELPER_ARMS = 2;                        // 手伝いで増える腕（物理的に 1 人）。設定にしない
+export function toLiftIntervalSeconds(raw: unknown): number;   // 妥当域外・非整数・欠如 → 既定
+// StoreConfig.liftIntervalSeconds: number
+// src/engine/objective.ts — ScheduleParams.liftIntervalSeconds（採点と配置の両方が読む）
+
+// src/engine/lift.ts（新規）
+export interface Lift { readonly at: EpochMillis; readonly span: number }
+export type LiftTable = readonly Lift[];                                   // at 昇順
+export function initialLifts(running: readonly Timer[]): LiftTable;         // boiled（過去の時刻）も入れる
+export function advanceLifts(lifts: LiftTable, added: readonly Lift[]): LiftTable;
+/** t に span 本を足したとき、t を含む半開窓 [x, x + L) の負荷の最大。 */
+export function loadWith(lifts: LiftTable, t: EpochMillis, span: number, params): number;
+/** t 以降で loadWith ≤ arms + HELPER_ARMS となる最小の時刻。span > arms + HELPER_ARMS なら null。 */
+export function firstFit(lifts: LiftTable, t: EpochMillis, span: number, params): EpochMillis | null;
+/** 目的関数の Lift_Overflow（一意な貪欲の割当・下記）。 */
+export function liftOverflow(lifts: LiftTable, params): number;
+```
+
+**窓の数え方（AC 9.3・レビュー 3）。** 窓は**半開区間** `[x, x + L)`。t を含む窓は `x ∈ (t − L, t]` で、負荷が極大になる起点は `{ e.at : t − L < e.at ≤ t }`（既存の上がり時刻）と `t` 自身だけなので、`loadWith` はその有限個を見る。ちょうど L 離れた 2 つの上がりは同じ窓に入らない（45 秒間隔を許す）。
+
+**`firstFit` の停止性（レビュー 3・6）。** span > arms + HELPER_ARMS なら null（AC 9.12・いつまで待っても入らない）。それ以外は t から始め、`loadWith(t) > cap` なら「t を含む過負荷の窓のうち最早の起点の上がり時刻 e」について t ← e + L（半開ゆえ e はもう t を含む窓に入らない）を繰り返す。各反復で表の要素を一つ以上「t より L 以上手前」へ追い越すので、表が有限なら止まる。結果は t 以上で条件を満たす最小の時刻である（性質・`lift.property`）。
+
+**含む窓だけを見る（AC 9.4・9.5・9.14・レビュー 2）。** 上限の検査は常に「新しい配置（または当該一片の配置）を**含む**窓」に限る。走行中だけ・過去の boiled だけで既に超えている窓は開始後の事実で、無関係な配置を落とす理由にならない。`exceedsLiftCap(表全体)` は置かない——ゲートも合成も、当該配置を足したときの `loadWith` で見る。
+
+**Lift_Overflow の一意な定義（AC 9.6・レビュー 4）。** 上がる時刻を昇順に走査し、未割当の最早の時刻 e を起点に窓 `[e, e + L)` の負荷を取り、`max(0, 負荷 − arms)` を足して窓の内側を割当済みにする。重なる窓を二度数えない。Boil_Sync のセット分割と同じ「前から詰める」形で、外部ソルバも同じ式で再現できる。重みは L 秒/本（新しい重みを足さない）。
+
+```
+liftOverflow(lifts, L, arms):
+  i = 0, total = 0
+  while i < lifts.length:
+    e = lifts[i].at; j = i; load = 0
+    while j < lifts.length && lifts[j].at < e + L: load += lifts[j].span; j++
+    total += max(0, load − arms); i = j
+  return total × L(秒)
+```
+
+例：arms 2・L 45。上がり {60:2 本, 63:2 本, 105:2 本} → 窓 [60,105) 負荷 4 → 超過 2、次の窓 [105,150) 負荷 2 → 超過 0。合計 2 × 45 = 90。
+
+**採点（`scoreSchedule`・AC 9.7）。** 店舗全体の項なので卓の内側に閉じない。**`total` にだけ足し、`bySlice` には入れない**——段 1 の (d) は枝刈り、段 2 の総和比較が単調改善を担う既存の分担（「単調改善は全体判定が担保する」）に乗る。Requirement 2.9 の例外として doc に記す。Arms_Overflow と `armsOverflowWeight` は撤去。
+
+**配置（AC 9.8・レビュー 5）。** 合流の規則（判断 18）で「同じ時刻に上げたい品目の列」（joined の batch、または placeBatch の batch）と候補時刻 t₀ が決まった後：
+
+```
+placeWithLifts(batch, t0, release, lifts, siblingsEnds, params):
+  # batch の順は配置の対応づけと同じ（茹で時間の長い順・同値は正準順序）。品目は不可分。
+  # 1 品で arms + HELPER を超える品目は列に入れない（AC 9.12・toBoiling の隣で落ちている）。
+  S = Σ span
+  if S > arms + HELPER:
+    room = (arms + HELPER) − loadWith(lifts, t0, 0)                 # 候補の窓の残り容量
+    head = Σ span ≤ (room ≥ 先頭の span ? room : arms + HELPER) に収まる最長の非空の接頭辞   # 先頭の品目は必ず上限に収まる（AC 9.12）
+    return placeWithLifts(head, …) ++ placeWithLifts(残り, その表の上で t0 以降, …)
+  pack  = 全員を firstFit(lifts, t0, S) に置く配置
+  if S ≤ arms: return pack
+  prefix = Σ span ≤ arms に収まる最長の非空の接頭辞
+  if prefix が空: return pack                                            # split は候補にならない（例：arms 1 の大盛）
+  split = prefix を firstFit(lifts, t0, Σ span(prefix)) に置き、残りをその表の上で再帰した配置
+  cost(c) = Σ_i (serve_i − arrival_i)                                   # 待ち（候補を後ろへ動かした分を含む）
+          + w_table × Σ_{m ∈ 卓の成員（走行中の仲間を含む）} (max serve − serve_m)   # 卓の遅れ
+          + (liftOverflow(lifts + c) − liftOverflow(lifts))              # 手伝いの費用の差分（liftOverflow は秒相当を返す・L を重ねて掛けない）
+  return cost(pack) ≤ cost(split) ? pack : split                         # 同点は pack
+```
+
+両候補を同じ既存の表に対して**実際に作って**比べる。pack が既存の上がりを避けて 135 秒後ろへ動くなら、その待ちと遅れは cost(pack) に入る。split が既存の走行中と重なれば手伝いの費用は cost(split) に入る。4 人家族（arms 2・L 45・表が空）：pack 90、split 270 → pack。9 本：先頭 4 本の列で pack（90 < 270）、残り 5 本は次の窓で 4 + 1。arms 1 の大盛（span 2 ≤ 上限 3）は split の接頭辞が空なので pack で単独に置く。
+
+**`Placement.anchor`（AC 9.9・9.10・レビュー 1）。** 合流先の走行中の実効 endTime を配置の時点で決めて `Placement` に持ち、窓で `serveAt` が動いても変えない。`recommend` はそれを運ぶ（`joinedAnchor` の ±h_i 推定は撤去）。`AcceptedSlice` も持つので永続 v11（**v10 の一片は推定せず null**——`migrate` は純粋で設定（toleranceRatio・プリセット）を持たず h_i の窓を引けない。所属を失った合流分は合成が 1 品の単位として再検証する。代償は次の再計画まで「開始済み」が失われることで、`docs/persisted-schema-rollback.md` の v11 行に明記。レビュー追記・2026-09-06）。**`anchor` の主張は `recommend` が無条件に運ぶので、検証は `keepsAnchor` ただ一つが担う**——(a)「錨は現在の走行中の仲間の実効 endTime のいずれかに等しい・仲間が無い卓では `anchor` を持てない」は 21.4 の時点で先に据え（21.6 の pack 単位の検査はこれを含む）、ゲートと合成が同じ述語で読む。錨が Boil_Sync で ±h_i の内側に動いた採用済み一片も切られ、自前解が現在の錨で置き直す（錨は等号で運ぶ約束・判断 17）。
+
+**(e) の契約（レビュー 4 回で確定・単位は pack）。** `keepsAnchor` は一片の配置を**単位**にまとめ、単位を一つずつ解放表と上げ表へ載せながら検査する。単位は、`anchor` を持つ配置なら「同じ `anchor`・同じ `serveAt`」の pack、`anchor` を持たない配置なら 1 品。配置は batch 単位で置かれる（`placeWithLifts` は pack 全体の span で `firstFit` する）ので、検証も同じ単位でなければ自前解を拒否する——arms 2・L 45・走行中 3 本が 54・54・66 秒に上がる表で、残り 2 品（候補 60 秒）を pack すると 60 秒の窓負荷が 5 になり両方 99 秒に置かれるが、1 品ずつの firstFit は 60 秒である。
+
+```
+release = 一片を置く前の解放表, lifts = 一片を置く前の上げ表
+units = anchor 付きは (anchor, serveAt) で pack、anchor 無しは 1 品。並びは (serveAt, startAt, slotOf(slotIds[0])) 昇順
+for u in units:
+  if u は pack（anchor A・serveAt T・Σ span = S）:
+    for p in u:
+      boil = boilMillisOf(p の品目), h = joinWindowMillis(boil)
+      earliestOwn_p = max(release[s] for s in p.slotIds) + boil        # 手前の単位で進めた表で
+      (a) A ∈ siblings
+      (b) T ≥ A − h
+      (c) earliestOwn_p ≤ A + h                                        # 集合として合流できた
+    candidate = max_p joinedServeAt(earliestOwn_p, siblings, boil_p)   # pack はその最遅の候補より前に上がれない
+    (d) T === firstFit(lifts, candidate, S)                            # 延期の理由は窓だけ（pack 全体の span で）
+  else（1 品 p・anchor 無し）:
+    earliestAny = 手前の単位で進めた解放表で span 個の釜が最も早く空く時刻 + boil
+    if earliestAny ≤ latest(siblings) + h:                             # 窓を当てる前に合流できた品目だけを保護
+      expected = firstFit(lifts, joinedServeAt(earliestAny, siblings, boil), span)
+      if p.serveAt > expected: 押し出し（守っていない）
+  各配置について loadWith(lifts, serveAt, span) ≤ arms + HELPER でなければ (f)
+  release = advanceRelease(release, u); lifts = advanceLifts(lifts, u)
+```
+
+- **(c) は集合の検査になる。** 空きが 1 釜だけ・仲間 60 秒で、その釜に Thin を [0,60]・[60,120] と順に置いて両方に `anchor: 60` を付けた計画は、2 つ目の単位の earliestOwn が 120 秒（手前の単位で釜が 60 秒まで埋まる）ゆえ (c) で落ちる。
+- **(d) は延期の理由の検査になる。** 仲間 60 秒・残りが Thin 60 秒と茹で 600 秒で、両方を 600 秒に置き Thin に `anchor: 60` を付けた計画は、600 秒の品目が合流不能（anchor を名乗れない）で pack に入らず、Thin だけの pack の firstFit が 60 秒なので落ちる。正当な pack の待ち合わせ（上の 99 秒）は S = 2 で firstFit が 99 秒ゆえ通る。合流できる品目どうしなら、外部解が自前解と違う pack の切り方をしてもよい。
+- **押し出しは、窓を当てる前に合流できた品目に限って判定する。** 合流できない品目は保護の対象外なので、仲間 60 秒・残りが茹で 300 秒と 600 秒を後の batch で 600 秒に揃える配置は押し出しではない。窓による必要な延期も押し出しではなく、走行中 4 本が 60 秒に上がる表で残りを 105 秒に置く一片は守っている。
+- 自前解は構成からこの契約を満たす——`placeWithLifts` が pack（同じ候補時刻の joined の列）ごとに pack 全体の span で `firstFit` し、split すれば別の pack として順に載る。Property 17 を「一片ごとに `keepsAnchor` が真」のまま保つ。
+- **単位の順（実装で確定・レビュー追記 2026-09-06）**：擬似コードは pack と 1 品を serveAt 順に混ぜて載せるが、実装は **pack をすべて載せてから 1 品を載せる**（それぞれ (serveAt, startAt, 代表釜) 順）。自前解は合流の判定を batch より先に、群を置く前の解放表で行い、上げ窓は pack を batch の 1 品より後ろの窓へ動かしうる（釜 0・2 が空き・走行中 3 本が 60 秒に上がり・釜 1 が 40 秒に空く場面で、Thin 2 品の pack は 105 秒、3 品目は 100 秒）。serveAt 順では batch の 1 品が先に載り、pack の釜を「空いていた」と読んで正当な batch を押し出しと判定する。合流分を先に載せる順は判断 16「合流できる品目で最初の batch を組み、残りは進めた表で置く」そのものである。合わせて `joinable` は増分（先に確定した品目の釜を取り置いて次を単独で判定・取り置きは無限大の解放時刻）にし、**置いた後の解放表で合流の判定を繰り返す**——先に合流した短い品目の釜がその上がりで空けば、次の品目がその釜から後の仲間に届く（仲間 66 秒と 170 秒・Thin が上がった釜 0 から Thick が [60,180] で届く）。一度で終えると batch へ回した配置をゲートが押し出しと判定する（Property 17 の実測・40000 例で成立）。
+
+**貪欲採点の近似（レビュー 2 回目の注意・AC 9.15）。** `liftOverflow` の割当は起点を上がり時刻に限る。arms 2・L 45 で {60:1, 104:1, 105:2} は割当 [60,105) / [105,150) で超過 0 だが、窓 [104,149) には 3 本ある。「手伝いが要る窓には必ず費用が付く」定義ではないことを採点の判断として記す。ハード上限（`loadWith`）は t を含むすべての窓を見るので近似ではない。
+
+**ゲート（`feasibleRelease`）。** 解放表と同じく `lifts` を一片ごとに進め、各配置について `loadWith(lifts_so_far, serveAt, span) > arms + HELPER_ARMS` なら feasible と認めない（(f)）。span 単独で超える配置も同じ経路で落ちる。
+
+**合成（`livePrefix`）。** 採用済み一片の配置を `lifts` に載せ、現在の走行中と合わせて当該配置を含む窓が上限を超えれば陳腐化と見なして切る（`keepsAnchor` と同じ位置）。尾部は進めた `lifts` から置く。
+
+**配置不能（AC 9.12・レビュー 6）。** `slotSpan > arms + HELPER_ARMS` の品目は、茹で時間が引けない品目と同じく配置しない（`toBoiling` の隣で落とす）。待ち行列に残り推奨が付かない。ラジアルからは始められる（engine は開始時に占有も上限も検査しない・既存 AC 8.3）。
+
+**指紋・要求・client。** `liftIntervalSeconds` を `digestInput` に畳み、`RequestPlan.params` が運ぶ。外部ソルバの契約に上限・Lift_Overflow の式・`Placement.anchor` の主張を足す。client は読まない（表示は計画の startAt に従う。判断 21 はそのまま）。
+
 ## Data Models
 
 ### `TableMembers`（新規・`project.ts`）
@@ -411,16 +526,18 @@ orderItem: { externalOrderId: args.externalOrderId, itemIndex: args.itemIndex, t
 
 ### 目的関数（一片）
 
+> **改訂（判断 20・21.7）**：下の `over` の行と `max(0, tableSyncWeight − 1) * over` の項は撤去済みで、履歴として残す。一片の部分和 `bySlice` は wait + w_table × lag + w_order × … + w_affinity × … の 4 項に閉じ、Lift_Overflow は店舗全体の項として `total` にだけ足す（Component 10・`scoreSchedule` の doc・AC 9.6 / 9.7）。
+
 ```
 scoreSlice(placements, arrivals, memberEnds, params):
   serveTimes = placements.map(serveAt) ++ memberEnds
   wait  = Σ_{p ∈ placements, arrivals にある} floor((p.serveAt − arrival(p)) / 1000)
   latest = max(serveTimes)                                   # 空なら 0 を返して終わり
   lag   = Σ_{t ∈ serveTimes} ceil((latest − t) / 1000)          # 逸脱の罰ゆえ切り上げ
-  over  = Σ_{t ∈ distinct(serveTimes)} max(0, count(t) − params.arms)
+  over  = Σ_{t ∈ distinct(serveTimes)} max(0, count(t) − params.arms)   # 撤去（判断 20）
   return wait
        + params.tableSyncWeight * lag
-       + max(0, params.tableSyncWeight − 1) * over
+       + max(0, params.tableSyncWeight − 1) * over                    # 撤去（判断 20）
        + params.orderSyncWeight * orderExcessSeconds(placements, params.orderSyncToleranceSeconds)
        + params.affinityWeight * affinityExcess(placements, params)
 ```
@@ -433,7 +550,7 @@ scoreSlice(placements, arrivals, memberEnds, params):
 
 - `t ≤ A_run`（走行中の最大）のとき：`latest = A_run` で `lag = N(A_run − t) + Σ_j(A_run − r_j)`、`wait` は `N·t + c`。費用の t の係数は `N(1 − w)` で、`w ≥ 2` なら負——**t を上げるほど良い**ので t は `A_run` まで上がる。
 - `t > A_run` のとき：`latest = t` で `lag = Σ_j(t − r_j)`、費用の係数は正——**t を上げると悪くなる**。
-- 個別に 1 本だけ Δ 早めると `wait` は Δ 減り `lag` は wΔ 増えるので、`(w − 1)Δ` の損（Arms_Overflow が立っていれば超過項が `w − 1` 減り、最悪で同値。同値は棄却される）。
+- 個別に 1 本だけ Δ 早めると `wait` は Δ 減り `lag` は wΔ 増えるので、`(w − 1)Δ` の損（~~Arms_Overflow が立っていれば超過項が `w − 1` 減り、最悪で同値。同値は棄却される~~ 判断 20 で Arms_Overflow は部分和から消えたので、部分和は条件なしに真に大きい——Property 2 の再導出は tasks 21.7 の実測）。
 
 ゆえに**釜の割当と batch の分割を所与とすれば**、最適点は `t = max(A_run, max earliest) = Group_Anchor` のただ一点で、自前解の構成（`placeBatch`）がその点を直接置く。**自前解は、自分が選んだ割当の下で自分の目的関数の最適点に一致する**——これが「一致を制約にせず採点の帰結として得る」（AC 1.6）の実体である。
 
@@ -473,13 +590,13 @@ Component 3 の `placeGroup` / `placeBatch` の擬似コードがそのまま実
 7. **部分和** — 総和は卓ごとの部分和の和に等しい。
 8. **整数** — 目的関数の値は整数。
 9. **卓同期項の下限** — 走行中の仲間が無い釜容量内の卓では、自前解の卓同期項は 0。
-10. **Arms_Overflow の下限** — 同時刻の成員が `arms` 以下なら 0。
+10. ~~**Arms_Overflow の下限** — 同時刻の成員が `arms` 以下なら 0。~~ 判断 20 の改訂：**Lift_Overflow の下限** — 上げ表が空で全配置の `slotSpan` の合計が `arms` 以下なら 0（`total = Σ bySlice`）。
 
 設計から追加で立つ性質を 4 つ置く。いずれも上の 10 項では捕れない構造の主張である。
 
 11. **卓なしは成員にならない** — `tableId` が `null` の走行中 Timer は、どの `PlanSlice` の部分和にも寄与しない（単独キーの一片にも入らない）。
 12. **成員の照合は一意** — `tableMembers` の鍵と `PlanSlice.tableKey` の一致は、卓に属する品目の一片に対してのみ成立する（NUL 始まりの単独キーは非空 `tableId` と衝突しない）。
-13. **再採点の決定性** — 同じ `(slices, pending, members, params)` に対する `scoreSchedule` は常に同じ値を返し、`bySlice` の総和は `total` に厳密に一致する。
+13. **再採点の決定性** — 同じ `(slices, pending, members, lifts, params)` に対する `scoreSchedule` は常に同じ値を返し、`bySlice` の総和 + Lift_Overflow は `total` に厳密に一致する（**21.7 で改訂**：Lift_Overflow は `total` にだけ載る・AC 9.7）。
 14. **batch 分割は容量で決まる** — 一片の各 batch について `Σ slotSpan ≤ 釜数` で、群の品目はどの batch にもちょうど 1 度現れる。
 
 ## Testing Strategy
@@ -512,11 +629,12 @@ Property 2 は「散らした計画は真に良くならない（Arms_Overflow �
 | --- | --- | --- |
 | 型 | `TableMembers`（`project.ts`） | 卓ごとの走行中の仲間の提供時刻。解放表と同じ資格の第二の表 |
 | 関数 | `tableMembers(running)` | 走行中 Timer から卓ごとの提供時刻を射影する唯一の経路 |
-| 関数 | `isPushedOut(placements, release, anchor, targets, presets)` | 走行中の錨に合流できた品目を後ろへ押し出した配置が在るか（ハード制約 (e)）。Acceptance_Gate と自前解の性質検査が共用。レビュー対応で追加・事後承認 |
+| 関数 | `isPushedOut(singles, release, lifts, siblings, params)`（module 内・`keepsAnchor` 経由） | 走行中の錨に合流できた品目を候補時刻からの firstFit より後ろへ押し出した配置が在るか（ハード制約 (e)）。21.6 で pack を載せた後の表の上で 1 品ずつ見る形へ改訂。Acceptance_Gate と自前解の性質検査が `keepsAnchor` で共用。レビュー対応で追加・事後承認 |
 | 関数 | `occupiesSlotSpan(placement, order)` | 配置が品目の `slotSpan` を満たすか（本数一致・釜番号で相異なる）。`isStale` と Acceptance_Gate が共用する述語。コードレビュー対応で追加・事後承認 |
-| 署名 | `scoreSchedule(slices, pending, members, params)` | 第 3 引数は `running` ではなく**射影表**（要件の naming ゲートは `running` と書いている・変更の提案） |
+| 署名 | `scoreSchedule(slices, pending, members, lifts, params)` | 第 3 引数は `running` ではなく**射影表**（要件の naming ゲートは `running` と書いている・変更の提案）。**21.7 で改訂**：第 4 引数に上げ表（`initialLifts(running)`）を足す——Lift_Overflow は走行中と全配置の上がりを並べた店舗全体の表で数える（Component 10・AC 9.6）。成員表と同じく射影を受け、`admit` が 3 回採点しても射影は 1 回 |
 | 署名 | `baselineSchedule(pending, release, members, presets, params)` | 配置は 2 つの表と茹で時間から決まる。採点は含まない |
-| 内部関数 | `tableLagSeconds` / `armsOverflow` / `armsOverflowWeight` | 卓の遅れの和 / 同時刻の本数の超過 / 卓同期から導く重み |
+| 内部関数 | `tableLagSeconds` / ~~`armsOverflow` / `armsOverflowWeight`~~ | 卓の遅れの和 / ~~同時刻の本数の超過 / 卓同期から導く重み~~（21.7 で撤去・`lift.ts` の `liftOverflow` に置き換え） |
+| 関数 | `withinLiftCap(lifts, added, params)`（`lift.ts`） | 上がりの列を一つずつ表へ載せたとき、各上がりを含む窓の負荷が arms + HELPER_ARMS 以下か（ハード制約 (f)・AC 9.5・9.14）。Acceptance_Gate と合成が同じ述語・同じ位置（一片を置く前の表）で読む。21.8 で追加・事後承認 |
 | 内部関数 | `ceilSeconds`（`objective.ts`） | 逸脱の罰を秒へ切り上げる。既存の `toWholeSeconds`（水準を切り捨てる）と役割で対になる |
 | 型の項目 | `ScheduleParams.arms` | 採点が腕の本数を読む。外部契約に及ぶ |
 | 型の項目 | `Ordered.orderItem.tableId`（**入れ子**） | 卓はオーダーの事実。直下に置けば「POS を経ないのに卓を知る Timer」が構築可能になる（要件 AC 3.1 は直下の表記・変更の提案） |
