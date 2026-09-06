@@ -28,8 +28,9 @@
   - [x] 3.3 チェックポイントとコミット
   - _Requirements: 3.1〜3.3_
 
-- [ ] 4. 走行中の独立（テストだけ・構造は変えない）
-  - [ ] 4.1 `tests/core` に性質 5.9：Timer・設定・`now`・操作を固定し、待ち行列の `arrivalTime` だけを寿命以上過去へ動かした二状態に、両状態で同じに成立する操作（発火・完了・調整・キャンセル・Boil_Sync・アドホック開始・Record 受理・外部計画の受領・hydration）を与え、`timers`・実効 endTime・Alarm 効果・`tableMembers` が等しい。`StartOrderItem` は含めない（期限切れ品目の開始拒否は 2.5 の例示で別に見る）
+- [x] 4. 走行中の独立（テストだけ・構造は変えない）
+  - 実測・2026-09-06: src は触っていない。`tests/core/order-expiry-independence.property.test.ts`（新設 2 件・各 250 runs・3 回連続通過）。場面は `schedulingScenes` と同じ素材（`genRunning`：卓あり／卓なし・走行中／茹で上がり済み・0〜5 本、`genOrderSpec`：0〜4 注文、`genParams`・arms 1〜4・toleranceRatio 1〜30、`now` = NOW − 5 秒〜+60 秒）で、生きている状態 `alive`（自前解を採用済み一片と Shown_Plan に載せる）と、待ち行列の `arrivalTime` だけを `ORDER_LIFETIME_MS + 700 秒〜4 時間` 過去へ動かした `expired`（Timer・設定・採用済み一片・Shown_Plan は同じ参照）の対。前提として `liveOrders(alive.pendingOrders, now)` が入力そのもの・`liveOrders(expired.pendingOrders, now)` が空であることを毎回確かめる。操作は `decide` を入口に Event の全種から `StartOrderItem` だけを除く 10 種（アドホック `Start`・`Cancel`／`Complete`／`Adjust`（既存 id と不在 id）・`AlarmFired`・`Reconcile`・`OrderArrived`・`OrderCancelled`・`RecordsReceived`（既存注文への後着・新規・0 件の除去・端末 2 つの順序の印）・`PlanArrived`（生きている待ち行列の自前解））。主張：可否と拒否事由が等しい・`state.timers` が等しい・実効 endTime（`adjustedEndTime`）が等しい・`tableMembers` が等しい・Alarm 効果（SetAlarm／ClearAlarm）は両方が列を出せば等しく、出た Alarm は相手の Timer から導いた `nextAlarmEffect` に等しい（no-op の有無は確定結果の比較と採用・要求の経路で片方だけ変わりうるため、Alarm が Timer だけの関数であることをこの形で固定）・Persist の snapshot の Timer が等しい。hydration は `toWireSnapshot` の `timers` と `serverTime` が等しく `pendingOrders` は片方だけ空（AC 4.4）、確定の `settle` でも Timer・実効 endTime・`tableMembers`・Alarm が等しい（Boil_Sync の結果は待ち行列に依らない）。**design からの追記**：Alarm の等しさは「両方出れば等しい」に加えて `nextAlarmEffect` との照合で固定した（`PlanArrived` は生きている側だけが採用して列を出し、期限切れ側は全一片が `isStale` で無変化になる場面が実在するため、Effect 列の Alarm を無条件に等しいとは言えない）。typecheck 0（worker-configuration.d.ts を除く）・lint 0 errors（警告は既存）・fmt:check clean（425 files）・全数 243 ファイル 1671 テスト通過。
+  - [x] 4.1 `tests/core` に性質 5.9：Timer・設定・`now`・操作を固定し、待ち行列の `arrivalTime` だけを寿命以上過去へ動かした二状態に、両状態で同じに成立する操作（発火・完了・調整・キャンセル・Boil_Sync・アドホック開始・Record 受理・外部計画の受領・hydration）を与え、`timers`・実効 endTime・Alarm 効果・`tableMembers` が等しい。`StartOrderItem` は含めない（期限切れ品目の開始拒否は 2.5 の例示で別に見る）
   - _Requirements: 4.1〜4.4, 5.9_
 
 - [ ] 5. 文書と最終ゲート
