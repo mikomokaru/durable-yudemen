@@ -81,7 +81,7 @@ export function liveOrders(pending: readonly PendingOrder[], now: number): reado
 
 ### Component 6: 走行中の独立（テストだけ）
 
-構造は変えない。`tests/core` に性質 5.9 を置く——任意の状態と、**両状態で同じに成立する操作**（既存 Timer への操作＝発火・完了・調整・キャンセル・Boil_Sync、アドホック開始 `StartTimer`、Record 受理、外部計画の受領、hydration）について、待ち行列の `arrivalTime` だけを `ORDER_LIFETIME_MS` 以上過去へ動かした状態に同じ操作を与え、`timers`・実効 endTime・Alarm 効果・`tableMembers` が等しいことを見る（Timer・設定・`now`・操作は固定）。**`StartOrderItem` は含めない**（レビュー指摘：期限内では Timer が増え、期限切れでは `OrderItemNotFound` で拒否されるので、結果が等しいという主張は AC 2.5 と衝突する）。期限切れ品目の開始拒否は Component 4 の例示テスト（`now` だけ違う 2 本）で別に見る。
+構造は変えない。`tests/core` に性質 5.9 を置く——**現在の設定で同期済みの Timer** を持つ任意の状態と、**両状態で同じに成立する操作**（既存 Timer への操作＝発火・完了・調整・キャンセル・Boil_Sync、アドホック開始 `StartTimer`、Record 受理、外部計画の受領、hydration）について、待ち行列の `arrivalTime` だけを `ORDER_LIFETIME_MS` 以上過去へ動かした状態に同じ操作を与え、`timers`・実効 endTime・Alarm 効果・`tableMembers` が等しいことを見る（Timer・設定・`now`・操作は固定）。**`StartOrderItem` は含めない**（レビュー指摘：期限内では Timer が増え、期限切れでは `OrderItemNotFound` で拒否されるので、結果が等しいという主張は AC 2.5 と衝突する）。期限切れ品目の開始拒否は Component 4 の例示テスト（`now` だけ違う 2 本）で別に見る。**同期済みを前提にする理由（レビュー実走）**：外部計画の受領は生きている側で採用されて `settle` が再同期し、期限切れ側では全一片が `isStale` で棄却されて状態を返す（再同期しない）。未同期の入力（実効終了 30 秒 / 33 秒）では採用側だけが 31.5 秒 / 31.5 秒に揃い食い違う。「全棄却なら状態不変」の正しい帰結なので棄却を再同期させる修正はせず、property は同期済みに限定し、反例は `order-expiry-independence.example` に残す。
 
 ## Error Handling
 

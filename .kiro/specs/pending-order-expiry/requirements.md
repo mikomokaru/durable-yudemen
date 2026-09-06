@@ -101,7 +101,7 @@
 6. **無害**：期限切れの品目だけが在る待ち行列は、空の待ち行列と同じ計画・同じ snapshot の `pendingOrders`・同じ要求抑制（要求しない）になる
 7. **不変**：期限切れの品目の有無は `TimerState.pendingOrders` と永続 snapshot を変えない
 8. **client の一致**：wire の `pendingOrders` と `correctedNow` から client が並べる左レールは、同じ `now` で server が絞った並びと同じ集合を指す
-9. **注文期限からの独立**：Timer・設定・`now`・操作を固定し、待ち行列の `arrivalTime` だけを過去へ動かした二つの状態に、両状態で同じに成立する操作（既存 Timer への操作・アドホック開始・Record 受理・外部計画の受領・hydration。`StartOrderItem` は除く）を与えると、走行中 Timer の集合・実効 endTime・Alarm・`tableMembers`・Boil_Sync の結果は等しい（守るのは「時間経過への不変」ではなく「注文期限からの独立」。`now` を進めれば茹で上がりと Alarm 解除が普通に起こる——レビュー指摘）
+9. **注文期限からの独立**：**現在の設定で同期済み**の Timer・設定・`now`・操作を固定し、待ち行列の `arrivalTime` だけを過去へ動かした二つの状態に、両状態で同じに成立する操作（既存 Timer への操作・アドホック開始・Record 受理・外部計画の受領・hydration。`StartOrderItem` は除く）を与えると、走行中 Timer の集合・実効 endTime・Alarm・`tableMembers`・Boil_Sync の結果は等しい（守るのは「時間経過への不変」ではなく「注文期限からの独立」。`now` を進めれば茹で上がりと Alarm 解除が普通に起こる——レビュー指摘。同期済みを前提にするのは、外部計画の受領が生きている側では採用されて再同期し、期限切れ側では全棄却で状態不変になるため——未同期の入力では採用側だけが再同期して Timer が食い違う。これは「全棄却なら状態不変」の正しい帰結であり、Example に反例として残す）
 
 ### naming ゲート（`naming.md`）
 

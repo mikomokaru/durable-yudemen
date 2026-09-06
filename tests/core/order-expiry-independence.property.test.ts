@@ -23,6 +23,13 @@
 // 一方だけが列を出す場面が在る。そのときも、出た Alarm は走行中の実効最早（`nextAlarmEffect`）だけの関数であり、
 // 両状態の Timer 集合が等しい以上、出るなら同じ値である。それを「両方が出せば等しい」「出たものは相手の Timer から
 // 導いた Alarm に等しい」の二つで固定する。
+//
+// **前提：Timer は現在の設定で同期済み（`synchronize` を通した集合）。** 外部計画の受領は、生きている状態では採用されて
+// `settle` が Timer を再同期し、期限切れの状態では全一片が `isStale` で棄却されて状態を返す（再同期しない）。設定変更の
+// 直後など未同期の Timer を与えると、採用側だけが再同期して Timer が食い違う（レビュー実走：実効終了 30 秒 / 33 秒 →
+// 採用側は 31.5 秒 / 31.5 秒、棄却側は 30 秒 / 33 秒のまま）。これは「全棄却なら状態不変」の正しい帰結であり、独立性の
+// 反例ではない。同期済みの入力では再同期が恒等になるので厳密一致が成り立つ。反例は `order-expiry-independence.example`
+// に残す。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -37,6 +44,7 @@ import { initialLifts } from "../../src/engine/lift";
 import { settle, toWireSnapshot } from "../../src/engine/settle";
 import type { SettleParams } from "../../src/engine/settle";
 import { shownPlanOf } from "../../src/engine/stability";
+import { synchronize } from "../../src/engine/sync";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
@@ -232,15 +240,16 @@ const genScene: fc.Arbitrary<IndependenceScene> = fc
     });
   })
   .chain((seed) => {
-    const timers = seed.running.map(timerOn);
-    const now = (NOW + seed.elapsed) as EpochMillis;
-    const pending = toPending(seed.orders);
     const params: SettleParams = {
       noodlePresets: DEFAULT_NOODLE_PRESETS,
       ...seed.schedule,
       toleranceRatio: seed.toleranceRatio,
       arms: seed.arms,
     };
+    // 前提：現在の設定で同期済みの Timer（ヘッダの注記。未同期なら採用側だけが再同期して食い違う）。
+    const timers = synchronize(seed.running.map(timerOn), params);
+    const now = (NOW + seed.elapsed) as EpochMillis;
+    const pending = toPending(seed.orders);
     const plan = baselineSchedule(
       pending,
       initialRelease(timers, NOW, seed.slotCount),
