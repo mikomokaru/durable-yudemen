@@ -18,8 +18,8 @@
 
 - [ ] 3. 2 段の計画
   - [ ] 3.1 `baselineSchedule(…, now, occupied, changeContext)`：1 段目 → `pinNow` → 2 段目（配分が同じなら 1 段目を返す）。呼び手（`commit.ts` / `src/solver` / テスト・`scheduleScenes` / `schedulingScenes`）に `occupied` を通す
-  - [ ] 3.2 `pinNow`：表示順（`startAt` → `compareArrival`）、今割当可能な釜（`release ≤ now` かつ Timer なし・先行する配分を除く）、優先（前回の釜 → 1 段目の釜 → `chooseSlots`）、足りなければ 1 段目のまま
-  - [ ] 3.3 `buildSchedule(…, pinned)`：固定した配置を先に解放表・上げ表・卓の成員へ載せ、`placeGroup` は固定した品目をそのまま出力し、残りに下限（`earliest` と合流可否）を当てる。忠実／候補比較の両方に通す
+  - [ ] 3.2 `pinNow`：表示順（`startAt` → `compareArrival`）、`pool`（`release ≤ now`）の上の**排他的な割当**（`claimed`）。今割当可能な釜が足りる品目は空き釜だけから（前回の釜 → 1 段目の釜 → `chooseSlots`）、足りない品目は待つ釜（boiled）だけから（1 段目の釜 → 前回の釜 → index）、それも足りなければ混ぜて index 順（退避先）。固定配置どうしの釜の重複が無いことを性質に
+  - [ ] 3.3 `buildSchedule(…, pinned)`：固定した配置を先に解放表・上げ表へ載せる（**卓の成員表＝走行中の錨には足さない**。局所費用の `members` にだけ足す）。`placeGroup` は固定した品目をそのまま出力し、残りに下限を当てる——batch は `earliest`、合流は置いた後の配置時刻（`joinable` / `joinTarget` は変えない）。忠実／候補比較の両方に通す。レビュー反例（固定配置を成員に足すと 60 秒麺に `anchor: 600` が付く／窓延期の合流 45 → 105 秒が残る）を例示に
   - [ ] 3.4 テスト：`startable-placement.example`（8 品の再現が緑・レビュー反例 3 件：卓 X/Y の表示順配分・予約の排他で A は待つ・C は「今」にならない）、`startable-placement.property`（4.1・4.6・4.7）、24 品の連続処理（昇順／降順・Shown_Plan 有無・採用済み接頭辞有無・同卓／別卓／卓なし・slotSpan 1／2）で例外に当たらない空白 0
   - [ ] 3.5 既存の性質（`schedule.property` / `commit.property` / `admit.property` / `lift-split` / `continuous-input` / `plan.example` / `settle-*`）がそのまま通る。期待値が動く場合は理由を実測に書く
   - [ ] 3.6 チェックポイント（typecheck / lint 0 errors / test / fmt:check）とコミット

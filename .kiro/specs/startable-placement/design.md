@@ -22,7 +22,7 @@
 ```
 domain/store.ts     occupiedSlotsOf(timers)                       ← 事実（Timer の無い釜の補集合）。client の occupiedSlots もこれ
         │
-engine/commit.ts    livePrefix: 失効に blocksStart(slice, now, occupied) を足す（startAt ≤ now かつ釜に Timer）
+engine/commit.ts    livePrefix: 失効を cannotStart(slice, now, occupied) にする（過去開始 ∨ startAt ≤ now かつ釜に Timer）
         │            committedSchedule → baselineSchedule(…, now, occupied, changeContext)
         │
 engine/schedule.ts  baselineSchedule
@@ -67,10 +67,10 @@ interface Pinned {
 - `slotOf` の隣に置く。入力は `{ slotIds }` を持つ列（engine の `Timer` も wire の `TimerFact` も満たす）。
 - client の `occupiedSlots(view)`（`liftGroups.ts:167`）はこれを呼ぶ薄い包み（または直接置換）。`headsOf` / `displayableItemsOf` / `pairSlots` の呼び手は変えない。
 
-### Component 2: 合成の失効 `blocksStart`（`src/engine/commit.ts`）
+### Component 2: 合成の失効 `cannotStart`（`src/engine/commit.ts`）
 
-- `livePrefix` に `occupied: ReadonlySet<number>` を通し、`hasLapsedStart(slice, now)` の隣に `blocksStart(slice, now, occupied)`——一片のどれかの配置が `startAt ≤ now` かつ `slotIds` のどれかが `occupied` に在る——を足す。どちらかで接頭辞が切れる（Requirement 3.4〜3.5）。
-- 二つを一つの述語 `cannotStart(slice, now, occupied)`（過去開始 ∨ 開始を妨げる）にまとめ、注記に「過去開始（人が始めなかった事実）」と「押せない釜（Timer が残っている事実）」の両方を書く。判定は一片単位（既存の「1 本でも過ぎていれば全体」と同じ理由）。
+- `livePrefix` に `occupied: ReadonlySet<number>` を通し、`hasLapsedStart(slice, now)` を `cannotStart(slice, now, occupied)` に置き換える——過去開始（`startAt < now`）∨ 開始を妨げる配置（一片のどれかの配置が `startAt ≤ now` かつ `slotIds` のどれかが `occupied` に在る）。どちらかで接頭辞が切れる（Requirement 3.4〜3.5）。
+- 一つの述語にまとめ、注記に「過去開始（人が始めなかった事実）」と「押せない釜（Timer が残っている事実）」の両方を書く。判定は一片単位（既存の「1 本でも過ぎていれば全体」と同じ理由）。
 - ゲート（`admit`）は変えない。ゲートが通した「boiled の釜に今」の一片は、次の合成で落ちる（未決 3 の答え）。
 
 ### Component 3: 2 段の計画 `baselineSchedule`（`src/engine/schedule.ts`）
@@ -88,8 +88,8 @@ baselineSchedule(pending, release, members, lifts, presets, params, now, occupie
 **`pinNow`（配分）**
 
 1. 「今」の品目 = stage1 の配置のうち `startAt ≤ now`（自前解は `now` ちょうど）。表示の順に並べる：`startAt` 昇順・同値は `compareArrival`（`domain/order.ts`。表示の `liftGroupsOf` と同じ比較）。
-2. 今割当可能な釜の集合 `assignable` = `release[s] ≤ now`（**入力の解放表＝採用済み接頭辞の予約を反映済み**）かつ `s ∉ occupied`。
-3. 品目を順に見て、slotSpan 本を次の優先で `assignable` から取る——(a) 前回の釜（`shown` の `slotIds`）が全部 `assignable` に在ればそれ、(b) 1 段目の釜が全部在ればそれ、(c) `chooseSlots(slotSpan, assignable だけを now にした表, params)`（釜距離 → index の既存規則）。取った釜は `assignable` から除く（先行する配分を反映）。足りなければ 1 段目の釜のまま（Timer の在る釜で Complete を待つ・AC 1.4）。
+2. 配分の母集団 `pool` = `release[s] ≤ now` の釜（**入力の解放表＝採用済み接頭辞の予約を反映済み**）。そのうち `s ∉ occupied` が今割当可能な釜 `assignable`、`s ∈ occupied` が待つ釜（boiled）。1 段目の「今」の配置は互いに素で全部 `pool` に載っているので、`|pool| ≥ Σ slotSpan`——**配分は「今」の全品目（待つ品目も含む）について `pool` の上の排他的な割当**として行い、固定配置どうしが同じ釜を持つことは構造上ない（レビュー指摘 1：空き釜を得た品目が後の品目の 1 段目の釜を取り、後の品目が「1 段目の釜に戻る」と重複する）。取った釜は `claimed` に入れ、以後どの品目も採らない。
+3. 品目を表示順に見て、slotSpan 本を `pool ∖ claimed` から次の規則で取る——**(i)** 未claim の `assignable` が slotSpan 本以上あれば `assignable` だけから：(a) 前回の釜（`shown` の `slotIds`）が全部在ればそれ、(b) 1 段目の釜が全部在ればそれ、(c) `chooseSlots(slotSpan, assignable ∖ claimed だけを now にした表, params)`（釜距離 → index の既存規則）。**(ii)** 足りなければ待つ品目として、未claim の待つ釜（boiled）だけから：(a) 1 段目の釜が全部在ればそれ、(b) 前回の釜が全部在ればそれ、(c) index 昇順。`assignable` の残りは後の品目に残す（半端に取って空き釜を潰さない）。**(iii)** それも足りなければ `pool ∖ claimed` から index 昇順で混ぜて取る（本数の勘定から必ず足りる。全釜 idle でないので待つ品目になる）。これが待つ品目の**退避先**である（1 段目の釜が先の品目に取られた場合の行き先を含む）。
 4. `placements` = 品目 → `{ …stage1 の配置, slotIds: 配った釜 }`（`startAt` / `serveAt` / `anchor` は 1 段目のまま）。`notBefore` = stage1 の全配置の `startAt`。
 5. 配分が 1 段目と同じ釜なら null（2 段目を組まない・決定性と計算量）。
 
@@ -97,9 +97,9 @@ baselineSchedule(pending, release, members, lifts, presets, params, now, occupie
 
 **2 段目の `buildSchedule(…, pinned)`**
 
-- 始めに `pinned.placements` を解放表と上げ表へ載せる（`advanceRelease` / `advanceLifts`。接頭辞と同じ）。卓の成員表にも当該卓の成員として `serveAt` を足す（`members` を写して渡す）。
-- `placeGroup` は群の品目のうち `pinned.placements` に在るものを**その配置のまま**出力に加え（`assignSlots` を通さない・表を進めない）、残りの品目を従来どおり置く。固定した品目の `serveAt` は列の局所費用の卓の成員（`members`）に既に入っている。
-- 残りの品目の候補時刻に下限を当てる：`assignSlots` の `earliest[i] = max(既存の earliest, notBefore[i] + boil)`、`joinable` の合流可否に `notBefore ≤ 錨 − boil` を足す（1 段目に無かった合流を作らない）。`placeWithLifts` の `t0` は候補時刻から来るので下限は `earliest` に効かせれば足りる。
+- 始めに `pinned.placements` を解放表と上げ表へ載せる（`advanceRelease` / `advanceLifts`。接頭辞と同じ）。**卓の成員表（`tableMembers`＝走行中の錨）には足さない。** 固定配置は未開始の計画であって走行中の事実ではない——足せば実在しない Timer に合流でき、`keepsAnchor` (a) が現実の Timer に対して失敗する（レビュー実走：走行中なしで同卓の「600 秒麺を今・60 秒麺を 540 秒後」に固定配置を成員として足すと、後者に `anchor: 600` が付く）。採点用の成員（卓の遅れ）と錨の出所（走行中）は分ける。
+- `placeGroup` は群の品目のうち `pinned.placements` に在るものを**その配置のまま**出力に加え（`assignSlots` を通さない・表を進めない）、その `serveAt` を局所費用の卓の成員 `members`（`siblings` から始める配列）に足す。`siblings`（合流の錨・`runningAnchor`）は走行中のまま変えない。残りの品目は従来どおり置く。
+- 残りの品目に 1 段目の `startAt` を下限として当てる（前倒ししない・AC 1.8）。**batch**：`assignSlots` の `earliest[i] = max(既存の earliest, notBefore[i] + boil)`（候補時刻＝錨・`firstFit` はこの `earliest` から従来どおり）。**合流**：`joinable` / `joinTarget` / `placeWithLifts` は変えず（合流の可否は解放表と錨だけで決める・既存の合法な窓延期の合流を維持する——レビュー指摘 3：`notBefore ≤ 錨 − boil` では「錨 60 秒・Thin の開始 45 秒・提供 105 秒」の窓延期が落ちる）、**置いた後の配置時刻に下限を当てる**：`serveAt = max(置いた serveAt, notBefore + boil)`・`startAt = serveAt − boil`（`anchor` は保つ）。下限が効くのは 2 段目の窓が 1 段目より軽くなって合流が前倒しされる場面だけで、そのとき外部ソルバの計画は `keepsAnchor` (d)（延期の理由は窓）を満たさず採用されない——自前解にゲートは無く、性質 4.7 は自前解について主張する。
 - `Continuity`（前回の提案）は 1 段目と同じものを渡す。忠実／候補比較の両方を 2 段目でも組み、総費用で選ぶ（AC 2.3）。
 
 **なぜ「今」の集合が保たれるか。** 固定した品目は 1 段目と同じ `startAt = now`。残りの品目は下限 ≥ 1 段目の `startAt > now` なので `now` にならない。固定した釜は解放 `now` の釜だけなので固定した品目の時刻も動かない。
