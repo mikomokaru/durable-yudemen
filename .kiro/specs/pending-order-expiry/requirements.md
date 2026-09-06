@@ -64,7 +64,7 @@
 1. THE 計画対象 `planTargets` SHALL `now` を受け、`Live_Orders` の到着順の先頭 `PLAN_TARGET_LIMIT` 件を返す（絞ってから切る。切ってから絞れば死んだ注文が枠を食う）
 2. THE snapshot（確定結果の Broadcast と hydration の両方） SHALL `pendingOrders` に `Live_Orders(state.pendingOrders, now)` を載せる（正本の集合そのものは載せない）
 3. THE 外部ソルバへの要求 `RequestPlan.pending` SHALL `Live_Orders` を運ぶ。受領時の照合（`isStale`・合成）は受領時刻の `Live_Orders` に対して行う
-4. THE 変更費用の対応（`ChangeContext.pending`） SHALL `Live_Orders` を渡す。期限切れの品目は対応から外れ、費用に倒れない（`plan-stability` 判断 3 の「消えた品目」）
+4. THE 変更費用の対応（`ChangeContext.pending`） SHALL 文脈を組む入口のすべて（確定と hydration の `settle`・受領の `receivePlan`・採点の `admit`・外部ソルバ）で、それぞれの `now` の `Live_Orders` を渡す。期限切れの品目は対応から外れ、費用に倒れない（`plan-stability` 判断 3 の「消えた品目」）。期限切れの旧先頭を文脈に残せば、生きている次品目を遅らせる計画の先頭の変更（2L）が 0 に消える（レビュー実走）
 5. WHEN 期限切れの品目への開始（`StartOrderItem`）が届いたとき、THE engine SHALL 既存の `OrderItemNotFound` で拒否する（`Live_Orders` に無い品目は待ち行列に無い品目である）
 6. THE 指紋（`digestInput`） SHALL 絞った計画対象から導く。品目の期限切れで計画対象が変われば指紋は変わるが、要求は既存の抑制条件でだけ出る——**外部要求を許す次の確定変化（no-op でない遷移）で、生きている計画対象が 1 件以上残っていれば**要求し、全件期限切れなら要求しない（期限切れは状態の変化ではないので、それ自体では遷移も要求も起こさない）
 7. THE no-op 検出（`isSameConfirmedResult` / `isSamePending`） SHALL 正本の集合の比較のままとする（期限切れは状態の変化ではない。読む側で絞るので、no-op の遷移でも次の読み手は絞った値を見る）
@@ -87,7 +87,7 @@
 #### Acceptance Criteria
 
 1. THE 走行中 Timer SHALL 開始時に写した値（`noodleType` / `firmness` / `startTime` / `endTime` / `slotIds` / `orderItem`）だけで成立し、発火・完了・調整・キャンセル・Boil_Sync・Alarm・卓の成員表のいずれも `pendingOrders` を読まない（既存の構造を性質として固定する。新しい写しは足さない）
-2. THE 走行中 Timer・その卓の錨（`tableMembers`）・Alarm・Boil_Sync の結果 SHALL 待ち行列の `arrivalTime` に依存しない——Timer・設定・`now`・操作を固定して待ち行列の `arrivalTime` だけを過去へ動かしても、同じ遷移から同じ結果が出る（性質 5.9。時間経過そのものへの不変ではない）
+2. THE 走行中 Timer・その卓の錨（`tableMembers`）・Alarm・Boil_Sync の結果 SHALL 待ち行列の `arrivalTime` に依存しない——Timer・設定・`now`・操作を固定して待ち行列の `arrivalTime` だけを過去へ動かしても、両状態で同じに成立する操作（既存 Timer への操作・アドホック開始・Record 受理・外部計画の受領・hydration）から同じ結果が出る（性質 5.9。時間経過そのものへの不変ではなく、`StartOrderItem` は AC 2.5 の拒否があるので対象にしない）
 3. WHEN 同じ卓の未着手の品目が期限切れになったとき、THE 走行中 Timer SHALL 影響を受けず、残った生きている品目だけがその錨に合流する（期限切れの品目は「消えた品目」・判断 4）
 4. THE `TimerFact`（wire） SHALL 待ち行列を参照せず、client は Timer の表示に `pendingOrders` を引かない（現状維持を明記）
 
@@ -101,7 +101,7 @@
 6. **無害**：期限切れの品目だけが在る待ち行列は、空の待ち行列と同じ計画・同じ snapshot の `pendingOrders`・同じ要求抑制（要求しない）になる
 7. **不変**：期限切れの品目の有無は `TimerState.pendingOrders` と永続 snapshot を変えない
 8. **client の一致**：wire の `pendingOrders` と `correctedNow` から client が並べる左レールは、同じ `now` で server が絞った並びと同じ集合を指す
-9. **注文期限からの独立**：Timer・設定・`now`・操作を固定し、待ち行列の `arrivalTime` だけを過去へ動かした二つの状態に同じ遷移を与えると、走行中 Timer の集合・実効 endTime・Alarm・`tableMembers`・Boil_Sync の結果は等しい（守るのは「時間経過への不変」ではなく「注文期限からの独立」。`now` を進めれば茹で上がりと Alarm 解除が普通に起こる——レビュー指摘）
+9. **注文期限からの独立**：Timer・設定・`now`・操作を固定し、待ち行列の `arrivalTime` だけを過去へ動かした二つの状態に、両状態で同じに成立する操作（既存 Timer への操作・アドホック開始・Record 受理・外部計画の受領・hydration。`StartOrderItem` は除く）を与えると、走行中 Timer の集合・実効 endTime・Alarm・`tableMembers`・Boil_Sync の結果は等しい（守るのは「時間経過への不変」ではなく「注文期限からの独立」。`now` を進めれば茹で上がりと Alarm 解除が普通に起こる——レビュー指摘）
 
 ### naming ゲート（`naming.md`）
 

@@ -19,9 +19,9 @@ domain/order.ts      liveOrders(pending, now)          ← 述語はここ一つ
         ├─ engine/schedule.ts   planTargets(pending, now)  = liveOrders → 正準順序 → 先頭 64
         │      ├─ baselineSchedule / committedSchedule / admit / digestInput / settle（要求抑制・RequestPlan.pending）
         ├─ engine/settle.ts     snapshotMessage: pendingOrders = liveOrders(state.pendingOrders, now)
-        ├─ engine/settle.ts / plan.ts   ChangeContext.pending = liveOrders(state.pendingOrders, now)
+        ├─ engine/settle.ts / plan.ts / admit.ts / solver   ChangeContext.pending = liveOrders(pending, now)  ← 文脈を組む入口は 4 つ、各自の now
         ├─ engine/start.ts      照合は liveOrders(state.pendingOrders, args.now).find(…)
-        └─ client/components/queueDisplay.ts   livePending(view, now) = liveOrders(view.pendingOrders, correctedNow)
+        └─ client/components/queueDisplay.ts   livePending(view, corrected) = liveOrders(view.pendingOrders, corrected)  ← 補正は境界で 1 回
 ```
 
 原則は 3 つ。
@@ -62,7 +62,8 @@ export function liveOrders(pending: readonly PendingOrder[], now: number): reado
 
 - `snapshotMessage(state, recommendations, now)`：`pendingOrders: liveOrders(state.pendingOrders, now)`（AC 2.2）。確定結果の Broadcast と hydration（`toWireSnapshot`）は同じ関数を通るので、両方が同時に絞られる。
 - `requestPlan`：`pending: targets` のまま（`targets` が絞られている・AC 2.3）。
-- `deriveRecommendations` / `receivePlan` の `ChangeContext.pending`：`liveOrders(state.pendingOrders, now)`（AC 2.4）。`changeCost` の対応は `pending` に在る品目だけを見るので、期限切れは対応から外れる。
+- **変更費用の文脈を組む入口は 4 つ**で、それぞれが自分の `now` で絞る（AC 2.4・レビュー指摘）：`settle.deriveRecommendations`（確定と hydration）、`plan.receivePlan`（受領）、`admit`（正本の `pending` から `scoreContext.change` を作り直す——`admit` の冒頭で `liveOrders(pending, now)` を取り、文脈・採点・`planTargets` の全部にそれを使う）、`src/solver`（要求の `request.pending` を自分の時計の `now` で絞って `changeContext.pending` と `baselineSchedule` に渡す）。`changeCost` の対応は `pending` に在る品目だけを見るので、期限切れは対応から外れる。
+- **混在の検証（レビュー実走）**：期限切れの旧先頭 A と生きている次品目 B が在る状態で、B を 1 秒遅らせる計画の変更費用は、正しい文脈（A を除いた `pending`）では先頭の変更 2L = 90 秒、期限切れの A を文脈に残すと 0 秒になる。4 入口それぞれでこの場面を例示として固定する（`settle` / `plan` / `admit` / `solver`）。
 - `digest`・`isSamePending`・`isSameConfirmedResult`：`digestInput` に `now` を足す以外は変えない（AC 2.6〜2.7）。要求は既存の抑制（`mayRequestPlan && digest !== requestedDigest && targets.length > 0`）でだけ出る。
 
 ### Component 4: 開始の照合（`src/engine/start.ts`）
@@ -72,14 +73,15 @@ export function liveOrders(pending: readonly PendingOrder[], now: number): reado
 
 ### Component 5: client の入口（`src/client/components/queueDisplay.ts`）
 
-- `livePending(view, now)`：`liveOrders(view.pendingOrders, correctedNow(view.offset, now))` を返す局所関数を一つ置く。
-- `orderQueueEntries(view, units, now)` は `livePending` を並べる（AC 3.1）。`suggestedItemOf(view, recommendation, now)` に `now` を足し、`pendingItemOf(livePending(view, now), recommendation)` で引く（AC 3.3）。`liftGroups.ts` の呼び手（`suggestedItemOf` を使う）にも `now` を通す——群の導出は既に `now` を持っている（`liftGroupsOf(items, now)`）。
+- **時刻の契約を固定する（レビュー指摘：二重補正）。** 部品の境界（`SlotBoard` などの component と `orderQueueEntries`）だけがローカル時刻 `now` を受けて `correctedNow(view.offset, now)` を **1 回** 計算し、その下の関数（`queueDisplay.ts` / `liftGroups.ts` の全部）は **補正済みの `corrected`** を受ける。既存の `liftGroups(view, corrected)` / `slotSuggestions(…, corrected)` は既にこの契約なので、`queueDisplay.ts` 側をそれに揃える。引数名は `corrected`（補正済み）と `now`（ローカル）を混ぜない。
+- `livePending(view, corrected)`：`liveOrders(view.pendingOrders, corrected)` を返す局所関数を一つ置く。内部で補正しない。
+- `orderQueueEntries(view, units, now)` は境界なので `corrected` を 1 回計算し、`livePending(view, corrected)` を並べ、`suggestedItemOf(view, recommendation, corrected)` を呼ぶ（AC 3.1）。`suggestedItemOf` は `corrected` を受け、`pendingItemOf(livePending(view, corrected), recommendation)` で引く（AC 3.3）。`liftGroups(view, corrected)` は既に持つ `corrected` をそのまま `suggestedItemOf` へ渡す。**一致テスト**：非ゼロの `offset` で、左レール（`orderQueueEntries`）と釜の提案（`liftGroups` → `slotSuggestions`）が同じ品目集合を生きているとみなす（寿命の境界の 1 ms 前後で両方が同時に切り替わる）。
 - `ClientView.pendingOrders` は wire のまま持つ（絞った値を状態にしない・原則 1）。ラジアル（`RadialMenu`）と `SlotBoard` は `orderQueueEntries` / `liftGroups` の結果を読むので、入口は増えない。
 - 再描画：期限が来た瞬間に消えるには時計の tick で再計算されればよく、既存の秒 tick（`now` を props で流す）に乗る。新しいタイマーは足さない。
 
 ### Component 6: 走行中の独立（テストだけ）
 
-構造は変えない。`tests/core` に性質 5.9 を置く——任意の状態と任意の遷移（開始・発火・完了・調整・キャンセル・Boil_Sync・Record 受理）について、待ち行列の `arrivalTime` だけを `ORDER_LIFETIME_MS` 以上過去へ動かした状態に同じ遷移を与え、`timers`・実効 endTime・Alarm 効果・`tableMembers` が等しいことを見る（Timer・設定・`now`・操作は固定）。
+構造は変えない。`tests/core` に性質 5.9 を置く——任意の状態と、**両状態で同じに成立する操作**（既存 Timer への操作＝発火・完了・調整・キャンセル・Boil_Sync、アドホック開始 `StartTimer`、Record 受理、外部計画の受領、hydration）について、待ち行列の `arrivalTime` だけを `ORDER_LIFETIME_MS` 以上過去へ動かした状態に同じ操作を与え、`timers`・実効 endTime・Alarm 効果・`tableMembers` が等しいことを見る（Timer・設定・`now`・操作は固定）。**`StartOrderItem` は含めない**（レビュー指摘：期限内では Timer が増え、期限切れでは `OrderItemNotFound` で拒否されるので、結果が等しいという主張は AC 2.5 と衝突する）。期限切れ品目の開始拒否は Component 4 の例示テスト（`now` だけ違う 2 本）で別に見る。
 
 ## Error Handling
 

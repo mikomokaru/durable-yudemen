@@ -13,20 +13,20 @@
 - [ ] 2. engine の入口
   - [ ] 2.1 `planTargets(pending, now)`（絞ってから切る）。`baselineSchedule` / `buildSchedule` に `now` を足し、`committedSchedule` / `admit` / `digestInput(pending, running, params, now)` / `settle` の要求抑制へ通す
   - [ ] 2.2 `snapshotMessage`：`pendingOrders` を `liveOrders(state.pendingOrders, now)` にする（Broadcast と hydration の両方）
-  - [ ] 2.3 `ChangeContext.pending`（`settle.deriveRecommendations` / `plan.receivePlan`）に `liveOrders`
+  - [ ] 2.3 `ChangeContext.pending` を 4 入口で絞る：`settle.deriveRecommendations` / `plan.receivePlan` / `admit`（冒頭で `liveOrders(pending, now)`・文脈と採点と `planTargets` の全部に使う）/ `src/solver`（`request.pending` を自分の `now` で）。混在の例示（期限切れの旧先頭 A・生きている B・B を 1 秒遅らせる計画の変更費用が 2L = 90 秒、A を残すと 0）を 4 入口で固定
   - [ ] 2.4 `start.ts` の照合を `liveOrders(state.pendingOrders, args.now)` に替える（消費は正本に対して）
   - [ ] 2.5 テスト：`schedule.example` / `schedule.property`（性質 5.4 枠）、`settle-*.example`（性質 5.5 一致・hydration）、`plan.example` / `admit.example`（期限切れを指す一片は `isStale`・要求に乗らない）、`start-order-item.example`（`OrderItemNotFound`・`now` だけ違う 2 本）、`stability.example`（対応から外れて費用 0）、性質 5.6（無害）・5.7（不変）
   - [ ] 2.6 チェックポイント（typecheck / lint 0 errors / test / fmt:check）とコミット
   - _Requirements: 2.1〜2.8_
 
 - [ ] 3. client の入口
-  - [ ] 3.1 `queueDisplay.ts` に `livePending(view, now)` を置き、`orderQueueEntries` と `suggestedItemOf(view, recommendation, now)` がそれを読む。`liftGroups.ts` の呼び手に `now` を通す
-  - [ ] 3.2 テスト：`order-queue.*` / `liftGroups.*` / `radial-queue.*`——snapshot 直後は残り、`correctedNow` が寿命を跨ぐと左レールとラジアルから消える（性質 5.8）
+  - [ ] 3.1 `queueDisplay.ts` に `livePending(view, corrected)`（補正済みを受ける・内部で補正しない）を置き、`orderQueueEntries(view, units, now)` は境界として `corrected` を 1 回計算して `livePending` と `suggestedItemOf(view, recommendation, corrected)` を呼ぶ。`liftGroups(view, corrected)` は持っている `corrected` をそのまま渡す（時刻の引数名は `now`＝ローカル・`corrected`＝補正済みで固定）
+  - [ ] 3.2 テスト：`order-queue.*` / `liftGroups.*` / `radial-queue.*`——snapshot 直後は残り、`correctedNow` が寿命を跨ぐと左レールとラジアルから消える（性質 5.8）。**非ゼロの `offset`** で左レールと釜の提案が同じ品目集合を生きているとみなす一致テスト（境界の 1 ms 前後で同時に切り替わる）
   - [ ] 3.3 チェックポイントとコミット
   - _Requirements: 3.1〜3.3_
 
 - [ ] 4. 走行中の独立（テストだけ・構造は変えない）
-  - [ ] 4.1 `tests/core` に性質 5.9：Timer・設定・`now`・操作を固定し、待ち行列の `arrivalTime` だけを寿命以上過去へ動かした二状態に同じ遷移（開始・発火・完了・調整・キャンセル・Boil_Sync・Record 受理）を与え、`timers`・実効 endTime・Alarm 効果・`tableMembers` が等しい
+  - [ ] 4.1 `tests/core` に性質 5.9：Timer・設定・`now`・操作を固定し、待ち行列の `arrivalTime` だけを寿命以上過去へ動かした二状態に、両状態で同じに成立する操作（発火・完了・調整・キャンセル・Boil_Sync・アドホック開始・Record 受理・外部計画の受領・hydration）を与え、`timers`・実効 endTime・Alarm 効果・`tableMembers` が等しい。`StartOrderItem` は含めない（期限切れ品目の開始拒否は 2.5 の例示で別に見る）
   - _Requirements: 4.1〜4.4, 5.9_
 
 - [ ] 5. 文書と最終ゲート
