@@ -243,6 +243,7 @@ const genAdjustmentState: fc.Arbitrary<TimerState> = fc
       acceptedSlices: EMPTY_STATE.acceptedSlices,
       requestedDigest: EMPTY_STATE.requestedDigest,
       lastSequenceByTerminal: EMPTY_STATE.lastSequenceByTerminal,
+      shownPlan: EMPTY_STATE.shownPlan,
     };
   });
 
@@ -520,6 +521,149 @@ describe("core/migrate — v10 → v11 の面（lift-group-planning 判断 20）
           expect(result.snapshot.acceptedSlices).toEqual(v11.acceptedSlices);
         },
       ),
+      { numRuns: 200 },
+    );
+  });
+});
+
+// ── plan-stability — v12 の移行は二方向（v11 の欠如を空に畳む・v12 の shownPlan を保つ・壊れた要素だけ落とす） ────
+
+/** v11 の採用済み一片（配置は anchor を持つ）。 */
+const genV11AcceptedSlice = fc.record({
+  tableKey: fc.string({ minLength: 1, maxLength: 6 }),
+  placements: fc.array(
+    fc.record({
+      externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+      itemIndex: fc.nat({ max: 9 }),
+      slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 2 }),
+      startAt: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+      serveAt: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+      anchor: genAnchor,
+    }),
+    { maxLength: 3 },
+  ),
+});
+
+/** v11 の永続スナップショット。**shownPlan を持たない**（それが v11 であることの定義そのものである）。 */
+const genV11Snapshot = fc.record({
+  version: fc.constant(11),
+  timers: fc.array(genV9Timer, { maxLength: 3 }),
+  nextSeq: fc.nat({ max: 1000 }),
+  pendingOrders: fc.constant([]),
+  acceptedSlices: fc.array(genV11AcceptedSlice, { maxLength: 3 }),
+  requestedDigest: fc.constant(null),
+  lastSequenceByTerminal: fc.constant({}),
+});
+
+/** v12 が書く Shown_Plan の 1 品目（形を満たすもの）。 */
+const genShownItem = fc.record({
+  externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+  itemIndex: fc.nat({ max: 9 }),
+  slotIds: fc.array(fc.string({ minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 2 }),
+  startAt: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+  serveAt: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+  anchor: genAnchor,
+  mates: fc.array(fc.string({ minLength: 1, maxLength: 12 }), { maxLength: 3 }),
+});
+
+/** 形を満たす 1 品目を、鍵・釜・時刻・まとまりのいずれかで壊す（kind が壊し方を選ぶ）。 */
+function brokenShownItem(item: Record<string, unknown>, kind: number): unknown {
+  switch (kind) {
+    case 0:
+      return { ...item, externalOrderId: "" };
+    case 1:
+      return { ...item, itemIndex: -1 };
+    case 2:
+      return { ...item, slotIds: [] };
+    case 3:
+      return { ...item, startAt: 0.5 };
+    case 4:
+      return { ...item, serveAt: "later" };
+    case 5:
+      return { ...item, anchor: Number.NaN };
+    case 6:
+      return { ...item, mates: [42] };
+    default:
+      return null;
+  }
+}
+
+/** 壊れた 1 品目（壊し方を面で踏む）。 */
+const genBrokenShownItem = fc
+  .tuple(genShownItem, fc.nat({ max: 7 }))
+  .map(([item, kind]) => brokenShownItem(item, kind));
+
+/** 形を満たす要素と壊れた要素を混ぜた Shown_Plan（どれが残るべきかを添えて）。 */
+const genMixedShownPlan = fc.array(
+  fc.oneof(
+    genShownItem.map((item) => ({ ok: true as const, item })),
+    genBrokenShownItem.map((item) => ({ ok: false as const, item })),
+  ),
+  { maxLength: 6 },
+);
+
+describe("core/migrate — v11 → v12 の面（plan-stability 判断 1・AC 1.3・性質 5.8）", () => {
+  // Feature: plan-stability, Property 5.8 — 移行（追加）
+  // **Validates: Requirements 1.3, 5.8**
+  //
+  // v11 以前の永続は前回の提案を持たない。欠如は空（比較の相手なし・Change_Cost 0）に畳み、それ以外は写しで、
+  // 計時の事実にも採用済み計画にも触れない。落ちない。
+  it("Property 5.8: 任意の v11 スナップショットで shownPlan は空になり、それ以外は写しである", () => {
+    fc.assert(
+      fc.property(genV11Snapshot, (v11) => {
+        // 生成器が v12 の語彙を混ぜていないことを先に確かめる。
+        expect("shownPlan" in v11).toBe(false);
+
+        const raw = structuredClone(v11) as unknown;
+        const result = migrate(raw);
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+        expect(result.snapshot.shownPlan).toEqual([]);
+        expect(result.snapshot.acceptedSlices).toEqual(v11.acceptedSlices);
+        expect(result.snapshot.timers.map(boilFacts)).toEqual(v11.timers.map(boilFacts));
+        expect(raw).toEqual(v11);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  // Feature: plan-stability, Property 5.8 — 移行（現行の往復）
+  // **Validates: Requirements 1.1, 1.3**
+  //
+  // v12 が書いた Shown_Plan（錨の null も数値も・まとまりの鍵も）はそのまま読み戻る。失えば次の計画は比較の
+  // 相手を持たず、前回の提案を守る費用が一度だけ消える。
+  it("Property 5.8: v12 の永続値の shownPlan はそのまま保たれる", () => {
+    fc.assert(
+      fc.property(genV11Snapshot, fc.array(genShownItem, { maxLength: 4 }), (v11, shownPlan) => {
+        const v12 = { ...v11, version: 12, shownPlan };
+        const result = migrate(structuredClone(v12));
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.snapshot.shownPlan).toEqual(shownPlan);
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  // Feature: plan-stability, design Error Handling — 壊れた要素はその要素だけ落とす
+  // **Validates: Requirements 1.3**
+  //
+  // 待ち行列・採用済み計画（一件でも不正なら全体を移行失敗）と規律を分ける。Shown_Plan は比較にだけ使う履歴で、
+  // 要素の欠けは費用 0 に倒れるだけで嘘を生まない。壊れた 1 要素で店舗を起動不能にしない。
+  it("壊れた要素はその要素だけ落ち、形を満たす要素は順序を保って残り、移行は落ちない", () => {
+    fc.assert(
+      fc.property(genV11Snapshot, genMixedShownPlan, (v11, mixed) => {
+        const v12 = { ...v11, version: 12, shownPlan: mixed.map((entry) => entry.item) };
+        const result = migrate(structuredClone(v12));
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.snapshot.shownPlan).toEqual(
+          mixed.filter((entry) => entry.ok).map((entry) => entry.item),
+        );
+        expect(result.snapshot.acceptedSlices).toEqual(v11.acceptedSlices);
+      }),
       { numRuns: 200 },
     );
   });

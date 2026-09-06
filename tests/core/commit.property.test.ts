@@ -135,6 +135,7 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
         initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         plannedParams,
+        null,
       ).slices;
 
       const staleAt = stalePick % (accepted.length + 1);
@@ -273,6 +274,7 @@ describe("engine/commit — committedSchedule", () => {
           scene.now,
           DEFAULT_NOODLE_PRESETS,
           scene.params,
+          null,
         );
         const placements = allPlacements(committed.slices);
         const release = initialRelease(scene.running, scene.now, scene.slotCount);
@@ -305,6 +307,7 @@ describe("engine/commit — committedSchedule", () => {
           scene.now,
           DEFAULT_NOODLE_PRESETS,
           scene.params,
+          null,
         );
 
         const prefix = scene.accepted.slice(0, prefixLength(scene));
@@ -324,6 +327,7 @@ describe("engine/commit — committedSchedule", () => {
           liftsAfterPrefix(scene, prefix),
           DEFAULT_NOODLE_PRESETS,
           scene.params,
+          null,
         );
 
         expect(committed.slices.map(shapeOf)).toEqual([...prefix, ...tail.slices].map(shapeOf));

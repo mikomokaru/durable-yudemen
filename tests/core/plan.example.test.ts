@@ -173,7 +173,9 @@ describe("receivePlan — 全棄却（AC 6.6）", () => {
   });
 
   it("現行 Committed_Plan と同値の計画を棄却する（同値は改善ではない）", () => {
-    expectUntouched(committedSchedule([], STATE.pendingOrders, BLOCKED, NOW, PRESETS, PARAMS));
+    expectUntouched(
+      committedSchedule([], STATE.pendingOrders, BLOCKED, NOW, PRESETS, PARAMS, null),
+    );
   });
 
   it("部分和は改善するが合成後の総和が悪化する計画を棄却する（段 2）", () => {
@@ -307,6 +309,7 @@ describe("receivePlan — 採否は採用後に確定する走行中と同じ実
       NOW,
       PARAMS.noodlePresets,
       PARAMS,
+      null,
     );
     expect(committed.slices.flatMap((slice) => slice.placements).map((p) => p.serveAt)).toEqual([
       AT_600.placements[0]!.serveAt,

@@ -15,7 +15,9 @@ import type { PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { advanceLifts, liftOverflow, liftsOf, type LiftTable } from "./lift";
 import type { TableMembers } from "./project";
+import { recommend } from "./recommend";
 import type { Placement, PlanSlice } from "./schedule";
+import { changeCost, type ChangeContext } from "./stability";
 import type { EpochMillis, SlotId } from "./types";
 
 /**
@@ -68,6 +70,21 @@ export interface ScheduleParams {
 }
 
 /**
+ * ScoreContext — 採点の文脈。卓の成員表・上げ表（いずれも走行中の射影）と、変更費用の比較の文脈。
+ *
+ * 位置引数の増殖を止めるために束ねる（design Component 3）。`change` が null なら比較の相手なし（Change_Cost 0）
+ * ——自前解の場面の検査や、Shown_Plan を持たない呼び出しがこれに当たる。`admit` は 3 回の採点すべてに同じ文脈を渡す。
+ */
+export interface ScoreContext {
+  /** 卓の成員表（走行中の実効 endTime を卓ごとに引いた表・project.ts）。 */
+  readonly members: TableMembers;
+  /** 上げ表（走行中の上がり・lift.ts）。 */
+  readonly lifts: LiftTable;
+  /** 変更費用の比較の文脈（旧 Shown_Plan・遷移後の Timer・比較の時点の now）。null は比較の相手なし。 */
+  readonly change: ChangeContext | null;
+}
+
+/**
  * ScheduleScore — 目的関数値。総和と PlanSlice ごとの部分和。
  *
  * 部分和を返すのは Acceptance_Gate の段 1 が部分和どうしを比べるためで、総和を返すのは段 2 が
@@ -76,8 +93,8 @@ export interface ScheduleParams {
  */
 export interface ScheduleScore {
   /**
-   * 計画全体の目的関数値。bySlice の総和に、店舗全体の項 Lift_Overflow を足した値（Requirement 2.9 の例外・
-   * lift-group-planning AC 9.7）。Lift_Overflow が 0 の計画では総和は部分和の和に厳密に一致する。
+   * 計画全体の目的関数値。bySlice の総和に、店舗全体の項 Lift_Overflow と Change_Cost を足した値（Requirement 2.9 の
+   * 例外・lift-group-planning AC 9.7・plan-stability AC 2.5）。両方が 0 の計画では総和は部分和の和に厳密に一致する。
    */
   readonly total: number;
   /** PlanSlice ごとの部分和（入力の slices と同じ順序・同じ長さ）。 */
@@ -100,6 +117,7 @@ const MILLIS_PER_SECOND = 1000;
  *   + w_order × Σ(同一オーダーの提供時刻最大差の許容幅 超過分)
  *   + w_affinity × Σ max(0, slotDistance − 許容距離)
  *   + Lift_Overflow（店舗全体の上げ窓で arms を超えて上がる本数 × liftIntervalSeconds 秒・**total にだけ**）
+ *   + Change_Cost（旧 Shown_Plan からの変更費用・秒相当・**total にだけ**・plan-stability Requirement 2）
  *
  * 卓同期の項だけ形が違う。最大差の許容超過では 3 本目以降を揃える得が無く、遅れの和なら w_table > 1 の下で
  * 「揃える方が点が良い」が何本の卓でも成り立つ。揃えることは制約でも保証でもなく、この式の最適点である
@@ -125,6 +143,12 @@ const MILLIS_PER_SECOND = 1000;
  * 卓の成員表と同じく走行中の射影を受ける——`running` を受けて表を引き直せば、admit が 3 回採点するたびに
  * 射影が走る。
  *
+ * **変更費用（`scoreContext.change`）も店舗全体の項として `total` にだけ足す**（plan-stability AC 2.5・4.1）。旧 Shown_Plan と
+ * 新しい計画の対応する品目の間で、先頭・釜・まとまり・時刻の変更を秒相当で数える（stability.ts の `changeCost`）。
+ * 群の識別は `recommend` の出力（`group` / `anchor`）に対して数える——採点の入力は `slices` なので、ここで `recommend`
+ * を呼ぶ（群の識別を二度書かない・design Component 3）。`change` が null なら比較の相手なしで 0。`bySlice` は変えない
+ * ——段 1 の枝刈りは業務費用の部分和のまま、段 2 の総和比較に変更費用が乗る。
+ *
  * 一片は点数を持たない。採点は比較の時点（Acceptance_Gate）だけの導出で、配置（baselineSchedule）は
  * 採点を呼ばない。外部から届いた計画もそのまま渡して採点できる。
  *
@@ -134,20 +158,28 @@ const MILLIS_PER_SECOND = 1000;
 export function scoreSchedule(
   slices: readonly PlanSlice[],
   pending: readonly PendingOrder[],
-  members: TableMembers,
-  lifts: LiftTable,
+  scoreContext: ScoreContext,
   params: ScheduleParams,
 ): ScheduleScore {
   const arrivals = new Map(pending.map((order) => [itemKey(order), order.arrivalTime]));
   const bySlice = slices.map((slice) =>
-    scoreSlice(slice.placements, arrivals, members.get(slice.tableKey) ?? [], params),
+    scoreSlice(slice.placements, arrivals, scoreContext.members.get(slice.tableKey) ?? [], params),
   );
 
   // 卓の内側に閉じる項は部分和の和で尽きる（AC 6.2(d) の部分比較の成立条件・走行中は一つの卓にしか属さない）。
-  // Lift_Overflow だけは店舗全体の項ゆえ、走行中と全配置の上がりを並べた表の上で一度だけ数え、総和にだけ足す。
+  // Lift_Overflow と Change_Cost は店舗全体の項ゆえ、走行中と全配置の上がりを並べた表の上で／旧 Shown_Plan との
+  // 対応の上で一度だけ数え、総和にだけ足す。
   const placements = slices.flatMap((slice) => slice.placements);
-  const overflow = liftOverflow(advanceLifts(lifts, liftsOf(placements)), params);
-  return { total: bySlice.reduce((sum, score) => sum + score, 0) + overflow, bySlice };
+  const overflow = liftOverflow(advanceLifts(scoreContext.lifts, liftsOf(placements)), params);
+  const change =
+    scoreContext.change === null
+      ? 0
+      : changeCost(
+          { schedule: { slices }, recommendations: recommend({ slices }) },
+          scoreContext.change,
+          params,
+        );
+  return { total: bySlice.reduce((sum, score) => sum + score, 0) + overflow + change, bySlice };
 }
 
 /** 一片（Table_Group）の部分和。Σ Wait_Time と 3 つのソフト制約項をこの範囲だけで閉じて足す。 */

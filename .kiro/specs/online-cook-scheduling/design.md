@@ -283,6 +283,8 @@ export function scoreSchedule(
 ): ScheduleScore;
 ```
 
+> **改訂（`plan-stability`・ADR-0010・2026-09-06）:** 署名は `scoreSchedule(slices, pending, scoreContext: ScoreContext, params)` になった。`members` / `lifts` は `ScoreContext { members, lifts, change }` に束ね、`change: ChangeContext | null` が前回配信対象として確定した提案（Shown_Plan・`TimerState.shownPlan`）との比較の文脈（旧 Shown_Plan・遷移後の Timer 集合・比較の時点の now・待ち行列・プリセット）を運ぶ。`total = Σ bySlice + Lift_Overflow + Change_Cost`——Change_Cost（`stability.ts` の `changeCost`・先頭 2L・釜 L・分割と逆転 L・h_i を超える時刻の移動）は店舗全体の項で `total` にだけ足し、`bySlice` は変えない（Lift_Overflow と同じ例外の扱い）。群の識別は内側で `recommend` を呼んで得る（群の識別を二度書かない）。`change` が null なら比較の相手なしで 0。
+
 **撤去候補（`lift-group-planning` で記録）:** `ScheduleParams.tableSyncToleranceSeconds` は `ScheduleParams` に在るが読む計算が無い。`orderSyncWeight` / `orderSyncToleranceSeconds` は減点項としてだけ残る。設定・ワイヤ・外部契約（`RequestPlan`）に及ぶため撤去は別の判断とする。
 
 Wait_Time は導出値であり状態に持たない（AC 3.2）。未開始品目は「計画上の開始時刻＋茹で時間」で、Boil_Sync による開始後の調整（±h_i）を織り込まない近似（Requirement 3 の申し送り）。開始済み品目は `adjustedEndTime` を用いる。アドホック麺茹での Timer は `Order_Arrival_Time` を持たないため `Σ Wait_Time` に寄与しない（Requirement 8 の確定注記）が、slot 解放表には現れる。

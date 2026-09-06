@@ -98,6 +98,8 @@ export function scoreSchedule(
 
 `Omit<PlanSlice, "score">` が消える（`PlanSlice` が `score` を持たなくなるため）。第 3 引数は `running: Timer[]` ではなく射影表を採る——`baselineSchedule` が `SlotRelease` を採るのと同じ判断で、`admit` が 3 回採点しても射影は 1 回で済む。**21.7 で改訂**：第 4 引数に上げ表 `lifts: LiftTable`（`initialLifts(running)`）を足す。Lift_Overflow は店舗全体の項で、走行中の上がりに全配置の上がりを足した表の上で数える（Component 10）。
 
+> **改訂（`plan-stability` Component 3・ADR-0010・2026-09-06）:** 署名は `scoreSchedule(slices, pending, scoreContext: ScoreContext, params)` になった。`members` / `lifts` は `ScoreContext { members, lifts, change }` に束ね（位置引数の増殖を止める）、`change: ChangeContext | null` が前回配信対象として確定した提案（Shown_Plan）との比較の文脈——旧 Shown_Plan・遷移後の Timer 集合・比較の時点の now・待ち行列・プリセット——を運ぶ。`total = Σ bySlice + Lift_Overflow + Change_Cost` で、Change_Cost も店舗全体の項ゆえ `total` にだけ足し `bySlice` は変えない（AC 2.9 の例外は Lift_Overflow と Change_Cost の 2 項）。`admit` は 3 回の採点に同じ `ScoreContext`（旧 Shown_Plan は `prev.shownPlan`・Timer 集合は再同期後・now は受領時刻）を渡す。
+
 #### 一片の部分和
 
 ```ts
@@ -185,6 +187,8 @@ export function baselineSchedule(
 ```
 
 `scoreSchedule` を呼ばない。採点は比較の時点の関心事であり、配置の関心事ではない（判断 7）。この関数から採点が消えることで、`baselineSchedule` は「配置を決める」だけの関数になる。
+
+> **改訂（`plan-stability` Component 5・ADR-0010・2026-09-06）:** `baselineSchedule` / `committedSchedule` は末尾に `changeContext: ChangeContext | null` を受ける。非 null なら自前解は前回配信対象として確定した提案（Shown_Plan）を残す——釜の第一候補（`chooseSlots(..., preferred)`）、batch の並びの同値を前回の `startAt` で断つ、列の分割の候補（前回の配置の再現 → 前回のまとまり → 前回の先頭 → pack → split）を局所費用（業務費用 + 変更費用の差分）で比べる。そのうえで前回に忠実な計画と候補を比べた計画の 2 本を組み、総費用（`scoreSchedule`）が真に下がるときだけ後者を採る。null は比較の相手なしで、前回を残す経路を一つも通らず従来と同じ計画が出る。「`scoreSchedule` を呼ばない」は、忠実な計画と比べた計画の 2 本の最終比較にだけ例外を持つ（配置の途中では呼ばない）。
 
 #### `placeGroup` — 容量は `slotSpan` の合計
 
@@ -312,6 +316,8 @@ for placement in 開始時刻昇順:
 ### Component 5: `commit.ts` — 採点を呼ばない合成
 
 `committedSchedule` から `scoreSchedule` の呼び出しと `score` の埋め込みが消える。`running` は既に受けているので、`initialRelease` と並べて `tableMembers` を導き、`baselineSchedule` へ渡す。
+
+> **改訂（`plan-stability`・ADR-0010・2026-09-06）:** `committedSchedule(accepted, pending, running, now, presets, params, changeContext: ChangeContext | null)`。尾部の `baselineSchedule` に同じ `changeContext` を渡す（`settle` は `state.shownPlan`・再同期後の Timer・now・pending・presets から組む。`admit` / `receivePlan` は採点の `ScoreContext.change` と同じ文脈）。
 
 ```ts
 const release = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);

@@ -55,7 +55,7 @@ const FROM_V9: AcceptedSlice = {
 
 describe("committedSchedule — 採用済み一片を現在の slotSpan で再検証する", () => {
   it("1 釜で組まれた採用済み一片は維持されず、自前解が 2 釜で置き直す", () => {
-    const schedule = committedSchedule([FROM_V9], [WIDE], [], NOW, PRESETS, PARAMS);
+    const schedule = committedSchedule([FROM_V9], [WIDE], [], NOW, PRESETS, PARAMS, null);
     const placements = schedule.slices.flatMap((slice) => slice.placements);
 
     expect(placements).toHaveLength(1);
@@ -72,7 +72,7 @@ describe("committedSchedule — 採用済み一片を現在の slotSpan で再�
         { ...FROM_V9.placements[0]!, slotIds: nonEmpty(["0" as SlotId, "1" as SlotId]) },
       ],
     };
-    const schedule = committedSchedule([fits], [WIDE], [], NOW, PRESETS, PARAMS);
+    const schedule = committedSchedule([fits], [WIDE], [], NOW, PRESETS, PARAMS, null);
     expect(schedule.slices).toEqual([fits]);
   });
 });
@@ -117,7 +117,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
     running: readonly Timer[],
     accepted: readonly AcceptedSlice[] = [JOINED_AT_600],
   ) {
-    const schedule = committedSchedule(accepted, [REST], running, NOW, PRESETS, PARAMS);
+    const schedule = committedSchedule(accepted, [REST], running, NOW, PRESETS, PARAMS, null);
     return schedule.slices
       .flatMap((slice) => slice.placements)
       .map((p) => (p.serveAt - NOW) / 1000);
@@ -196,7 +196,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
         place(5, "4", 630),
       ],
     };
-    const schedule = committedSchedule([split], items, [first], NOW, PRESETS, PARAMS);
+    const schedule = committedSchedule([split], items, [first], NOW, PRESETS, PARAMS, null);
     expect(schedule.slices).toEqual([split]);
   });
 
@@ -248,10 +248,11 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
       NOW,
       PRESETS,
       PARAMS,
+      null,
     );
     expect(schedule.slices).toEqual([joinB]);
     // 対照：自前解は A を合流させる。
-    const own = committedSchedule([], [A, B], [sibling(0), ...blocked], NOW, PRESETS, PARAMS);
+    const own = committedSchedule([], [A, B], [sibling(0), ...blocked], NOW, PRESETS, PARAMS, null);
     const joined = own.slices[0]!.placements.find((p) => p.serveAt === NOW + 600 * SECS)!;
     expect(joined.externalOrderId).toBe("o-A");
   });
@@ -294,7 +295,7 @@ describe("committedSchedule — 採用済み一片は現在の上げ窓の上限
     };
   }
   function serveSecondsOf(running: readonly Timer[], accepted: AcceptedSlice): number[] {
-    return committedSchedule([accepted], [ONE], running, NOW, PRESETS, PARAMS)
+    return committedSchedule([accepted], [ONE], running, NOW, PRESETS, PARAMS, null)
       .slices.flatMap((slice) => slice.placements)
       .map((placement) => (placement.serveAt - NOW) / 1000);
   }

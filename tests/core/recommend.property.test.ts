@@ -97,6 +97,7 @@ const genAlarmScene: fc.Arbitrary<AlarmScene> = fc
         initialLifts(timers),
         DEFAULT_NOODLE_PRESETS,
         seed.params,
+        null,
       ).slices;
       const planned: TimerState = {
         ...EMPTY_STATE,
@@ -196,6 +197,7 @@ function recommendationsOf(state: TimerState, scene: AlarmScene) {
     scene.now,
     DEFAULT_NOODLE_PRESETS,
     scene.params,
+    null,
   );
   return recommend(committed);
 }

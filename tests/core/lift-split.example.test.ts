@@ -55,6 +55,7 @@ describe("上限を超える合流の列は候補の窓の残り容量で切る"
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
     const serveSeconds = schedule.slices
       .flatMap((slice) => slice.placements)

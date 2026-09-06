@@ -20,6 +20,13 @@ import {
   type Placement,
 } from "../../src/engine/schedule";
 import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
+import { recommend } from "../../src/engine/recommend";
+import {
+  changeCost,
+  shownPlanOf,
+  type ChangeContext,
+  type ShownItem,
+} from "../../src/engine/stability";
 import {
   advanceLifts,
   initialLifts,
@@ -184,6 +191,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     expect(schedule.slices).toHaveLength(1);
@@ -192,7 +200,14 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
       { item: "o-1#0", slots: ["0"], startSeconds: 0, serveSeconds: 60 },
     ]);
     // Σ Wait_Time = 60 秒。単独品目にソフト制約の超過は生じない。採点は計画の外（比較の時点）で行う。
-    expect(scoreSchedule(schedule.slices, pending, NO_MEMBERS, NO_LIFTS, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        schedule.slices,
+        pending,
+        { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 60,
       bySlice: [60],
     });
@@ -210,6 +225,7 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        null,
       ),
     ).toEqual({
       slices: [],
@@ -218,7 +234,15 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
 
   it("Pending_Order が空なら空の計画", () => {
     expect(
-      baselineSchedule([], EMPTY_KITCHEN, NO_MEMBERS, NO_LIFTS, DEFAULT_NOODLE_PRESETS, PARAMS),
+      baselineSchedule(
+        [],
+        EMPTY_KITCHEN,
+        NO_MEMBERS,
+        NO_LIFTS,
+        DEFAULT_NOODLE_PRESETS,
+        PARAMS,
+        null,
+      ),
     ).toEqual({
       slices: [],
     });
@@ -241,6 +265,7 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     expect(schedule.slices).toHaveLength(1);
@@ -262,12 +287,20 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     // 全員 120 秒に揃うので卓の遅れ 0・オーダー内の差 0。slot 0・1・2 は縦横/斜め隣接で affinity 0。
     // 同じ窓に 3 本は arms 2 を 1 本超え、手伝いの費用（Lift_Overflow）1 本 × 45 秒相当が total にだけ載る
     // （lift-group-planning AC 9.6・9.7）。ゆえに bySlice は Σ Wait_Time = 120 × 3 = 360、total は 360 + 45 = 405。
-    expect(scoreSchedule(schedule.slices, pending, NO_MEMBERS, NO_LIFTS, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        schedule.slices,
+        pending,
+        { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 405,
       bySlice: [360],
     });
@@ -294,6 +327,7 @@ describe("baselineSchedule — 釜が埋まっている", () => {
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
@@ -303,7 +337,12 @@ describe("baselineSchedule — 釜が埋まっている", () => {
     // Lift_Overflow は店舗全体の表で数える（AC 9.6）：走行中 20/40/60 秒の窓 [20,65) は 3 本で 1 本超過、
     // 80/80/100/120 秒の窓 [80,125) は配置を含めて 4 本で 2 本超過。3 × 45 = 135 が total にだけ載る。
     expect(
-      scoreSchedule(schedule.slices, pending, tableMembers(running), initialLifts(running), PARAMS),
+      scoreSchedule(
+        schedule.slices,
+        pending,
+        { members: tableMembers(running), lifts: initialLifts(running), change: null },
+        PARAMS,
+      ),
     ).toEqual({ total: 80 + 135, bySlice: [80] });
   });
 });
@@ -328,6 +367,7 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
     const placed = schedule.slices.flatMap((slice) => slice.placements);
     const split = schedule.slices.find((slice) => slice.tableKey === "t-big");
@@ -344,13 +384,19 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
     const split = schedule.slices.find((slice) => slice.tableKey === "t-big")!;
     const placement = split.placements[0]!;
 
     // 計画に入らなかった 2 品目は同卓・同一オーダーの差の計算に現れない。1 品目だけの一片ゆえ
     // 提供時刻差も slot 対も存在せず、部分和は当該品目の Wait_Time に一致する。
-    const score = scoreSchedule([split], [...solo, ...table], NO_MEMBERS, NO_LIFTS, PARAMS);
+    const score = scoreSchedule(
+      [split],
+      [...solo, ...table],
+      { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+      PARAMS,
+    );
     expect(score.bySlice[0]).toBe(Math.floor((placement.serveAt - NOW) / 1000));
   });
 });
@@ -477,6 +523,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
@@ -501,6 +548,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
@@ -524,6 +572,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     // 未着手の 2 本は互いに揃い（120 秒）、走行中の 30 秒には届かない。届かない batch は合流ではない（anchor null）。
@@ -555,6 +604,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       initialLifts(running),
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     // 錨は max(過去, 今 + 60 秒) = 60 秒。今すぐ始める。
@@ -576,6 +626,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     // 長い Thick が最も早く空く釜（全部同時に空くので slot 0）へ、Thin は続く 2 釜（1・2）を占める。
@@ -600,6 +651,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
     const serveSeconds = schedule.slices[0]!.placements.map(
       (placement) => (placement.serveAt - NOW) / 1000,
@@ -609,11 +661,21 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
     // 跨ぎの差は卓の遅れとして計上される（最遅 120 秒から 4 本 × 60 秒 + 2 本 × 15 秒 = 270 秒 × w_table 2 = 540）。
     // arms を十分大きくして Lift_Overflow を消し、卓同期項の寄与だけを w_table の有無の差で取り出す。
     const roomy = { ...PARAMS, arms: 7 };
-    const withLag = scoreSchedule(schedule.slices, pending, NO_MEMBERS, NO_LIFTS, roomy).total;
-    const withoutLag = scoreSchedule(schedule.slices, pending, NO_MEMBERS, NO_LIFTS, {
-      ...roomy,
-      tableSyncWeight: 0,
-    }).total;
+    const withLag = scoreSchedule(
+      schedule.slices,
+      pending,
+      { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+      roomy,
+    ).total;
+    const withoutLag = scoreSchedule(
+      schedule.slices,
+      pending,
+      { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+      {
+        ...roomy,
+        tableSyncWeight: 0,
+      },
+    ).total;
     expect(withLag - withoutLag).toBe(2 * (60 * 4 + 15 * 2));
   });
 
@@ -659,6 +721,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        null,
       );
       expect(before.slices[0]!.placements.map((p) => (p.serveAt - NOW) / 1000)).toEqual([
         60, 60, 105, 120,
@@ -675,6 +738,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        null,
       );
       // A#1・A#2 は空いている 4 釜で走行中の錨（60 秒）に合流し、A#3 だけが釜の空く 60 秒後に回る。
       // 従来は 3 品が一つの batch に入り、全員が 60 秒後へ押し出されていた。
@@ -716,6 +780,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(running),
         presets,
         PARAMS,
+        null,
       );
 
       expect(schedule.slices[0]!.placements.map(readable)).toEqual([
@@ -740,6 +805,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        null,
       );
 
       // Thin は錨（100 秒）へ合流。Thick は残りの batch で max(earliest 120, 錨 100) = 120 秒に置かれる。
@@ -775,6 +841,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(running),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        null,
       );
 
       // 合流できず、残りの batch として max(earliest 90, 錨 60) = 90 秒に置かれる。
@@ -793,6 +860,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
         initialLifts(roomier),
         DEFAULT_NOODLE_PRESETS,
         PARAMS,
+        null,
       );
       expect(readable(joined.slices[0]!.placements[0]!)).toEqual({
         item: "A#1",
@@ -853,6 +921,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     expect(serveSecondsOf(schedule)).toEqual([60, 60, 60, 60]);
@@ -871,6 +940,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
     const placements = schedule.slices[0]!.placements;
 
@@ -894,6 +964,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       roomy,
+      null,
     );
 
     expect(serveSecondsOf(schedule)).toEqual([60, 60, 60, 60, 105, 105, 105, 105, 150]);
@@ -917,6 +988,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
@@ -942,6 +1014,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       narrow,
+      null,
     );
 
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
@@ -956,6 +1029,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         narrow,
+        null,
       ),
     ).toEqual({ slices: [] });
   });
@@ -976,6 +1050,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       narrow,
+      null,
     );
 
     expect(schedule.slices[0]!.placements.map(readable)).toEqual([
@@ -990,6 +1065,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
         NO_LIFTS,
         DEFAULT_NOODLE_PRESETS,
         narrow,
+        null,
       ).slices[0]!.placements.map(readable),
     ).toEqual([{ item: "F#0", slots: ["0", "1"], startSeconds: 0, serveSeconds: 60 }]);
   });
@@ -1004,10 +1080,18 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
     const release = initialRelease(running, NOW, 6);
     const place = (tableSyncWeight: number) =>
       serveSecondsOf(
-        baselineSchedule(family(4), release, tableMembers(running), lifts, DEFAULT_NOODLE_PRESETS, {
-          ...PARAMS,
-          tableSyncWeight,
-        }),
+        baselineSchedule(
+          family(4),
+          release,
+          tableMembers(running),
+          lifts,
+          DEFAULT_NOODLE_PRESETS,
+          {
+            ...PARAMS,
+            tableSyncWeight,
+          },
+          null,
+        ),
       );
 
     expect(place(1)).toEqual([60, 60, 105, 105]);
@@ -1035,6 +1119,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
       NO_LIFTS,
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
+      null,
     );
 
     expect(schedule.slices.map((slice) => slice.tableKey)).toEqual(["t-1", "t-2"]);
@@ -1116,6 +1201,7 @@ describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10�
       initialLifts(running),
       PRESETS,
       PARAMS,
+      null,
     ).slices[0]!.placements;
   }
 
@@ -1249,5 +1335,488 @@ describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10�
         pending,
       )([place(pending[0]!, ["0"], 0, 66), place(pending[1]!, ["0"], 100, null)]),
     ).toBe(false);
+  });
+});
+
+describe("baselineSchedule — 自前解が前回を残す（plan-stability Requirement 3・design Component 5・task 4）", () => {
+  // Feature: plan-stability, Component 5
+  // **Validates: Requirements 3.1, 3.2, 3.3, 5.6, 5.7**
+  //
+  // 前回配信対象として確定した提案（Shown_Plan）が在れば、釜の選択はその釜を第一候補にし、列の pack / split の局所比較に
+  // 変更費用（先頭の変更を含む 4 種）を足し、前回のまとまりを保つ分割を第 3 候補に置く。ハード制約は前回より優先する。
+  const SECS = 1_000;
+  /** Thin 60 秒に、茹で 600 秒（h_i 60 秒）を足した店。 */
+  const PRESETS: readonly NoodlePreset[] = [
+    ...DEFAULT_NOODLE_PRESETS,
+    { noodleType: "Long", boilSeconds: { extraHard: 600, hard: 600, normal: 600, soft: 600 } },
+  ];
+  const boilSecondsOf: Record<string, number> = { Thin: 60, Medium: 90, Thick: 120, Long: 600 };
+
+  /** 前回の提案の 1 品目（釜・開始秒・錨秒・同じ群だった相手）。serveAt は startAt + 茹で時間。 */
+  function shown(
+    order: PendingOrder,
+    slots: readonly string[],
+    startSeconds: number,
+    options: { readonly anchorSeconds?: number; readonly mates?: readonly PendingOrder[] } = {},
+  ): ShownItem {
+    return {
+      externalOrderId: order.externalOrderId,
+      itemIndex: order.itemIndex,
+      slotIds: nonEmpty(slots.map((slot) => slot as SlotId)),
+      startAt: (NOW + startSeconds * SECS) as EpochMillis,
+      serveAt: (NOW + (startSeconds + boilSecondsOf[order.noodleType]!) * SECS) as EpochMillis,
+      anchor:
+        options.anchorSeconds === undefined
+          ? null
+          : ((NOW + options.anchorSeconds * SECS) as EpochMillis),
+      mates: (options.mates ?? []).map((mate) => `${mate.externalOrderId}\u0000${mate.itemIndex}`),
+    };
+  }
+  /** 比較の文脈——旧 Shown_Plan・遷移後の Timer・比較の時点 NOW。 */
+  function changeContextOf(
+    shownPlan: readonly ShownItem[],
+    running: readonly Timer[],
+    pending: readonly PendingOrder[],
+  ): ChangeContext {
+    return { shown: shownPlan, running, now: NOW, pending, presets: PRESETS };
+  }
+  /** 自前解（NOW の解放表・卓の成員表・上げ表から）。 */
+  function plan(
+    pending: readonly PendingOrder[],
+    running: readonly Timer[],
+    params: ScheduleParams,
+    changeContext: ChangeContext | null,
+  ) {
+    return baselineSchedule(
+      pending,
+      initialRelease(running, NOW, 6),
+      tableMembers(running),
+      initialLifts(running),
+      PRESETS,
+      params,
+      changeContext,
+    );
+  }
+  /** 遠い未来まで釜を塞ぐ、卓の無い走行中。 */
+  function blocked(slot: string, endSeconds = 10_000) {
+    return timerOn({ id: `blocked-${slot}`, slot, endTime: NOW + endSeconds * SECS });
+  }
+
+  it("前回の釜が候補の時刻までに空いていればそれを採る（AC 3.1）——前回が無ければ index 最小の釜", () => {
+    const item = pendingItem({ orderId: "o-1" });
+    const previous = [shown(item, ["3"], 0)];
+
+    expect(plan([item], [], PARAMS, null).slices[0]!.placements.map(readable)).toEqual([
+      { item: "o-1#0", slots: ["0"], startSeconds: 0, serveSeconds: 60 },
+    ]);
+    expect(
+      plan([item], [], PARAMS, changeContextOf(previous, [], [item])).slices[0]!.placements.map(
+        readable,
+      ),
+    ).toEqual([{ item: "o-1#0", slots: ["3"], startSeconds: 0, serveSeconds: 60 }]);
+  });
+
+  it("batch でも品目ごとに前回の釜を採り、残りは既存の対応づけで埋める（AC 3.1）", () => {
+    // 同卓 3 品。前回は A 釜 4・B 釜 5。C は前回に無い（新規）ので、残った釜のうち既存の規則（index 最小）で釜 0。
+    const a = pendingItem({ orderId: "A", tableId: "t-1" });
+    const b = pendingItem({ orderId: "B", tableId: "t-1", arrivalTime: NOW + 1 });
+    const c = pendingItem({ orderId: "C", tableId: "t-1", arrivalTime: NOW + 2 });
+    const previous = [shown(a, ["4"], 0, { mates: [b] }), shown(b, ["5"], 0, { mates: [a] })];
+
+    const schedule = plan([a, b, c], [], PARAMS, changeContextOf(previous, [], [a, b, c]));
+
+    expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+      { item: "A#0", slots: ["4"], startSeconds: 0, serveSeconds: 60 },
+      { item: "B#0", slots: ["5"], startSeconds: 0, serveSeconds: 60 },
+      { item: "C#0", slots: ["0"], startSeconds: 0, serveSeconds: 60 },
+    ]);
+  });
+
+  it("前回の釜が候補の時刻までに空かなければ既存の規則へ落ち、釜の変更費用 L を払う（AC 3.1・3.3・Error Handling）", () => {
+    // 前回は釜 3。釜 3 は卓の無い走行中が 30 秒後まで占める——候補（今すぐ始めて 60 秒）に間に合わないので釜 0。
+    // 待たせて釜 3 を守る配置は候補にならない（ハード制約と業務費用が前回より先）。
+    const item = pendingItem({ orderId: "o-1" });
+    const running = [blocked("3", 30)];
+    const previous = [shown(item, ["3"], 0)];
+    const changeContext = changeContextOf(previous, running, [item]);
+
+    const schedule = plan([item], running, PARAMS, changeContext);
+
+    expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+      { item: "o-1#0", slots: ["0"], startSeconds: 0, serveSeconds: 60 },
+    ]);
+    // 釜の変更 L = 45 だけが付く（時刻は同じ・前回の釜は走行中が占めるので先頭ではなかった）。
+    expect(
+      changeCost({ schedule, recommendations: recommend(schedule) }, changeContext, PARAMS),
+    ).toBe(PARAMS.liftIntervalSeconds);
+  });
+
+  it("業務費用が同点の pack と split：前回が無ければ pack、前回が分割ならそのまとまりを保つ（AC 3.2・同点は前回を保つ側）", () => {
+    // 同卓 A・B（Thin）。卓の無い走行中 2 本が 60 秒に上がり（釜 0・1）、上限 arms 1 + 2 = 3 に対して 60 秒の窓の
+    // 負荷は 2。pack（2 本）は 105 秒へ、split は A を 60 秒・B を 105 秒に置く。w_table 1 では両者の局所費用が
+    // 同点（255 秒）で、前回の無い計画は pack を採る。
+    const params: ScheduleParams = { ...PARAMS, arms: 1, tableSyncWeight: 1 };
+    const a = pendingItem({ orderId: "A", tableId: "t-1" });
+    const b = pendingItem({ orderId: "B", tableId: "t-1", arrivalTime: NOW + 1 });
+    const running = [blocked("0", 60), blocked("1", 60)];
+
+    expect(plan([a, b], running, params, null).slices[0]!.placements.map(readable)).toEqual([
+      { item: "A#0", slots: ["2"], startSeconds: 45, serveSeconds: 105 },
+      { item: "B#0", slots: ["3"], startSeconds: 45, serveSeconds: 105 },
+    ]);
+
+    // 前回は A を今（60 秒に上がる）・B を 45 秒後に示していた（別の群）。前回のまとまりを保つ分割がそのまま候補になり、
+    // pack は A の先頭消失（2L）と時刻の移動（L）を払うので、分割を保つ。
+    const previous = [shown(a, ["2"], 0), shown(b, ["3"], 45)];
+    const schedule = plan([a, b], running, params, changeContextOf(previous, running, [a, b]));
+    expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+      { item: "A#0", slots: ["2"], startSeconds: 0, serveSeconds: 60 },
+      { item: "B#0", slots: ["3"], startSeconds: 45, serveSeconds: 105 },
+    ]);
+    expect(
+      changeCost(
+        { schedule, recommendations: recommend(schedule) },
+        changeContextOf(previous, running, [a, b]),
+        params,
+      ),
+    ).toBe(0);
+  });
+
+  describe("局所費用に先頭の変更 (a) を含む——arms 1・L 45・茹で 600 秒・走行中 2 本が 600 秒（design Component 5 の回帰）", () => {
+    // 卓 t-1 の走行中 2 本（釜 0・1）が 600 秒に上がる。残りの A・B（600 秒）は錨 600 秒に合流し、同じ列（候補 600 秒）
+    // になる。上限 3 に対して 600 秒の窓の負荷は 2 なので、pack（2 本）は 645 秒へ動き、split は A を 600 秒・B を
+    // 645 秒に置く。業務費用は pack が 45 秒良い（待ち +45・卓の遅れ −90）。前回の提案は A を今・B を 45 秒後。
+    const a = pendingItem({ orderId: "A", noodleType: "Long", tableId: "t-1" });
+    const b = pendingItem({
+      orderId: "B",
+      noodleType: "Long",
+      tableId: "t-1",
+      arrivalTime: NOW + 1,
+    });
+    const running = [
+      timerOn({ id: "s0", slot: "0", endTime: NOW + 600 * SECS, tableId: "t-1" }),
+      timerOn({ id: "s1", slot: "1", endTime: NOW + 600 * SECS, tableId: "t-1" }),
+    ];
+    const previous = [
+      shown(a, ["2"], 0, { anchorSeconds: 600, mates: [b] }),
+      shown(b, ["3"], 45, { anchorSeconds: 600, mates: [a] }),
+    ];
+    const arms1: ScheduleParams = { ...PARAMS, arms: 1 };
+
+    it("前回が無ければ業務費用で pack を採り、両方が 45 秒後になる", () => {
+      expect(plan([a, b], running, arms1, null).slices[0]!.placements.map(readable)).toEqual([
+        { item: "A#0", slots: ["2"], startSeconds: 45, serveSeconds: 645 },
+        { item: "B#0", slots: ["3"], startSeconds: 45, serveSeconds: 645 },
+      ]);
+    });
+
+    it("前回 A が先頭なら pack を採らない——業務の利益 45 秒 < 先頭消失 90 秒（(b)(c)(d) だけでは守れない）", () => {
+      const changeContext = changeContextOf(previous, running, [a, b]);
+      const schedule = plan([a, b], running, arms1, changeContext);
+      expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+        { item: "A#0", slots: ["2"], startSeconds: 0, serveSeconds: 600 },
+        { item: "B#0", slots: ["3"], startSeconds: 45, serveSeconds: 645 },
+      ]);
+      // 前回と同じ計画ゆえ変更費用 0（釜・順・まとまり・時刻・先頭のすべて）。
+      expect(
+        changeCost({ schedule, recommendations: recommend(schedule) }, changeContext, arms1),
+      ).toBe(0);
+    });
+
+    it("業務の利益が変更費用を上回れば変わる（性質 5.7）——w_table 4 では pack の利益 135 秒 > 先頭消失 90 秒", () => {
+      const heavier: ScheduleParams = { ...arms1, tableSyncWeight: 4 };
+      const changeContext = changeContextOf(previous, running, [a, b]);
+      const schedule = plan([a, b], running, heavier, changeContext);
+      expect(schedule.slices[0]!.placements.map(readable)).toEqual([
+        { item: "A#0", slots: ["2"], startSeconds: 45, serveSeconds: 645 },
+        { item: "B#0", slots: ["3"], startSeconds: 45, serveSeconds: 645 },
+      ]);
+      expect(
+        changeCost({ schedule, recommendations: recommend(schedule) }, changeContext, heavier),
+      ).toBe(2 * heavier.liftIntervalSeconds);
+    });
+  });
+
+  it("同じ入力で続けて計画すると前回と同じ計画になり、変更費用は 0（性質 5.6）", () => {
+    // 走行中の仲間が在る卓と無い卓、大盛（2 釜）、容量分割を踏む場面。
+    const pending = [
+      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thick", tableId: "t-1" }),
+      pendingItem({ orderId: "F", itemIndex: 1, tableId: "t-1", slotSpan: 2 }),
+      pendingItem({ orderId: "F", itemIndex: 2, noodleType: "Medium", tableId: "t-1" }),
+      pendingItem({ orderId: "G", tableId: "t-2", arrivalTime: NOW + 1 }),
+      pendingItem({ orderId: "G", itemIndex: 1, tableId: "t-2", arrivalTime: NOW + 1 }),
+    ];
+    const running = [
+      timerOn({ id: "s0", slot: "0", endTime: NOW + 40 * SECS, tableId: "t-1" }),
+      blocked("1", 20),
+    ];
+    const first = plan(pending, running, PARAMS, null);
+    const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), running, pending);
+
+    const second = plan(pending, running, PARAMS, changeContext);
+
+    expect(second).toEqual(first);
+    expect(
+      changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, PARAMS),
+    ).toBe(0);
+  });
+
+  it("容量超過の接頭辞が前回のまとまりを割る場面でも、前回のまとまりを保つ分割が候補になり同じ計画に戻る（性質 5.6 の回帰）", () => {
+    // Property 5.6 の反例（seed -1215411271 を縮めたもの）。卓 t-2 は Thick 極硬（100 秒・2 釜）・Thin 柔らか 2 品
+    // （75 秒・2 釜と 1 釜）で Σ span 5 が上限 4 を超える。前回の無い計画は正準順序の接頭辞 [Thick, 柔らか#0]（span 4）を
+    // pack して 121 秒に揃え、柔らか#1 を 100 秒に置く。再計画では茹で時間が同値の柔らか 2 品の並びを前回の startAt
+    // （#1 が 25 秒・#0 が 46 秒）で断つため接頭辞が [Thick, 柔らか#1] に変わり、前回同じ群だった Thick と柔らか#0 が
+    // 接頭辞の内と外に割れる——業務費用は同点のまま Thick が 2 秒へ動き、変更費用 31 秒を自前解自身が作っていた。
+    const arrival = NOW - 600 * SECS;
+    const pending = [
+      pendingItem({ orderId: "o-0", firmness: "normal", arrivalTime: arrival }),
+      pendingItem({ orderId: "o-1", firmness: "extraHard", tableId: "t-1", arrivalTime: arrival }),
+      pendingItem({
+        orderId: "o-1",
+        itemIndex: 1,
+        firmness: "extraHard",
+        tableId: "t-1",
+        arrivalTime: arrival,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        firmness: "soft",
+        tableId: "t-2",
+        arrivalTime: arrival,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        itemIndex: 1,
+        firmness: "soft",
+        tableId: "t-2",
+        arrivalTime: arrival,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        itemIndex: 2,
+        firmness: "normal",
+        arrivalTime: arrival,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-3",
+        noodleType: "Thick",
+        firmness: "extraHard",
+        tableId: "t-2",
+        arrivalTime: arrival,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-3",
+        itemIndex: 1,
+        noodleType: "Thick",
+        firmness: "extraHard",
+        arrivalTime: arrival,
+      }),
+    ];
+    const params: ScheduleParams = {
+      ...schedulingDefaults(2),
+      arms: 2,
+      tableSyncWeight: 1,
+      orderSyncWeight: 0,
+      affinityWeight: 0,
+      liftIntervalSeconds: 21,
+    };
+    const planWide = (changeContext: ChangeContext | null) =>
+      baselineSchedule(
+        pending,
+        initialRelease([], NOW, 12),
+        NO_MEMBERS,
+        NO_LIFTS,
+        PRESETS,
+        params,
+        changeContext,
+      );
+    const first = planWide(null);
+    const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), [], pending);
+
+    const second = planWide(changeContext);
+
+    expect(first.slices.at(-1)!.placements.map(readable)).toEqual([
+      { item: "o-2#0", slots: ["8", "9"], startSeconds: 46, serveSeconds: 121 },
+      { item: "o-2#1", slots: ["10"], startSeconds: 25, serveSeconds: 100 },
+      { item: "o-3#0", slots: ["6", "7"], startSeconds: 21, serveSeconds: 121 },
+    ]);
+    expect(second).toEqual(first);
+    expect(
+      changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, params),
+    ).toBe(0);
+  });
+
+  it("合流した群で 1 本だけ窓に残っていた前回の配置は、前回の提供時刻ごとの塊で再現され同じ計画に戻る（性質 5.6 / 5.7 の回帰）", () => {
+    // Property 5.7 の反例（seed 205718488 を縮めたもの）。走行中 3 本（うち 1 本が卓 t-2）が 75.751 秒に上がる表で
+    // arms 3・L 5：卓 t-2 の 4 品は全員が錨 75.751 秒に合流でき、窓の残り 2 本分に 1 本だけが入って残りは 80.751 秒。
+    // 前回の無い計画は正準順序の split（接頭辞 3 本が 80.751 秒・余りの o-3#0 が 75.751 秒）。再計画では茹で時間が同値の
+    // o-0#0 と o-3#0 の並びを前回の startAt で断つため接頭辞と余りが入れ替わり、split は o-0#0 を 75.751 秒に置く形に
+    // なる。4 品は同じ群（mates）なので「前回のまとまりを保つ分割」は pack と同じで、前回の配置が候補に無く、業務費用
+    // 5 秒・変更費用 1 秒の両方で劣る pack が採られていた。前回の serveAt ごとの塊で置く候補がそれを再現する。
+    const arrival = NOW - 600 * SECS;
+    const pending = [
+      pendingItem({ orderId: "o-0", firmness: "hard", tableId: "t-2", arrivalTime: arrival }),
+      pendingItem({ orderId: "o-1", firmness: "soft", tableId: "t-2", arrivalTime: arrival }),
+      pendingItem({ orderId: "o-1", itemIndex: 1, firmness: "extraHard", arrivalTime: arrival }),
+      pendingItem({
+        orderId: "o-2",
+        noodleType: "Medium",
+        firmness: "extraHard",
+        tableId: "t-2",
+        arrivalTime: arrival,
+      }),
+      pendingItem({ orderId: "o-3", firmness: "hard", tableId: "t-2", arrivalTime: arrival }),
+      pendingItem({ orderId: "o-3", itemIndex: 1, firmness: "extraHard", arrivalTime: arrival }),
+    ];
+    const running = [
+      timerOn({ id: "r0", slot: "0", endTime: NOW + 75_751, tableId: "t-2" }),
+      timerOn({ id: "r1", slot: "1", endTime: NOW + 75_751 }),
+      timerOn({ id: "r2", slot: "2", endTime: NOW + 75_751 }),
+    ];
+    const params: ScheduleParams = {
+      ...schedulingDefaults(3),
+      arms: 3,
+      toleranceRatio: 1,
+      tableSyncWeight: 0,
+      orderSyncWeight: 0,
+      affinityWeight: 0,
+      liftIntervalSeconds: 5,
+    };
+    const planWide = (changeContext: ChangeContext | null) =>
+      baselineSchedule(
+        pending,
+        initialRelease(running, NOW, 18),
+        tableMembers(running),
+        initialLifts(running),
+        PRESETS,
+        params,
+        changeContext,
+      );
+    const first = planWide(null);
+    const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), running, pending);
+
+    const second = planWide(changeContext);
+
+    expect(first.slices.at(-1)!.placements.map(readable)).toEqual([
+      { item: "o-0#0", slots: ["5"], startSeconds: 28.751, serveSeconds: 80.751 },
+      { item: "o-1#0", slots: ["6"], startSeconds: 5.751, serveSeconds: 80.751 },
+      { item: "o-2#0", slots: ["7"], startSeconds: 5.751, serveSeconds: 80.751 },
+      { item: "o-3#0", slots: ["8"], startSeconds: 23.751, serveSeconds: 75.751 },
+    ]);
+    expect(second).toEqual(first);
+    expect(
+      changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, params),
+    ).toBe(0);
+  });
+
+  it("列の局所比較で勝つ候補が全体では劣るとき、前回に忠実な計画が残る（総費用で 2 本を比べる・性質 5.6 の回帰）", () => {
+    // Property 5.6 の反例（seed 741737030 を縮めたもの）。w_table 4・arms 2・L 62・走行中 3 本（50.2 / 54.3 / 199 秒）。
+    // 卓 t-1 は Thick 極硬（100 秒・2 釜）と Thin 柔らか 2 品（75 秒・2 釜と 1 釜）で Σ span 5 が上限 4 を超える。
+    // 前回の無い計画は接頭辞 [Thick, 柔らか#0] を 261 秒に pack し、柔らか#1 を 116.334 秒に置く。再計画では同値の
+    // 並びを前回の startAt で断つため接頭辞が [Thick, 柔らか#1] になり、その分割（Thick 137 秒・柔らか#0 178.334 秒）は
+    // 卓の一片で 370 秒改善して局所では勝つが、後続の単独品 o-2#2 を窓が 71 → 154 秒へ押し、変更費用 444 秒を足すと
+    // 前回より 218 秒悪い（7460 対 7242）。前回に忠実な計画と総費用で比べるので、前回の計画が残る。
+    const arrival = NOW - 600 * SECS;
+    const pending = [
+      pendingItem({
+        orderId: "o-0",
+        noodleType: "Medium",
+        firmness: "extraHard",
+        arrivalTime: arrival + 1,
+      }),
+      pendingItem({
+        orderId: "o-0",
+        itemIndex: 1,
+        firmness: "extraHard",
+        tableId: "t-2",
+        arrivalTime: arrival + 1,
+      }),
+      pendingItem({
+        orderId: "o-0",
+        itemIndex: 2,
+        noodleType: "Thick",
+        firmness: "extraHard",
+        tableId: "t-1",
+        arrivalTime: arrival + 1,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-0",
+        itemIndex: 3,
+        firmness: "extraHard",
+        arrivalTime: arrival + 1,
+      }),
+      // プリセットに無い麺種は置かれないが、卓 t-2 の群を先頭に並べる（反例そのまま）。
+      pendingItem({
+        orderId: "o-1",
+        noodleType: "Ghost",
+        firmness: "extraHard",
+        tableId: "t-2",
+        arrivalTime: arrival,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        firmness: "soft",
+        tableId: "t-1",
+        arrivalTime: arrival + 2,
+        slotSpan: 2,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        itemIndex: 1,
+        firmness: "soft",
+        tableId: "t-1",
+        arrivalTime: arrival + 2,
+      }),
+      pendingItem({
+        orderId: "o-2",
+        itemIndex: 2,
+        firmness: "extraHard",
+        arrivalTime: arrival + 2,
+      }),
+    ];
+    // 走行中 3 本は同じ釜 0 に載る（反例そのまま。釜は 1 つしか塞がず、上げ表に 3 本の上がりが載る）。
+    const running = [
+      timerOn({ id: "r0", slot: "0", endTime: NOW + 50_201 }),
+      timerOn({ id: "r1", slot: "0", endTime: NOW + 54_334, tableId: "t-2" }),
+      timerOn({ id: "r2", slot: "0", endTime: NOW + 199_000, tableId: "t-2" }),
+    ];
+    const params: ScheduleParams = {
+      ...schedulingDefaults(2),
+      arms: 2,
+      toleranceRatio: 1,
+      tableSyncWeight: 4,
+      orderSyncWeight: 0,
+      affinityWeight: 0,
+      liftIntervalSeconds: 62,
+    };
+    const planWide = (changeContext: ChangeContext | null) =>
+      baselineSchedule(
+        pending,
+        initialRelease(running, NOW, 12),
+        tableMembers(running),
+        initialLifts(running),
+        PRESETS,
+        params,
+        changeContext,
+      );
+    const first = planWide(null);
+    const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), running, pending);
+
+    const second = planWide(changeContext);
+
+    const t1 = first.slices.find((slice) => slice.tableKey === "t-1")!;
+    expect(t1.placements.map(readable)).toEqual([
+      { item: "o-0#2", slots: ["6", "7"], startSeconds: 161, serveSeconds: 261 },
+      { item: "o-2#0", slots: ["8", "9"], startSeconds: 186, serveSeconds: 261 },
+      { item: "o-2#1", slots: ["10"], startSeconds: 41.334, serveSeconds: 116.334 },
+    ]);
+    expect(second).toEqual(first);
+    expect(
+      changeCost({ schedule: second, recommendations: recommend(second) }, changeContext, params),
+    ).toBe(0);
   });
 });

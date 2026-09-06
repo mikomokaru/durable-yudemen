@@ -663,6 +663,7 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
       acceptedSlices: off.timer.finalSnapshot?.acceptedSlices,
       requestedDigest: off.timer.finalSnapshot?.requestedDigest,
       lastSequenceByTerminal: off.timer.finalSnapshot?.lastSequenceByTerminal,
+      shownPlan: off.timer.finalSnapshot?.shownPlan,
     });
     expect(off.timer.finalAlarm).toBeNull();
     expect(off.timer.existingException).toEqual({

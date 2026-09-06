@@ -26,6 +26,7 @@ import { admit } from "./admit";
 import { committedSchedule } from "./commit";
 import { settle } from "./settle";
 import type { SettleParams } from "./settle";
+import type { ChangeContext } from "./stability";
 import { synchronize } from "./sync";
 
 /** PlanArrived イベントの本体。receivePlan はこの形だけを受け取る（event.ts の唯一の出所を再利用）。 */
@@ -63,6 +64,16 @@ export function receivePlan(
   params: SettleParams,
 ): Outcome {
   const timers = synchronize(state.timers, params);
+  // 旧 Shown_Plan は遷移前の状態が持つもの（`state` は遷移前・plan-stability AC 1.7）。現行 Committed_Plan の自前解も
+  // 採用の可否（Business_Cost + Change_Cost）も同じ文脈で組み、採用すれば `settle` が同じ Persist で新しい Shown_Plan を
+  // 確定する。
+  const changeContext: ChangeContext = {
+    shown: state.shownPlan,
+    running: timers,
+    now: args.now,
+    pending: state.pendingOrders,
+    presets: params.noodlePresets,
+  };
   const committed = committedSchedule(
     state.acceptedSlices,
     state.pendingOrders,
@@ -70,12 +81,14 @@ export function receivePlan(
     args.now,
     params.noodlePresets,
     params,
+    changeContext,
   );
   const accepted = admit(
     args.plan,
     committed,
     state.pendingOrders,
     timers,
+    state.shownPlan,
     args.now,
     params.noodlePresets,
     params,

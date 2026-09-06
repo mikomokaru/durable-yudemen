@@ -60,6 +60,47 @@ export interface PendingOrder {
   /** POS が申告した麺量 child の商品名。slotSpan を決めた child と同じ同定結果から取る。欠落は null。 */
   readonly sizeName: string | null;
 }
+
+/**
+ * ItemKey — 品目の鍵（externalOrderId と itemIndex の組を一つの文字列に畳んだもの）。推奨・Pending_Order・
+ * 走行中 Timer の品目参照を突き合わせる唯一の同定手段。文字列なのは Map / Set の鍵に置くためで、鍵から
+ * 組へ戻す読み手は無い（戻したければ元の品目を持て）。
+ */
+export type ItemKey = string;
+
+/**
+ * 品目の鍵を組む。区切りは NUL——externalOrderId は POS の任意文字列で、`#` や `-` は識別子の中に現れうる。
+ *
+ * 推奨（CookRecommendation）も Pending_Order も同じ二つの項目を持つので、どちらからでも同じ鍵に達する
+ * （構造で受け、型を問わない）。engine の pending / objective も同じ形の鍵を持つが、ここは client と engine が
+ * 共有する Head の導出（lift-group.ts）が要る正本である。
+ */
+export function itemKeyOf(item: {
+  readonly externalOrderId: string;
+  readonly itemIndex: number;
+}): ItemKey {
+  return `${item.externalOrderId}\u0000${item.itemIndex}`;
+}
+
+/**
+ * 到着順の全順序（arrivalTime 昇順, externalOrderId 昇順, itemIndex 昇順）。
+ *
+ * 待ち行列の並び（client のレール）と、群の中で startAt が同値の品目の並び（lift-group-display AC 1.4・
+ * lift-group.ts）は同じ順序を要る。第 2・第 3 の鍵はサーバ側の計画対象の整列と同じで、同時到着でも端末間・
+ * 再描画間で並びが揺れない。
+ */
+export function compareArrival(a: PendingOrder, b: PendingOrder): number {
+  return (
+    a.arrivalTime - b.arrivalTime ||
+    compareText(a.externalOrderId, b.externalOrderId) ||
+    a.itemIndex - b.itemIndex
+  );
+}
+
+/** 文字列の全順序（並びを決定的にするための第 2 の鍵）。 */
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
 /**
  * Order_Ingress が受けた到着の生値（品目の配列）を PendingOrder 列へ写す純粋関数。
  *

@@ -4,6 +4,7 @@
 import type { Timer } from "./timer";
 import type { AcceptedSlice } from "./schedule";
 import type { InputDigest } from "./digest";
+import { EMPTY_SHOWN_PLAN, type ShownPlan } from "./stability";
 import type { PendingOrder } from "../domain/order";
 
 /**
@@ -21,6 +22,9 @@ import type { PendingOrder } from "../domain/order";
  *   - Cook_Recommendation — Committed_Plan から recommend が導く
  *   - 現在の Input_Fingerprint — 現在の入力から digestInput が導く（保持するのは「直前に要求した時点の値」だけ）
  *   - Wait_Time — arrivalTime（事実）と提供時刻から引き算で出る
+ *
+ * `shownPlan` はこの規律の例外ではない（plan-stability 判断 1）。前回 `Persist` に載せた提案は、時刻が進み走行中が
+ * 変われば現在の状態からはもう導けない過去の出力であり、確定計画のキャッシュではなく履歴の事実である。
  */
 export interface TimerState {
   /** アクティブな全 Timer。 */
@@ -47,9 +51,16 @@ export interface TimerState {
    * ここが持つのは比較可能な文字列という一事だけである（`noodleType` のように意味を解釈しない）。
    */
   readonly lastSequenceByTerminal: Readonly<Record<string, string>>;
+  /**
+   * 前回配信対象として永続確定した提案（Shown_Plan・plan-stability 判断 1・AC 1.1）。
+   *
+   * `settle` が確定結果を `Persist` するたびに、同じ `Persist` に載る snapshot の推奨で置き換える。棄却・no-op・
+   * hydration では更新しない（AC 1.6）。比較にだけ用い、確定計画は引き続き毎回導く（AC 1.2）。空は比較の相手なし。
+   */
+  readonly shownPlan: ShownPlan;
 }
 
-/** 空の初期状態。Timer なし・seq は 0 から・待ち行列も採用済み計画も空・未要求・判定材料なし。 */
+/** 空の初期状態。Timer なし・seq は 0 から・待ち行列も採用済み計画も空・未要求・判定材料なし・前回の提案なし。 */
 export const EMPTY_STATE: TimerState = {
   timers: [],
   nextSeq: 0,
@@ -57,6 +68,7 @@ export const EMPTY_STATE: TimerState = {
   acceptedSlices: [],
   requestedDigest: null,
   lastSequenceByTerminal: {},
+  shownPlan: EMPTY_SHOWN_PLAN,
 };
 
 /**

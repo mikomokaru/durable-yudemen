@@ -31,6 +31,7 @@ type ModelShapeAssertions = [
   // 調理順スケジューリング（online-cook-scheduling タスク 5.1）が 3 フィールドを足した。この主張の眼目は
   // 「Operation History が Timer モデルへフィールドを足さないこと」であり、他 spec による正当な拡張は追随させる。
   // POS オーダー取り込み（pos-order-ingress タスク 10）が重複排除の判定材料を 1 つ足した。
+  // plan-stability（タスク 2）が前回配信対象として確定した提案（shownPlan・履歴の事実）を 1 つ足した。
   Assert<
     Equal<
       keyof TimerState,
@@ -40,12 +41,15 @@ type ModelShapeAssertions = [
       | "acceptedSlices"
       | "requestedDigest"
       | "lastSequenceByTerminal"
+      | "shownPlan"
     >
   >,
   // 永続スキーマ v7（online-cook-scheduling タスク 6.2）が同じ 3 フィールドを永続へ載せ、型名を
   // ActiveTimersSnapshot から StoreSnapshot へ改めた。ストレージキー "activeTimers" は据え置き。
   // v8（pos-order-ingress タスク 12）が判定材料を永続へ載せた——別キーにすれば注文と別の put になり、
   // 「判定材料だけ進んで注文が無い」欠落が生じるため、同じスナップショットに乗る。
+  // v12（plan-stability タスク 2）が shownPlan を永続へ載せた——確定計画と同じ put で確定するので、確定した推奨と
+  // Shown_Plan は常に一致する。
   Assert<
     Equal<
       keyof StoreSnapshot,
@@ -56,6 +60,7 @@ type ModelShapeAssertions = [
       | "acceptedSlices"
       | "requestedDigest"
       | "lastSequenceByTerminal"
+      | "shownPlan"
     >
   >,
   // 調理順スケジューリング（online-cook-scheduling タスク 12.2）が Effect 語彙へ RequestPlan を足した。
@@ -69,10 +74,11 @@ type ModelShapeAssertions = [
   Assert<Equal<VariantKeys<"ClearAlarm">, "type">>,
   Assert<Equal<VariantKeys<"Broadcast">, "type" | "message">>,
   // lift-group-planning が RequestPlan に noodlePresets を足した（要求の入力を engine の決定として一箇所に定める）。
+  // plan-stability（タスク 4）が shownPlan を足した（外部解も同じ変更費用で採点されるため・AC 1.4。指紋には畳まない）。
   Assert<
     Equal<
       VariantKeys<"RequestPlan">,
-      "type" | "pending" | "running" | "params" | "noodlePresets" | "digest"
+      "type" | "pending" | "running" | "params" | "noodlePresets" | "digest" | "shownPlan"
     >
   >,
   Assert<Equal<Extract<Effect, { readonly type: "Persist" }>["snapshot"], StoreSnapshot>>,
@@ -154,6 +160,7 @@ describe("Operation History の Timer モデル規律", () => {
           "nextSeq": 42,
           "pendingOrders": [],
           "requestedDigest": null,
+          "shownPlan": [],
           "timers": [
             {
               "adjustment": 0,
@@ -171,7 +178,7 @@ describe("Operation History の Timer モデル規律", () => {
               "startTime": 1700000000000,
             },
           ],
-          "version": 11,
+          "version": 12,
         },
         "type": "Persist",
       }

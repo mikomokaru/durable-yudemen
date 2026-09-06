@@ -1250,6 +1250,7 @@ export class StoreTimerDO extends DurableObject<Env> {
       params: effect.params,
       noodlePresets: effect.noodlePresets,
       digest: effect.digest,
+      shownPlan: effect.shownPlan,
     };
     try {
       await this.env.SOLVER.fetch(SOLVER_REQUEST_URL, {

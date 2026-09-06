@@ -58,6 +58,9 @@ const EXPECTED_CORE_FILES = [
   "src/engine/adjust.ts",
   "src/engine/admit.ts",
   "src/engine/alarm.ts",
+  // boil.ts は茹で時間と合流の窓の導出（plan-stability タスク 4 が schedule.ts から切り出した——自前解が変更費用を
+  // 読み、変更費用が茹で時間を読むため）。lift.ts と同じ判断で追随させる。
+  "src/engine/boil.ts",
   "src/engine/cancel.ts",
   "src/engine/commit.ts",
   "src/engine/complete.ts",
@@ -89,6 +92,9 @@ const EXPECTED_CORE_FILES = [
   "src/engine/schedule.ts",
   "src/engine/settle.ts",
   "src/engine/snapshot.ts",
+  // stability.ts は前回提示した提案（plan-stability 判断 1・Shown_Plan）の形と組み立て。lift.ts と同じ判断で
+  // 追随させる（禁止トークン検査・import 検査はこのファイルにも掛かる）。
+  "src/engine/stability.ts",
   "src/engine/start.ts",
   "src/engine/state.ts",
   "src/engine/sync.ts",

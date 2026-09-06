@@ -45,6 +45,7 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { admit } from "../../src/engine/admit";
+import { EMPTY_SHOWN_PLAN } from "../../src/engine/stability";
 import { committedSchedule } from "../../src/engine/commit";
 import { initialRelease, type AcceptedSlice, type CookSchedule } from "../../src/engine/schedule";
 import { initialLifts } from "../../src/engine/lift";
@@ -207,8 +208,7 @@ function scoreOf(scene: AdmitScene, schedule: CookSchedule): number {
   return scoreSchedule(
     schedule.slices,
     scene.pending,
-    tableMembers(scene.running),
-    initialLifts(scene.running),
+    { members: tableMembers(scene.running), lifts: initialLifts(scene.running), change: null },
     scene.params,
   ).total;
 }
@@ -221,6 +221,7 @@ function committedOf(scene: AdmitScene, accepted: readonly AcceptedSlice[]): Coo
     scene.now,
     DEFAULT_NOODLE_PRESETS,
     scene.params,
+    null,
   );
 }
 
@@ -235,6 +236,7 @@ function receive(
     committedOf(scene, accepted),
     scene.pending,
     scene.running,
+    EMPTY_SHOWN_PLAN,
     scene.now,
     DEFAULT_NOODLE_PRESETS,
     scene.params,

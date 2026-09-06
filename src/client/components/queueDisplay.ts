@@ -6,8 +6,9 @@
 // 描画のたびに算出する（残り秒と同じ扱い）。推奨も同様に、担当範囲での絞り込みと開始に要る茹で秒の
 // 引き当てをここで導き、ビューには写しだけを置く。
 
+import type { LiftItem } from "../../domain/lift-group";
 import type { CookRecommendation } from "../../domain/messages";
-import type { PendingOrder } from "../../domain/order";
+import { compareArrival, itemKeyOf, type PendingOrder } from "../../domain/order";
 import type { NoodlePreset } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
 import type { ClientView } from "../connection";
@@ -44,6 +45,18 @@ export interface QueueSuggestion {
 }
 
 /**
+ * 開始できる推奨——domain の LiftItem（推奨・品目・茹で秒）に、釜カードとレールが読む提案（QueueSuggestion）を
+ * 重ねた形。
+ *
+ * `suggestion` の釜と時刻は `recommendation` と同じ値で、そこに `serveAt`（導出値）を添えたものである。二つの
+ * 顔を持つのは、群の連鎖と Head の導出（domain/lift-group.ts）が推奨の形を読み、描画が提案の形を読むためで、
+ * どちらも suggestedItemOf ただ一箇所で組む——同じ値を二つの式から作らない。
+ */
+export interface SuggestedItem extends LiftItem {
+  readonly suggestion: QueueSuggestion;
+}
+
+/**
  * 推奨から、そこから開始できる提案とその品目を一度に組む。組めなければ null。
  *
  * レール（担当範囲の提案・orderQueueEntries）と群の導出（liftGroups）はどちらも「推奨 → 品目 → 茹で秒 → serveAt」
@@ -55,13 +68,15 @@ export interface QueueSuggestion {
 export function suggestedItemOf(
   view: ClientView,
   recommendation: CookRecommendation,
-): { readonly order: PendingOrder; readonly suggestion: QueueSuggestion } | null {
+): SuggestedItem | null {
   const order = pendingItemOf(view.pendingOrders, recommendation);
   if (order === undefined) return null;
   const boilSeconds = boilSecondsOf(view.noodlePresets, order);
   if (boilSeconds === null) return null;
   return {
+    recommendation,
     order,
+    boilSeconds,
     suggestion: {
       slotIds: recommendation.slotIds, // 非空はワイヤ境界（domain/wire.ts）が確立済み
       startAt: recommendation.startAt,
@@ -91,7 +106,7 @@ export interface QueueEntry {
 /**
  * 待ち行列の全件について表示状態を到着順で導出する。
  *
- * 並びは到着順の全順序 compareArrival（同じ事実からは同じ見え方）。
+ * 並びは到着順の全順序 compareArrival（domain/order.ts・同じ事実からは同じ見え方）。
  *
  * 件数は絞らない。計画対象の上限を超える分も待ち行列には現れ、提案が付かないだけである（AC 2.4 / 8.1）。
  * 提案は担当スロット範囲で絞る（assignedBySlots の any-overlap＝Timer の担当絞り込みと同一判定）。
@@ -107,13 +122,13 @@ export function orderQueueEntries(
   for (const recommendation of assignedBySlots(view.recommendations, units)) {
     const item = suggestedItemOf(view, recommendation);
     if (item === null) continue; // 開始できない推奨は提案として成立しない
-    suggested.set(itemKey(item.order.externalOrderId, item.order.itemIndex), item.suggestion);
+    suggested.set(itemKeyOf(item.order), item.suggestion);
   }
 
   return [...view.pendingOrders].sort(compareArrival).map((order) => ({
     order,
     waitingMs: Math.max(0, corrected - order.arrivalTime),
-    suggestion: suggested.get(itemKey(order.externalOrderId, order.itemIndex)) ?? null,
+    suggestion: suggested.get(itemKeyOf(order)) ?? null,
   }));
 }
 
@@ -132,34 +147,13 @@ export function displayName(order: PendingOrder): string {
   return size === undefined ? name : `${name} ${size}`;
 }
 
-/**
- * 到着順の全順序（arrivalTime 昇順, externalOrderId 昇順, itemIndex 昇順）。
- *
- * 待ち行列の並びと、群の中で startAt が同値の品目の並び（lift-group-display AC 1.4）は同じ順序を要る。
- * 第 2・第 3 の鍵はサーバ側の計画対象の整列と同じで、同時到着でも端末間・再描画間で並びが揺れない。
- */
-export function compareArrival(a: PendingOrder, b: PendingOrder): number {
-  return (
-    a.arrivalTime - b.arrivalTime ||
-    compareText(a.externalOrderId, b.externalOrderId) ||
-    a.itemIndex - b.itemIndex
-  );
-}
-
-/** 品目の鍵（externalOrderId と itemIndex の組）。推奨と Pending_Order を突き合わせる唯一の同定手段。 */
-function itemKey(externalOrderId: string, itemIndex: number): string {
-  return `${externalOrderId}\u0000${itemIndex}`;
-}
-
-/** 推奨が指す品目を待ち行列から引く（品目の鍵で 1 品目を指す）。無ければ undefined。 */
+/** 推奨が指す品目を待ち行列から引く（品目の鍵で 1 品目を指す・domain の itemKeyOf）。無ければ undefined。 */
 function pendingItemOf(
   pending: readonly PendingOrder[],
   recommendation: CookRecommendation,
 ): PendingOrder | undefined {
-  const key = itemKey(recommendation.externalOrderId, recommendation.itemIndex);
-  return pending.find(
-    (candidate) => itemKey(candidate.externalOrderId, candidate.itemIndex) === key,
-  );
+  const key = itemKeyOf(recommendation);
+  return pending.find((candidate) => itemKeyOf(candidate) === key);
 }
 
 /**
@@ -174,9 +168,4 @@ function boilSecondsOf(presets: readonly NoodlePreset[], order: PendingOrder): n
   const preset = presets.find((candidate) => candidate.noodleType === order.noodleType);
   if (preset === undefined) return null;
   return preset.boilSeconds[order.firmness];
-}
-
-/** 文字列の全順序（並びを決定的にするための第 2 の鍵）。 */
-function compareText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }

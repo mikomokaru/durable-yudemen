@@ -115,6 +115,8 @@ function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null
   // 卓の成員表も同じ running から引く（engine の commit.ts と同じ二つの表）。
   const members = tableMembers(request.running);
   // 上げ表（「店舗全体でいつ上がるか」）も同じ running から引く第三の表（lift-group-planning 判断 20）。
+  // 前回の提案（Shown_Plan）も要求が運ぶ——外部解は同じ変更費用で採点されるので、自前解と同じ文脈で置く
+  // （plan-stability Component 6）。比較の時点の now は自分の時計、Timer 集合は要求の running。
   return baselineSchedule(
     request.pending,
     release,
@@ -122,5 +124,12 @@ function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null
     initialLifts(request.running),
     request.noodlePresets,
     request.params,
+    {
+      shown: request.shownPlan,
+      running: request.running,
+      now,
+      pending: request.pending,
+      presets: request.noodlePresets,
+    },
   );
 }

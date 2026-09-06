@@ -236,7 +236,12 @@ describe("engine/objective — 目的関数", () => {
   it("Property 3: 部分和の総和 + Lift_Overflow が全体値に等しく、各部分和は単独採点と一致する", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const score = scoreSchedule(slices, pending, new Map(), [], params);
+        const score = scoreSchedule(
+          slices,
+          pending,
+          { members: new Map(), lifts: [], change: null },
+          params,
+        );
 
         expect(score.bySlice).toHaveLength(slices.length);
         expect(
@@ -244,9 +249,10 @@ describe("engine/objective — 目的関数", () => {
         ).toBe(score.total);
 
         slices.forEach((slice, index) => {
-          expect(scoreSchedule([slice], pending, new Map(), [], params).bySlice[0]).toBe(
-            score.bySlice[index],
-          );
+          expect(
+            scoreSchedule([slice], pending, { members: new Map(), lifts: [], change: null }, params)
+              .bySlice[0],
+          ).toBe(score.bySlice[index]);
         });
       }),
       { numRuns: 300 },
@@ -262,7 +268,12 @@ describe("engine/objective — 目的関数", () => {
   it("Property 16: 全体値と各部分和が整数である", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const score = scoreSchedule(slices, pending, new Map(), [], params);
+        const score = scoreSchedule(
+          slices,
+          pending,
+          { members: new Map(), lifts: [], change: null },
+          params,
+        );
 
         expect(Number.isInteger(score.total)).toBe(true);
         for (const partial of score.bySlice) {
@@ -401,8 +412,15 @@ describe("engine/objective — 距離尺度", () => {
           const within = { ...params, affinityToleranceDistance: tolerance };
           const withoutAffinity = { ...within, affinityWeight: 0 };
 
-          expect(scoreSchedule(slices, pending, new Map(), [], within)).toEqual(
-            scoreSchedule(slices, pending, new Map(), [], withoutAffinity),
+          expect(
+            scoreSchedule(slices, pending, { members: new Map(), lifts: [], change: null }, within),
+          ).toEqual(
+            scoreSchedule(
+              slices,
+              pending,
+              { members: new Map(), lifts: [], change: null },
+              withoutAffinity,
+            ),
           );
         },
       ),
@@ -581,8 +599,18 @@ describe("engine/objective — 卓の群（lift-group-planning）", () => {
           const worse = slices.map((slice, position) =>
             position === sliceIndex ? scattered(slice, pick % placementCount, delta) : slice,
           );
-          const alignedScore = scoreSchedule(slices, pending, members, lifts, weighted);
-          const scatteredScore = scoreSchedule(worse, pending, members, lifts, weighted);
+          const alignedScore = scoreSchedule(
+            slices,
+            pending,
+            { members: members, lifts: lifts, change: null },
+            weighted,
+          );
+          const scatteredScore = scoreSchedule(
+            worse,
+            pending,
+            { members: members, lifts: lifts, change: null },
+            weighted,
+          );
 
           // 部分和：lag の増分 w_table × ceil(Δ) が wait の節約 ≤ ceil(Δ) を必ず上回る（w_table ≥ 2）。
           // 上げ表は部分和に効かない（Lift_Overflow は total にだけ）。
@@ -634,14 +662,24 @@ describe("engine/objective — 卓の群（lift-group-planning）", () => {
           0,
         );
         const roomy = { ...params, arms: span };
-        const withWeight = scoreSchedule([target], pending, new Map(), [], {
-          ...roomy,
-          tableSyncWeight: w,
-        });
-        const withoutWeight = scoreSchedule([target], pending, new Map(), [], {
-          ...roomy,
-          tableSyncWeight: 0,
-        });
+        const withWeight = scoreSchedule(
+          [target],
+          pending,
+          { members: new Map(), lifts: [], change: null },
+          {
+            ...roomy,
+            tableSyncWeight: w,
+          },
+        );
+        const withoutWeight = scoreSchedule(
+          [target],
+          pending,
+          { members: new Map(), lifts: [], change: null },
+          {
+            ...roomy,
+            tableSyncWeight: 0,
+          },
+        );
         expect(withWeight.bySlice[0]).toBe(withoutWeight.bySlice[0]);
         expect(withWeight.total).toBe(withWeight.bySlice[0]);
       }),
@@ -654,8 +692,18 @@ describe("engine/objective — 卓の群（lift-group-planning）", () => {
   it("Property 13: 同じ入力から同じ値を返し、bySlice の総和 + Lift_Overflow は total に一致する", () => {
     fc.assert(
       fc.property(genPlan, ({ slices, pending, params }) => {
-        const first = scoreSchedule(slices, pending, new Map(), [], params);
-        const second = scoreSchedule(slices, pending, new Map(), [], params);
+        const first = scoreSchedule(
+          slices,
+          pending,
+          { members: new Map(), lifts: [], change: null },
+          params,
+        );
+        const second = scoreSchedule(
+          slices,
+          pending,
+          { members: new Map(), lifts: [], change: null },
+          params,
+        );
         expect(second).toEqual(first);
         expect(
           first.bySlice.reduce((sum, value) => sum + value, 0) + overflowOf([], slices, params),
@@ -678,8 +726,18 @@ describe("engine/objective — 卓の群（lift-group-planning）", () => {
           const memberEnd = (latest + laterSeconds * 1000) as EpochMillis;
           const members = new Map([[target.tableKey, nonEmpty([memberEnd])]]);
           const roomy = { ...params, arms: 100 };
-          const alone = scoreSchedule([target], pending, new Map(), [], roomy);
-          const withMember = scoreSchedule([target], pending, members, [], roomy);
+          const alone = scoreSchedule(
+            [target],
+            pending,
+            { members: new Map(), lifts: [], change: null },
+            roomy,
+          );
+          const withMember = scoreSchedule(
+            [target],
+            pending,
+            { members: members, lifts: [], change: null },
+            roomy,
+          );
           // 配置全員が laterSeconds だけ遅れる（切り上げ・整数秒ゆえ厳密）。
           expect(withMember.total - alone.total).toBe(
             roomy.tableSyncWeight * laterSeconds * target.placements.length,
