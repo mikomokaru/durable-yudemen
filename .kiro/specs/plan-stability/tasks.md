@@ -2,7 +2,7 @@
 
 前提：main（#32 まで）。永続は v11 → v12。`lift-group-planning` と同じ進め方（task ごとに `[-]` → `[x]` と実測・チェックポイント・コミット）。
 
-- [ ] 0. naming ゲートの確認（design 末尾の表）。承認後に task 1 へ
+- [x] 0. naming ゲートの確認（design 末尾の表）——ユーザー承認済み（2026-09-06「namingOK」）
 
 - [ ] 1. Head の共有導出（`src/domain/lift-group.ts`）
   - [ ] 1.1 `liftGroupsOf` / `visibleGroupsOf` / `headsOf` / `LiftItem` を domain に新設し、client の `liftGroups.ts` をそれを呼ぶ形に寄せる（`ClientView` からの取り出しだけを残す）
