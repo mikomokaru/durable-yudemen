@@ -214,7 +214,7 @@ export function externalPlan(
   const release = initialRelease(running, NOW, slotCount);
   const members = tableMembers(running);
   const lifts = initialLifts(running);
-  const full = baselineSchedule(pending, release, members, lifts, DEFAULT_NOODLE_PRESETS, params);
+  const full = baselinePlan(pending, running, slotCount, params);
   const victim = full.slices[dropPick % (full.slices.length + 1)];
   const planned =
     victim === undefined
@@ -223,6 +223,28 @@ export function externalPlan(
           (order) => !victim.placements.some((placement) => refersTo(placement, order)),
         );
   return baselineSchedule(planned, release, members, lifts, DEFAULT_NOODLE_PRESETS, params);
+}
+
+/**
+ * 自前解そのもの（NOW の解放表・卓の成員表・上げ表から）。
+ *
+ * plan-stability の性質検査は、これを `shownPlanOf(schedule, recommend(schedule))` に通して**前回の計画**（Shown_Plan）
+ * とする——比較の相手が現実の自前解の形（群・釜・時刻の並び）を持つことで、変更費用の性質が空虚に通らない。
+ */
+export function baselinePlan(
+  pending: readonly PendingOrder[],
+  running: readonly Timer[],
+  slotCount: number,
+  params: ScheduleParams,
+): CookSchedule {
+  return baselineSchedule(
+    pending,
+    initialRelease(running, NOW, slotCount),
+    tableMembers(running),
+    initialLifts(running),
+    DEFAULT_NOODLE_PRESETS,
+    params,
+  );
 }
 
 /**

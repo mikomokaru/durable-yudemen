@@ -192,7 +192,14 @@ describe("baselineSchedule — 単独オーダー 1 品目", () => {
       { item: "o-1#0", slots: ["0"], startSeconds: 0, serveSeconds: 60 },
     ]);
     // Σ Wait_Time = 60 秒。単独品目にソフト制約の超過は生じない。採点は計画の外（比較の時点）で行う。
-    expect(scoreSchedule(schedule.slices, pending, NO_MEMBERS, NO_LIFTS, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        schedule.slices,
+        pending,
+        { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 60,
       bySlice: [60],
     });
@@ -267,7 +274,14 @@ describe("baselineSchedule — 同卓 3 品目（同一オーダー 2 品目）"
     // 全員 120 秒に揃うので卓の遅れ 0・オーダー内の差 0。slot 0・1・2 は縦横/斜め隣接で affinity 0。
     // 同じ窓に 3 本は arms 2 を 1 本超え、手伝いの費用（Lift_Overflow）1 本 × 45 秒相当が total にだけ載る
     // （lift-group-planning AC 9.6・9.7）。ゆえに bySlice は Σ Wait_Time = 120 × 3 = 360、total は 360 + 45 = 405。
-    expect(scoreSchedule(schedule.slices, pending, NO_MEMBERS, NO_LIFTS, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        schedule.slices,
+        pending,
+        { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 405,
       bySlice: [360],
     });
@@ -303,7 +317,12 @@ describe("baselineSchedule — 釜が埋まっている", () => {
     // Lift_Overflow は店舗全体の表で数える（AC 9.6）：走行中 20/40/60 秒の窓 [20,65) は 3 本で 1 本超過、
     // 80/80/100/120 秒の窓 [80,125) は配置を含めて 4 本で 2 本超過。3 × 45 = 135 が total にだけ載る。
     expect(
-      scoreSchedule(schedule.slices, pending, tableMembers(running), initialLifts(running), PARAMS),
+      scoreSchedule(
+        schedule.slices,
+        pending,
+        { members: tableMembers(running), lifts: initialLifts(running), change: null },
+        PARAMS,
+      ),
     ).toEqual({ total: 80 + 135, bySlice: [80] });
   });
 });
@@ -350,7 +369,12 @@ describe("baselineSchedule — 64 件境界で Table_Group が割れる", () => 
 
     // 計画に入らなかった 2 品目は同卓・同一オーダーの差の計算に現れない。1 品目だけの一片ゆえ
     // 提供時刻差も slot 対も存在せず、部分和は当該品目の Wait_Time に一致する。
-    const score = scoreSchedule([split], [...solo, ...table], NO_MEMBERS, NO_LIFTS, PARAMS);
+    const score = scoreSchedule(
+      [split],
+      [...solo, ...table],
+      { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+      PARAMS,
+    );
     expect(score.bySlice[0]).toBe(Math.floor((placement.serveAt - NOW) / 1000));
   });
 });
@@ -609,11 +633,21 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
     // 跨ぎの差は卓の遅れとして計上される（最遅 120 秒から 4 本 × 60 秒 + 2 本 × 15 秒 = 270 秒 × w_table 2 = 540）。
     // arms を十分大きくして Lift_Overflow を消し、卓同期項の寄与だけを w_table の有無の差で取り出す。
     const roomy = { ...PARAMS, arms: 7 };
-    const withLag = scoreSchedule(schedule.slices, pending, NO_MEMBERS, NO_LIFTS, roomy).total;
-    const withoutLag = scoreSchedule(schedule.slices, pending, NO_MEMBERS, NO_LIFTS, {
-      ...roomy,
-      tableSyncWeight: 0,
-    }).total;
+    const withLag = scoreSchedule(
+      schedule.slices,
+      pending,
+      { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+      roomy,
+    ).total;
+    const withoutLag = scoreSchedule(
+      schedule.slices,
+      pending,
+      { members: NO_MEMBERS, lifts: NO_LIFTS, change: null },
+      {
+        ...roomy,
+        tableSyncWeight: 0,
+      },
+    ).total;
     expect(withLag - withoutLag).toBe(2 * (60 * 4 + 15 * 2));
   });
 

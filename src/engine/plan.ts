@@ -71,11 +71,14 @@ export function receivePlan(
     params.noodlePresets,
     params,
   );
+  // 旧 Shown_Plan は遷移前の状態が持つもの（`state` は遷移前・plan-stability AC 1.7）。採用の可否は Business_Cost +
+  // Change_Cost で判定し、採用すれば `settle` が同じ Persist で新しい Shown_Plan を確定する。
   const accepted = admit(
     args.plan,
     committed,
     state.pendingOrders,
     timers,
+    state.shownPlan,
     args.now,
     params.noodlePresets,
     params,

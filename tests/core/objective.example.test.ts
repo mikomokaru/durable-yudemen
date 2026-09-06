@@ -126,7 +126,14 @@ describe("scoreSchedule — 確定式の内訳", () => {
     // w_order × 超過 = 3 × ((40 − 30) + 0) = 30
     // w_affinity × 超過 = 1 × ((10 − 14 → 0) + (20 − 14 = 6) + (24 − 14 = 10)) = 16
     // Lift_Overflow = 0（窓 [120,165) に 2 本・[300,345) に 1 本で arms 2 を超えない・L 45 秒）
-    expect(scoreSchedule([slice], pending, new Map(), NO_LIFTS, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        [slice],
+        pending,
+        { members: new Map(), lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 1206,
       bySlice: [1206],
     });
@@ -149,21 +156,40 @@ describe("scoreSchedule — 確定式の内訳", () => {
     };
     const arrivals = [pendingItem("A", 0, T0), pendingItem("B", 0, T0), pendingItem("C", 0, T0)];
     // 超過 1 本 × L 45 秒相当 = 45 が total にだけ載る（卓を跨ぐ項ゆえ、どの卓の部分和にも属さない）。
-    expect(scoreSchedule([first, second], arrivals, new Map(), NO_LIFTS, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        [first, second],
+        arrivals,
+        { members: new Map(), lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 240 + 150 + 45,
       bySlice: [240, 150],
     });
     // 重みは L そのもの——窓を 30 秒にすると 120 秒と 150 秒は別の窓（[120,150) は半開）に分かれ、超過は消える。
     expect(
-      scoreSchedule([first, second], arrivals, new Map(), NO_LIFTS, {
-        ...PARAMS,
-        liftIntervalSeconds: 30,
-      }).total,
+      scoreSchedule(
+        [first, second],
+        arrivals,
+        { members: new Map(), lifts: NO_LIFTS, change: null },
+        {
+          ...PARAMS,
+          liftIntervalSeconds: 30,
+        },
+      ).total,
     ).toBe(240 + 150);
     // 走行中の上がり（他の卓・成員ではない・100 秒に 2 本）も同じ表に載る：窓 [100,145) に 4 本で超過 2、
     // 次の窓 [150,195) は 1 本。手伝いの費用 2 × 45 = 90。部分和は動かない。
     const running = advanceLifts([], [{ at: (T0 + 100_000) as EpochMillis, span: 2 }]);
-    expect(scoreSchedule([first, second], arrivals, new Map(), running, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        [first, second],
+        arrivals,
+        { members: new Map(), lifts: running, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 240 + 150 + 90,
       bySlice: [240, 150],
     });
@@ -190,20 +216,48 @@ describe("scoreSchedule — 確定式の内訳", () => {
     const arrivals = [pendingItem("A", 0, T0), pendingItem("B", 0, T0)];
     const running = advanceLifts([], [{ at: (T0 + 140_000) as EpochMillis, span: 1 }]);
     // 揃え：Σ Wait 200・遅れ 0 → 部分和 200。窓 [100,145) に 3 本で超過 1 × 45 → total 245。
-    expect(scoreSchedule([aligned], arrivals, new Map(), running, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        [aligned],
+        arrivals,
+        { members: new Map(), lifts: running, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 245,
       bySlice: [200],
     });
     // 散らし：Σ Wait 190・遅れ 10 秒 × w_table 2 = 20 → 部分和 210（真に悪い）。窓は [90,135) に 2 本・[140,185) に
     // 1 本で超過 0 → total 210（真に良い）。1 本を手前の窓へ逃がして手伝いの費用 45 が消える——pack / split の費用比較
     // そのもので、目的関数が意図して払う差。段 1 (d) は部分和を比べるので、この計画はゲートを通らない。
-    expect(scoreSchedule([scattered], arrivals, new Map(), running, PARAMS)).toEqual({
+    expect(
+      scoreSchedule(
+        [scattered],
+        arrivals,
+        { members: new Map(), lifts: running, change: null },
+        PARAMS,
+      ),
+    ).toEqual({
       total: 210,
       bySlice: [210],
     });
     // 上げ表が空なら（AC 7.10 の前提）Lift_Overflow は両方 0 で、total も真に悪い。
-    expect(scoreSchedule([aligned], arrivals, new Map(), NO_LIFTS, PARAMS).total).toBe(200);
-    expect(scoreSchedule([scattered], arrivals, new Map(), NO_LIFTS, PARAMS).total).toBe(210);
+    expect(
+      scoreSchedule(
+        [aligned],
+        arrivals,
+        { members: new Map(), lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ).total,
+    ).toBe(200);
+    expect(
+      scoreSchedule(
+        [scattered],
+        arrivals,
+        { members: new Map(), lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ).total,
+    ).toBe(210);
   });
 
   it("重みを 0 にした項は消える（Σ Wait_Time だけが残る）", () => {
@@ -214,16 +268,28 @@ describe("scoreSchedule — 確定式の内訳", () => {
       affinityWeight: 0,
     };
 
-    expect(scoreSchedule([slice], pending, new Map(), NO_LIFTS, noSoftConstraints).total).toBe(520);
+    expect(
+      scoreSchedule(
+        [slice],
+        pending,
+        { members: new Map(), lifts: NO_LIFTS, change: null },
+        noSoftConstraints,
+      ).total,
+    ).toBe(520);
   });
 
   it("対応する Pending_Order を持たない配置は Σ Wait_Time に寄与しない（ソフト制約項には寄与する）", () => {
     // オーダー B の起点だけを落とす。Wait_Time から 240 秒が消え、同期項と affinity 項は変わらない。
     const withoutOriginOfB = [pendingItem("A", 0, T0), pendingItem("A", 1, T0)];
 
-    expect(scoreSchedule([slice], withoutOriginOfB, new Map(), NO_LIFTS, PARAMS).total).toBe(
-      1206 - 240,
-    );
+    expect(
+      scoreSchedule(
+        [slice],
+        withoutOriginOfB,
+        { members: new Map(), lifts: NO_LIFTS, change: null },
+        PARAMS,
+      ).total,
+    ).toBe(1206 - 240);
   });
 
   it("卓の遅れは許容幅を持たず、秒未満でも切り上げて 1 秒以上に数える", () => {
@@ -236,7 +302,10 @@ describe("scoreSchedule — 確定式の内訳", () => {
       ],
     };
     // 起点を与えず Wait_Time を 0 に、slot 0・1 は縦横隣接ゆえ affinity も 0 にして同期項だけを見る。
-    expect(scoreSchedule([spread], [], new Map(), NO_LIFTS, PARAMS).total).toBe(122);
+    expect(
+      scoreSchedule([spread], [], { members: new Map(), lifts: NO_LIFTS, change: null }, PARAMS)
+        .total,
+    ).toBe(122);
 
     // 1 ms のずれも 1 秒の遅れとして計上される（ADR-0006・揃った計画を 1 ms 崩した計画が勝てない根拠）。
     const hairline: PlanSlice = {
@@ -246,7 +315,10 @@ describe("scoreSchedule — 確定式の内訳", () => {
         placement({ orderId: "D", itemIndex: 0, slot: 1, serveAtMillis: T0 + 1 }),
       ],
     };
-    expect(scoreSchedule([hairline], [], new Map(), NO_LIFTS, PARAMS).total).toBe(2);
+    expect(
+      scoreSchedule([hairline], [], { members: new Map(), lifts: NO_LIFTS, change: null }, PARAMS)
+        .total,
+    ).toBe(2);
   });
 
   it("走行中の仲間は錨として卓の遅れに寄与し、Wait_Time には寄与しない", () => {
@@ -257,20 +329,27 @@ describe("scoreSchedule — 確定式の内訳", () => {
       placements: [placement({ orderId: "A", itemIndex: 0, slot: 0, serveAtMillis: T0 + 120_000 })],
     };
     const members = new Map([["table-1", nonEmpty([(T0 + 300_000) as EpochMillis])]]);
-    expect(scoreSchedule([one], [], members, NO_LIFTS, PARAMS).total).toBe(360);
+    expect(
+      scoreSchedule([one], [], { members: members, lifts: NO_LIFTS, change: null }, PARAMS).total,
+    ).toBe(360);
     // 卓が違えば成員にならない。
     expect(
       scoreSchedule(
         [one],
         [],
-        new Map([["table-9", nonEmpty([(T0 + 300_000) as EpochMillis])]]),
-        NO_LIFTS,
+        {
+          members: new Map([["table-9", nonEmpty([(T0 + 300_000) as EpochMillis])]]),
+          lifts: NO_LIFTS,
+          change: null,
+        },
         PARAMS,
       ).total,
     ).toBe(0);
   });
 
   it("空の計画は 0（Pending_Order が空なら計画も空になる）", () => {
-    expect(scoreSchedule([], [], new Map(), NO_LIFTS, PARAMS)).toEqual({ total: 0, bySlice: [] });
+    expect(
+      scoreSchedule([], [], { members: new Map(), lifts: NO_LIFTS, change: null }, PARAMS),
+    ).toEqual({ total: 0, bySlice: [] });
   });
 });

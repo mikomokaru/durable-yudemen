@@ -19,8 +19,8 @@ import { SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import { committedSchedule } from "./commit";
 import { advanceLifts, initialLifts, liftsOf, withinLiftCap, type LiftTable } from "./lift";
-import { scoreSchedule, type ScheduleParams } from "./objective";
-import { tableMembers, type TableMembers } from "./project";
+import { scoreSchedule, type ScheduleParams, type ScoreContext } from "./objective";
+import { tableMembers } from "./project";
 import {
   advanceRelease,
   initialRelease,
@@ -35,6 +35,7 @@ import {
   type Placement,
   type SlotRelease,
 } from "./schedule";
+import type { ShownPlan } from "./stability";
 import type { Timer } from "./timer";
 import type { EpochMillis } from "./types";
 
@@ -63,6 +64,11 @@ import type { EpochMillis } from "./types";
  * (1) 段 2 が `committedSchedule` を走らせ、それが尾部の再実行に茹で時間を要する（タスク 9.1 / 11.1 の判断）。
  * (2) 段 1 の (c) が「serveAt = startAt ＋ 茹で時間」を検査する（下記 `feasibleRelease` の注記）。
  *
+ * **旧 Shown_Plan（`shown`）を受け、Business_Cost + Change_Cost で採点する（plan-stability AC 4.1・判断 6）。** 3 回の採点
+ * すべてに同じ文脈を渡す——旧 Shown_Plan は遷移前の状態が持つもの（`receivePlan` の `state.shownPlan`・AC 1.7）、Timer
+ * 集合は再同期後の `running`、now は受領時刻（判断 8）。前回と大きく違う計画で微小な改善を出す外部解は、変更費用が改善を
+ * 食って段 2 で落ちる。改善判定の基準は現行の Committed_Plan のまま（Committed_Plan 自身も同じ費用で採点される）。
+ *
  * 返す一片は点数を持たない。採用は「この店が採用した」という事実であり、点数はその時点の導出にすぎない。
  */
 export function admit(
@@ -70,14 +76,18 @@ export function admit(
   committed: CookSchedule,
   pending: readonly PendingOrder[],
   running: readonly Timer[],
+  shown: ShownPlan,
   now: EpochMillis,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
-  // 卓の成員表と上げ表は 1 回だけ引き、段 1・段 2 の採点 3 回（と段 1 の (f)）で共有する。
-  const members = tableMembers(running);
-  const lifts = initialLifts(running);
-  const committedScore = scoreSchedule(committed.slices, pending, members, lifts, params);
+  // 卓の成員表と上げ表は 1 回だけ引き、変更費用の文脈と束ねて段 1・段 2 の採点 3 回（と段 1 の (e)(f)）で共有する。
+  const scoreContext: ScoreContext = {
+    members: tableMembers(running),
+    lifts: initialLifts(running),
+    change: { shown, running, now, pending, presets },
+  };
+  const committedScore = scoreSchedule(committed.slices, pending, scoreContext, params);
   const prefix = prune(
     arrived,
     committed,
@@ -85,8 +95,7 @@ export function admit(
     pending,
     running,
     now,
-    members,
-    lifts,
+    scoreContext,
     presets,
     params,
   );
@@ -95,7 +104,7 @@ export function admit(
   // 段 2。候補接頭辞で合成を 1 回走らせ、総和を現行 Committed_Plan と比べる。合成は接頭辞の占有から
   // 尾部を再実行するため、ここで得る総和は「採用した後に実際に確定する計画」の値そのものである。
   const composed = committedSchedule(prefix, pending, running, now, presets, params);
-  const composedScore = scoreSchedule(composed.slices, pending, members, lifts, params);
+  const composedScore = scoreSchedule(composed.slices, pending, scoreContext, params);
   return composedScore.total < committedScore.total ? prefix : [];
 }
 
@@ -112,12 +121,12 @@ function prune(
   pending: readonly PendingOrder[],
   running: readonly Timer[],
   now: EpochMillis,
-  members: TableMembers,
-  initialLiftTable: LiftTable,
+  scoreContext: ScoreContext,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
   const targets = planTargets(pending);
+  const { members } = scoreContext;
   // 対応部分和は tableKey で引く。**index では引けない**——外部計画の一片の並びは現行 Committed_Plan の
   // 並びと無関係であり、同じ index の一片は別の Table_Group を指しうる（別物どうしの部分和を比べても
   // 意味のある判定にならない）。Committed_Plan の側は tableKey が一意である：自前解は Table_Group を
@@ -127,13 +136,13 @@ function prune(
     committed.slices.map((slice, index) => [slice.tableKey, committedBySlice[index]!]),
   );
   // 採点は一度で済む（全項が卓の内側に閉じるため部分和は一片ごとに独立・Property 3）。
-  const scores = scoreSchedule(arrived.slices, pending, members, initialLiftTable, params).bySlice;
+  const scores = scoreSchedule(arrived.slices, pending, scoreContext, params).bySlice;
 
   const prefix: AcceptedSlice[] = [];
   const claimed = new Set<string>();
   let release = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
   // 上げ表（「店舗全体でいつ上がるか」）も走行中から始め、採用した一片の上がりで進める（合成と同じ位置・同じ表）。
-  let lifts = initialLiftTable;
+  let lifts = scoreContext.lifts;
 
   for (const [index, slice] of arrived.slices.entries()) {
     // 同じ Table_Group を二度計画した外部計画は、計画としての形を成していない（一片は採用/棄却の単位ゆえ

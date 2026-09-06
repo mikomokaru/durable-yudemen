@@ -20,13 +20,14 @@
   - [x] 2.5 チェックポイント
   - _Requirements: 1.1〜1.3, 1.5〜1.7, 5.8_
 
-- [ ] 3. Change_Cost と採点
-  - [ ] 3.1 `changeCost(next, context, params)`（design Component 2 の手順どおり・秒相当の整数・`context` に `pending` / `presets`・窓の数と減衰はミリ秒の L × 1000、費用は秒の L・順の逆転は群を跨いだ全対応の組・分割は同じ群だった組）
-  - [ ] 3.2 `ScoreContext` を導入し、`scoreSchedule(slices, pending, context, params)` の `total` に Change_Cost を足す（`bySlice` は不変）。呼び出し側（`admit` 3 回・`commit`・テスト）を追随
-  - [ ] 3.3 `admit`：`prev.shownPlan`・再同期後の Timer・受領時刻の now を `ChangeContext` に。`receivePlan` から渡す
-  - [ ] 3.4 `stability.property`（5.1・5.3・5.4・5.5・5.9）と `stability.example`（4 種の費用の例）
-  - [ ] 3.5 `admit.example`：前回と大きく違う外部計画が微小な改善で通らない／改善が費用を上回れば通る
-  - [ ] 3.6 チェックポイント
+- [x] 3. Change_Cost と採点
+  - 実測・2026-09-06: `src/engine/stability.ts` に `ChangeContext` / `changeCost(next, changeContext, params)` を新設（design Component 2 の手順どおり。旧 Shown_Plan は `mates` の連結成分に比較の内側で閉じる仮の群を振って `LiftItem` に組み、新しい計画は `recommend` の `group` / `anchor` で組む。両側とも同じ now・同じ Timer 集合（`running` / `boiled` の釜を占有）で `headsOf` に掛ける。(a) 2L・(b) L（釜番号の集合で比較）・(c-1) 同じ群だった組の分割 L・(c-2) 全対応の組の逆転 L・(d) h_i 超過分の窓の数 × L / (k + 1) の床。窓と減衰はミリ秒の L × 1000、費用は秒の L）。`objective.ts` に `ScoreContext { members, lifts, change }` を導入し `scoreSchedule(slices, pending, scoreContext, params)` の `total` にだけ足す（内側で `recommend` を呼ぶ・`bySlice` 不変）。`admit(arrived, committed, pending, running, shown, now, presets, params)` は一つの `ScoreContext` を 3 回の採点に渡し、`receivePlan` は `state.shownPlan`（遷移前）を渡す。`committedSchedule` は採点しないので不変（task 4 で配置に通す）。**引数名の逸脱**：Operation History の静的検査（`no-wake.static`）が Producer の import graph に `context` という識別子と `bucket*.get` を禁じ、graph が `objective → stability → lift-group` に届くため、引数は `scoreContext` / `changeContext`、`lift-group.ts` の `buckets` は `byGroup` に改名（型名 `ScoreContext` / `ChangeContext` は design どおり）。テスト：`stability.example`（+11 件：先頭 2L・釜 L・分割 L・逆転 L・1 窓 L と 45 ≠ 45000・減衰 45/22/15/4・h_i 内側 0・同じ計画は now / Timer に依らず 0・10 秒開始の保護・対応の規律・加法と整数）、`stability.property`（5.1・5.3・5.4・5.5・5.9、Shown_Plan は `baselinePlan` → `shownPlanOf` で現実の自前解から）、`admit.example`（+2 件：2 秒の改善は変更費用 180 で棄却・Shown_Plan 空なら採用／600 秒の改善は費用 123 を上回り採用）、`scheduleScenes.baselinePlan` を追加。既存の `scoreSchedule` / `admit` 呼び出し（objective.* / admit.* / schedule.example）を追随。typecheck 0（worker-configuration.d.ts を除く）・lint 0 errors・fmt:check clean・237 ファイル 1582 テスト全通過。
+  - [x] 3.1 `changeCost(next, context, params)`（design Component 2 の手順どおり・秒相当の整数・`context` に `pending` / `presets`・窓の数と減衰はミリ秒の L × 1000、費用は秒の L・順の逆転は群を跨いだ全対応の組・分割は同じ群だった組）
+  - [x] 3.2 `ScoreContext` を導入し、`scoreSchedule(slices, pending, context, params)` の `total` に Change_Cost を足す（`bySlice` は不変）。呼び出し側（`admit` 3 回・`commit`・テスト）を追随
+  - [x] 3.3 `admit`：`prev.shownPlan`・再同期後の Timer・受領時刻の now を `ChangeContext` に。`receivePlan` から渡す
+  - [x] 3.4 `stability.property`（5.1・5.3・5.4・5.5・5.9）と `stability.example`（4 種の費用の例）
+  - [x] 3.5 `admit.example`：前回と大きく違う外部計画が微小な改善で通らない／改善が費用を上回れば通る
+  - [x] 3.6 チェックポイント
   - _Requirements: 2.1〜2.6, 4.1, 5.1, 5.3〜5.5, 5.9_
 
 - [ ] 4. 自前解が前回を残す

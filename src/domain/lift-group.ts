@@ -60,16 +60,16 @@ export function liftGroupsOf<T extends LiftItem>(
   items: readonly T[],
   now: number,
 ): readonly LiftGroupOf<T>[] {
-  const buckets = new Map<string, { anchor: number | null; items: T[] }>();
+  const byGroup = new Map<string, { anchor: number | null; items: T[] }>();
   for (const item of items) {
     const { group, anchor } = item.recommendation;
-    const bucket = buckets.get(group);
+    const bucket = byGroup.get(group);
     if (bucket) bucket.items.push(item);
-    else buckets.set(group, { anchor, items: [item] });
+    else byGroup.set(group, { anchor, items: [item] });
   }
 
   const groups: LiftGroupOf<T>[] = [];
-  for (const [group, bucket] of buckets) {
+  for (const [group, bucket] of byGroup) {
     const sorted = [...bucket.items].sort(compareItems);
     if (!isNonEmpty(sorted)) continue; // 束は 1 件以上で作られる。型のためだけの確認で、実行時には通らない
     const { anchor } = bucket;
