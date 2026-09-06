@@ -5,9 +5,10 @@
 - [x] 0. naming ゲート（design の表）をユーザーが承認する（2026-09-06 承認：`liveOrders` / `ORDER_LIFETIME_MS` / `livePending`）
   - `liveOrders` / `ORDER_LIFETIME_MS`（`src/domain/order.ts`）、`livePending`（client 局所）
 
-- [ ] 1. 述語と定数（domain）
-  - [ ] 1.1 `src/domain/order.ts` に `ORDER_LIFETIME_MS`（2 時間）と `liveOrders(pending, now)` を置く（並びを保つ・半開区間・全件期限内なら同じ参照）
-  - [ ] 1.2 `tests/domain/order.example` / `order.property`：冪等・単調・並び保持・境界・同じ参照（性質 5.1〜5.3）
+- [x] 1. 述語と定数（domain）
+  - 実測・2026-09-06: `src/domain/order.ts` に `ORDER_LIFETIME_MS = 2 * 60 * 60 * 1000` と `liveOrders(pending, now)`（`arrivalTime + ORDER_LIFETIME_MS > now` の filter・並びを保つ・全件期限内なら入力と同じ配列を返す）を `compareArrival` の隣に置いた。他の src は触っていない。`tests/domain/order.example.test.ts`（13 件：定数 2 時間・ちょうど寿命は含まない・1 ms 手前は含む・now が 1 ms 進めば切れる・未来の到着は期限内・並びを保つ・入力を変えない・全件期限内は同じ参照・空は同じ参照・全件期限切れは空・1 件切れれば新しい配列・決定的・arrivalTime だけで判定）と `tests/domain/order.property.test.ts`（5 件・各 300 runs：性質 5.1 冪等（二度目は同じ参照）・5.2 単調・5.3 並び（入力の部分列・重複なし）・述語の半開区間と入力の不変・全件期限内なら同じ参照）。typecheck 0（worker-configuration.d.ts を除く）・lint 0 errors・fmt 済・`domain-imports` / `no-wake` / `no-backfill` の静的検査 31 件通過・domain の 2 ファイル 18 テスト通過。
+  - [x] 1.1 `src/domain/order.ts` に `ORDER_LIFETIME_MS`（2 時間）と `liveOrders(pending, now)` を置く（並びを保つ・半開区間・全件期限内なら同じ参照）
+  - [x] 1.2 `tests/domain/order.example` / `order.property`：冪等・単調・並び保持・境界・同じ参照（性質 5.1〜5.3）
   - _Requirements: 1.1〜1.5_
 
 - [ ] 2. engine の入口
