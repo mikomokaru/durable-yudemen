@@ -70,6 +70,8 @@
 5. THE Change_Cost SHALL 店舗全体の項として `total` にだけ足す（Lift_Overflow と同じ扱い・`lift-group-planning` AC 9.7）
 6. THE Change_Cost SHALL 整数（秒相当）で閉じる
 
+> **改訂（`pending-order-expiry` 判断 4・AC 2.4・ADR-0011・2026-09-06）:** 判断 3 と AC 2.3 の「消えた品目」（開始済み・キャンセル済み）に **期限切れ**（`arrivalTime + ORDER_LIFETIME_MS ≤ now`・`pending-order-expiry` の Expired_Order）が加わった。`ChangeContext.pending` は正本ではなく **Live_Orders**（`liveOrders(pending, now)`）で、文脈を組む 4 入口（`settle.deriveRecommendations`・`plan.receivePlan`・`admit`・`src/solver`）がそれぞれ自分の `now` で絞る。期限切れの品目は対応から外れて費用を動かさない（性質 5.5 の対応の規律に期限切れを含める）。期限切れの旧先頭を文脈に残せば、生きている次品目を遅らせる計画の先頭の変更（2L）が 0 に消える（レビュー実走：期限切れの旧先頭 A と生きている B で、B を遅らせる計画の変更費用は正しい文脈で 2L = 90 秒、A を残すと 0）。外部計画が期限切れの品目を指せば AC 2.4 の既存のハード制約（`isStale`）が棄却する——新しい費用も拒否事由も足さない。
+
 ### Requirement 3: 自前解が前回を残す
 
 **User Story:** As a 設計者, I want 自前解が前回の配置を候補にする, so that 採点だけでは残らないまとまりが残る。
