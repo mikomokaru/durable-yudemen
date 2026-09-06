@@ -19,7 +19,7 @@
 
 ### 確定した設計判断（2026-09-06 の対話で確定）
 
-1. **前回提示した内容を、履歴の事実として `TimerState` に持つ（Shown_Plan）。** 導出値ではなく「現場に見せた」という事実であり、現在の確定計画のキャッシュとは区別する。持つのは品目ごとの `slotIds` / `startAt` / `serveAt` / 群の所属（同じ snapshot の中でどの品目と同じ群だったか）。永続 v12。
+1. **前回提示した内容を、履歴の事実として `TimerState` に持つ（Shown_Plan）。ユーザー承認済み（2026-09-06）**——現在の状態から復元できない過去の出力なので、「導出値を状態に昇格させない」規律の例外ではない。**定義は「配信対象として永続確定した提案」**であって「現場に見せた」ではない（現行は Persist の後に Broadcast を行い、送信失敗や接続端末ゼロでも永続は成立するため、見せたことは保証できない・レビュー指摘）。同じ `Persist` に、選んだ計画の推奨（`recommend` の出力）をそのまま Shown_Plan として載せる——確定した推奨と Shown_Plan は常に一致する。持つのは品目ごとの `slotIds` / `startAt` / `serveAt` / `anchor` / 群の所属（同じ snapshot の中でどの品目と同じ群だったか）/ Head であったか。永続 v12。
 2. **変更費用は守りたいもので分ける。** (a) **次に投入する品目とその釜**——前回の先頭（表示の先頭 arms 本に相当する、開始推奨時刻が来た品目を時刻順に並べた先頭 arms 本）が先頭でなくなる、または釜が変わる変更は重い。(b) **まとまり**——前回同じ群だった品目が別の群に割れる、前回の投入の順（`startAt` 順）が逆転する変更に費用を付ける。(c) **開始時刻**——数秒（h_i の内側）の調整は数えず、上げの間隔（`liftIntervalSeconds`）を跨ぐ移動は重く、遠い将来（前回の `startAt` が今から遠い）ほど軽くする。
 3. **比較の規律。** 開始済み・キャンセル済みで消えた品目、新規に増えた品目は変更費用にしない。**未着手の品目を推奨から消して変更費用を逃れることは許さない**——前回の Shown_Plan に在った未着手の品目が新しい計画に無ければ、それは最大の変更費用（先頭の変更と同じ重さ）として数える。群の識別子は比べず、品目の対応（`externalOrderId` + `itemIndex`）とまとまりを比べる。
 4. **採点に足すだけでは足りない。** 自前解の再計算（`committedSchedule` の尾部）に、前回の釜割当とまとまりを残す候補を作らせる——釜の選択は前回の釜が空いていればそれを第一候補に、群の分割と順は前回を保つ候補を先に評価し、業務費用の改善が変更費用を上回るときだけ別の配置を採る。
@@ -35,9 +35,9 @@
 
 ## Glossary
 
-- **Shown_Plan（前回提示した内容）**: 直前に broadcast した snapshot の推奨を、品目ごとの `slotIds` / `startAt` / `serveAt` / 群の所属として `TimerState` に残した履歴の事実。
+- **Shown_Plan（前回提示した内容）**: 直前に配信対象として永続確定した snapshot の推奨を、品目ごとの `slotIds` / `startAt` / `serveAt` / `anchor`・群の所属・Head であったかとして `TimerState` に残した履歴の事実。
 - **Change_Cost（変更費用）**: 新しい計画が Shown_Plan からどれだけ違うかを秒相当で数えた値。目的関数に足す。
-- **Head（先頭）**: 開始推奨時刻が来た品目を時刻順（同値は群の順・品目の順）に並べた先頭 arms 本（`lift-group-display` 判断 21 と同じ定義）。
+- **Head（先頭）**: `lift-group-display` 判断 19・21 と**同じ導出**——群を最早 `startAt` 順に並べ、表示できる群（先頭の群と、それより前がすべて Group_Started＝`anchor` 非 null かつ `anchor > now` の群）の品目のうち、全釜 idle（走行中・茹で上がりの釜を含まない）で開始推奨時刻が来たものを時刻順（同値は群の順・品目の順）に並べた先頭 arms 本。engine は推奨（`group` / `anchor`）と走行中 Timer を持つので、同じ規則で計算できる。時刻に依存するので、Shown_Plan には確定時点の Head を品目ごとの旗として残し、新しい計画の Head は新しい now で計算する。
 - **Business_Cost（業務費用）**: 既存の目的関数（Σ Wait_Time + 卓同期 + Lift_Overflow + …）。
 
 ## Requirements
@@ -48,7 +48,9 @@
 
 #### Acceptance Criteria
 
-1. THE `TimerState` SHALL `shownPlan`（Shown_Plan・品目ごとの `slotIds` / `startAt` / `serveAt` と群の所属）を持ち、`settle` が snapshot を broadcast するたびに、その snapshot の推奨で置き換える
+1. THE `TimerState` SHALL `shownPlan`（Shown_Plan・品目ごとの `slotIds` / `startAt` / `serveAt` / `anchor`・群の所属・Head であったか）を持ち、`settle` が確定結果を `Persist` するたびに、同じ `Persist` に載る snapshot の推奨で置き換える（配信対象として永続確定した提案）
+6. THE Shown_Plan の更新 SHALL 確定結果の `Persist` にだけ伴う——棄却（状態を変えない受領）・no-op（確定結果が直前と同一で `Persist` も `Broadcast` も出ない遷移）・hydration（接続時の全量送信・状態を変えない）では更新しない。hydration が導く推奨は Shown_Plan と違いうる（時刻が進んで自前解の尾部が動く）が、それは配信対象として確定していない
+7. THE 比較 SHALL 旧 Shown_Plan（遷移前の状態が持つもの）に対して行い、選んだ計画の推奨を新 Shown_Plan として同じ `Persist` で確定する（比較の相手と確定するものを取り違えない）
 2. THE Shown_Plan SHALL 現在の確定計画のキャッシュではなく履歴の事実である。確定計画は引き続き毎回導き、Shown_Plan は比較にだけ用いる
 3. THE 永続スキーマ SHALL 版を 11 から 12 へ上げ、v11 以前の `shownPlan` の欠如を空（比較の相手なし・変更費用 0）に畳む
 4. THE Shown_Plan SHALL `RequestPlan` で外部ソルバへ運ぶ（外部解も同じ費用で採点されるため）
@@ -61,9 +63,9 @@
 #### Acceptance Criteria
 
 1. THE 目的関数 SHALL Change_Cost を Business_Cost に足す。Change_Cost は Shown_Plan と新しい計画の**対応する品目**（`externalOrderId` + `itemIndex`）の間で数える
-2. THE Change_Cost SHALL 次の 4 種を持ち、重みは秒相当で `liftIntervalSeconds` から導く（新しい設定は足さない）——(a) **先頭の変更**：Shown_Plan の Head に在った品目が新しい計画の Head に無い（重み 2 × L）、(b) **釜の変更**：対応する品目の `slotIds` が変わった（重み L）、(c) **まとまりの変更**：Shown_Plan で同じ群だった 2 品目が新しい計画で別の群になった、または対応する 2 品目の `startAt` の順が逆転した（組ごとに重み L）、(d) **時刻の移動**：対応する品目の `startAt` が h_i を超えて動いた分について、跨いだ上げの間隔の数 × L × 1 / (k + 1)（k = Shown_Plan の `startAt` が今から何個目の間隔か）
+2. THE Change_Cost SHALL 次の 4 種を持ち、重みは秒相当で `liftIntervalSeconds` から導く（新しい設定は足さない）——(a) **先頭の変更**：Shown_Plan で Head の旗を持つ品目が、新しい計画の Head（新しい now で Glossary の導出に従って計算）に無い（重み 2 × L）、(b) **釜の変更**：対応する品目の `slotIds` が変わった（重み L）、(c) **まとまりの変更**：Shown_Plan で同じ群だった 2 品目が新しい計画で別の群になった、または対応する 2 品目の `startAt` の順が逆転した（組ごとに重み L）、(d) **時刻の移動**：対応する品目の `startAt` が h_i を超えて動いた分について、跨いだ上げの間隔の数 × L × 1 / (k + 1)（k = Shown_Plan の `startAt` が今から何個目の間隔か）
 3. THE Change_Cost SHALL 開始済み・キャンセル済みで消えた品目と、新規に増えた品目を数えない
-4. IF Shown_Plan に在った未着手の品目が新しい計画に無い, THEN THE Change_Cost SHALL それを先頭の変更と同じ重さ（2 × L）で数える（推奨から消して費用を逃れる経路を閉じる）
+4. THE 変更 SHALL 「未着手で置ける品目を推奨から消して変更費用を逃れる」経路を費用ではなく既存のハード制約で閉じる——外部計画の一片は卓の計画対象と品目集合が一致しなければ陳腐化として棄却され（`isStale`・陳腐化A/B）、一片ごと省いた卓は合成の尾部が自前解で必ず置く（`committedSchedule`）。Change_Cost は合成後の計画（段 2）に対して数えるので、欠落した品目は比較の時点で存在しない。自前解は置ける品目を必ず置く（AC 3.4）。ゆえに欠落の費用は定めない（定めれば、消失 2L 対 分割 3L のような逃げ道の算術が生まれる・レビュー指摘）
 5. THE Change_Cost SHALL 店舗全体の項として `total` にだけ足す（Lift_Overflow と同じ扱い・`lift-group-planning` AC 9.7）
 6. THE Change_Cost SHALL 整数（秒相当）で閉じる
 
@@ -91,12 +93,12 @@
 ### Requirement 5: 検証可能な性質
 
 1. **不変**：Shown_Plan と同じ計画は Change_Cost 0
-2. **消失の費用**：未着手の品目を推奨から外した計画は、外した品目 1 つにつき 2 × L 以上 Change_Cost が増える
+2. **消失は費用でなく棄却**：未着手で置ける品目を一片から外した外部計画は `isStale` で棄却され、卓ごと省いた計画は合成が自前解で埋める——Change_Cost が減る経路にならない
 3. **先頭の保護**：Shown_Plan の Head の品目を Head から外す計画は、外さない計画より Change_Cost が 2 × L 以上大きい
-4. **減衰**：同じ幅の時刻の移動は、遠い品目ほど Change_Cost が小さい
+4. **減衰**：同じ幅の時刻の移動は、遠い品目ほど Change_Cost が大きくならない（整数化ゆえ単調非増加）
 5. **対応の規律**：開始済み・キャンセル済み・新規の品目は Change_Cost を動かさない
-6. **自前解の保持**：ハード制約が許す限り、自前解は Shown_Plan の釜とまとまりを保つ（同じ入力で連続して計画すると Change_Cost 0）
-7. **利益が上回れば変わる**：Business_Cost の改善が Change_Cost を上回る配置が在れば、自前解はそれを採る（固定ではない）
+6. **自前解の保持**：ハード制約が許し、かつ総費用（Business_Cost + Change_Cost）が改善しない限り、自前解は Shown_Plan の釜とまとまりを保つ（同じ入力で連続して計画すると Change_Cost 0）
+7. **利益が上回れば変わる**：自前解が生成して比べる候補の範囲（Requirement 3 の釜の第一候補・分割の候補）で、Business_Cost の改善が Change_Cost を上回る候補が在れば、それを採る（局所探索であり、あらゆる改善配置の存在は保証しない）
 8. **移行**：v11 以前の永続は `shownPlan` 空として保持され、落ちない
 
 ### naming ゲート（`naming.md`）
