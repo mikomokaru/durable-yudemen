@@ -49,9 +49,11 @@ export interface ShownItem {
 }
 export type ShownPlan = readonly ShownItem[];
 export const EMPTY_SHOWN_PLAN: ShownPlan = [];
-export function shownPlanOf(recommendations: readonly CookRecommendation[]): ShownPlan;
+/** 確定計画の配置（serveAt・anchor を持つ）と、recommend が付けた群から作る。CookRecommendation だけでは serveAt を埋められない。 */
+export function shownPlanOf(schedule: CookSchedule, recommendations: readonly CookRecommendation[]): ShownPlan;
 ```
 
+- **入力契約（レビュー指摘）**：`ShownItem.serveAt` は `Placement.serveAt`（窓による延期後の値・`anchor` とは違う）から、`slotIds` / `startAt` / `anchor` も `Placement` から、`mates` は同じ確定計画に対する `recommend` の出力の `group` から取る。`settle` は `committedSchedule` の結果（`CookSchedule`）と `recommend(committed)` の両方を持っているので、そこで組む。
 - 群の所属は「同じ群の相手の鍵の列」で持つ（未決 1 の決定）。識別子の文字列を跨いで比べない（AC 1.5）。対称に持つので、分割の費用は組ごとに一度だけ数える（相手の鍵の辞書順で小さい側からだけ数える）。
 - `TimerState.shownPlan: ShownPlan`。`EMPTY_STATE` は `EMPTY_SHOWN_PLAN`。永続 v12 は `shownPlan` を配列で持ち、欠如を空に畳む（AC 1.3）。
 
@@ -79,34 +81,45 @@ export interface ChangeContext {
   readonly shown: ShownPlan;             // 旧 Shown_Plan（遷移前の状態が持つ）
   readonly running: readonly Timer[];    // 遷移後（再同期後）の Timer 集合（判断 8）
   readonly now: EpochMillis;             // 比較の時点
+  readonly pending: readonly PendingOrder[];      // 品目の到着時刻（同値の順）と麺種・茹で加減（茹で秒）を引く
+  readonly presets: readonly NoodlePreset[];      // 茹で秒の出所
 }
-/** 秒相当・整数。対応する品目（鍵が一致・双方に在る）の間でだけ数える。 */
-export function changeCost(next: readonly CookRecommendation[], context: ChangeContext, params: ScheduleParams): number;
+/** 秒相当・整数。対応する品目（鍵が一致・双方に在る）の間でだけ数える。next は確定計画とその推奨（group / anchor 付き）。 */
+export function changeCost(
+  next: { readonly schedule: CookSchedule; readonly recommendations: readonly CookRecommendation[] },
+  context: ChangeContext,
+  params: ScheduleParams,
+): number;
 ```
+
+**入力契約（レビュー指摘）。** 共有導出（`headsOf`）は `LiftItem { recommendation, boilSeconds, order }` を要る——茹で秒（`boilMillisOf(order, presets)`）と到着時刻（同値の順）は `PendingOrder` から引く。旧 Shown_Plan の品目も新しい計画の品目も、`context.pending` から同じ鍵で品目を引いて `LiftItem` を組む（開始済み・キャンセル済みは `pending` に無いので自然に対応から外れる）。旧 Shown_Plan を推奨と見なすには `group` が要るが、これは `mates` を連結成分にして snapshot 内の仮の識別子を振る（識別子は比較の内側で閉じ、外に出ない）。
+
+**単位（レビュー指摘）。** `startAt` / `serveAt` / `anchor` / `now` はミリ秒、`L = liftIntervalSeconds` は秒。窓の数と減衰の距離は `L × 1000`（ミリ秒）で数え、費用への換算には秒の `L` を使う。
 
 手順（AC 2.1〜2.6・判断 2・3・8）：
 
 ```
-L = liftIntervalSeconds
-pairs = 鍵が旧 Shown_Plan と next の両方に在る品目（開始済み・キャンセル・新規は自然に外れる）
-oldHead = headsOf(旧 Shown_Plan を推奨と見なした群, occupied(running), now, arms)   # 両側とも同じ now・同じ Timer 集合
-newHead = headsOf(next の群, occupied(running), now, arms)
+Lms = liftIntervalSeconds × 1000, L = liftIntervalSeconds
+pairs = 鍵が旧 Shown_Plan と next の両方に在り、context.pending にも在る品目（開始済み・キャンセル・新規は自然に外れる）
+occupied = context.running の slotIds の和集合
+oldHead = headsOf(liftGroupsOf(旧 Shown_Plan を LiftItem に組んだもの), occupied, now, arms)   # 両側とも同じ now・同じ Timer 集合
+newHead = headsOf(liftGroupsOf(next を LiftItem に組んだもの), occupied, now, arms)
 cost = 0
 for k in pairs:
   if k ∈ oldHead && k ∉ newHead: cost += 2L                                   # (a) 先頭の変更
   if slotIds が変わった: cost += L                                              # (b) 釜の変更
-  for m in shown[k].mates（m ∈ pairs・k < m）:
-    if next で k と m の group が違う: cost += L                                # (c) まとまりの分割（組ごとに一度）
-    if sign(startAt_k − startAt_m) が旧と新で逆転: cost += L                    # (c) 順の逆転
-  Δ = |startAt_new − startAt_old|
-  if Δ > h_i(k):                                                               # (d) 時刻の移動（h_i の内側は数えない）
-    windows = ceil(Δ / L)
-    k_far = floor(max(0, startAt_old − now) / L)
-    cost += floor(windows × L / (k_far + 1))                                   # 遠いほど大きくならない（単調非増加）
+  Δ = |startAt_new(k) − startAt_old(k)|（ミリ秒）
+  if Δ > h_i(k)（ミリ秒）:                                                      # (d) 時刻の移動（h_i の内側は数えない）
+    windows = ceil(Δ / Lms)
+    k_far = floor(max(0, startAt_old(k) − now) / Lms)
+    cost += floor(windows × L / (k_far + 1))                                   # 秒相当・遠いほど大きくならない
+for (k, m) in pairs の全組（k < m・鍵の辞書順）:                                  # (c) は 2 つの検査に分ける
+  if k と m が旧で同じ群 && next で group が違う: cost += L                      # (c-1) まとまりの分割（同じ群だった組にだけ）
+  if sign(startAt_old(k) − startAt_old(m)) × sign(startAt_new(k) − startAt_new(m)) < 0: cost += L   # (c-2) 順の逆転（群を問わず全対応の組）
 return cost
 ```
 
-- 旧 Shown_Plan を「推奨と見なす」には `group` が要る——`mates` から同じ群を復元する（`mates` を連結成分にした群・`anchor` は `ShownItem.anchor`）。
+- **順の逆転は群を跨いで数える（レビュー指摘）。** 別群の A@10 秒・B@11 秒が A@11 秒・B@10 秒に変われば、時刻の移動が h_i の内側でも順の逆転として L が付く。分割の検査は同じ群だった組にだけ効く。
 - 欠落は数えない（AC 2.4・ハード制約が閉じる）。
 
 ### Component 3: `scoreSchedule` と `ScoreContext`
@@ -145,7 +158,7 @@ effects = [Persist(toSnapshot(confirmed)), Alarm, Broadcast(snapshotMessage), (R
 
 1. **釜の第一候補**（AC 3.1）：`chooseSlots(count, release, params, preferred)` に、対応する品目の Shown_Plan の釜を渡す。全部が候補の時刻までに空く（`release[s] ≤ 候補 − 茹で時間`）ならそれを採り、無ければ既存の規則。batch（複数品目の同時配置）では `assignSlots` が品目ごとに前回の釜を先に割り当て、残りを既存の対応づけで埋める。
 2. **並び**（AC 3.2）：batch の並び（茹で時間の長い順・同値は正準順序）の同値の断ち方に、前回の `startAt` 順を第一に使う（順の逆転を作らない）。
-3. **分割**（AC 3.2）：`placeWithLifts` の局所費用に Change_Cost の差分（当該列の品目だけについて (b)(c)(d) を数えたもの）を足す。pack / split の候補に、**前回のまとまりを保つ分割**（前回同じ群だった品目を同じ塊に置く）を一つ足し、3 候補の最小を採る（同点は前回を保つ側）。
+3. **分割**（AC 3.2）：`placeWithLifts` の局所費用に Change_Cost の差分を足す——**(a) 先頭の変更を含む 4 種すべて**を、当該列の品目について数える（レビュー指摘：(b)(c)(d) だけでは最も守りたい投入対象が動く。arms 1・L 45・茹で 600 秒・走行中 2 本が 600 秒に上がる表で、旧提案が A を今・B を 45 秒後なら、両方を 45 秒後へ pack すると業務費用は 45 秒改善するが A の先頭消失は 90 秒で、総費用は 45 秒悪化する）。先頭の判定は列の候補配置を仮に置いた計画に対して `headsOf` で導く（列の外の品目は現在の確定分をそのまま用いる）。pack / split の候補に、**前回のまとまりを保つ分割**（前回同じ群だった品目を同じ塊に置く）を一つ足し、3 候補の最小を採る（同点は前回を保つ側）。
 4. ハード制約（釜の排他・slotSpan・上げ窓・合流の契約）は候補の生成の前に効く（AC 3.3）。
 
 局所探索であり、生成した候補の範囲でだけ「利益が上回れば変わる」（性質 5.7）。
