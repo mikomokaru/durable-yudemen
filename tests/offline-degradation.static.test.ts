@@ -89,6 +89,9 @@ const EXPECTED_CORE_FILES = [
   "src/engine/schedule.ts",
   "src/engine/settle.ts",
   "src/engine/snapshot.ts",
+  // stability.ts は前回提示した提案（plan-stability 判断 1・Shown_Plan）の形と組み立て。lift.ts と同じ判断で
+  // 追随させる（禁止トークン検査・import 検査はこのファイルにも掛かる）。
+  "src/engine/stability.ts",
   "src/engine/start.ts",
   "src/engine/state.ts",
   "src/engine/sync.ts",

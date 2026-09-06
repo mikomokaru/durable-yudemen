@@ -398,3 +398,105 @@ describe("migrate — v10 → v11（lift-group-planning 判断 20・AC 9.9）", 
     expect(infinite.failure.code).toBe("MigrationFailed");
   });
 });
+
+describe("migrate — v11 → v12（plan-stability 判断 1・AC 1.3・性質 5.8）", () => {
+  /** v11 の永続値（前回の提案 shownPlan を持たない——それが v11 であることの定義）。 */
+  const v11Raw = {
+    version: 11,
+    timers: [v6Timer],
+    nextSeq: 42,
+    pendingOrders: [],
+    acceptedSlices: [
+      {
+        tableKey: "t-1",
+        placements: [
+          {
+            externalOrderId: "order-12",
+            itemIndex: 0,
+            slotIds: ["0"],
+            startAt: 1_700_000_540_000,
+            serveAt: 1_700_000_600_000,
+            anchor: null,
+          },
+        ],
+      },
+    ],
+    requestedDigest: 7,
+    lastSequenceByTerminal: {
+      "terminal-1": "00000000000000000000000000000000000000000000000000000042",
+    },
+  } as const;
+
+  /** v12 が書く Shown_Plan の 1 品目（合流の錨を持ち、同じ群の相手を 1 つ持つ）。 */
+  const shownItem = {
+    externalOrderId: "order-12",
+    itemIndex: 0,
+    slotIds: ["0", "1"],
+    startAt: 1_700_000_540_000,
+    serveAt: 1_700_000_610_000,
+    anchor: 1_700_000_600_000,
+    mates: ["order-12:1"],
+  } as const;
+
+  it("v11 の永続値は shownPlan を空として読み戻し、他の事実は写しである（比較の相手なし）", () => {
+    const result = migrate(structuredClone(v11Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+    expect(result.snapshot.shownPlan).toEqual([]);
+    expect(result.snapshot.acceptedSlices).toEqual(v11Raw.acceptedSlices);
+    expect(result.snapshot.requestedDigest).toBe(7);
+    expect(result.snapshot.lastSequenceByTerminal).toEqual(v11Raw.lastSequenceByTerminal);
+    expect(result.snapshot.timers[0]!.endTime).toBe(v6Timer.endTime);
+  });
+
+  it("v12 の永続値は shownPlan（錨の数値・null・mates）をそのまま読み戻す", () => {
+    const v12Raw = {
+      ...v11Raw,
+      version: 12,
+      shownPlan: [shownItem, { ...shownItem, itemIndex: 1, anchor: null, mates: [] }],
+    };
+
+    const result = migrate(structuredClone(v12Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.shownPlan).toEqual(v12Raw.shownPlan);
+  });
+
+  it("形を満たさない要素はその要素だけ落とし、残りは保つ（履歴の欠けは費用 0 に倒れるだけ）", () => {
+    // 待ち行列・採用済み計画の「一件でも不正なら全体を移行失敗」とは規律が違う。Shown_Plan は比較にだけ使う
+    // 履歴で、要素の欠けは嘘を生まない。壊れた 1 要素で店舗を起動不能にする代償の方が大きい。
+    const broken = [
+      { ...shownItem, externalOrderId: "" },
+      { ...shownItem, itemIndex: -1 },
+      { ...shownItem, slotIds: [] },
+      { ...shownItem, startAt: "540" },
+      { ...shownItem, serveAt: 1.5 },
+      { ...shownItem, anchor: "600" },
+      { ...shownItem, mates: [1] },
+      { ...shownItem, mates: [""] },
+      "not-an-object",
+      null,
+    ];
+    const survivor = { ...shownItem, itemIndex: 9, anchor: null };
+    const v12Raw = { ...v11Raw, version: 12, shownPlan: [shownItem, ...broken, survivor] };
+
+    const result = migrate(structuredClone(v12Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.shownPlan).toEqual([shownItem, survivor]);
+    // 落としたのは Shown_Plan の要素だけで、他の事実は写しのまま。
+    expect(result.snapshot.acceptedSlices).toEqual(v11Raw.acceptedSlices);
+  });
+
+  it("配列でない shownPlan は空へ畳む（移行失敗にしない）", () => {
+    const result = migrate({ ...structuredClone(v11Raw), version: 12, shownPlan: { a: 1 } });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.shownPlan).toEqual([]);
+  });
+});

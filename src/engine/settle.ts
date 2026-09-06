@@ -29,10 +29,11 @@ import { recommend } from "./recommend";
 import { isSamePending } from "./pending";
 import { digestInput, type InputDigest } from "./digest";
 import type { ScheduleParams } from "./objective";
-import { planTargets, type AcceptedSlice, type Placement } from "./schedule";
+import { planTargets, type AcceptedSlice, type CookSchedule, type Placement } from "./schedule";
+import { shownPlanOf } from "./stability";
 import type { PendingOrder } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
-import type { ServerMessage } from "../domain/messages";
+import type { CookRecommendation, ServerMessage } from "../domain/messages";
 
 /**
  * SettleParams — settle（と decide）が要する値の束。
@@ -84,31 +85,46 @@ export function settle(
   // 同期結果であり、判定が旧錨・確定が新錨を見れば、旧錨に揃える計画が「改善」として通る。
   const nextState: TimerState = { ...moved, timers: synchronize(moved.timers, params) };
 
-  // no-op 検出（要件7.7）：確定結果が prev と同一なら put も broadcast もしない。状態も prev を返す。
+  // no-op 検出（要件7.7）：確定結果が prev と同一なら put も broadcast もしない。状態も prev を返す
+  // （shownPlan も prev のまま・AC 1.6）。
   if (isSameConfirmedResult(prev, nextState)) {
     return { ok: true, state: prev, effects: [] };
   }
 
+  // 確定計画と推奨をここで一度だけ導く。Broadcast の snapshot と、Persist に載せる Shown_Plan は同じ推奨から
+  // 組む——二度導けば「配信した推奨」と「確定した Shown_Plan」が別の計算になり、一致は偶然になる。
+  const derived = deriveRecommendations(nextState, params, now);
+  // **Shown_Plan の確定（plan-stability AC 1.1 / 1.7）。** 比較の相手は prev.shownPlan（遷移前の状態が持つもの）で、
+  // 確定するのは選んだ計画の推奨から組んだ新しい Shown_Plan。同じ Persist に載せるので、確定した推奨と Shown_Plan は
+  // 常に一致する。更新はこの経路にだけ在る——棄却（receivePlan の早期 return）は状態不変、no-op は上で prev を返し、
+  // hydration（shell が toWireSnapshot を直接呼ぶ経路）は状態を返さず Persist も出ないので、いずれも更新しない（AC 1.6）。
+  const confirmed: TimerState = {
+    ...nextState,
+    shownPlan: shownPlanOf(derived.committed, derived.recommendations),
+  };
+  const message = snapshotMessage(confirmed, derived.recommendations, now);
+
   // 現在の指紋は導出値ゆえ確定後の入力から毎回導く（状態には持たない・AC 7.2）。
-  const digest = digestInput(nextState.pendingOrders, nextState.timers, params);
+  const digest = digestInput(confirmed.pendingOrders, confirmed.timers, params);
   // 計画対象は planTargets ただ一つから引く（「何が計画対象か」を二度書かない）。抑制の判定と、要求が運ぶ
   // 集合が同じ値を見ることで、空判定と送出範囲が食い違う余地が構造から消える。
-  const targets = planTargets(nextState.pendingOrders);
+  const targets = planTargets(confirmed.pendingOrders);
   // 抑制の条件は 3 つ（AC 5.6 / 5.7）。要求してよい遷移か、入力が前回の要求時から変わったか、そして
   // 計画する対象が在るか。**空の待ち行列では要求しない** ——改善しうるものが存在しない要求だからである
   // （このとき新しい指紋も永続しない。次に対象が現れた遷移で指紋はまだ食い違っており、要求はそこで出る）。
-  if (!mayRequestPlan || digest === nextState.requestedDigest || targets.length === 0) {
-    return { ok: true, state: nextState, effects: assembleEffects(nextState, params, now) };
+  if (!mayRequestPlan || digest === confirmed.requestedDigest || targets.length === 0) {
+    return { ok: true, state: confirmed, effects: assembleEffects(confirmed, message) };
   }
 
   // **新しい指紋を状態へ書いてから Effect 列を組む。** 逆にすると Persist に古い指紋が乗り、次のイベントで
   // 同じ要求がもう一度出る（永続した指紋が「直前に要求した時点の値」でなくなる・AC 5.4）。
-  const requested: TimerState = { ...nextState, requestedDigest: digest };
+  // snapshot メッセージは指紋を運ばないので、confirmed から組んだものをそのまま使える。
+  const requested: TimerState = { ...confirmed, requestedDigest: digest };
   return {
     ok: true,
     state: requested,
     effects: [
-      ...assembleEffects(requested, params, now),
+      ...assembleEffects(requested, message),
       requestPlan(requested, params, digest, targets),
     ],
   };
@@ -163,6 +179,10 @@ function requestPlan(
  * `requestedDigest` は含めない（design が挙げる 2 つに限る）。指紋だけが変わる確定結果は存在しない——
  * 要求の生成（タスク 17.2）は、この判定を抜けて Effect 列を組む経路の中だけで起こり、新しい指紋は
  * その列の `Persist` に同乗するためである。
+ *
+ * **`shownPlan` も含めない（plan-stability 判断 1・AC 1.6）。** Shown_Plan は確定結果の付随物で、確定結果が変わるときに
+ * その Persist で置き換わる。比べれば、自前解の尾部が時刻経過だけで動く遷移が「変化」になり、AC 7.6 が禁じる空振りの
+ * Persist / Broadcast が出る。遷移前の moved は prev の shownPlan をそのまま運ぶので、比べなくても取りこぼしは無い。
  */
 function isSameConfirmedResult(prev: TimerState, next: TimerState): boolean {
   return (
@@ -267,12 +287,28 @@ function isSamePlacement(left: Placement, right: Placement | undefined): boolean
  * **確定計画と推奨は導出値ゆえ毎回導く。** 状態に持てば計画と状態の二つの真実が生まれる。導出の起点は
  * 確定後の状態そのものであり、shell が `committedSchedule` → `recommend` を自前で呼ぶ経路を持たないことが
  * 「導出は engine の内側だけ」を構造で保証する。
+ *
+ * **この関数は状態を返さず、Shown_Plan を更新しない（plan-stability AC 1.6）。** hydration が導く推奨は、時刻が
+ * 進んで自前解の尾部が動けば `state.shownPlan` と違いうるが、それは配信対象として確定していない——確定するのは
+ * `settle` が Persist に載せるものだけである。ここが shell に返すのはメッセージだけで、shell は Persist を出さない。
  */
 export function toWireSnapshot(
   state: TimerState,
   params: SettleParams,
   now: EpochMillis,
 ): ServerMessage {
+  return snapshotMessage(state, deriveRecommendations(state, params, now).recommendations, now);
+}
+
+/**
+ * 確定計画とその推奨を導く（`committedSchedule` → `recommend`）。settle は両方を要る——snapshot には推奨を、
+ * Shown_Plan には配置（serveAt / anchor）と推奨の群の双方を載せるため、一度導いて両方に使う。
+ */
+function deriveRecommendations(
+  state: TimerState,
+  params: SettleParams,
+  now: EpochMillis,
+): { readonly committed: CookSchedule; readonly recommendations: readonly CookRecommendation[] } {
   // 生きた Timer は running / boiled とも釜の解放表に効く（boiled は実効 endTime の時点で解放済み扱い）。
   const committed = committedSchedule(
     state.acceptedSlices,
@@ -282,6 +318,15 @@ export function toWireSnapshot(
     params.noodlePresets,
     params,
   );
+  return { committed, recommendations: recommend(committed) };
+}
+
+/** 確定状態と導いた推奨から snapshot メッセージを組む（形はここ一箇所）。 */
+function snapshotMessage(
+  state: TimerState,
+  recommendations: readonly CookRecommendation[],
+  now: EpochMillis,
+): ServerMessage {
   return {
     type: "snapshot",
     serverTime: now,
@@ -289,7 +334,7 @@ export function toWireSnapshot(
     timers: state.timers.map(toWireTimer),
     // 待ち行列は全量（計画対象 64 件を超える分も含む・AC 2.3 / 2.4）。推奨は確定計画からの導出値。
     pendingOrders: state.pendingOrders,
-    recommendations: recommend(committed),
+    recommendations,
   };
 }
 
@@ -299,15 +344,13 @@ export function toWireSnapshot(
  * 順序は Persist → SetAlarm|ClearAlarm（実効最早）→ 全量 snapshot Broadcast（実効 endTime を載せる）。
  * 確定変化ごとに送るのは snapshot ただ一つ（唯一の権威表現・SSOT）——意味論 Broadcast と Reply は撤去した。
  * Persist を先頭に置くのは SSOT 規律の表明であり、shell は put 成功の上にのみ Alarm / Broadcast を立てる。
+ *
+ * message は呼び出し側が確定状態から一度だけ組む（Shown_Plan と同じ推奨を載せるため・settle の注記）。
  */
-function assembleEffects(
-  nextState: TimerState,
-  params: SettleParams,
-  now: EpochMillis,
-): readonly Effect[] {
+function assembleEffects(nextState: TimerState, message: ServerMessage): readonly Effect[] {
   return [
     { type: "Persist", snapshot: toSnapshot(nextState) },
     nextAlarmEffect(nextState.timers),
-    { type: "Broadcast", message: toWireSnapshot(nextState, params, now) },
+    { type: "Broadcast", message },
   ];
 }

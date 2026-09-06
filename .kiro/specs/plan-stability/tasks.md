@@ -11,12 +11,13 @@
   - [x] 1.3 チェックポイント
   - _Requirements: 4.3, Glossary Head_
 
-- [ ] 2. Shown_Plan（状態・永続 v12・確定）
-  - [ ] 2.1 `src/engine/stability.ts`：`ShownItem` / `ShownPlan` / `EMPTY_SHOWN_PLAN` / `shownPlanOf(schedule, recommendations)`（`serveAt` / `slotIds` / `startAt` / `anchor` は `Placement` から・`mates` は同じ `group` の相手の鍵）
-  - [ ] 2.2 `TimerState.shownPlan`・`EMPTY_STATE`・`snapshot.ts`・`types.ts`（v12 の doc 行）・`migrate.ts`（欠如 → 空・壊れた要素は落とす）・`docs/persisted-schema-rollback.md` の v12 行
-  - [ ] 2.3 `settle.ts`：確定結果の `Persist` に `shownPlanOf(snapshot.recommendations)` を載せる。`isSameConfirmedResult` は `shownPlan` を比べない。no-op / 棄却 / hydration で更新しないことを `settle.example` に
-  - [ ] 2.4 `migrate.{example,property}`：v11 → v12 の二方向・壊れた要素の切り捨て
-  - [ ] 2.5 チェックポイント
+- [x] 2. Shown_Plan（状態・永続 v12・確定）
+  - 実測・2026-09-06: `src/engine/stability.ts` に `ShownItem` / `ShownPlan` / `EMPTY_SHOWN_PLAN` / `shownPlanOf(schedule, recommendations)` を新設（配置から `slotIds` / `startAt` / `serveAt` / `anchor`、`recommend` の `group` から `mates`——自分を含まず対称・計画順）。`TimerState.shownPlan` / `EMPTY_STATE` / `StoreSnapshot` / `toSnapshot` / `fromSnapshot`、`CURRENT_SCHEMA_VERSION = 12`（doc 行）、`migrate.ts` の `reviveShownPlan` / `reviveShownItem`（欠如・非配列は空、壊れた要素はその要素だけ落とす）、`docs/persisted-schema-rollback.md` の v12 行（v11 の `migrate` は `shownPlan` を読まないので `version` を 11 にするだけ）。`settle.ts` は `deriveRecommendations`（`committedSchedule` → `recommend` を一度だけ）と `snapshotMessage` に分け、no-op 検出の後に `confirmed = { ...nextState, shownPlan: shownPlanOf(committed, recommendations) }` を Persist と返り値の状態に載せる。`isSameConfirmedResult` は `shownPlan` を比べない。追随：`timer-model.static`（鍵集合・inline snapshot v12）、`offline-degradation.static`（core のファイル集合に `stability.ts`）、`store-timer-observation-fault.integration`（Working_Copy の期待値）。テスト：`tests/core/stability.example.test.ts`（7 件）、`tests/core/settle-shown-plan.example.test.ts`（6 件：確定変化で Persist の `shownPlan` が Broadcast の推奨と一致・比較の相手は prev・no-op / 棄却 / hydration で不変）、`migrate.example`（v11 → v12 の 4 件）、`migrate.property`（v11 の欠如 → 空・v12 の往復・壊れた要素だけ落とす）。typecheck 0（worker-configuration.d.ts を除く）・lint 0 errors・fmt:check clean・236 ファイル 1564 テスト全通過。
+  - [x] 2.1 `src/engine/stability.ts`：`ShownItem` / `ShownPlan` / `EMPTY_SHOWN_PLAN` / `shownPlanOf(schedule, recommendations)`（`serveAt` / `slotIds` / `startAt` / `anchor` は `Placement` から・`mates` は同じ `group` の相手の鍵）
+  - [x] 2.2 `TimerState.shownPlan`・`EMPTY_STATE`・`snapshot.ts`・`types.ts`（v12 の doc 行）・`migrate.ts`（欠如 → 空・壊れた要素は落とす）・`docs/persisted-schema-rollback.md` の v12 行
+  - [x] 2.3 `settle.ts`：確定結果の `Persist` に `shownPlanOf(snapshot.recommendations)` を載せる。`isSameConfirmedResult` は `shownPlan` を比べない。no-op / 棄却 / hydration で更新しないことを `settle.example` に
+  - [x] 2.4 `migrate.{example,property}`：v11 → v12 の二方向・壊れた要素の切り捨て
+  - [x] 2.5 チェックポイント
   - _Requirements: 1.1〜1.3, 1.5〜1.7, 5.8_
 
 - [ ] 3. Change_Cost と採点

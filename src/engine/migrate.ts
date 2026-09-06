@@ -16,6 +16,7 @@ import type { StoreSnapshot } from "./snapshot";
 import { toSnapshot } from "./snapshot";
 import type { AcceptedSlice, Placement } from "./schedule";
 import type { InputDigest } from "./digest";
+import type { ShownItem, ShownPlan } from "./stability";
 import type { PendingOrder } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
@@ -93,7 +94,56 @@ export function migrate(raw: unknown): MigrationOutcome {
       // 壊れた値を移行失敗にする代償（店舗が起動しない）に見合わないため null へ畳む。
       requestedDigest: reviveRequestedDigest(record.requestedDigest),
       lastSequenceByTerminal: reviveLastSequenceByTerminal(record.lastSequenceByTerminal),
+      shownPlan: reviveShownPlan(record.shownPlan),
     },
+  };
+}
+
+/**
+ * 前回配信対象として確定した提案（Shown_Plan）として解釈する（v12 で追加・plan-stability AC 1.3）。
+ * - 欠如 / null（v11 以前は前回の提案を持たない）→ 空（比較の相手なし・Change_Cost 0）。
+ * - 配列 → 各要素を `reviveShownItem` で写し、**形を満たさない要素だけ落とす**（残りは保つ）。
+ * - 配列でない → 空へ畳む（移行失敗にしない）。
+ *
+ * 待ち行列や採用済み計画（不正要素は全体を移行失敗）と規律を分けるのは、失われる事実の重さが違うからである。
+ * Shown_Plan は比較にだけ使う履歴で、要素の欠けは「その品目に変更費用が付かない」に倒れるだけで、待ち行列の
+ * 欠品や採用の書き換えのような嘘を生まない。壊れた 1 要素で店舗を起動不能にする代償の方が大きい
+ * （design Error Handling「履歴の欠けは費用 0 に倒れるだけで、状態全体を失わせない」）。
+ */
+function reviveShownPlan(value: unknown): ShownPlan {
+  if (!Array.isArray(value)) return [];
+  const items: ShownItem[] = [];
+  for (const element of value) {
+    const item = reviveShownItem(element);
+    if (item !== null) items.push(item);
+  }
+  return items;
+}
+
+/**
+ * 一件の raw を ShownItem へ写す。鍵（非空の externalOrderId・0 以上の整数 itemIndex）、釜（Timer と同じ非空配列の
+ * 規律）、時刻（startAt / serveAt は整数・anchor は null か整数）、まとまり（非空文字列の鍵の配列）のいずれかが
+ * 形を満たさなければ null（呼び出し側がその要素だけ落とす）。
+ */
+function reviveShownItem(value: unknown): ShownItem | null {
+  if (typeof value !== "object" || value === null) return null;
+  const s = value as Record<string, unknown>;
+  if (typeof s.externalOrderId !== "string" || s.externalOrderId.length === 0) return null;
+  if (!isNonNegativeInteger(s.itemIndex)) return null;
+  const slotIds = reviveSlotIds(s.slotIds, undefined);
+  if (slotIds === null) return null;
+  if (!Number.isInteger(s.startAt) || !Number.isInteger(s.serveAt)) return null;
+  if (s.anchor !== null && s.anchor !== undefined && !Number.isInteger(s.anchor)) return null;
+  if (!Array.isArray(s.mates)) return null;
+  if (s.mates.some((mate) => typeof mate !== "string" || mate.length === 0)) return null;
+  return {
+    externalOrderId: s.externalOrderId,
+    itemIndex: s.itemIndex,
+    slotIds: slotIds as NonEmptyArray<SlotId>,
+    startAt: s.startAt as EpochMillis,
+    serveAt: s.serveAt as EpochMillis,
+    anchor: s.anchor === undefined || s.anchor === null ? null : (s.anchor as EpochMillis),
+    mates: s.mates as readonly string[],
   };
 }
 

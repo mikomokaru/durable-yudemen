@@ -46,5 +46,7 @@ export const EPSILON_MS = 500 as const;
  *  v11: AcceptedSlice の配置に anchor（合流先の走行中の実効 endTime・合流でなければ null）を追加
  *      （lift-group-planning 判断 20・AC 9.9・ADR-0009）。v10 の一片は null で移行する——移行は設定
  *      （toleranceRatio・プリセット）を持たず h_i の窓を引けないため推定できない（design Component 10 の
- *      「推定できなければ null」）。合成（committedSchedule）が現在の走行中で再検証し、切るか維持する。 */
-export const CURRENT_SCHEMA_VERSION = 11 as const;
+ *      「推定できなければ null」）。合成（committedSchedule）が現在の走行中で再検証し、切るか維持する。
+ *  v12: shownPlan（前回配信対象として確定した提案）を追加。欠如は空（plan-stability 判断 1・AC 1.3）。壊れた要素は
+ *      その要素だけ落とす——履歴の欠けは Change_Cost 0 に倒れるだけで、状態全体を失わせない。 */
+export const CURRENT_SCHEMA_VERSION = 12 as const;
