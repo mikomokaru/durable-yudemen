@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_STATE } from "../../src/engine/state";
 import { decide } from "../../src/engine/decide";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
-import type { PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
 import { settleParams } from "../settleParams";
@@ -176,5 +176,61 @@ describe("Feature: lift-group-planning — 走行中の Timer は由来する卓
     expect(moved.state.pendingOrders.map((order) => [order.itemIndex, order.tableId])).toEqual([
       [1, "t-9"],
     ]);
+  });
+});
+
+describe("Feature: pending-order-expiry — 期限切れの品目への開始は品目不在で拒否する（AC 2.5）", () => {
+  /** 2 時間前に届いた品目。now がちょうど寿命なら期限切れ、1 ms 手前なら期限内。 */
+  const OLD: PendingOrder = {
+    ...ORDER,
+    externalOrderId: "o-old",
+    arrivalTime: NOW - ORDER_LIFETIME_MS,
+  };
+
+  function startOldAt(state: TimerState, now: EpochMillis) {
+    return decide(
+      state,
+      {
+        type: "StartOrderItem",
+        slotIds: ["0"],
+        externalOrderId: OLD.externalOrderId,
+        itemIndex: OLD.itemIndex,
+        newTimerId: "t-old" as TimerId,
+        now,
+      },
+      PARAMS,
+    );
+  }
+
+  it("期限切れ（arrivalTime + 寿命 = now）の品目は、待ち行列に無い品目と同じ OrderItemNotFound で拒否し、状態は不変", () => {
+    const state: TimerState = { ...EMPTY_STATE, pendingOrders: [OLD] };
+    const outcome = startOldAt(state, NOW);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    // 新しい拒否事由は足さない。
+    expect(outcome.rejection.code).toBe("OrderItemNotFound");
+    expect(state.pendingOrders).toEqual([OLD]);
+  });
+
+  it("同じ品目でも now が 1 ms 手前なら期限内で、開始できる（now だけが違う 2 本）", () => {
+    const state: TimerState = { ...EMPTY_STATE, pendingOrders: [OLD] };
+    const outcome = startOldAt(state, (NOW - 1) as EpochMillis);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state.timers[0]!.orderItem?.externalOrderId).toBe("o-old");
+    expect(outcome.state.pendingOrders).toEqual([]);
+  });
+
+  it("消費は正本に対して行う：生きている品目を始めても期限切れの品目は正本に残り、snapshot には載らない", () => {
+    const state: TimerState = { ...EMPTY_STATE, pendingOrders: [OLD, ORDER] };
+    const outcome = start(state, ORDER);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state.pendingOrders).toEqual([OLD]);
+    const broadcast = outcome.effects.find((effect) => effect.type === "Broadcast");
+    if (broadcast?.type !== "Broadcast" || broadcast.message.type !== "snapshot") {
+      throw new Error("snapshot が無い");
+    }
+    expect(broadcast.message.pendingOrders).toEqual([]);
   });
 });

@@ -101,6 +101,37 @@ export function compareArrival(a: PendingOrder, b: PendingOrder): number {
 function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
+
+/**
+ * ORDER_LIFETIME_MS — Order_Lifetime（注文の寿命・ミリ秒）。`arrivalTime + ORDER_LIFETIME_MS ≤ now` で期限切れ
+ * （半開区間：ちょうど寿命の時点で切れる・pending-order-expiry AC 1.4）。
+ *
+ * 2 時間の定数であり、店舗設定・ワイヤ・環境変数のいずれからも読まない（AC 1.3）。店舗差が実在したときに設定へ
+ * 上げる（`liftIntervalSeconds` と同じ立場）。起点は `arrivalTime`——上流の観測時刻で、「オーダー時刻」に最も近い事実
+ * （pos-order-ingress AC 8.1〜8.4）。同じ注文の後着が最早の `arrivalTime` を引き継ぐ規則はそのままなので、期限を
+ * 過ぎた注文を変更する Record が届いても生き返らない。
+ */
+export const ORDER_LIFETIME_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * liveOrders — Live_Orders（生きている待ち行列）。期限内（`arrivalTime + ORDER_LIFETIME_MS > now`）の品目だけを、
+ * 入力の並びのまま返す（並び替えない・重複を作らない・入力を変えない・AC 1.1）。`now` と `pending` だけに依存する
+ * （Timer・設定・前回の計画を読まない・AC 1.2）。
+ *
+ * **正本（`TimerState.pendingOrders`）は変えず、絞った値を正とする（pending-order-expiry 判断 1）。** 期限は状態を書き換える
+ * 出来事ではなく `now` から導く述語であり、待ち行列を読む入口（計画対象・snapshot・外部要求・変更費用の対応・開始の
+ * 照合・client の左レール）が、それぞれの `now` でこの一つの関数を呼ぶ（判断 3）。述語を domain に置くのは engine と
+ * client が同じ式を呼ぶため（`lift-group.ts` の Head と同じ規律・AC 3.2）。
+ *
+ * **全件が期限内なら入力と同じ配列を返す**（新しい配列を作らない）。通常はこれが既定の経路であり、`ClientView` の
+ * 参照同値で再描画を抑える既存の経路（React の props 比較）を壊さない。`arrivalTime` が `now` より未来（上流の時計が
+ * 進んでいる）なら期限内として扱う——未来の到着を弾くのは本 spec の関心ではない（design Error Handling）。
+ */
+export function liveOrders(pending: readonly PendingOrder[], now: number): readonly PendingOrder[] {
+  const live = pending.filter((order) => order.arrivalTime + ORDER_LIFETIME_MS > now);
+  return live.length === pending.length ? pending : live;
+}
+
 /**
  * Order_Ingress が受けた到着の生値（品目の配列）を PendingOrder 列へ写す純粋関数。
  *

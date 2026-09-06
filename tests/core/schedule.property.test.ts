@@ -46,7 +46,7 @@ import { recommend } from "../../src/engine/recommend";
 import { changeCost, shownPlanOf, type ChangeContext } from "../../src/engine/stability";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
@@ -142,6 +142,7 @@ describe("engine/schedule — baselineSchedule", () => {
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           null,
         );
         const placements = allPlacements(schedule.slices);
@@ -185,6 +186,7 @@ describe("engine/schedule — baselineSchedule", () => {
             scene.lifts,
             DEFAULT_NOODLE_PRESETS,
             scene.params,
+            NOW,
             null,
           );
           const permuted = baselineSchedule(
@@ -194,6 +196,7 @@ describe("engine/schedule — baselineSchedule", () => {
             scene.lifts,
             DEFAULT_NOODLE_PRESETS,
             scene.params,
+            NOW,
             null,
           );
 
@@ -221,6 +224,7 @@ describe("engine/schedule — baselineSchedule", () => {
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           null,
         );
         const placed = allPlacements(schedule.slices).map((placement) =>
@@ -311,6 +315,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           null,
         );
         const spanOf = new Map(
@@ -381,6 +386,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           null,
         );
         const placements = allPlacements(schedule.slices);
@@ -395,7 +401,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             loadWith(others, placement.serveAt, placement.slotIds.length, params),
           ).toBeLessThanOrEqual(cap);
         }
-        for (const order of planTargets(pending)) {
+        for (const order of planTargets(pending, NOW)) {
           if (order.slotSpan <= cap) continue;
           expect(placements.some((placement) => refersTo(placement, order))).toBe(false);
         }
@@ -424,9 +430,10 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           null,
         );
-        const targets = planTargets(pending);
+        const targets = planTargets(pending, NOW);
         let free = release;
         let ends = lifts;
         for (const slice of schedule.slices) {
@@ -463,6 +470,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           null,
         );
         const spanOf = new Map(
@@ -510,6 +518,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             lifts,
             DEFAULT_NOODLE_PRESETS,
             params,
+            NOW,
             changeContext,
           );
         const contextOf = (previous: CookSchedule): ChangeContext => ({
@@ -579,6 +588,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           null,
         );
         const shown = shownPlanOf(previous, recommend(previous));
@@ -597,6 +607,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           lifts,
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           { shown: elsewhere, running, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
         );
         expect(timingsOf(withElsewhere.slices)).toEqual(timingsOf(previous.slices));
@@ -623,6 +634,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           initialLifts(later),
           DEFAULT_NOODLE_PRESETS,
           params,
+          NOW,
           { shown, running: later, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
         );
         const placements = allPlacements(withBlocked.slices);
@@ -631,6 +643,43 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
         expect(startsBeforeRelease(placements, blockedRelease)).toBe(false);
       }),
       { numRuns: 300 },
+    );
+  });
+});
+
+describe("Feature: pending-order-expiry — 計画対象は生きている待ち行列から（性質 5.4）", () => {
+  // Feature: pending-order-expiry, Property 5.4: 枠——期限切れの品目が到着順の先頭にどれだけ在っても、計画対象は
+  // 生きている品目の正準順序の先頭 PLAN_TARGET_LIMIT 件（死んだ注文が枠を食わない）
+  it("Property 5.4: 期限切れが先頭に 64 件以上在っても、計画対象は生きている品目の正準順序の先頭 64 件", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: PLAN_TARGET_LIMIT, max: PLAN_TARGET_LIMIT + 16 }),
+        fc.array(genOrderSpec(KNOWN_NOODLE_TYPES), { maxLength: 30 }),
+        // 期限切れの到着は寿命ちょうどから 3 時間前まで（ちょうどは切れる側）。
+        fc.integer({ min: 0, max: 60 * 60 * 1000 }),
+        (expiredCount, orders, age) => {
+          const alive = toPending(orders);
+          const dead: readonly PendingOrder[] = Array.from({ length: expiredCount }, (_u, i) => ({
+            externalOrderId: `dead-${i}`,
+            itemIndex: 0,
+            noodleType: KNOWN_NOODLE_TYPES[0]!,
+            firmness: "normal",
+            tableId: null,
+            arrivalTime: NOW - ORDER_LIFETIME_MS - age,
+            slotSpan: 1,
+            itemName: null,
+            sizeName: null,
+          }));
+
+          const targets = planTargets([...dead, ...alive], NOW);
+
+          expect(targets.map((order) => keyOf(order.externalOrderId, order.itemIndex))).toEqual(
+            planTargetKeys(alive),
+          );
+          expect(targets.some((order) => order.externalOrderId.startsWith("dead-"))).toBe(false);
+        },
+      ),
+      { numRuns: 200 },
     );
   });
 });

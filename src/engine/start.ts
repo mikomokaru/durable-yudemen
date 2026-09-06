@@ -14,6 +14,7 @@ import type { Rejection } from "./rejection";
 import { settle } from "./settle";
 import type { SettleParams } from "./settle";
 import { consumeOrder } from "./pending";
+import { liveOrders } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS } from "../domain/firmness";
@@ -151,7 +152,10 @@ export function startOrderItemTimer(
   params: SettleParams,
 ): Outcome {
   // 品目が待ち行列に無ければ麺種を導けない。他端末が直前に開始した場合に起こりうる正常な競合である。
-  const item = state.pendingOrders.find(
+  // 照合は生きている待ち行列（Live_Orders）に対して行う——期限切れの品目は「待ち行列に無い品目」であり、同じ
+  // OrderItemNotFound で拒否する（pending-order-expiry AC 2.5・新しい拒否事由は足さない）。消費（consumeOrder）は
+  // 正本に対して行う（絞った集合から消しても正本は変わらない）。
+  const item = liveOrders(state.pendingOrders, args.now).find(
     (order) => order.externalOrderId === args.externalOrderId && order.itemIndex === args.itemIndex,
   );
   if (item === undefined) {

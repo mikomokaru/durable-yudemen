@@ -32,10 +32,12 @@ import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
+import type { ShownPlan } from "../../src/engine/stability";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
+import { changeCostOf, EXPIRY_PARAMS, EXPIRY_PRESETS, mixedScene } from "./expiryScenes";
 
 const NOW = 1_700_000_000_000 as EpochMillis;
 const SECOND = 1_000;
@@ -333,6 +335,7 @@ describe("admit — 同値と空", () => {
       initialLifts(BLOCKED),
       PRESETS,
       PARAMS,
+      NOW,
       null,
     );
 
@@ -888,5 +891,81 @@ describe("admit — 前回提示した提案からの変更費用で採点する
     expect(admit(A_FIRST, committed, TWO, BLOCKED, shown, NOW, PRESETS, PARAMS)).toEqual(
       A_FIRST.slices,
     );
+  });
+});
+
+describe("admit — 期限切れの品目（pending-order-expiry AC 2.3 / 2.4）", () => {
+  /** 2 時間前に届いて誰も作らなかった注文（卓 t-x）。正本には残るが、計画対象には無い。 */
+  const EXPIRED: PendingOrder = {
+    ...order("o-expired", "Short", "t-x"),
+    arrivalTime: NOW - ORDER_LIFETIME_MS,
+  };
+  const WITH_EXPIRED: readonly PendingOrder[] = [EXPIRED, ...PENDING];
+  const gateWithExpired = (arrived: CookSchedule) =>
+    admit(arrived, COMMITTED, WITH_EXPIRED, BLOCKED, EMPTY_SHOWN_PLAN, NOW, PRESETS, PARAMS);
+
+  it("期限切れの品目を指す一片は計画対象と一致せず（isStale）、以降の一片は接頭辞ゆえ道連れになる", () => {
+    const arrived = plan(
+      slice("t-x", [{ order: EXPIRED, startAt: NOW, serveAt: NOW + 60 * SECOND }]),
+      slice("t-b", [{ order: SHORT, startAt: NOW + 60 * SECOND, serveAt: NOW + 120 * SECOND }]),
+    );
+    expect(gateWithExpired(arrived)).toEqual([]);
+  });
+
+  it("生きている品目だけを指す一片は、期限切れの品目が正本に在っても採用される（正本を渡しても冒頭で絞る）", () => {
+    const arrived = plan(
+      slice("t-b", [{ order: SHORT, startAt: NOW, serveAt: NOW + 60 * SECOND }]),
+    );
+    expect(gateWithExpired(arrived)).toEqual([arrived.slices[0]!]);
+  });
+
+  describe("混在（レビュー実走）：期限切れの旧先頭を文脈から外す（AC 2.4）", () => {
+    const scene = mixedScene(NOW);
+    const gateMixed = (shown: ShownPlan) =>
+      admit(
+        scene.pack,
+        scene.split,
+        scene.pending,
+        scene.running,
+        shown,
+        NOW,
+        EXPIRY_PRESETS,
+        EXPIRY_PARAMS,
+      );
+    /** 場面の文脈（旧 Shown_Plan・走行中・now）で `pending` を対応の相手にした総費用。 */
+    const totalOf = (schedule: CookSchedule, pending: readonly PendingOrder[]) =>
+      scoreSchedule(
+        schedule.slices,
+        scene.live,
+        {
+          members: tableMembers(scene.running),
+          lifts: initialLifts(scene.running),
+          change: {
+            shown: scene.shown,
+            running: scene.running,
+            now: NOW,
+            pending,
+            presets: EXPIRY_PRESETS,
+          },
+        },
+        EXPIRY_PARAMS,
+      ).total;
+
+    it("正本（期限切れの A を含む）を渡しても冒頭で絞られ、B・C を 45 秒後へ pack する計画は先頭の変更 2L を払って棄却される", () => {
+      expect(gateMixed(scene.shown)).toEqual([]);
+    });
+
+    it("比較の相手が無ければ同じ pack は採用される（業務費用は 45 秒良い）——棄却の理由が変更費用であること", () => {
+      expect(gateMixed(EMPTY_SHOWN_PLAN)).toEqual(scene.pack.slices);
+    });
+
+    it("総費用：pack は業務費用で分割より 45 秒良いが、正しい文脈では変更費用 90 が乗って 45 秒悪い。A を残した文脈では 0", () => {
+      const splitTotal = totalOf(scene.split, scene.live);
+      expect(totalOf(scene.pack, scene.live)).toBe(splitTotal - 45 + 90);
+      expect(totalOf(scene.pack, scene.pending)).toBe(splitTotal - 45);
+      expect(changeCostOf(scene.pack, scene, scene.live)).toBe(90);
+      expect(changeCostOf(scene.pack, scene, scene.pending)).toBe(0);
+      expect(changeCostOf(scene.split, scene, scene.live)).toBe(0);
+    });
   });
 });

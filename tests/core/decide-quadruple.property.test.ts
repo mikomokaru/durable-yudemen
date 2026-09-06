@@ -68,7 +68,9 @@ const genSceneWithDigest: fc.Arbitrary<QuadrupleScene> = genScheduledScene.chain
     fc.boolean().map((requested) => ({
       state: withDigest(
         scene.state,
-        requested ? digestInput(scene.state.pendingOrders, scene.state.timers, scene.params) : null,
+        requested
+          ? digestInput(scene.state.pendingOrders, scene.state.timers, scene.params, scene.now)
+          : null,
       ),
       event: scene.event,
       params: scene.params,

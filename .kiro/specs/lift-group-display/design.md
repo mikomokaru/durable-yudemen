@@ -61,6 +61,8 @@ SlotBoard（now を一度読む）
   RadialMenu ← queue（live のみ）・pairSlots で組めるか
 ```
 
+> **改訂（`pending-order-expiry` AC 3.1〜3.3・ADR-0011・2026-09-06）:** `queue` と `groups` が読む待ち行列は wire の `view.pendingOrders` そのものではなく **`livePending(view, corrected)` = `liveOrders(view.pendingOrders, corrected)`**（domain の同じ述語・client 側に別の式を書かない）。サーバは snapshot を既に絞って送るが、snapshot の後で寿命を跨いだ品目は client が補正後現在時刻で消す（既存の秒 tick に乗る・新しいタイマーは足さない）。「全量から」は「生きている全量から」と読む。
+
 担当範囲で絞るのは `assignedSlotDisplays`（表示）だけで、群・開始・連鎖・全釜 idle は全量で判定する（AC 1.1・1.6・2.12）。
 
 ## Components and Interfaces
@@ -201,6 +203,8 @@ return [String(slot), ...near.slice(0, slotSpan − 1).map(String)]
 - `suggestionTiming` / `SuggestionTiming` を削除。
 - `SlotDisplay` idle の `next: readonly SlotSuggestion[]`（空配列は提案なし）。`assignedSlotDisplays(view, units, now, bySlot = NO_SUGGESTIONS)` の第 4 引数は `ReadonlyMap<number, readonly SlotSuggestion[]>` で**省略可**（既定は空 Map）——`useAudioCues.ts:199` と 10 本以上のテストが `[]` を渡しており、省略可にすれば呼び出し側は引数を落とすだけで済む。静的検査 `tests/sync-set-batch-complete.static.test.ts` の正規表現（4 引数の呼び出し）は `SlotBoard` の呼び出しが満たす。idle は `bySlot.get(slot) ?? []` を載せるだけで、`nextForSlot` は消える。degraded で空なのは `slotSuggestions` が担う（判定を一箇所に）。
 - `orderQueueEntries` は変えない（レール用・AC 5.5）。`QueueEntry.suggestion` は残す——レールが「提案あり」を語らなくても、待ち行列の行と提案の対応は待ち行列の関心事である。
+
+> **改訂（`pending-order-expiry` Component 5・ADR-0011・2026-09-06）:** 「`orderQueueEntries` は変えない」は並び（到着順）についてはそのままだが、**client が待ち行列を読む入口はここ一つ**になり、時刻の契約を固定した——部品の境界（`SlotBoard` と `orderQueueEntries(view, units, now)`）だけがローカル時刻 `now` を受けて `correctedNow(view.offset, now)` を **1 回** 計算し、その下（`queueDisplay.ts` の局所 `livePending(view, corrected)` / `suggestedItemOf(view, recommendation, corrected)` と `liftGroups.ts` の全部）は補正済みの `corrected` を受けて内部で補正しない（引数名は `now`＝ローカル・`corrected`＝補正済みで混ぜない）。`orderQueueEntries` は `livePending(view, corrected)` を到着順に並べ、`suggestedItemOf` は `pendingItemOf(livePending(view, corrected), recommendation)` で引くので、寿命を過ぎた品目を指す推奨は「待ち行列に無い推奨」と同じ経路で null になる。`liftGroups(view, corrected)` は持っている `corrected` をそのまま `suggestedItemOf` へ渡し、釜の提案（`slotSuggestions`）とラジアル（`RadialMenu` は `queue` を読む）は左レールと同じ導出結果を読む——別の入口は設けない。`ClientView.pendingOrders` は wire のまま持つ（絞った値を状態にしない）。非ゼロの `offset` で左レールと釜の提案が同じ品目集合を生きているとみなす一致は性質 5.8（`tests/client/order-expiry-agreement.property`）。
 
 ### Component 5: `SlotBoard.tsx` / `SlotCard.tsx`
 

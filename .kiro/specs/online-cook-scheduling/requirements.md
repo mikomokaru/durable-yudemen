@@ -86,6 +86,8 @@
 4. WHEN ある端末が再接続して状態を再取得（hydration）する、THE Cook_Scheduling SHALL 現在確定している Pending_Order 集合と Cook_Recommendation を当該端末へ反映し、再取得完了時点で他端末と同一の内容を持たせる
 5. THE Cook_Scheduling SHALL Pending_Order 集合と採用済み Cook_Plan を hibernation を跨いで永続層から再構築できる状態に保つ（rehydrate 後に揮発した推奨を復元できる）
 
+> **改訂（`pending-order-expiry` 判断 1・3・AC 2.2・ADR-0011・2026-09-06）:** AC 2.3 / 2.4 で broadcast と hydration に載せる「Pending_Order 集合」は、正本（`TimerState.pendingOrders`）そのものではなく **Live_Orders**——正本を純粋関数 `liveOrders(pending, now)`（`src/domain/order.ts`・`arrivalTime + ORDER_LIFETIME_MS > now`・幅は 2 時間の定数・半開区間）で絞った値——になった。design の「超過分も含む全量」は「**生きている品目の全量**」と読み替える——計画対象 64 件の枠は依然として越えて載せる（65 件目以降も生きていれば載る）が、期限切れの品目は載らない。正本と永続 snapshot（v12）は変えない。期限は状態を書き換える出来事ではなく、読む側の入口がそれぞれ自分の `now` で評価する述語である（Alarm を張らない・`isSameConfirmedResult` / `isSamePending` は正本の比較のまま・no-op の遷移でも次の読み手は絞った値を見る）。
+
 ### Requirement 3: 目的関数と制約
 
 **User Story:** 店主として、注文された品それぞれが届くまでの待ち時間を、店全体でできるだけ短くしたい。そのうえで、同卓のお客様にはできるだけ近いタイミングで提供し、関連する麺は物理的に近い調理位置で茹でてほしい。待ち時間と現場のわかりやすさの両方が店の質だからだ。
@@ -132,6 +134,8 @@
 5. THE Cook_Scheduling SHALL `RequestPlan` の生成契機を状態変化を処理する `decide` 呼び出しに限り、ポーリング・`setInterval`・時刻起動の要求を行わない
 6. IF 現在の計画の入力から導出した Input_Fingerprint が、直前に `RequestPlan` を生成した時点の Input_Fingerprint と一致する、**または計画対象の Pending_Order が空である**、THEN THE Cook_Scheduling SHALL `RequestPlan` を生成しない（要求の抑制。計画する対象が無い要求は改善しうるものが存在しないため出さない。「直前に `RequestPlan` を生成した時点の Input_Fingerprint」は永続する事実として保持し、隠れた入力にしない。確定計画と Baseline_Plan の比較を抑制条件にしない——外部計画の採用後は両者の不一致が恒常化し、抑制が機能しなくなるため）
 7. THE Cook_Scheduling SHALL 外部計画の受領（採用・棄却のいずれの結果でも）自体を新たな `RequestPlan` の契機にしない（要求の連鎖・ループを作らない）
+
+> **改訂（`pending-order-expiry` 判断 5・AC 2.3 / 2.6・ADR-0011・2026-09-06）:** `RequestPlan` が運ぶ計画対象と Input_Fingerprint の導出元は、`planTargets(pending, now)` が Live_Orders から組んだ計画対象になった（Requirement 11.2 の改訂）。`digestInput(pending, running, params, now)` の第 4 引数 `now` は計画対象を絞るためだけに受け、**`now` そのものは畳まない**（畳めば指紋が毎回変わり AC 5.6 の抑制が一度も働かない）。品目が期限を過ぎれば計画対象が変わって指紋も変わるが、抑制条件（直前要求時の指紋と一致・または計画対象が空）は変えない——期限切れは状態の変化ではないので遷移を起こさず、要求は外部要求を許す次の確定変化（no-op でない遷移）で生きている計画対象が 1 件以上残っていればそこで出る。全件が期限切れなら空の待ち行列と同じく要求しない。受領時の陳腐化A（Requirement 6.2(a)）は受領時刻の Live_Orders から組んだ計画対象に対して行うので、期限切れの品目を指す一片は既存の `isStale` で落ちる。
 8. THE Cook_Scheduling SHALL Effect 列の不変条件（`Persist` を先頭に持つ）を維持し、`RequestPlan` を `Persist` 成功後にのみ実行する
 
 ### Requirement 6: 受け入れゲート（Acceptance_Gate）
@@ -211,6 +215,8 @@
 3. THE Cook_Scheduling SHALL 計画に関わる一切の計算を状態変化の離散イベントを処理する `decide` 呼び出し内で完結させ、イベント間は計算を行わず hibernation を妨げない
 4. THE Cook_Scheduling SHALL `setInterval`・`waitUntil`・DO 内の外部 await・常駐ポーリングを一切用いない
 5. THE Cook_Scheduling SHALL External_Solver の計算を DO の実行外で行わせ、復路の受領を DO への通常の wake（RPC）として処理する（DO 側の待機の禁止は Requirement 12.2 に定める）
+
+> **改訂（`pending-order-expiry` AC 2.1・ADR-0011・2026-09-06）:** 計画対象の定義に `now` が入った——`planTargets(pending, now)` = **Live_Orders（`liveOrders(pending, now)`・`arrivalTime + ORDER_LIFETIME_MS > now`）→ 正準順序（Order_Arrival_Time 昇順, External_Order_Id 昇順, 品目 index 昇順）→ 先頭 64 件**。**絞ってから切る**（切ってから絞れば死んだ注文が枠を食い、到着順の先頭 64 件を期限切れが占めて新しい注文が計画に入らない・`pending-order-expiry` 性質 5.4）。「到着の受理・永続は上限なく継続し正本を欠かない」は変わらず、期限切れの品目も正本には残る（永続層は触らない）。`planTargets` が「何が計画対象か」の唯一の出所である規律はそのままで、呼び手（`baselineSchedule` / `committedSchedule` / `admit` / `digestInput` / `settle` の要求抑制）は既に持つ `now` を通す。
 
 ### Requirement 12: 外部ソルバーの実行形態（Solver_Worker・非機能）
 

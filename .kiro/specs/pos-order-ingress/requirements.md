@@ -250,6 +250,8 @@
 14. THE POS_Ingress SHALL 値域の上限を受理時刻とし、未来の時刻を持つ Record を窓の外として扱う（上流が保証する遅延予算は 15 秒であり、受理時刻より後の到着時刻は時計のずれを超えた異常である）。
 15. IF Record の `arrival_timestamp_ms` が値域の窓の外にあるとき、THEN THE POS_Ingress SHALL 当該 Record を Upstream_Contract_Violation と同じ扱い（保留・専用カウンタ）とし、Order_Arrival_Time を推測で埋めない。
 
+> **追記（`pending-order-expiry` 判断 2・AC 2.8・ADR-0011・2026-09-06）:** `arrivalTime`（Order_Arrival_Time＝上流の観測時刻 `arrival_timestamp_ms`）は、待ち時間と並び順の起点に加えて **注文の寿命（Order_Lifetime・`ORDER_LIFETIME_MS`＝2 時間の定数）の起点**になった——`arrivalTime + ORDER_LIFETIME_MS ≤ now` の品目は計画・snapshot・外部要求・変更費用の対応・開始の照合・client の左レールから外れる（`src/domain/order.ts` の `liveOrders`。正本の集合は残る）。受理時刻ではなく上流の観測時刻を起点に選んだ本 Requirement の判断は寿命についてもそのまま効く（再送で起点が動かないので寿命も動かない。上流と DO の時計のずれは 2 時間の幅に対して無視できる前提）。幅の 2 時間は AC 8.12〜8.13 の値域窓と同じ長さである。**受理（`arriveRecords` / `upsertOrder` / `removeOrder`・AC 6.7 / 6.11 / 6.12）は一行も変えない。** 同一注文の後着は正本に残る最早の `arrivalTime` を引き継ぐ既存の規則（`online-cook-scheduling` AC 1.8・`engine/pending.ts`）のままなので、**期限切れの注文を変更する Record が届いても、その品目が正本に残っている間は期限切れのまま**（生き返らない）。引き継ぐ起点が無くなった後——「期限切れ → 茹で対象 0 件の後着で `removeOrder` → 非空の後着」の系列——は当該 Record の `arrival_timestamp_ms` で新しく入り、生きている注文として扱われる。これは受理を変えない以上の既存の規則の帰結であり、`pending-order-expiry` はその可否を保証しない。
+
 ### Requirement 9: 失敗の分類と応答（Record_Forwarder との境界契約）
 
 **User Story:** 運用者として、1 台の券売機が壊れたメッセージを送り続けても他店舗の処理が止まらないでほしい。そして直る見込みのある失敗は自動で回収されてほしい。retry で直らない 1 件のためにバッチ全体を止めるのは、現場の待ち行列を止めることに等しいからだ。

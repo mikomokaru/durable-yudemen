@@ -31,7 +31,7 @@ import { digestInput, type InputDigest } from "./digest";
 import type { ScheduleParams } from "./objective";
 import { planTargets, type AcceptedSlice, type CookSchedule, type Placement } from "./schedule";
 import { shownPlanOf } from "./stability";
-import type { PendingOrder } from "../domain/order";
+import { liveOrders, type PendingOrder } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 import type { CookRecommendation, ServerMessage } from "../domain/messages";
 
@@ -104,11 +104,13 @@ export function settle(
   };
   const message = snapshotMessage(confirmed, derived.recommendations, now);
 
-  // 現在の指紋は導出値ゆえ確定後の入力から毎回導く（状態には持たない・AC 7.2）。
-  const digest = digestInput(confirmed.pendingOrders, confirmed.timers, params);
+  // 現在の指紋は導出値ゆえ確定後の入力から毎回導く（状態には持たない・AC 7.2）。指紋は絞った計画対象から
+  // （pending-order-expiry AC 2.6・`now` は絞るためだけに渡し、畳まない）。
+  const digest = digestInput(confirmed.pendingOrders, confirmed.timers, params, now);
   // 計画対象は planTargets ただ一つから引く（「何が計画対象か」を二度書かない）。抑制の判定と、要求が運ぶ
-  // 集合が同じ値を見ることで、空判定と送出範囲が食い違う余地が構造から消える。
-  const targets = planTargets(confirmed.pendingOrders);
+  // 集合が同じ値を見ることで、空判定と送出範囲が食い違う余地が構造から消える。期限切れの品目は計画対象に
+  // 無いので要求に乗らず（AC 2.3）、全件期限切れなら空の待ち行列と同じく要求しない（性質 5.6）。
+  const targets = planTargets(confirmed.pendingOrders, now);
   // 抑制の条件は 3 つ（AC 5.6 / 5.7）。要求してよい遷移か、入力が前回の要求時から変わったか、そして
   // 計画する対象が在るか。**空の待ち行列では要求しない** ——改善しうるものが存在しない要求だからである
   // （このとき新しい指紋も永続しない。次に対象が現れた遷移で指紋はまだ食い違っており、要求はそこで出る）。
@@ -310,16 +312,22 @@ export function toWireSnapshot(
  * **自前解の尾部は旧 Shown_Plan（`state.shownPlan`・遷移前の状態が運ぶもの）を相手に置く（plan-stability Requirement 3・
  * 判断 4）。** 比較の文脈は再同期後の Timer 集合と、この時点の now（判断 8）。settle からは確定前の nextState、hydration
  * からは確定済みの状態が来るが、どちらも shownPlan は直前に Persist したものである。
+ *
+ * **待ち行列はこの時点の生きている待ち行列（Live_Orders）を読む（pending-order-expiry AC 2.4）。** 変更費用の文脈
+ * （`pending`）にも同じ値を渡す——期限切れの品目は対応から外れ、費用に倒れない（「消えた品目」・plan-stability 判断 3）。
+ * 正本の集合を文脈に残せば、期限切れの旧先頭を Head と数え、生きている次品目を遅らせる計画の先頭の変更（2L）が
+ * 0 に消える。
  */
 function deriveRecommendations(
   state: TimerState,
   params: SettleParams,
   now: EpochMillis,
 ): { readonly committed: CookSchedule; readonly recommendations: readonly CookRecommendation[] } {
+  const live = liveOrders(state.pendingOrders, now);
   // 生きた Timer は running / boiled とも釜の解放表に効く（boiled は実効 endTime の時点で解放済み扱い）。
   const committed = committedSchedule(
     state.acceptedSlices,
-    state.pendingOrders,
+    live,
     state.timers,
     now,
     params.noodlePresets,
@@ -328,7 +336,7 @@ function deriveRecommendations(
       shown: state.shownPlan,
       running: state.timers,
       now,
-      pending: state.pendingOrders,
+      pending: live,
       presets: params.noodlePresets,
     },
   );
@@ -346,8 +354,10 @@ function snapshotMessage(
     serverTime: now,
     // 全量 snapshot は実効 endTime（toWireTimer が畳み込む）を載せ、集合全体の調整変化を一度に反映する。
     timers: state.timers.map(toWireTimer),
-    // 待ち行列は全量（計画対象 64 件を超える分も含む・AC 2.3 / 2.4）。推奨は確定計画からの導出値。
-    pendingOrders: state.pendingOrders,
+    // 待ち行列は生きている待ち行列の全量（計画対象 64 件を超える分も含む・AC 2.3 / 2.4）。正本の集合そのものは
+    // 載せない——期限切れの品目は読まれない（pending-order-expiry AC 2.2・性質 5.5）。確定変化の Broadcast と hydration は
+    // 同じこの関数を通るので、両方が同時に絞られる。推奨は確定計画からの導出値。
+    pendingOrders: liveOrders(state.pendingOrders, now),
     recommendations,
   };
 }

@@ -11,6 +11,7 @@ import { adjustedEndTime } from "./project";
 import { planTargets } from "./schedule";
 import type { SettleParams } from "./settle";
 import type { Timer } from "./timer";
+import type { EpochMillis } from "./types";
 import { FIRMNESS_ORDER } from "../domain/firmness";
 import type { PendingOrder } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
@@ -64,6 +65,9 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
  *     入力が変わったか」を問う仕組みが、時計が進んだだけで常に「変わった」と答えることになる。時間の経過は
  *     確かに計画（解放表の下限・過ぎた推奨の陳腐化）を動かすが、それは**状態変化のたびに再評価される**もので
  *     あって外部へ問い直す理由ではない。時刻起動の失効判定を持たない規律（AC 7.5）とここで揃う。
+ *     **第 4 引数の `now` は計画対象を絞るためだけに受ける**（pending-order-expiry AC 2.6）——期限切れの品目は
+ *     計画対象に無いので指紋に現れず、品目が期限を過ぎれば計画対象が変わって指紋も変わる。`now` そのものは
+ *     畳まない（畳めば上と同じ理由で抑制が壊れる）。
  *
  * **列挙順に依存しない**（AC 4.3 と同じ規律）。計画対象は planTargets が正準順序へ整列済み。Timer は id 昇順、
  * slotIds は符号単位順、麺プリセットは麺種の符号単位順へ整列してから畳む。文字列比較に localeCompare を
@@ -78,8 +82,9 @@ export function digestInput(
   pending: readonly PendingOrder[],
   running: readonly Timer[],
   params: SettleParams,
+  now: EpochMillis,
 ): InputDigest {
-  const targets = planTargets(pending);
+  const targets = planTargets(pending, now);
   const occupants = [...running].sort(byTimerId);
 
   let digest = FNV_OFFSET_BASIS;

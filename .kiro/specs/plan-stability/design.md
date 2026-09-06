@@ -94,6 +94,8 @@ export function changeCost(
 
 **入力契約（レビュー指摘）。** 共有導出（`headsOf`）は `LiftItem { recommendation, boilSeconds, order }` を要る——茹で秒（`boilMillisOf(order, presets)`）と到着時刻（同値の順）は `PendingOrder` から引く。旧 Shown_Plan の品目も新しい計画の品目も、`context.pending` から同じ鍵で品目を引いて `LiftItem` を組む（開始済み・キャンセル済みは `pending` に無いので自然に対応から外れる）。旧 Shown_Plan を推奨と見なすには `group` が要るが、これは `mates` を連結成分にして snapshot 内の仮の識別子を振る（識別子は比較の内側で閉じ、外に出ない）。
 
+> **改訂（`pending-order-expiry` AC 2.4・ADR-0011・2026-09-06）:** `context.pending` に渡すのは正本ではなく **Live_Orders**（`liveOrders(pending, now)`・`src/domain/order.ts`）。文脈を組む入口は 4 つ——`settle.deriveRecommendations`（確定と hydration）・`plan.receivePlan`（受領）・`admit`（冒頭で絞り、文脈・採点・`planTargets`・合成のすべてに使う）・`src/solver`（`request.pending` を自分の時計の `now` で）——で、それぞれ自分の `now` で絞る。期限切れの品目は「`pending` に無い」ので、開始済み・キャンセル済みと同じく対応から自然に外れる。
+
 **単位（レビュー指摘）。** `startAt` / `serveAt` / `anchor` / `now` はミリ秒、`L = liftIntervalSeconds` は秒。窓の数と減衰の距離は `L × 1000`（ミリ秒）で数え、費用への換算には秒の `L` を使う。
 
 手順（AC 2.1〜2.6・判断 2・3・8）：

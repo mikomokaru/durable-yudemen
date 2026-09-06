@@ -169,6 +169,8 @@ export function digestInput(
 ): InputDigest;
 ```
 
+> **改訂（`pending-order-expiry` AC 2.6・ADR-0011・2026-09-06）:** 署名は `digestInput(pending, running, params, now)`。第 4 引数の `now` は計画対象を `planTargets(pending, now)`（Live_Orders から組む・下のアルゴリズム手順 1 の改訂）で絞るためだけに受け、**`now` そのものは畳まない**（時刻を畳まない既存の規律はそのまま）。期限切れの品目は計画対象に無いので指紋に現れず、品目が期限を跨げば計画対象が変わって指紋も変わる。要求の抑制条件（`mayRequestPlan && digest !== requestedDigest && targets.length > 0`）は変えない。
+
 整数演算のみで畳む（浮動小数の丸めによる非決定性を排除する。Boil_Sync の整数スケール方針と同じ規律）。
 
 パラメータは `SettleParams` を受ける（`ScheduleParams` ではない）。**麺プリセットも畳む**ためである——茹で時間は
@@ -233,6 +235,8 @@ export function baselineSchedule(
 ```
 
 #### アルゴリズム
+
+> **改訂（`pending-order-expiry` AC 2.1・ADR-0011・2026-09-06）:** 手順 1 の「計画対象の抽出」は `planTargets(pending, now)` になった——**Live_Orders（`liveOrders(pending, now)`・`src/domain/order.ts`）→ 正準順序 → 先頭 `PLAN_TARGET_LIMIT` 件**の順で組む（絞ってから切る。切ってから絞れば期限切れの品目が枠を食う）。`baselineSchedule` / `buildSchedule` は `now: EpochMillis` を受け（`changeContext` が null の経路でも要るので引数）、`committedSchedule` / `admit` / `digestInput` / `settle` の要求抑制へ既に持つ `now` を通す。`isStale` / `livePrefix` は `targets` を受けるままで変えない——受領時刻の Live_Orders から組んだ `targets` に対して照合するので、期限切れの品目を指す一片は「計画対象と一致しない」で落ち、合成の尾部が自前解で埋める。
 
 1. **計画対象の抽出（AC 11.2）** — Pending_Order を（Order_Arrival_Time 昇順, External_Order_Id 昇順, 品目 index 昇順）で整列し、先頭 `PLAN_TARGET_LIMIT = 64` 件を計画対象とする。超過分は計画に現れず、Cook_Recommendation の対象にもならない（保持と表示は続く）。**この境界で Table_Group が割れる場合は、計画対象に入った品目のみで PlanSlice を成す**（残りは次の再計算で先頭が減ったときに同じ Table_Group の PlanSlice へ合流する）。境界で割れた group はソフト制約の評価も対象品目の間だけで行う。
 2. **Table_Group 単位で配置** — 計画対象を Table_Group へまとめ、Table_Group を（最早 Order_Arrival_Time, 識別子）順に取り出す。各 Table_Group について、
@@ -634,6 +638,8 @@ export type ServerMessage =
   | { readonly type: "error"; /* … 既存 */ };
 ```
 
+> **改訂（`pending-order-expiry` AC 2.2・ADR-0011・2026-09-06）:** `snapshot.pendingOrders` に載せるのは正本の集合ではなく **Live_Orders**——`snapshotMessage` が `liveOrders(state.pendingOrders, now)` を載せる。確定結果の Broadcast と hydration（`toWireSnapshot`）は同じ関数を通るので両方が同時に絞られる（性質 5.5：Broadcast の `pendingOrders` はその `now` の `liveOrders(state.pendingOrders, now)` に等しい）。上の「超過分も含む全量」は「生きている品目の全量」と読む——計画対象 64 件の枠は依然として越えて載せるが、期限切れの品目は載らない。形は変えない（`PendingOrder` / `ServerMessage` / 永続 v12 はそのまま）。client（`queueDisplay`）はさらに補正後現在時刻で同じ述語を呼び、snapshot の後で寿命を跨いだ品目を次の snapshot を待たずに消す（`lift-group-display` design Component 4 の改訂）。
+
 `config` は `StoreConfig` 全体を運ぶ（方針転換の理由は Data Models / `StoreConfig` の節）。項目が増えるたびに配信対象を選び直さない形にする。
 
 `ClientMessage.start` に省略可能な `externalOrderId` / `itemIndex` を足す（Pending_Order からの開始と、アドホック麺茹での区別）。
@@ -1009,6 +1015,8 @@ Boil_Sync design の記法に揃える。
 *For any* Pending_Order 集合について、計画に現れる品目は Order_Arrival_Time 昇順の先頭 64 件に限られ、超過分は集合に保持されたまま推奨に現れない。
 
 **Validates: Requirements 11.2**
+
+> **改訂（`pending-order-expiry` 性質 5.4・2026-09-06）:** 「先頭 64 件」は Live_Orders の先頭 64 件——期限切れの品目が到着順の先頭にどれだけ在っても、計画に現れるのは生きている品目の先頭 64 件である（`tests/core/schedule.property`）。
 
 ### Property 16: 目的関数値は整数で閉じる
 

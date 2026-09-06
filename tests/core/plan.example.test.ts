@@ -17,14 +17,16 @@ import { receivePlan } from "../../src/engine/plan";
 import { committedSchedule } from "../../src/engine/commit";
 import { synchronize } from "../../src/engine/sync";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
-import type { SettleParams } from "../../src/engine/settle";
+import { toWireSnapshot, type SettleParams } from "../../src/engine/settle";
 import type { CookSchedule } from "../../src/engine/schedule";
+import { EMPTY_SHOWN_PLAN } from "../../src/engine/stability";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import { liveOrders, ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
+import { changeCostOf, EXPIRY_PARAMS, mixedScene, startOffsets } from "./expiryScenes";
 
 const NOW = 1_700_000_000_000 as EpochMillis;
 const SECOND = 1_000;
@@ -314,5 +316,119 @@ describe("receivePlan — 採否は採用後に確定する走行中と同じ実
     expect(committed.slices.flatMap((slice) => slice.placements).map((p) => p.serveAt)).toEqual([
       AT_600.placements[0]!.serveAt,
     ]);
+  });
+});
+
+describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 2.4）", () => {
+  /** 2 時間前に届いて誰も作らなかった注文（卓 t-x）。正本には残るが、生きている待ち行列には無い。 */
+  const EXPIRED: PendingOrder = {
+    ...SHORT,
+    externalOrderId: "o-expired",
+    tableId: "t-x",
+    arrivalTime: NOW - ORDER_LIFETIME_MS,
+  };
+  const WITH_EXPIRED: TimerState = { ...STATE, pendingOrders: [EXPIRED, LONG, SHORT] };
+
+  function placementFor(order: PendingOrder, startAt: number, boilSeconds: number) {
+    return {
+      externalOrderId: order.externalOrderId,
+      itemIndex: order.itemIndex,
+      slotIds: nonEmpty(["0" as SlotId]),
+      startAt: startAt as EpochMillis,
+      serveAt: (startAt + boilSeconds * SECOND) as EpochMillis,
+      anchor: null,
+    };
+  }
+
+  it("期限切れの品目を指す一片は計画対象と一致せず（isStale）、接頭辞ゆえ後続も道連れになって状態は動かない", () => {
+    const arrived: CookSchedule = {
+      slices: [
+        { tableKey: "t-x", placements: [placementFor(EXPIRED, NOW, 60)] },
+        IMPROVING.slices[0]!,
+      ],
+    };
+
+    const outcome = receive(WITH_EXPIRED, arrived);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state).toBe(WITH_EXPIRED);
+    expect(outcome.effects).toEqual([]);
+  });
+
+  it("生きている品目だけを指す一片は、期限切れの品目が正本に在っても採用され、配る待ち行列は生きている分だけ", () => {
+    const outcome = receive(WITH_EXPIRED, IMPROVING);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state.acceptedSlices).toEqual([IMPROVING.slices[0]!]);
+    // 正本は全件のまま（性質 5.7）。snapshot は生きている待ち行列（性質 5.5）。
+    expect(outcome.state.pendingOrders).toBe(WITH_EXPIRED.pendingOrders);
+    const broadcast = outcome.effects.find((effect) => effect.type === "Broadcast");
+    if (broadcast?.type !== "Broadcast" || broadcast.message.type !== "snapshot") {
+      throw new Error("snapshot が無い");
+    }
+    expect(broadcast.message.pendingOrders).toEqual(liveOrders(WITH_EXPIRED.pendingOrders, NOW));
+    expect(broadcast.message.pendingOrders).toEqual([LONG, SHORT]);
+  });
+
+  it("採用済みの一片が期限切れの品目を指していれば合成が捨て、尾部を自前解が埋める", () => {
+    const state: TimerState = {
+      ...WITH_EXPIRED,
+      acceptedSlices: [{ tableKey: "t-x", placements: [placementFor(EXPIRED, NOW, 60)] }],
+    };
+
+    const message = toWireSnapshot(state, PARAMS, NOW);
+
+    if (message.type !== "snapshot") throw new Error("snapshot でない");
+    // 期限切れの一片は落ち、自前解（A → B・使える釜は 0 番だけ）が置く。期限切れの品目は推奨にも待ち行列にも現れない。
+    expect(message.recommendations.map((each) => [each.externalOrderId, each.startAt])).toEqual([
+      [LONG.externalOrderId, NOW],
+      [SHORT.externalOrderId, NOW + 600 * SECOND],
+    ]);
+    expect(message.pendingOrders).toEqual([LONG, SHORT]);
+  });
+
+  describe("混在（レビュー実走）：期限切れの旧先頭を文脈から外す（AC 2.4）", () => {
+    const scene = mixedScene(NOW);
+    /** 現行 Committed_Plan を分割（B 今・C 45 秒後）に固定した状態。採用済み一片は採用の事実ゆえ文脈を読まない。 */
+    const committedSplit: TimerState = { ...scene.state, acceptedSlices: [scene.split.slices[0]!] };
+    const arrivedPack = { type: "PlanArrived", plan: scene.pack, now: NOW } as const;
+
+    it("B・C を 45 秒後へ pack する外部計画は、業務費用 45 秒の改善が先頭の変更 2L = 90 秒に食われて棄却される", () => {
+      const outcome = receivePlan(committedSplit, arrivedPack, EXPIRY_PARAMS);
+
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+      expect(outcome.state).toBe(committedSplit);
+      expect(outcome.effects).toEqual([]);
+    });
+
+    it("比較の相手が無ければ（Shown_Plan 空）同じ pack は採用される——棄却の理由が変更費用であること", () => {
+      const outcome = receivePlan(
+        { ...committedSplit, shownPlan: EMPTY_SHOWN_PLAN },
+        arrivedPack,
+        EXPIRY_PARAMS,
+      );
+
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+      expect(outcome.state.acceptedSlices).toEqual(scene.pack.slices);
+      const broadcast = outcome.effects.find((effect) => effect.type === "Broadcast");
+      if (broadcast?.type !== "Broadcast" || broadcast.message.type !== "snapshot") {
+        throw new Error("snapshot が無い");
+      }
+      expect(startOffsets(broadcast.message.recommendations, NOW)).toEqual([
+        ["B", 45],
+        ["C", 45],
+      ]);
+    });
+
+    it("pack の変更費用は正しい文脈（A を除いた pending）で 90、期限切れの A を残した文脈では 0", () => {
+      expect(changeCostOf(scene.pack, scene, scene.live)).toBe(
+        2 * EXPIRY_PARAMS.liftIntervalSeconds,
+      );
+      expect(changeCostOf(scene.pack, scene, scene.pending)).toBe(0);
+    });
   });
 });
