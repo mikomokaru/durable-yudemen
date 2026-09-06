@@ -496,8 +496,9 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // 前回の無い計画を Shown_Plan にして同じ入力で計画し直すと、**同じ計画（Change_Cost 0）か、総費用（業務費用 ＋
   // 変更費用）が真に下がる計画**になる。後者が在るのは、前回を残す候補（前回の配置の再現・まとまり・先頭）が前回の無い
   // 計画には無かった配置を見つけるためで（実測：arms 1・L 9・w_table 0 で、錨に揃えていた 2 品を別の窓に分けて業務費用
-  // 23 秒改善・変更費用 6 秒）、これは性質 5.7 の「利益が上回れば変わる」そのもの。総費用は単調に下がるので、続けて
-  // 計画し直すと有限回で同じ計画に落ち着く——3 回目は 2 回目と同じか、更に下がる。
+  // 23 秒改善・変更費用 6 秒）、これは性質 5.7 の「利益が上回れば変わる」そのもの。変わるのは総費用が真に下がるとき
+  // だけで、前回そのものは変更費用 0 ゆえ、業務入力（now を含む）を固定すれば業務費用そのものが厳密に下がる。続けて
+  // 計画し直すと有限回で同じ計画に落ち着く——3 回目は 2 回目と同じか、更に下がる（業務費用でも見る）。
   it("Property 5.6: 同じ入力で続けて計画すると、同じ計画（Change_Cost 0）か総費用が真に下がる計画になる", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
@@ -533,8 +534,13 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             firstContext,
             params,
           ) === 0;
+        const businessOf = (schedule: CookSchedule) =>
+          scoreSchedule(schedule.slices, pending, { members, lifts, change: null }, params).total;
         if (sameAsFirst) expect(second).toEqual(first);
-        else expect(totalOf(second, firstContext)).toBeLessThan(totalOf(first, firstContext));
+        else {
+          expect(totalOf(second, firstContext)).toBeLessThan(totalOf(first, firstContext));
+          expect(businessOf(second)).toBeLessThan(businessOf(first));
+        }
 
         const sameAsSecond =
           changeCost(
@@ -543,7 +549,10 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             params,
           ) === 0;
         if (sameAsSecond) expect(third).toEqual(second);
-        else expect(totalOf(third, secondContext)).toBeLessThan(totalOf(second, secondContext));
+        else {
+          expect(totalOf(third, secondContext)).toBeLessThan(totalOf(second, secondContext));
+          expect(businessOf(third)).toBeLessThan(businessOf(second));
+        }
       }),
       { numRuns: 300 },
     );

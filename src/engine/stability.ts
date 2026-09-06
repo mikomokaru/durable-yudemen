@@ -18,7 +18,7 @@ import type { NonEmptyArray } from "../domain/timer";
 import { boilMillisOf, joinWindowMillis } from "./boil";
 import type { ScheduleParams } from "./objective";
 import { recommend } from "./recommend";
-import type { CookSchedule } from "./schedule";
+import type { CookSchedule, Placement } from "./schedule";
 import type { Timer } from "./timer";
 import type { EpochMillis, SlotId } from "./types";
 
@@ -184,9 +184,10 @@ export function changeCost(
  * **(a) 先頭の変更は、まだ置いていない品目を Shown_Plan の配置で補った計画から Head を導く（レビュー指摘）。** Head は
  * 群の連鎖と先頭 arms 本の順位で決まるので、置いた分だけの計画で導くと、後の一片が持つ群が連鎖から欠けて先頭が
  * 変わる（同じ計画を続けて置いても先頭が消えたように見え、保つべき候補に偽の 2L が付く）。列の外の品目は「現在の
- * 確定分」——手前で置いた配置はそのまま、まだ置いていない品目は前回確定した配置——で埋める。補った品目の群は
- * `recommend` と同じ規則（同じ卓・同じ錨か同じ提供時刻）で振り、いま置いている卓の品目は末尾の一片の群に合流する。
- * 補いは Head の導出にだけ使い、(b)(c)(d) の対応には入れない（置く前の品目の費用を先取りしない）。
+ * 確定分」——手前で置いた配置はそのまま、まだ置いていない品目は前回確定した配置——で埋め、**補った計画をそのまま
+ * `recommend` に通して群を得る**（群の識別子の規則は recommend ただ一つ。いま置いている卓の品目は末尾の一片に足すので
+ * 置いた品目と同じ錨・同じ提供時刻なら同じ群になる）。補いは Head の導出にだけ使い、(b)(c)(d) の対応には入れない
+ * （置く前の品目の費用を先取りしない）。
  *
  * 局所探索であり、列の候補の範囲でだけ「利益が上回れば変わる」（性質 5.7）。
  */
@@ -198,13 +199,18 @@ export function partialChangeCost(
   if (changeContext.shown.length === 0) return 0;
   const pendingByKey = new Map(changeContext.pending.map((order) => [itemKeyOf(order), order]));
   const oldItems = shownItemsOf(changeContext.shown, pendingByKey, changeContext.presets);
-  const newItems = nextItemsOf(
-    { schedule: partial, recommendations: recommend(partial) },
+  const placedKeys = new Set(
+    partial.slices.flatMap((slice) => slice.placements.map((placement) => itemKeyOf(placement))),
+  );
+  const completed = completeWithShown(partial, changeContext.shown, pendingByKey);
+  // 補った計画を `recommend` に通す——群の識別子の規則は recommend ただ一つで、ここで再実装しない。
+  const allItems = nextItemsOf(
+    { schedule: completed, recommendations: recommend(completed) },
     pendingByKey,
     changeContext.presets,
   );
-  const standIns = standInsOf(changeContext.shown, newItems, partial, pendingByKey, changeContext);
-  return costBetween(oldItems, newItems, [...newItems, ...standIns], changeContext, params);
+  const newItems = allItems.filter((item) => placedKeys.has(itemKeyOf(item.order)));
+  return costBetween(oldItems, newItems, allItems, changeContext, params);
 }
 
 /**
@@ -297,53 +303,54 @@ function costBetween(
 }
 
 /**
- * 途中の計画で、まだ置いていない品目を Shown_Plan の配置で補う（`partialChangeCost` の Head の導出にだけ使う）。
+ * 途中の計画に、まだ置いていない品目を Shown_Plan の配置で補って一つの計画にする（`partialChangeCost` の Head の導出に
+ * だけ使う）。
  *
- * 群は `recommend` と同じ規則で振る——同じ卓で、合流なら同じ錨、それ以外は同じ提供時刻が一つの群。いま置いている卓
- * （`partial` の末尾の一片）の品目は、その一片の群の識別子（`recommend` が付ける `index:anchor:…` / `index:serveAt`）
- * をそのまま使い、置いた品目と同じ錨・同じ提供時刻なら同じ群に入る。他の卓は卓ごとに閉じた識別子で、置いた品目の群と
- * 交わらない（一片は卓ごとゆえ、全体の計画でも交わらない）。卓を持たない品目は 1 品 1 群。
+ * 群の識別子は付けない——補った計画を `recommend` に通し、置いた品目も補った品目も同じ規則（一片の index と、合流なら
+ * 錨・それ以外は提供時刻）で群を得る。いま置いている卓（`partial` の末尾の一片）の品目はその一片に足し、置いた品目と
+ * 同じ錨・同じ提供時刻なら同じ群に入る。他の卓は卓ごとに一片を足し、卓を持たない品目は 1 品 1 片。一片は卓ごとゆえ、
+ * 置いた群と交わらない。`pending` に無い品目は補えない（開始済み・キャンセル済み）。
  */
-function standInsOf(
-  shown: ShownPlan,
-  placed: readonly LiftItem[],
+function completeWithShown(
   partial: CookSchedule,
+  shown: ShownPlan,
   pendingByKey: ReadonlyMap<ItemKey, PendingOrder>,
-  changeContext: ChangeContext,
-): readonly LiftItem[] {
-  const placedKeys = new Set(placed.map((item) => itemKeyOf(item.order)));
+): CookSchedule {
+  const placedKeys = new Set(
+    partial.slices.flatMap((slice) => slice.placements.map((placement) => itemKeyOf(placement))),
+  );
   const current = partial.slices[partial.slices.length - 1];
-  const currentIndex = partial.slices.length - 1;
-  const items: LiftItem[] = [];
+  const currentExtra: Placement[] = [];
+  const bySlice = new Map<string, Placement[]>();
   for (const item of shown) {
     const key = itemKeyOf(item);
     if (placedKeys.has(key)) continue;
     const order = pendingByKey.get(key);
     if (order === undefined) continue;
-    const boilMillis = boilMillisOf(order, changeContext.presets);
-    if (boilMillis === null) continue;
-    const scope =
-      order.tableId === null
-        ? `${SHOWN_GROUP_PREFIX}single\u0000${key}`
-        : current !== undefined && current.tableKey === order.tableId
-          ? `${currentIndex}`
-          : `${SHOWN_GROUP_PREFIX}${order.tableId}`;
-    const group =
-      item.anchor !== null ? `${scope}:anchor:${item.anchor}` : `${scope}:${item.serveAt}`;
-    items.push({
-      recommendation: {
-        externalOrderId: item.externalOrderId,
-        itemIndex: item.itemIndex,
-        slotIds: item.slotIds,
-        startAt: item.startAt,
-        group,
-        anchor: item.anchor,
-      },
-      order,
-      boilSeconds: boilMillis / MILLIS_PER_SECOND,
-    });
+    const placement: Placement = {
+      externalOrderId: item.externalOrderId,
+      itemIndex: item.itemIndex,
+      slotIds: item.slotIds,
+      startAt: item.startAt,
+      serveAt: item.serveAt,
+      anchor: item.anchor,
+    };
+    if (current !== undefined && order.tableId !== null && current.tableKey === order.tableId) {
+      currentExtra.push(placement);
+      continue;
+    }
+    const tableKey = order.tableId ?? key;
+    const slice = bySlice.get(tableKey);
+    if (slice === undefined) bySlice.set(tableKey, [placement]);
+    else slice.push(placement);
   }
-  return items;
+  const slices = partial.slices.map((slice, index) =>
+    index === partial.slices.length - 1 && currentExtra.length > 0
+      ? { tableKey: slice.tableKey, placements: [...slice.placements, ...currentExtra] }
+      : slice,
+  );
+  for (const [tableKey, placements] of bySlice) slices.push({ tableKey, placements });
+  return { slices };
 }
 
 /**
