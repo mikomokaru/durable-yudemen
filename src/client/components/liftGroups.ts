@@ -21,7 +21,7 @@ import {
 } from "../../domain/lift-group";
 import { itemKeyOf } from "../../domain/order";
 import type { PendingOrder } from "../../domain/order";
-import { SLOTS_PER_UNIT, slotDistance, slotOf } from "../../domain/store";
+import { SLOTS_PER_UNIT, occupiedSlotsOf, slotDistance, slotOf } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
 import { mode, type ClientView } from "../connection";
 import { suggestedItemOf, type QueueSuggestion, type SuggestedItem } from "./queueDisplay";
@@ -162,12 +162,9 @@ export function pairSlots(
  * 店舗全体で Timer が駆動する釜の集合（running / boiled とも・担当外を含む）。
  *
  * 茹で上がった麺は消し込むまで釜に入っている——釜の排他性は起源にも接続性にも依らない物理的事実
- * （connection.ts の occupiesAny と同じ判断）。
+ * （connection.ts の occupiesAny と同じ判断）。述語そのものは domain の occupiedSlotsOf で、engine の確定計画の
+ * 合成と同じ関数を読む（startable-placement 判断 1）——ここは view から Timer を取り出すだけの薄い包み。
  */
 function occupiedSlots(view: ClientView): ReadonlySet<number> {
-  const occupied = new Set<number>();
-  for (const timer of view.timers) {
-    for (const slotId of timer.slotIds) occupied.add(slotOf(slotId));
-  }
-  return occupied;
+  return occupiedSlotsOf(view.timers);
 }

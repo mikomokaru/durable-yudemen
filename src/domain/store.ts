@@ -30,6 +30,27 @@ export function slotOf(slotId: string): number {
   return Number(slotId);
 }
 
+/**
+ * Timer（running / boiled とも）が載っている釜の番号の集合。補集合が Startable_Slot（開始できる釜）である
+ * （startable-placement design Component 1）。
+ *
+ * 「今、開始操作できるか」の事実を client と engine が同じ関数で読む——client の釜の提案（全釜 idle・
+ * `occupiedSlots`）と engine の確定計画の合成（開始を妨げる接頭辞の失効）・「今」置く配置の釜の配分が、
+ * 別々の式で占有を数えれば「計画は置けると言い、現場は押せない」食い違いが残る。解放表（`initialRelease`・
+ * boiled の釜は `now` に空く予測）とは別の概念であり、ここは予測を持たない。
+ *
+ * 入力は `{ slotIds }` を持つ列——engine の `Timer` も wire の `TimerFact` も満たす。写像は slotOf ただ一つ。
+ */
+export function occupiedSlotsOf(
+  timers: readonly { readonly slotIds: readonly string[] }[],
+): ReadonlySet<number> {
+  const occupied = new Set<number>();
+  for (const timer of timers) {
+    for (const slotId of timer.slotIds) occupied.add(slotOf(slotId));
+  }
+  return occupied;
+}
+
 /** ユニット総数の下限（1 ユニット = 6 スロット）。 */
 export const UNIT_COUNT_MIN = 1;
 
