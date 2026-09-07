@@ -24,7 +24,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { SlotCard, type SuggestionView } from "../../src/client/components/SlotCard";
 import type { GroupItem, SlotSuggestion } from "../../src/client/components/liftGroups";
 import type { SlotDisplay } from "../../src/client/components/slotDisplay";
-import { noodleColors } from "../../src/client/components/noodleColor";
+import { fadedTint, noodleColors } from "../../src/client/components/noodleColor";
 import type { PendingOrder } from "../../src/domain/order";
 import { nonEmpty } from "../nonEmpty";
 
@@ -280,5 +280,27 @@ describe("提案と直前結果は同居する（slot-suggested-start design Com
     // バッジはカード上部、提案は下部。優先も排他も要らない。
     expect(screen.getByText("Medium")).toBeDefined();
     expect(screen.getByText("head 中盛 · かため · Table 12 · now")).toBeDefined();
+  });
+
+  it("残滓のバッジは麺色の色相を保ったまま彩度を落とし、稼働中のピルと同じ塗りにならない", () => {
+    render(
+      <SlotCard
+        display={idle([])}
+        onStart={vi.fn()}
+        onCancel={vi.fn()}
+        onComplete={vi.fn()}
+        onAdjust={vi.fn()}
+        noodleColor={noodleColor}
+        lastResultNoodle="Medium"
+        suggestionOf={suggestionOf}
+        onStartSuggested={vi.fn()}
+      />,
+    );
+    // jsdom は oklch を CSSStyleDeclaration に載せないので、塗りの値そのものは fadedTint の単体検査
+    // （noodle-color.example）で見る。ここでは残滓が faded（不透明度を落とす側）として描かれることを固定する。
+    const badge = screen.getByLabelText("Last: Medium") as HTMLElement;
+    expect(badge.className).toContain("opacity-60");
+    const running = noodleColor("Medium");
+    expect(fadedTint(running)).not.toBe(running);
   });
 });
