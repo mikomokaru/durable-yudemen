@@ -137,6 +137,7 @@
 | `TimerFact.orderItem` | `src/domain/timer.ts` | Timer → 品目の参照（wire） |
 | `PlanRequest.pending` ＋ `running`（据え置き） | `src/engine/effect.ts` / `src/solver/request.ts` | solver の入力（導いた未調理の品目 ＋ 走行中の Timer 全件） |
 | 拒否事由 `OrderItemCooking` | `src/engine/start.ts` | 調理中の品目への開始 |
+| `ItemStatus` / `ClientView.orderItems` / `isSameOrderItems` / `toOrderItem`（design の内部名） | domain / client / engine | 状態の型・client の品目集合・no-op 比較・永続の検証 |
 
 `cookingOrders` は作らない（読み手が現れるまで）。`cancelledAt` は持たない（POS の取消は前提の外。厨房の中断は `interruptedAt`）。語彙は Timer 側 `running`・品目側 `cooking`。
 
