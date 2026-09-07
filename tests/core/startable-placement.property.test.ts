@@ -48,6 +48,7 @@ import {
   timerOn,
   toPending,
 } from "./scheduleScenes";
+import { physicalViolationsOf, sceneFrom } from "./restoreScenes";
 
 interface Scene {
   readonly pending: readonly PendingOrder[];
@@ -180,6 +181,11 @@ function liftItemsOf(
   });
 }
 
+/** 検証の道具（`physicalViolationsOf`）が読む場面の形へ。 */
+function sceneOfScene(scene: Scene) {
+  return sceneFrom(scene.pending, scene.running, scene.slotCount, scene.params, NOW);
+}
+
 describe("Feature: startable-placement — 「今」の配分の loop の性質", () => {
   // Feature: startable-placement, Property 4.1（改訂）— 開始できる先頭
   // **Validates: Requirements 1.1, 1.5, 1.8, 2.1, 3.1, 4.1**
@@ -237,12 +243,17 @@ describe("Feature: startable-placement — 「今」の配分の loop の性質"
   });
 
   // Feature: startable-placement, Property 4.7（改訂）— 「今」の集合と時刻の保持
-  // **Validates: Requirements 1.8, 4.7**
+  // **Validates: Requirements 1.8, 4.7, 4.8**
   //
   // 候補ごとに、完成形の `startAt ≤ now` の品目の集合は 1 段目の集合を**含み**（再生成で「今」になった品目が足される）、
   // 1 段目の「今」の品目の時刻は動かず、すべての「今」の品目は互いに素な釜を持つ（`pool` の上の排他的な割当・釜は反復で
   // 変わり得る）。配置される品目の集合も同じ。時刻は有限（取り置いた釜を取ることは無い）。
-  it("Property 4.7: 「今」の集合は 1 段目を含み、1 段目の「今」の時刻は動かず、「今」の品目どうしの釜は重ならない", () => {
+  //
+  // **例外は合法性（4.8）だけ**：1 段目の「今」の品目が完成形で「今」でないなら、その品目を 1 段目の時刻に戻した配置（釜は完成形の
+  // まま）は完成した計画の中で物理的なハード制約（計画順・解放表 / `keepsAnchor` / `withinLiftCap`）を破る——固定した上がりが
+  // 手前の一片の上がりと同じ窓で上限を超える、または合流の候補時刻が手前の表で変わった——ときに限る（`revalidate` の固定の解除・
+  // 実測 3000 場面に 1 回）。
+  it("Property 4.7: 「今」の集合は 1 段目を含み（例外は物理的に成り立たない「今」だけ）、1 段目の「今」の時刻は動かず、「今」の品目どうしの釜は重ならない", () => {
     fc.assert(
       fc.property(genScene, (scene) => {
         const stages = candidatesOf(scene, new Set());
@@ -259,9 +270,29 @@ describe("Feature: startable-placement — 「今」の配分の loop の性質"
           expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
           const nowBefore = nowOf(before);
           const nowAfter = nowOf(after);
-          expect(nowAfter.filter((key) => nowBefore.includes(key))).toEqual(nowBefore);
-          for (const key of nowBefore)
-            expect(after.get(key)!.startAt, key).toBe(before.get(key)!.startAt);
+          for (const key of nowBefore) {
+            if (nowAfter.includes(key)) {
+              expect(after.get(key)!.startAt, key).toBe(before.get(key)!.startAt);
+              continue;
+            }
+            // 「今」を失った品目：1 段目の時刻に戻した配置（釜は完成形のまま）は、完成した計画の中で成り立たない。
+            const plan = completed[index]!;
+            const reverted: CookSchedule = {
+              slices: plan.slices.map((slice) => ({
+                tableKey: slice.tableKey,
+                placements: slice.placements.map((placement) =>
+                  itemKeyOf(placement) === key
+                    ? {
+                        ...placement,
+                        startAt: before.get(key)!.startAt,
+                        serveAt: before.get(key)!.serveAt,
+                      }
+                    : placement,
+                ),
+              })),
+            };
+            expect(physicalViolationsOf(sceneOfScene(scene), reverted), key).not.toEqual([]);
+          }
           for (const [key, placement] of after) {
             expect(Number.isFinite(placement.serveAt), key).toBe(true);
           }

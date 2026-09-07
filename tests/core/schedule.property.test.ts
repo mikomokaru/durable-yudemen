@@ -25,8 +25,8 @@ import {
   joinWindowMillis,
   keepsAnchor,
   planTargets,
+  scheduleCandidates,
   type CookSchedule,
-  type PlanSlice,
   refersTo,
   type Placement,
   type SlotRelease,
@@ -108,22 +108,6 @@ const genScene: fc.Arbitrary<Scene> = fc
       params,
     };
   });
-
-/** 一片ごとの配置を釜を除いた形（品目・開始・提供・錨）に写す。釜の対応づけを主張しない比較に使う。 */
-function timingsOf(slices: readonly PlanSlice[]) {
-  return slices.map((slice) => ({
-    tableKey: slice.tableKey,
-    placements: slice.placements.map(
-      ({ externalOrderId, itemIndex, startAt, serveAt, anchor }) => ({
-        externalOrderId,
-        itemIndex,
-        startAt,
-        serveAt,
-        anchor,
-      }),
-    ),
-  }));
-}
 
 describe("engine/schedule — baselineSchedule", () => {
   // Feature: online-cook-scheduling, Property: 1 — Baseline_Plan は常に feasible
@@ -509,33 +493,22 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
     );
   });
 
-  // Feature: plan-stability, Property 5.6 — 自前解の保持
-  // **Validates: Requirements 3.1, 3.2, 5.6**
+  // Feature: plan-stability, Property 5.6 — 自前解の保持（2026-09-07 改訂・実占有）
+  // **Validates: Requirements 3.1, 3.2, 5.6, 6.1, 6.2**
   //
-  // 同じ入力で続けて計画する——二度目は一度目の計画を Shown_Plan（`shownPlanOf`）として渡す——と、釜・まとまり・順・
-  // 時刻のすべてが保たれ、Change_Cost は 0。前回の釜は空いているのでそのまま採れ、前回のまとまりを保つ候補は
-  // 一度目と同じ配置を作り、局所比較は変更費用 0 の側を採る（design Component 5）。比較の時点は計画の now（NOW）、
-  // Timer 集合は同じ集合。計画の同一性は配置の値の一致で見る（`toEqual`）。
-  // Feature: plan-stability, Property 5.6 — 自前解の保持
-  // **Validates: Requirements 3.1, 3.2, 5.6**
+  // 前回の無い計画を Shown_Plan にして同じ入力で計画し直すと、**同じ計画（配置の値と一片の並びが一致）で Change_Cost 0**
+  // か、総費用（業務費用 ＋ 変更費用）が真に下がる計画になる。配置の一致と変更費用 0 は別々に検査する（変更費用 0 は
+  // 窓の内側の移動や遠い将来の移動を数えないので、一致から 0 は従うが 0 から一致は従わない）。後者が在るのは、前回を残す
+  // 候補（前回の配置の再現・まとまり・先頭）が前回の無い計画には無かった配置を見つけるためで（実測：arms 1・L 9・
+  // w_table 0 で、錨に揃えていた 2 品を別の窓に分けて業務費用 23 秒改善・変更費用 6 秒）、これは性質 5.7 の「利益が
+  // 上回れば変わる」そのもの。変わるのは総費用が真に下がるときだけで、前回そのものは保持候補 R（`retain`・変更費用 0）
+  // として常に候補に在るので、業務入力（now を含む）を固定すれば業務費用そのものが厳密に下がる。続けて計画し直すと
+  // 有限回で同じ計画に落ち着く——3 回目は 2 回目と同じか、更に下がる（業務費用でも見る）。
   //
-  // 前回の無い計画を Shown_Plan にして同じ入力で計画し直すと、**同じ計画（Change_Cost 0）か、総費用（業務費用 ＋
-  // 変更費用）が真に下がる計画**になる。後者が在るのは、前回を残す候補（前回の配置の再現・まとまり・先頭）が前回の無い
-  // 計画には無かった配置を見つけるためで（実測：arms 1・L 9・w_table 0 で、錨に揃えていた 2 品を別の窓に分けて業務費用
-  // 23 秒改善・変更費用 6 秒）、これは性質 5.7 の「利益が上回れば変わる」そのもの。変わるのは総費用が真に下がるとき
-  // だけで、前回そのものは変更費用 0 ゆえ、業務入力（now を含む）を固定すれば業務費用そのものが厳密に下がる。続けて
-  // 計画し直すと有限回で同じ計画に落ち着く——3 回目は 2 回目と同じか、更に下がる（業務費用でも見る）。
-  //
-  // **1 段目（占有なし）で見る（startable-placement task 3）。** この性質は plan-stability の機構（前回の釜の第一候補・並びの
-  // 同値・まとまりと先頭の候補・忠実な計画）が自前解を自分自身の不動点にすることを言う。2 段目（1 段目の「今」の品目を
-  // Timer の無い釜へ配って組み直す）の計画は、一片の順に表を進めて組み直す 1 段目がそのまま再現できる形とは限らない
-  // ——1 段目の startAt を下限に残した時刻（AC 1.8）は自然な firstFit の時刻より後ろで、次回はその分だけ早い時刻を見つけ
-  // （実測：209.821 秒が 209 秒に・0.8 秒の業務改善に遠さで割った変更費用 4 秒）、後の群の固定配置に取り置いた釜は
-  // 一片の順では手前の群が先に取る（実測：卓 t-2 が釜 0 を 45 秒から使い、後の単独品が「今」を失って総費用 116 秒悪化）。
-  // 占有なしなら配分は 1 段目の釜をそのまま採り 2 段目は組まれないので、主張は従来どおり厳密に成り立つ。占有ありの
-  // 再計画の単調性は startable-placement の未決として報告する（下限を「今にならない範囲」へ緩める案・前回の「今」の釜を
-  // 1 段目でも手前の群に対して取り置く案）。
-  it("Property 5.6: 同じ入力で続けて計画すると、同じ計画（Change_Cost 0）か総費用が真に下がる計画になる", () => {
+  // **実占有（`occupiedSlotsOf(running)`）で見る（startable-placement task 3′.5）。** task 3 は 2 段目の下限と取り置きが
+  // 前回に忠実な候補の再生成で再現できず占有なしに退避していたが、R は前回を再計算せず復元するので、「今」の配分の loop を
+  // 通った計画もそのまま候補になる。
+  it("Property 5.6: 同じ入力で続けて計画すると、同じ計画（Change_Cost 0）か総費用が真に下がる計画になる（実占有）", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
         const plan = (changeContext: ChangeContext | null) =>
@@ -547,7 +520,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             DEFAULT_NOODLE_PRESETS,
             params,
             NOW,
-            new Set(),
+            occupiedSlotsOf(running),
             changeContext,
           );
         const contextOf = (previous: CookSchedule): ChangeContext => ({
@@ -566,27 +539,18 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
         const secondContext = contextOf(second);
         const third = plan(secondContext);
 
-        const sameAsFirst =
-          changeCost(
-            { schedule: second, recommendations: recommend(second) },
-            firstContext,
-            params,
-          ) === 0;
+        const changeOf = (schedule: CookSchedule, changeContext: ChangeContext) =>
+          changeCost({ schedule, recommendations: recommend(schedule) }, changeContext, params);
         const businessOf = (schedule: CookSchedule) =>
           scoreSchedule(schedule.slices, pending, { members, lifts, change: null }, params).total;
-        if (sameAsFirst) expect(second).toEqual(first);
+        const same = (a: CookSchedule, b: CookSchedule) => JSON.stringify(a) === JSON.stringify(b);
+        // 配置が一致すれば変更費用は 0（別に検査）。一致しなければ総費用も業務費用も真に下がる。
+        if (same(second, first)) expect(changeOf(second, firstContext)).toBe(0);
         else {
           expect(totalOf(second, firstContext)).toBeLessThan(totalOf(first, firstContext));
           expect(businessOf(second)).toBeLessThan(businessOf(first));
         }
-
-        const sameAsSecond =
-          changeCost(
-            { schedule: third, recommendations: recommend(third) },
-            secondContext,
-            params,
-          ) === 0;
-        if (sameAsSecond) expect(third).toEqual(second);
+        if (same(third, second)) expect(changeOf(third, secondContext)).toBe(0);
         else {
           expect(totalOf(third, secondContext)).toBeLessThan(totalOf(second, secondContext));
           expect(businessOf(third)).toBeLessThan(businessOf(second));
@@ -608,37 +572,73 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   //   (ii) 前回の釜を遠い未来まで塞ぐ——ハード制約（重複なし・同時本数・解放時刻）を守る。塞がれた釜が空く時刻まで
   //       列が待たされる場面では前回の釜が候補に間に合う（採ってよい）ので、一致は主張しない。
   //
-  // (i) は **1 段目（占有なし）で見る**（startable-placement task 3）。前回の釜の第一候補は 1 段目の `assignSlots` の規則で、
-  // (i) はその規則が効かないときの一致を言う。2 段目（1 段目の「今」の品目を Timer の無い釜へ配って組み直す）は 1 段目の
-  // startAt を下限に残す（AC 1.8）ので、釜の組が変わって解放が早まった品目の時刻が自然な firstFit の時刻より後ろに残り、
-  // 前回の時刻を手がかりに組み直す計画（前回の配置を再現する分割は塊を前回の提供時刻で切るが、時刻は今の表の firstFit で
-  // 決める）がそれより早い時刻を見つける（実測：卓 t-1 の 2 釜の Thin が固定配置の釜を避けて 75 秒から 80 秒の窓へ動き、
-  // 卓 t-2 の 2 品は下限で 80 秒に残るが、前回を持つ計画は空いた 75 秒の窓に置く）。占有なしなら配分は 1 段目の釜をそのまま
-  // 採り 2 段目は組まれないので、(i) の主張は従来どおり厳密に成り立つ。(ii) は占有ありのまま（ハード制約は 2 段目にも及ぶ）。
-  it("Property 5.7: 前回の釜が存在しなければ時刻は前回の無い計画に一致し、塞がれていればハード制約を守る", () => {
+  // **(i) の「時刻は前回の無い計画に一致する」は、前回に忠実な候補（`Continuity.faithful`・総費用で 2 本を比べる）が
+  // 担っていた主張で、その撤去（plan-stability 判断 12）で構造の保証を失った（startable-placement task 3′.5・実測）。** 前回の
+  // 釜が表の外なら保持候補 R は何も復元できず（一片ごとに解放表で落ちてその位置で再生成され）生成候補 F と同じ計画に
+  // なるので、列ごとの局所比較で勝つ候補が全体で劣る場面（design Component 5 が faithful を足した理由そのもの）を戻す候補が
+  // 無い。実測（24 釜・arms 1・L 24・走行中 2 本が釜 0 で 66 / 102 秒に上がる表・卓 t-1 の Medium 大盛と Thin 2 品）：前回の無い
+  // 計画は Thin 1 本を 75 秒・残りを 126.001 秒に置き、前回の釜が表の外の文脈では Medium と Thin を 90 / 114 秒に置く候補が
+  // 列で勝つ——業務費用は 24 秒良く、変更費用（時刻の移動・順）が 48 秒悪く、総費用で 24 秒劣る（300 場面に 1 回程度）。前回の
+  // 釜が実在すれば R が前回そのものを候補にするので総費用は前回以下（性質 5.6）。ゆえに (i) は**前回の釜の第一候補が実在する
+  // 釜にだけ効く**ことそのものを主張する形に改める。
+  //   (i-a) 生成器（占有なし）：前回の釜を表の外へ写した文脈は、**どの表の外の番号へ写しても同じ計画**を出す（第一候補は
+  //         実在しない釜を一切読まない・決定性）。その計画は表の外の釜を使わず、対応する全品目について釜の変更費用 L を払う
+  //         （AC 3.1・3.3「採れなければ既存の規則へ落ち L を払う」）。ハード制約（重複なし）を守る。
+  //   (i-b) loop（実占有）：前回の釜が表の外なら保持候補 R は生成候補 F と同じ計画に落ちる（前回の釜が無ければ何も残せない・
+  //         復元側の「実在する釜にだけ効く」）。
+  // (ii) は実占有のまま（ハード制約は完成形に及ぶ）。
+  it("Property 5.7: 前回の釜が存在しなければ第一候補は効かず（どの表の外の番号でも同じ計画・釜の変更費用 L を払う・復元は生成候補に落ちる）、塞がれていればハード制約を守る", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
-        const previous = baselineSchedule(
+        const plan = (occupied: ReadonlySet<number>, changeContext: ChangeContext | null) =>
+          baselineSchedule(
+            pending,
+            release,
+            members,
+            lifts,
+            DEFAULT_NOODLE_PRESETS,
+            params,
+            NOW,
+            occupied,
+            changeContext,
+          );
+        // 前回の釜を表の外の番号へ写す（釜の数の shift 倍だけずらす）。
+        const elsewhereOf = (previous: CookSchedule, shift: number): ChangeContext => ({
+          shown: shownPlanOf(previous, recommend(previous)).map((item) => ({
+            ...item,
+            slotIds: nonEmpty(
+              item.slotIds.map((slotId) => String(Number(slotId) + shift * slotCount) as SlotId),
+            ),
+          })),
+          running,
+          now: NOW,
           pending,
-          release,
-          members,
-          lifts,
-          DEFAULT_NOODLE_PRESETS,
-          params,
-          NOW,
-          new Set(),
-          null,
-        );
-        const shown = shownPlanOf(previous, recommend(previous));
+          presets: DEFAULT_NOODLE_PRESETS,
+        });
 
-        // (i) 前回の釜を表の外の番号へ写す（釜の数だけずらす）。
-        const elsewhere = shown.map((item) => ({
-          ...item,
-          slotIds: nonEmpty(
-            item.slotIds.map((slotId) => String(Number(slotId) + slotCount) as SlotId),
+        // (i-a) 生成器（占有なし）：表の外の番号は読まれない——どの番号へ写しても同じ計画で、表の外の釜を使わず、対応する
+        // 全品目について釜の変更費用 L を払う。
+        const stage1 = plan(new Set(), null);
+        const context1 = elsewhereOf(stage1, 1);
+        const withElsewhere = plan(new Set(), context1);
+        expect(plan(new Set(), elsewhereOf(stage1, 2))).toEqual(withElsewhere);
+        const placed = allPlacements(withElsewhere.slices);
+        expect(placed.every((p) => p.slotIds.every((slotId) => Number(slotId) < slotCount))).toBe(
+          true,
+        );
+        expect(
+          changeCost(
+            { schedule: withElsewhere, recommendations: recommend(withElsewhere) },
+            context1,
+            params,
           ),
-        }));
-        const withElsewhere = baselineSchedule(
+        ).toBeGreaterThanOrEqual(params.liftIntervalSeconds * placed.length);
+        expect(hasOverlapOnSameSlot(placed)).toBe(false);
+
+        // (i-b) loop：実占有の前回に対して、前回の釜が表の外なら保持候補 R は生成候補 F と同じ計画に落ち、選ばれた計画は
+        // ハード制約を守る。
+        const previous = plan(occupiedSlotsOf(running), null);
+        const { fresh, retained } = scheduleCandidates(
           pending,
           release,
           members,
@@ -646,11 +646,12 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
-          new Set(),
-          { shown: elsewhere, running, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
+          occupiedSlotsOf(running),
+          elsewhereOf(previous, 1),
         );
-        expect(timingsOf(withElsewhere.slices)).toEqual(timingsOf(previous.slices));
-        expect(hasOverlapOnSameSlot(allPlacements(withElsewhere.slices))).toBe(false);
+        if (retained !== null) expect(retained).toEqual(fresh);
+        expect(hasOverlapOnSameSlot(allPlacements(fresh.slices))).toBe(false);
+        const shown = shownPlanOf(previous, recommend(previous));
 
         // (ii) 前回の釜を遠い未来まで塞ぐ（卓を持たないので錨にも成員にもならない）。
         const blockers = [...new Set(shown.flatMap((item) => item.slotIds))].map((slotId, index) =>

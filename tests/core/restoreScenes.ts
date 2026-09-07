@@ -200,9 +200,10 @@ export function reasonOf(
   members: TableMembers,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
+  physicalOnly = false,
 ): Reason | null {
   if (isStale(slice, targets)) return "stale";
-  if (cannotStart(slice, now, occupied)) return "cannotStart";
+  if (!physicalOnly && cannotStart(slice, now, occupied)) return "cannotStart";
   if (feasibleRelease(slice.placements, release, targets, presets) === null) return "release";
   const siblings = members.get(slice.tableKey) ?? null;
   if (!keepsAnchor(slice.placements, release, lifts, siblings, targets, presets, params))
@@ -215,6 +216,7 @@ export function reasonOf(
 export function violationsOf(
   scene: Scene,
   schedule: CookSchedule,
+  physicalOnly = false,
 ): readonly { readonly tableKey: string; readonly reason: Reason }[] {
   const targets = targetsOf(scene);
   const found: { tableKey: string; reason: Reason }[] = [];
@@ -231,6 +233,7 @@ export function violationsOf(
       scene.members,
       DEFAULT_NOODLE_PRESETS,
       scene.params,
+      physicalOnly,
     );
     if (reason !== null) found.push({ tableKey: slice.tableKey, reason });
     free = advanceRelease(free, slice.placements);
@@ -239,7 +242,7 @@ export function violationsOf(
   return found;
 }
 
-/** 物理的なハード制約の違反（`cannotStart` は保持の条件ゆえ除く・判断 13）。 */
+/** 物理的なハード制約の違反（`cannotStart` は保持の条件ゆえ当てない・判断 13。後の述語を隠さないよう飛ばして判定する）。 */
 export function physicalViolationsOf(scene: Scene, schedule: CookSchedule) {
-  return violationsOf(scene, schedule).filter((violation) => violation.reason !== "cannotStart");
+  return violationsOf(scene, schedule, true);
 }

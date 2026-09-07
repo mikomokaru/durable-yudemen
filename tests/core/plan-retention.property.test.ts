@@ -26,14 +26,27 @@ import {
   candidatesOf,
   changeOf,
   contextOf,
+  contextWith,
+  physicalViolationsOf,
   planOf,
   samePlan,
+  sceneFrom,
   sceneOf,
   totalOf,
   type RawScene,
   type Scene,
 } from "./restoreScenes";
 import type { CookSchedule } from "../../src/engine/schedule";
+import { boilMillisOf } from "../../src/engine/boil";
+import { recommend } from "../../src/engine/recommend";
+import { shownPlanOf } from "../../src/engine/stability";
+import { createTimer } from "../../src/engine/timer";
+import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
+import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
+import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
+import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import { toPending } from "./scheduleScenes";
+import { nonEmpty } from "../nonEmpty";
 
 export const genRaw: fc.Arbitrary<RawScene> = fc
   .integer({ min: UNIT_COUNT_MIN, max: UNIT_COUNT_MAX })
@@ -76,5 +89,125 @@ describe("Feature: plan-stability, Property 5.6 — 実占有・保持候補 R �
       }),
       { numRuns: 300 },
     );
+  });
+});
+
+// ── 性質 5.11：保持は劣化しない（摂動あり）─────────────────────────────────────────────────────
+//
+// Feature: plan-stability, Property 5.11（2026-09-07）
+// **Validates: Requirements plan-stability 5.10, 5.11, 6.1, 6.3**
+//
+// 摂動（2 秒の時間経過・表示の先頭の開始・新着・boiled の Complete）の後、選ばれた計画の総費用（同じ旧 Shown_Plan に対する
+// 業務費用 ＋ 変更費用）は生成候補 F 単独より高くならない（選択規則から従う）。併せて選ばれた計画が物理的なハード制約を守る
+// こと（5.10）を見る。実測で重要なのは改善幅に加え、R が選ばれる頻度と実際の提案変更量なので、集計して主張する。
+
+/** 摂動の種類。 */
+type Perturbation = "elapse" | "start" | "arrive" | "complete";
+
+/** 摂動した場面。`previous` の Shown_Plan はそのまま持ち越す（遷移前の状態が持つ旧 Shown_Plan・AC 6.5）。 */
+function perturb(
+  scene: Scene,
+  previous: CookSchedule,
+  kind: Perturbation,
+  arrival: readonly PendingOrder[],
+): Scene | null {
+  const { pending, running, slotCount, params, now } = scene;
+  switch (kind) {
+    case "elapse":
+      return sceneFrom(pending, running, slotCount, params, (now + 2_000) as EpochMillis);
+    case "arrive":
+      return sceneFrom([...pending, ...arrival], running, slotCount, params, now);
+    case "complete": {
+      const boiled = running.find((timer) => timer.boiledAt !== null);
+      if (boiled === undefined) return null;
+      return sceneFrom(
+        pending,
+        running.filter((timer) => timer !== boiled),
+        slotCount,
+        params,
+        now,
+      );
+    }
+    case "start": {
+      // 表示の先頭（群 → 連鎖 → 全釜 idle → 先頭 arms 本）を提案の釜で始める。
+      const orderByKey = new Map(pending.map((order) => [itemKeyOf(order), order]));
+      const items: LiftItem[] = recommend(previous).flatMap((recommendation) => {
+        const order = orderByKey.get(itemKeyOf(recommendation));
+        const boilMillis = order === undefined ? null : boilMillisOf(order, DEFAULT_NOODLE_PRESETS);
+        return order === undefined || boilMillis === null
+          ? []
+          : [{ recommendation, order, boilSeconds: boilMillis / 1000 }];
+      });
+      const head = headsOf(
+        visibleGroupsOf(liftGroupsOf(items, now)),
+        scene.occupied,
+        now,
+        params.arms,
+      )[0];
+      if (head === undefined) return null;
+      const item = items.find((entry) => itemKeyOf(entry.order) === head)!;
+      const timer = createTimer({
+        id: `started-${head}` as TimerId,
+        slotIds: nonEmpty([...item.recommendation.slotIds] as SlotId[]),
+        noodleType: item.order.noodleType as NoodleType,
+        firmness: item.order.firmness,
+        startTime: now,
+        endTime: (now + item.boilSeconds * 1000) as EpochMillis,
+        seq: 10_000,
+        orderItem: {
+          externalOrderId: item.order.externalOrderId,
+          itemIndex: item.order.itemIndex,
+          tableId: item.order.tableId,
+        },
+      });
+      return sceneFrom(
+        pending.filter((order) => itemKeyOf(order) !== head),
+        [...running, timer],
+        slotCount,
+        params,
+        now,
+      );
+    }
+  }
+}
+
+describe("Feature: plan-stability, Property 5.11 — 摂動の後も保持は劣化しない", () => {
+  it("2 秒経過・先頭の開始・新着・Complete の後、選ばれた計画は F 単独に総費用で劣らず、物理的なハード制約を守る（集計つき）", () => {
+    const counts = { scenes: 0, retainedChosen: 0, changeTotal: 0, changeFree: 0 };
+    fc.assert(
+      fc.property(
+        genRaw,
+        fc.constantFrom<Perturbation>("elapse", "start", "arrive", "complete"),
+        genOrderSpec(KNOWN_NOODLE_TYPES),
+        (raw, kind, extra) => {
+          const scene = sceneOf(raw);
+          const previous = planOf(scene, null);
+          const arrival = toPending([extra]).map((order) => ({
+            ...order,
+            externalOrderId: "o-new",
+          }));
+          const next = perturb(scene, previous, kind, arrival);
+          if (next === null) return;
+          const shown = contextWith(next, shownPlanOf(previous, recommend(previous)));
+          const { fresh, retained } = candidatesOf(next, shown);
+          const chosen = planOf(next, shown);
+          const totalChosen = totalOf(next, chosen, shown);
+          expect(totalChosen).toBeLessThanOrEqual(totalOf(next, fresh, shown));
+          expect(physicalViolationsOf(next, chosen)).toEqual([]);
+          if (retained !== null) expect(physicalViolationsOf(next, retained)).toEqual([]);
+          counts.scenes++;
+          if (retained !== null && samePlan(chosen, retained) && !samePlan(retained, fresh))
+            counts.retainedChosen++;
+          const change = changeOf(next, chosen, shown);
+          counts.changeTotal += change;
+          if (change === 0) counts.changeFree++;
+        },
+      ),
+      { numRuns: 300 },
+    );
+    // 集計（主張は「集計できたこと」——値そのものは実測として tasks.md に記す）。
+    expect(counts.scenes).toBeGreaterThan(0);
+    expect(counts.retainedChosen).toBeGreaterThan(0);
+    expect(counts.changeFree).toBeGreaterThan(0);
   });
 });

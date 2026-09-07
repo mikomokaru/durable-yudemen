@@ -19,14 +19,17 @@
 
 import { describe, expect, it } from "vitest";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
+import { boilMillisOf } from "../../src/engine/boil";
 import { committedSchedule } from "../../src/engine/commit";
+import { recommend } from "../../src/engine/recommend";
 import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import { baselineSchedule, initialRelease, type AcceptedSlice } from "../../src/engine/schedule";
 import type { SettleParams } from "../../src/engine/settle";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
+import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
 import { occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -400,6 +403,34 @@ describe("Feature: startable-placement — 2 段目の固定配置の扱い（de
     expect(placementsOf(schedule).get("thin")).toEqual([[3], 45]);
     expect((placements.get("thin")!.serveAt - NOW) / SECOND).toBe(105);
     expect((placements.get("thin")!.anchor! - NOW) / SECOND).toBe(60);
+  });
+});
+
+// ── レビュー反例：同卓の先着 Short・後着 Long（design Component 3′・性質 4.7 改訂）────────────────────────────
+
+describe("Feature: startable-placement — 「今」の集合全体を最終的な表示順で配り直す（design Component 3′ の反例）", () => {
+  it("同卓の先着 Short 60 秒・後着 Long 600 秒・釜 0 boiled・釜 1 だけ空き：Short が釜 1 に「今」で先頭に出る（4.7′）", () => {
+    // 釜 0 は boiled（解放 `now`・Timer あり）、釜 1 は空き、釜 2〜5 は 1000 秒後まで走行中。
+    const running = [timerOn(0, -20), ...[2, 3, 4, 5].map((slot) => timerOn(slot, 1000))];
+    const short = order("short", { noodleType: "Thin", tableId: "T", arrivalTime: at(-2) });
+    const long = order("long", { noodleType: "Long", tableId: "T", arrivalTime: at(-1) });
+    // 1 段目は卓を Long の 600 秒に揃える——Long を釜 0 に今、Short を釜 1 に 540 秒後。「今」は Long だけ。
+    // 1 回目の配分は Long を空き釜 1 へ動かし、Short（釜 1・540 秒）は重なって不正になるので Long を残して再生成される
+    // ——Short は残った釜 0（boiled・解放 `now`）に今（60 秒）で置かれ、新たに「今」になる。loop で発見した順に固定すれば
+    // Long が釜 1・Short が釜 0（押せない）で `headsOf` は空。2 回目の配分は {Short, Long} 全体を最終的な表示順（Short が
+    // 先着）で配り直すので、Short が空き釜 1、Long は待つ釜 0 に落ち着く。
+    const schedule = ownPlan([short, long], running);
+    expect(placementsOf(schedule).get("short")).toEqual([[1], 0]);
+    expect(placementsOf(schedule).get("long")).toEqual([[0], 0]);
+    // 表示：推奨 → 群 → 連鎖 → 全釜 idle → 先頭 arms 本。Short は Timer の無い釜 1 に在り、先頭として現れる。
+    const orderByKey = new Map([short, long].map((each) => [itemKeyOf(each), each]));
+    const items: LiftItem[] = recommend(schedule).map((recommendation) => {
+      const each = orderByKey.get(itemKeyOf(recommendation))!;
+      return { recommendation, order: each, boilSeconds: boilMillisOf(each, PRESETS)! / 1000 };
+    });
+    const occupied = occupiedSlotsOf(running);
+    const heads = headsOf(visibleGroupsOf(liftGroupsOf(items, NOW)), occupied, NOW, PARAMS.arms);
+    expect(heads).toEqual([itemKeyOf(short)]);
   });
 });
 

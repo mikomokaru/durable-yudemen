@@ -476,8 +476,10 @@ interface NowItem {
  * なった Short が釜 0 に落ち `headsOf` が空。Short を釜 1・Long を釜 0 に配り直せば Short の提案が出る）。
  *
  * **停止性**：継続する反復ごとに nowSet が必ず増える（fresh が空なら止まる）ので、反復回数は品目数で抑えられる。釜の固定に
- * 依らない。**合法性は別に検査する**（性質 5.10 / 4.8）——1 段目への実行時のフォールバックは置かない（場面 E では 1 段目の
- * 「今」の大盛が釜 1 に残る Timer で押せない——合法性のために開始可能性を捨てる順序にしない）。
+ * 依らない（固定を外されて「今」でなくなった品目の鍵も nowSet に残す）。**合法性は計画順の検証で保つ**（性質 5.10 / 4.8・
+ * `revalidate`）——1 段目への実行時のフォールバックは置かない（場面 E では 1 段目の「今」の大盛が釜 1 に残る Timer で押せない
+ * ——合法性のために開始可能性を捨てる順序にしない）。「今」の品目が「今」を失うのは、その配置が完成した計画の中で物理的に
+ * 成り立たないときだけ（`revalidate` の固定の解除）。
  *
  * 1 段目に「今」の品目が無ければ計画は 1 段目のまま（占有に依らない・性質 4.6）。生成候補 F と保持候補 R の両方が通る。
  */
@@ -503,6 +505,8 @@ function placeNow(planning: Planning, stage1: CookSchedule): CookSchedule {
     // nowSet の品目は配分した配置のまま残る（`revalidate` の再生成は固定分を落とさない）ので必ず引ける。
     const nowItems: NowItem[] = [...nowKeys]
       .map((key) => ({ placement: byKey.get(key)!, order: orderByKey.get(key)! }))
+      // 固定を外されて「今」でなくなった品目（`revalidate`）は配らない（鍵は nowSet に残り、停止性はそのまま）。
+      .filter((item) => item.placement.startAt <= now)
       .sort(byDisplayOrder);
     const allocation = pinNow(nowItems, planning);
     const allocated = plan.slices.map((slice) => ({
@@ -608,9 +612,9 @@ function onlyNow(release: SlotRelease, slots: readonly number[], now: EpochMilli
  * startable-placement Component 3′）。復元（`retain`）と「今」の配分の loop（`placeNow`）が同じ関数を呼ぶ——対象が Shown_Plan か
  * 1 段目かの違いだけ。
  *
- * 一片ごとに、採用済み接頭辞（入力の表）と手前の一片で進めた表に、**まだ来ていない一片の配分した「今」の配置**（`fixed` の
- * うち手前に無いもの・`ahead`）を実際の提供時刻で載せた表で検証する。配分は互いに素で `pool` に載る（構造）ので、再生成が
- * 配分した釜を取ることは無く、配分した「今」の上がりを含む窓の上限（(f)）も再生成が守る。述語は合成（`livePrefix`）・
+ * 一片ごとに、採用済み接頭辞（入力の表）と手前の一片で進めた表に、**まだ来ていない一片の配分した「今」の釜**（`fixed` の
+ * うち手前に無いもの・`ahead`）を取り置いた表で検証する（上がりは載せない——本文の注記）。配分は互いに素で `pool` に載る
+ * （構造）ので、再生成が配分した釜を取ることは無い。述語は合成（`livePrefix`）・
  * ゲート（`prune`）と同じ公開関数——置ける品目に限る `isStale`（Requirement 7）・解放表の feasibility（`feasibleRelease`）・
  * `keepsAnchor`・`withinLiftCap`。`retaining` のときは検証の前に復元した配置の錨を現在の走行中に対して付け直す（`reanchor`）。
  *
@@ -622,8 +626,11 @@ function onlyNow(release: SlotRelease, slots: readonly number[], now: EpochMilli
  * 留まる。
  *
  * 不正な一片は、その卓の置ける品目を生成器（`placeGroup`・文脈つき）で置き直す。一片の配分した「今」の配置（`fixed` に
- * 在るもの）は**その配置のまま**残し、残りの品目だけを、手前の一片・`ahead`・その固定分で進めた表の上に置く（「今」の集合は
- * 縮まず、「今」の品目の時刻は動かない・AC 1.8 改訂）。再生成した一片の並びは生成器の並び（固定分・合流分・batch の順）。
+ * 在るもの）は**その配置のまま**残し、残りの品目だけを、手前の一片・`ahead` の取り置き・その固定分で進めた表の上に置く（「今」の
+ * 集合は縮まず、「今」の品目の時刻は動かない・AC 1.8 改訂）。例外は、固定分を残した再生成が計画順で成り立たないとき——固定分の
+ * 上がりが手前の一片の上がりと同じ窓で上限 (f) を超える・合流した固定分の候補時刻が手前の表で変わって (d) が破れる——で、
+ * そのときだけ固定を外して卓を丸ごと再生成する（その「今」は失われる。合法性が先）。再生成した一片の並びは生成器の並び
+ * （固定分・合流分・batch の順）。
  * 「最初の不正で止める」形（接頭辞・合成）は採らない——now が進むたびに前回の「今」が落ちてほぼ全再生成になり役に立たない
  * （判断 10・実測）。
  */
@@ -648,41 +655,50 @@ function revalidate(
     const ahead = allocated.filter((placement) => !seen.has(itemKeyOf(placement)));
     // 後の一片の配分した「今」の釜は取り置く（解放を無限大に）——上がった後に使う配置も許さない。計画順の解放表は
     // 「その釜は次にいつ空くか」しか語れず、手前の一片がその釜を（今の配置が上がった後に）使えば、後の一片の「今」は
-    // 計画順の検証（ゲート・合成と同じ）で解放時刻より前の開始になる。上がりは実際の時刻で載せる（(f) のため）。
+    // 計画順の検証（ゲート・合成と同じ）で解放時刻より前の開始になる。**上がりは載せない**——載せて手前の一片の pack が
+    // その窓で延期されると、計画順の検証には延期の理由（後の一片の上がり）が見えず `keepsAnchor` (d) を破る（実測：18 釜・
+    // arms 1・L 8 で、後の卓なし品目の 60 秒の上がりを見た卓 t-2 の合流分が 52.55 秒から 61 秒へ動いた）。窓の上限 (f) は
+    // 後の一片の側で検証し、成り立たなければその「今」を固定から外す（下）。
     const freeAhead = reserve(
       free,
       ahead.flatMap((placement) => placement.slotIds.map(slotOf)),
     );
-    const endsAhead = advanceLifts(ends, liftsOf(ahead));
     const siblings = members.get(slice.tableKey) ?? null;
-    // 復元した一片は、現在の走行中に対して錨を付け直してから検証する（`reanchor`）。
+    // 復元した一片は、Shown_Plan の品目から始まった走行中（新しい仲間）に対して錨を付け直してから検証する（`reanchor`）。
+    const started = retaining && seed !== null ? startedSiblingsOf(slice.tableKey, seed) : [];
     const restored =
-      retaining && siblings !== null
-        ? reanchor(slice.placements, freeAhead, siblings, targets, presets, params)
+      started.length > 0
+        ? reanchor(slice.placements, freeAhead, started, targets, presets, params)
         : slice.placements;
-    const holds =
-      !isStale(slice, targets) &&
-      feasibleRelease(restored, freeAhead, targets, presets) !== null &&
-      keepsAnchor(restored, freeAhead, endsAhead, siblings, targets, presets, params) &&
-      withinLiftCap(endsAhead, liftsOf(restored), params);
+    // 物理的なハード制約（計画順・手前の一片で進めた表・後の「今」の釜は取り置き）。`isStale` は一片の品目集合の検査。
+    const legal = (placements: readonly Placement[]) =>
+      feasibleRelease(placements, freeAhead, targets, presets) !== null &&
+      keepsAnchor(placements, freeAhead, ends, siblings, targets, presets, params) &&
+      withinLiftCap(ends, liftsOf(placements), params);
     let placements = restored;
-    if (!holds) {
+    if (isStale(slice, targets) || !legal(restored)) {
       const own = slice.placements.filter((placement) => fixed.has(itemKeyOf(placement)));
       const group: TableGroup = {
         tableKey: slice.tableKey,
         items: targets.filter((order) => tableKeyOf(order) === slice.tableKey),
       };
       const continuity: Continuity | null = seed === null ? null : { ...seed, slices: out };
-      placements = placeGroup(
-        group,
-        advanceRelease(freeAhead, own),
-        advanceLifts(endsAhead, liftsOf(own)),
-        siblings,
-        presets,
-        params,
-        continuity,
-        own,
-      );
+      const regenerate = (kept: readonly Placement[]) =>
+        placeGroup(
+          group,
+          advanceRelease(freeAhead, kept),
+          advanceLifts(ends, liftsOf(kept)),
+          siblings,
+          presets,
+          params,
+          continuity,
+          kept,
+        );
+      placements = regenerate(own);
+      // 固定した「今」を残した再生成が計画順で成り立たない——固定分の上がりが手前の一片の上がりと同じ窓で上限を超える、
+      // 合流した固定分の候補時刻が手前の表で変わった——なら、固定を外して卓を丸ごと再生成する。「今」の品目は、その「今」の
+      // 配置が完成した計画の中で物理的に成り立たないときにだけ「今」を失う（合法性が先・startable-placement 性質 4.8）。
+      if (own.length > 0 && !legal(placements)) placements = regenerate([]);
       // 置ける品目が一つも無くなった卓は一片を成さない。
       if (placements.length === 0) continue;
     }
@@ -694,19 +710,40 @@ function revalidate(
 }
 
 /**
- * 復元した一片の配置に、現在の走行中の錨を付け直す（`retain` の検証の前）。
+ * 卓の走行中の仲間のうち、旧 Shown_Plan の品目から始まったもの（新しい仲間）の実効 endTime（昇順）。
+ *
+ * 前回の計画が組まれた時点には無く、その後の遷移（開始）で現れた錨である。Shown_Plan は前回の Timer 集合を持たないが、
+ * 走行中の `orderItem` の鍵が Shown_Plan に在れば、その Timer は前回は未着手の配置だった——それが始まったことは事実から
+ * 読める。前回から在った仲間はここに入らない（前回の配置の `anchor` はそれらに対して既に決めた事実で、null も判断である）。
+ */
+function startedSiblingsOf(tableKey: string, seed: Seed): readonly EpochMillis[] {
+  return seed.changeContext.running
+    .filter(
+      (timer) =>
+        timer.orderItem !== null &&
+        timer.orderItem.tableId === tableKey &&
+        seed.shownByKey.has(itemKeyOf(timer.orderItem)),
+    )
+    .map((timer) => adjustedEndTime(timer))
+    .sort((a, b) => a - b);
+}
+
+/**
+ * 復元した一片の配置に、新しい仲間（`startedSiblingsOf`）の錨を付け直す（`retain` の検証の前）。
  *
  * `Placement.anchor` は「合流先の走行中の実効 endTime」という現在の Timer 集合に対する事実であり（AC 9.9）、前回の配置を
- * そのまま持つと二つの形で古びる。(1) 前回に仲間が無かった卓で群の 1 本目が始まった——残りは前回 `anchor: null` のまま
- * だが、いまは走行中の錨に合流した配置そのものである（時刻も釜も同じ）。null のまま残せば `keepsAnchor` は通る（押し出しでは
- * ない）が、群は Group_Started にならず連鎖が止まり、後の卓の提案が隠れる（lift-group-display 判断 19）。(2) 錨の Timer が
- * Complete で消えた——`keepsAnchor` (a) が落として再生成に回る（ここでは触らない）。
+ * そのまま持つと二つの形で古びる。(1) 群の 1 本目（前回は未着手の配置）が始まった——残りは前回 `anchor: null`（または前回の
+ * 仲間への錨）のままだが、いまは始まった 1 本目の上がりに合流した配置そのものである（時刻も釜も同じ）。null のまま残せば
+ * `keepsAnchor` は通る（押し出しではない）が、群は Group_Started にならず連鎖が止まり、後の卓の提案が隠れる（lift-group-display
+ * 判断 19）。(2) 錨の Timer が Complete で消えた——`keepsAnchor` (a) が落として再生成に回る（ここでは触らない）。
  *
  * (1) を生成器と同じ規則で埋める：`anchor` を持たない配置を開始時刻の順に見て、その品目の釜がこの一片の手前の配置で進めた
- * 表で空く最早の時刻 ＋ 茹で時間（earliest）から `joinTarget` を引き、合流先が在って配置の提供時刻がその候補以上なら、その
- * 錨を付ける（候補より手前の配置は錨に届いていないので付けない——`keepsAnchor` が散らばりとして落とす）。生成器が合流の
- * 判定を「先に合流した品目が釜を取った上で」行う（`joinable`）のと同じく、手前の配置で表を進めて見るので、同じ入力の
- * 再計画では前回の判定と一致し、錨の付いていない batch の品目に錨を付けることはない。錨を持つ配置はそのまま。
+ * 表で空く最早の時刻 ＋ 茹で時間（earliest）から、**新しい仲間だけ**を相手に `joinTarget` を引き、合流先が在って配置の提供
+ * 時刻がその候補以上（窓で後ろへ動いた合流分を含む）ならその錨を付ける。前回から在った仲間を相手にしないのは、前回の
+ * 配置の null がそれらに対する判断（合流できなかった・batch に回した）であり、実際の釜から引いた earliest で引き直せば生成器
+ * が合流させなかった配置にまで錨が付くためである（実測：同じ入力の再計画で、走行中 0 / 176 秒の卓の Thin を 284 秒に置いた
+ * 前回の配置に錨 176 が付き、`keepsAnchor` は通るが前回と一致しない計画になって性質 5.6 が 1 万場面に 1 回落ちた）。
+ * 同じ入力（新しい仲間なし）の再計画では何も付け直さず、前回そのものが復元される。錨を持つ配置はそのまま。
  */
 function reanchor(
   placements: readonly Placement[],
