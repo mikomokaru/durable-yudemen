@@ -117,6 +117,7 @@ function boardView(now: number): ClientView {
         firmness: "normal",
         startTime: now - 30_000,
         endTime: now + 120_000,
+        orderItem: null,
         origin: "server",
       },
       {
@@ -126,6 +127,7 @@ function boardView(now: number): ClientView {
         firmness: "normal",
         startTime: now - 95_000,
         endTime: now - 5_000,
+        orderItem: null,
         origin: "server",
       },
     ],

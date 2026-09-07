@@ -10,9 +10,16 @@ import { describe, expect, it } from "vitest";
 import { settle, toWireSnapshot } from "../../src/engine/settle";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Effect } from "../../src/engine/effect";
-import type { EpochMillis } from "../../src/engine/types";
+import { createTimer } from "../../src/engine/timer";
+import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { ServerMessage } from "../../src/domain/messages";
-import { liveOrders, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
+import {
+  liveOrders,
+  ORDER_LIFETIME_MS,
+  orderItemsToBroadcast,
+  type OrderItem,
+} from "../../src/domain/order";
+import { nonEmpty } from "../nonEmpty";
 import { changeCostOf, EXPIRY_PARAMS, mixedScene, SECOND, startOffsets } from "./expiryScenes";
 
 const NOW = 1_700_000_000_000 as EpochMillis;
@@ -63,44 +70,44 @@ function requestOf(effects: readonly Effect[]) {
 
 /** 待ち行列が `pending` になる確定変化（要求してよい遷移）。 */
 function arrive(prev: TimerState, pending: readonly OrderItem[], now: EpochMillis) {
-  const outcome = settle(prev, { ...prev, pendingOrders: pending }, EXPIRY_PARAMS, now, true);
+  const outcome = settle(prev, { ...prev, orderItems: pending }, EXPIRY_PARAMS, now, true);
   if (!outcome.ok) throw new Error("settle が拒否した");
   return outcome;
 }
 
 describe("snapshot の pendingOrders は Live_Orders（AC 2.2・性質 5.5）", () => {
-  it("確定変化の Broadcast は liveOrders(state.pendingOrders, now) を載せ、正本の集合そのものは載せない", () => {
-    const prev: TimerState = { ...EMPTY_STATE, pendingOrders: [STALE] };
+  it("確定変化の Broadcast は liveOrders(state.orderItems, now) を載せ、正本の集合そのものは載せない", () => {
+    const prev: TimerState = { ...EMPTY_STATE, orderItems: [STALE] };
     const outcome = arrive(prev, [STALE, LIVE, EXPIRED], NOW);
 
     const snapshot = broadcastOf(outcome.effects);
-    expect(snapshot.pendingOrders).toEqual(liveOrders(outcome.state.pendingOrders, NOW));
+    expect(snapshot.pendingOrders).toEqual(liveOrders(outcome.state.orderItems, NOW));
     expect(snapshot.pendingOrders).toEqual([LIVE]);
     // 正本は全件のまま（性質 5.7）。
-    expect(outcome.state.pendingOrders).toEqual([STALE, LIVE, EXPIRED]);
+    expect(outcome.state.orderItems).toEqual([STALE, LIVE, EXPIRED]);
   });
 
   it("hydration（toWireSnapshot）も同じ射影を通り、now だけが違えば同じ状態から違う待ち行列が配られる", () => {
-    const state: TimerState = { ...EMPTY_STATE, pendingOrders: [STALE, LIVE, EXPIRED] };
+    const state: TimerState = { ...EMPTY_STATE, orderItems: [STALE, LIVE, EXPIRED] };
 
     const atNow = toWireSnapshot(state, EXPIRY_PARAMS, NOW);
     const justBefore = toWireSnapshot(state, EXPIRY_PARAMS, (NOW - 1) as EpochMillis);
 
     if (atNow.type !== "snapshot" || justBefore.type !== "snapshot")
       throw new Error("snapshot でない");
-    expect(atNow.pendingOrders).toEqual(liveOrders(state.pendingOrders, NOW));
+    expect(atNow.pendingOrders).toEqual(liveOrders(state.orderItems, NOW));
     expect(atNow.pendingOrders).toEqual([LIVE]);
     // 1 ms 手前では EXPIRED はまだ生きている（並びは正本のまま）。
     expect(justBefore.pendingOrders).toEqual([LIVE, EXPIRED]);
     // 期限は状態を書き換えない——同じ状態から両方を導いた。
-    expect(state.pendingOrders).toEqual([STALE, LIVE, EXPIRED]);
+    expect(state.orderItems).toEqual([STALE, LIVE, EXPIRED]);
   });
 
   it("全件が期限内なら snapshot の pendingOrders は状態の配列そのもの（参照同値・再描画の抑制を壊さない）", () => {
-    const state: TimerState = { ...EMPTY_STATE, pendingOrders: [LIVE, EXPIRED] };
+    const state: TimerState = { ...EMPTY_STATE, orderItems: [LIVE, EXPIRED] };
     const message = toWireSnapshot(state, EXPIRY_PARAMS, (NOW - 1) as EpochMillis);
     if (message.type !== "snapshot") throw new Error("snapshot でない");
-    expect(message.pendingOrders).toBe(state.pendingOrders);
+    expect(message.pendingOrders).toBe(state.orderItems);
   });
 });
 
@@ -145,7 +152,7 @@ describe("性質 5.6 無害：期限切れの品目だけの待ち行列は空�
 
   it("hydration でも空の待ち行列と同じ snapshot（serverTime を除いて同じ内容）", () => {
     const expiredOnly = toWireSnapshot(
-      { ...EMPTY_STATE, pendingOrders: [STALE, EXPIRED] },
+      { ...EMPTY_STATE, orderItems: [STALE, EXPIRED] },
       EXPIRY_PARAMS,
       NOW,
     );
@@ -158,17 +165,17 @@ describe("性質 5.7 不変：期限切れは正本と永続 snapshot を変え�
   it("返る状態の pendingOrders は遷移が置いた配列そのもので、Persist の snapshot も全件を持つ", () => {
     const pending = [STALE, LIVE, EXPIRED];
     const outcome = arrive(EMPTY_STATE, pending, NOW);
-    expect(outcome.state.pendingOrders).toBe(pending);
-    expect(persistOf(outcome.effects).pendingOrders).toEqual([STALE, LIVE, EXPIRED]);
+    expect(outcome.state.orderItems).toBe(pending);
+    expect(persistOf(outcome.effects).orderItems).toEqual([STALE, LIVE, EXPIRED]);
     // 配る値だけが絞られている。
     expect(broadcastOf(outcome.effects).pendingOrders).toEqual([LIVE]);
   });
 
   it("no-op 検出は正本を比べる：期限切れだけの待ち行列に同じ集合を渡せば no-op（Persist も Broadcast も出ない）", () => {
-    const prev: TimerState = { ...EMPTY_STATE, pendingOrders: [STALE, EXPIRED] };
+    const prev: TimerState = { ...EMPTY_STATE, orderItems: [STALE, EXPIRED] };
     const outcome = settle(
       prev,
-      { ...prev, pendingOrders: [...prev.pendingOrders] },
+      { ...prev, orderItems: [...prev.orderItems] },
       EXPIRY_PARAMS,
       NOW,
       true,
@@ -185,7 +192,7 @@ describe("性質 5.7 不変：期限切れは正本と永続 snapshot を変え�
     const later = (NOW + 3 * HOUR) as EpochMillis;
     const outcome = settle(
       prev,
-      { ...prev, pendingOrders: [...prev.pendingOrders] },
+      { ...prev, orderItems: [...prev.orderItems] },
       EXPIRY_PARAMS,
       later,
       true,
@@ -199,6 +206,49 @@ describe("性質 5.7 不変：期限切れは正本と永続 snapshot を変え�
     if (hydrated.type !== "snapshot") throw new Error("snapshot でない");
     expect(hydrated.pendingOrders).toEqual([]);
     expect(hydrated.recommendations).toEqual([]);
+  });
+});
+
+describe("order-lifecycle：snapshot は期限内 ∨ 生きた Timer の参照先、要求は未調理（AC 3.2 / 4.1 / 4.2・性質 7.7）", () => {
+  /** 期限切れの品目 EXPIRED を指す生きた Timer（開始は期限内に行われた）。 */
+  const cookingExpired = createTimer({
+    id: "t-expired" as TimerId,
+    slotIds: nonEmpty(["0" as SlotId]),
+    noodleType: "Long" as NoodleType,
+    firmness: "normal",
+    startTime: (NOW - 2 * 60 * SECOND) as EpochMillis,
+    endTime: (NOW + 8 * 60 * SECOND) as EpochMillis,
+    seq: 0,
+    orderItem: { externalOrderId: EXPIRED.externalOrderId, itemIndex: 0, tableId: "t-a" },
+  });
+
+  it("期限を超えた調理中の品目は snapshot に載り、要求と推奨には無い", () => {
+    const prev: TimerState = {
+      ...EMPTY_STATE,
+      timers: [cookingExpired],
+      nextSeq: 1,
+      orderItems: [EXPIRED],
+    };
+    const outcome = arrive(prev, [EXPIRED, LIVE], NOW);
+    const snapshot = broadcastOf(outcome.effects);
+    expect(snapshot.pendingOrders).toEqual([EXPIRED, LIVE]);
+    expect(snapshot.pendingOrders).toEqual(
+      orderItemsToBroadcast(outcome.state.orderItems, outcome.state.timers, NOW),
+    );
+    expect(snapshot.recommendations.map((each) => each.externalOrderId)).toEqual(["o-live"]);
+    expect(requestOf(outcome.effects)?.pending).toEqual([LIVE]);
+    expect(requestOf(outcome.effects)?.running).toEqual(outcome.state.timers);
+    // hydration も同じ射影。
+    const hydrated = toWireSnapshot(outcome.state, EXPIRY_PARAMS, NOW);
+    if (hydrated.type !== "snapshot") throw new Error("snapshot でない");
+    expect(hydrated.pendingOrders).toEqual([EXPIRED, LIVE]);
+  });
+
+  it("参照先の無い Timer（アドホック）は snapshot の品目集合に何も足さない", () => {
+    const adHoc = createTimer({ ...cookingExpired, id: "t-adhoc" as TimerId, orderItem: null });
+    const prev: TimerState = { ...EMPTY_STATE, timers: [adHoc], nextSeq: 1, orderItems: [EXPIRED] };
+    const outcome = arrive(prev, [EXPIRED, LIVE], NOW);
+    expect(broadcastOf(outcome.effects).pendingOrders).toEqual([LIVE]);
   });
 });
 
@@ -235,7 +285,7 @@ describe("混在（レビュー実走）：変更費用の文脈は生きてい�
     ]);
     expect(requestOf(outcome.effects)?.pending).toEqual(scene.live);
     // 正本は期限切れの A を含んだまま。
-    expect(persistOf(outcome.effects).pendingOrders).toEqual(scene.pending);
+    expect(persistOf(outcome.effects).orderItems).toEqual(scene.pending);
   });
 
   it("pack（B・C を 45 秒後）の変更費用は正しい文脈で先頭の変更 2L = 90 秒、期限切れの A を文脈に残せば 0", () => {

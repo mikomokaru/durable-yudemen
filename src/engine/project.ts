@@ -26,6 +26,9 @@ export function adjustedEndTime(timer: Timer): EpochMillis {
  *
  * seq / boiledAt / adjustment（いずれも engine 専用）を削ぎ、endTime に実効値（= endTime + adjustment）を
  * 載せる。client は調整の存在を知らず、受け取った endTime から残り時間・boiled を今までどおり導出する。
+ *
+ * 品目への参照（`orderItem`）は鍵だけを写す（order-lifecycle AC 4.4）——`tableId` は開始時点の卓（計画の錨の出所・
+ * engine 専用）で、client は品目を参照で引いて最新の卓を読む（判断 7）。null はアドホック・v12 由来。
  */
 export function toWireTimer(timer: Timer): TimerFact {
   return {
@@ -35,6 +38,13 @@ export function toWireTimer(timer: Timer): TimerFact {
     firmness: timer.firmness,
     startTime: timer.startTime,
     endTime: adjustedEndTime(timer),
+    orderItem:
+      timer.orderItem === null
+        ? null
+        : {
+            externalOrderId: timer.orderItem.externalOrderId,
+            itemIndex: timer.orderItem.itemIndex,
+          },
   };
 }
 

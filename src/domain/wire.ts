@@ -184,7 +184,21 @@ function toTimerFact(value: unknown): TimerFact | null {
   if (typeof noodleType !== "string") return null;
   if (!isFirmness(firmness)) return null;
   if (typeof startTime !== "number" || typeof endTime !== "number") return null;
-  return { id, slotIds, noodleType, firmness, startTime, endTime };
+  const orderItem = toOrderItemRef(value.orderItem);
+  if (orderItem === undefined) return null;
+  return { id, slotIds, noodleType, firmness, startTime, endTime, orderItem };
+}
+
+/**
+ * Timer → 品目の参照を確立する（order-lifecycle AC 4.4）。null はそのまま、{ externalOrderId: 非空文字列;
+ * itemIndex: 非負整数 } はその参照、他は undefined（拒否・snapshot ごと落とす）。欠如も落とす——サーバは常に書く。
+ */
+function toOrderItemRef(value: unknown): TimerFact["orderItem"] | undefined {
+  if (value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const { externalOrderId, itemIndex } = value;
+  if (!isNonEmptyString(externalOrderId) || !isNonNegativeInteger(itemIndex)) return undefined;
+  return { externalOrderId, itemIndex };
 }
 
 /**

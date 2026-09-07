@@ -1052,7 +1052,7 @@ export class StoreTimerDO extends DurableObject<Env> {
           }
         : command.type === "startOrderItem"
           ? {
-              // 品目を指す開始。麺種・茹で加減・茹で秒は運ばれず、engine が pendingOrders と
+              // 品目を指す開始。麺種・茹で加減・茹で秒は運ばれず、engine が orderItems と
               // noodlePresets から導く（slot-suggested-start 判断 6）。
               type: "StartOrderItem" as const,
               slotIds: command.slotIds,

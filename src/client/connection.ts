@@ -339,6 +339,8 @@ function decideLocalStart(
     firmness: DEFAULT_FIRMNESS,
     startTime: event.correctedNow,
     endTime: event.correctedNow + event.boilSeconds * 1000,
+    // ローカルの暫定開始はアドホック（注文を持たない）。品目を指す開始はサーバ確定の snapshot で参照付きの Timer になる。
+    orderItem: null,
     origin: "local",
   };
   // 新規開始した駆動スロットの直前結果（残滓）は解除する（要件13.7）。

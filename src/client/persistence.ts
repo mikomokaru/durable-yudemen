@@ -160,6 +160,8 @@ function toClientTimer(value: unknown): ClientTimer | null {
     firmness,
     startTime,
     endTime: value.endTime,
+    // 品目への参照の復元（検証・旧ブロブの欠如は null）は order-lifecycle task 4。ここでは null に畳んで Timer を失わない。
+    orderItem: null,
     origin: value.origin,
   };
 }

@@ -111,7 +111,7 @@ const IMPROVING: CookSchedule = {
 };
 
 function stateWith(timers: readonly Timer[], pending: readonly OrderItem[]): TimerState {
-  return { ...EMPTY_STATE, timers, nextSeq: timers.length, pendingOrders: pending };
+  return { ...EMPTY_STATE, timers, nextSeq: timers.length, orderItems: pending };
 }
 
 /** 待ち行列の arrivalTime だけを寿命以上過去へ動かす（Timer・設定・時刻・計画は同じ）。 */

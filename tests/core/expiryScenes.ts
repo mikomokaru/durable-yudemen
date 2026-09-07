@@ -156,7 +156,7 @@ export function mixedScene(now: EpochMillis): MixedScene {
       ...EMPTY_STATE,
       timers: running,
       nextSeq: 1,
-      pendingOrders: pending,
+      orderItems: pending,
       shownPlan: shown,
     },
   };

@@ -113,6 +113,37 @@ function plan(...slices: readonly ReturnType<typeof slice>[]): CookSchedule {
   return { slices };
 }
 
+describe("admit — 読む集合は未調理の品目（order-lifecycle AC 4.1）", () => {
+  it("一片が指す品目が調理中なら段 1 の陳腐化で落ち、接頭辞は空", () => {
+    const cookingShort = createTimer({
+      id: "t-short" as TimerId,
+      slotIds: nonEmpty(["0" as SlotId]),
+      noodleType: "Short" as NoodleType,
+      firmness: "normal",
+      startTime: NOW,
+      endTime: (NOW + 60 * SECOND) as EpochMillis,
+      seq: BLOCKED.length,
+      orderItem: { externalOrderId: SHORT.externalOrderId, itemIndex: 0, tableId: "t-b" },
+    });
+    const running = [...BLOCKED, cookingShort];
+    const committed = committedSchedule([], PENDING, running, NOW, PRESETS, PARAMS, null);
+    const arrived = plan(
+      slice("t-b", [{ order: SHORT, startAt: NOW + 60 * SECOND, serveAt: NOW + 120 * SECOND }]),
+    );
+    expect(
+      admit(arrived, committed, PENDING, running, EMPTY_SHOWN_PLAN, NOW, PRESETS, PARAMS),
+    ).toEqual([]);
+    // 同じ一片でも SHORT が未調理（Timer なし）なら段 1 を通る（棄却が集合の読み方から出ていることの対照）。
+    const idle = committedSchedule([], PENDING, BLOCKED, NOW, PRESETS, PARAMS, null);
+    const improving = plan(
+      slice("t-b", [{ order: SHORT, startAt: NOW, serveAt: NOW + 60 * SECOND }]),
+    );
+    expect(
+      admit(improving, idle, PENDING, BLOCKED, EMPTY_SHOWN_PLAN, NOW, PRESETS, PARAMS),
+    ).toHaveLength(1);
+  });
+});
+
 /**
  * 比較の時点の採点（走行中の卓なし Timer は成員にならない）。
  *

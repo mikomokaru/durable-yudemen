@@ -78,7 +78,26 @@ const RUNNING: readonly Timer[] = [
   timerOn({ slot: 3, endOffset: 120_000, boiled: false, tableId: null }, 1),
 ];
 
-describe("engine/digest — digestInput", () => {
+describe("engine/digest — digestInput（order-lifecycle AC 4.1：正本を受け、内側で未調理に絞る）", () => {
+  it("調理中の品目（自分を指す生きた Timer が在る）は指紋に現れず、完了しても現れない", () => {
+    const cooking = timerOn({ slot: 4, endOffset: 90_000, boiled: false, tableId: null }, 2);
+    const referencing = {
+      ...cooking,
+      orderItem: { externalOrderId: "o-2", itemIndex: 0, tableId: null },
+    };
+    const withoutItem = digestInput(PENDING.slice(0, 2), [...RUNNING, referencing], PARAMS, NOW);
+    expect(digestInput(PENDING, [...RUNNING, referencing], PARAMS, NOW)).toBe(withoutItem);
+    // done（Timer が消え completedAt が在る）も計画対象に無い。
+    const done = [...PENDING.slice(0, 2), { ...PENDING[2]!, completedAt: NOW }];
+    expect(digestInput(done, RUNNING, PARAMS, NOW)).toBe(
+      digestInput(PENDING.slice(0, 2), RUNNING, PARAMS, NOW),
+    );
+    // 開始そのものは指紋を変える（Timer が増え、計画対象が減る）——抑制が効きすぎない。
+    expect(digestInput(PENDING, [...RUNNING, referencing], PARAMS, NOW)).not.toBe(
+      digestInput(PENDING, RUNNING, PARAMS, NOW),
+    );
+  });
+
   it("列挙順に依存しない（待ち行列・Timer・slotIds の並びは事実ではない）", () => {
     const baseline = digestInput(PENDING, RUNNING, PARAMS, NOW);
 

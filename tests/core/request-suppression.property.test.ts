@@ -74,13 +74,13 @@ describe("engine/settle — 要求の抑制", () => {
         }
 
         const digest = digestInput(
-          received.state.pendingOrders,
+          received.state.orderItems,
           received.state.timers,
           scene.params,
           scene.now,
         );
         // 「計画対象」の判定は planTargets ただ一つ（settle と同じ定義を見る・同じ規則を二度書かない）。
-        const hasTargets = planTargets(received.state.pendingOrders, scene.now).length > 0;
+        const hasTargets = planTargets(received.state.orderItems, scene.now).length > 0;
         if (hasTargets) withTargets++;
         else withoutTargets++;
 
@@ -132,14 +132,13 @@ describe("engine/settle — 要求の抑制", () => {
         const outcome = decide(scene.state, scene.event, scene.params);
         if (!outcome.ok || outcome.effects.length === 0) return;
         const expected = digestInput(
-          outcome.state.pendingOrders,
+          outcome.state.orderItems,
           outcome.state.timers,
           scene.params,
           scene.now,
         );
         const differs = expected !== scene.state.requestedDigest;
-        const requestable =
-          differs && planTargets(outcome.state.pendingOrders, scene.now).length > 0;
+        const requestable = differs && planTargets(outcome.state.orderItems, scene.now).length > 0;
         expect(requestOf(outcome.effects) !== null).toBe(requestable);
         expect(outcome.state.requestedDigest).toBe(
           requestable ? expected : scene.state.requestedDigest,

@@ -43,7 +43,7 @@
 
 ### 2.3 店舗単位に空状態へ戻す（最後の手段）
 
-- キー `activeTimers` を消せば、`migrate` は不在を空スナップショットへ写す（`store-timer-do.ts:571-573` の注記）。走行中タイマー・待ち行列（`pendingOrders`）・採用済み計画・取り込みの重複排除表（`lastSequenceByTerminal`）を**すべて失う**。POS の再送は重複排除表が空なので再び受理される。
+- キー `activeTimers` を消せば、`migrate` は不在を空スナップショットへ写す（`store-timer-do.ts:571-573` の注記）。走行中タイマー・注文品目（`orderItems`・v12 以前は `pendingOrders`）・採用済み計画・取り込みの重複排除表（`lastSequenceByTerminal`）を**すべて失う**。POS の再送は重複排除表が空なので再び受理される。
 - 消す経路も無いため、これも「該当店舗だけ `activeTimers` を消す」一時コードを出す形になる。店舗と合意した上で、営業時間外に行う。
 
 ## 3. 版ごとの差（版を上げる spec はここに 1 行足す）
@@ -54,6 +54,7 @@
 | v10 | `lift-group-planning` | `Timer.orderItem.tableId`（欠如は null） | `AcceptedSlice.score` | `version` を 9 にし、**`acceptedSlices` を空・`requestedDigest` を欠如**にする。v9 の reviver は `score` を整数として必須とし（`migrate.ts@1b84169:219`）、v10 の一片は `score` を持たないため、残したままでは `MigrationFailed` になる。採用済み計画は導出値で、空にすれば v9 が自前解から立て直す。`tableId` は v9 の `reviveOrderItem` が読まないので放置してよい（次の `Persist` で消える。**走行中の卓の記憶は失われ**、v9 の計画はその走行中を群の錨に使わない——v9 には錨の概念が無いので、それが v9 の正常動作である） |
 | v11 | `lift-group-planning`（判断 20・上げ窓） | `AcceptedSlice.placements[].anchor`（合流先の走行中の実効 endTime・合流でなければ null。欠如は null。**v10 → v11 では推定せず null で移行する**——`migrate` は設定（toleranceRatio）を持たず h_i の窓を引けない。代償は、v10 で採用済みだった合流分が次の再計画（外部計画の採用・品目の開始・錨の Timer の茹で上がり）まで client で「開始済み」に見えないこと。走行中の計時には触れない） | — | `version` を 10 にするだけ。v10 の `revivePlacement` は `anchor` を読まないので放置してよい（次の `Persist` で消える）。v10 の合成は所属を持たず `serveAt` と錨の近さ（±h_i）で合流を推定し直すので、v11 が上げ窓で錨より後ろへ置いた合流分は v10 では「合流していない」と読まれ、押し出しなら切られて v10 の自前解が置き直す——v10 には上げ窓の概念が無いので、それが v10 の正常動作である |
 | v12 | `plan-stability`（判断 1） | `shownPlan`（前回配信対象として確定した提案。品目ごとの `slotIds` / `startAt` / `serveAt` / `anchor` と同じ群の相手の鍵 `mates`。欠如は空・壊れた要素はその要素だけ落とす） | — | `version` を 11 にするだけ。v11 の `migrate` は知っているフィールド（`timers` / `nextSeq` / `pendingOrders` / `acceptedSlices` / `requestedDigest` / `lastSequenceByTerminal`）だけを拾い、`shownPlan` を読まないので放置してよい（次の `Persist` で消える）。v11 には前回の提案と比べる概念が無く、自前解は毎回ゼロから置き直す——それが v11 の正常動作である。走行中の計時・待ち行列・採用済み計画には触れない |
+| v13 | `order-lifecycle`（判断 1・3・10） | `pendingOrders` を `orderItems` に読み替え、各品目に厨房の事実 `completedAt` / `interruptedAt`（欠如は null）。品目は開始で消費されず、状態（unstarted / cooking / done）は Timer の参照と `completedAt` から導く | `pendingOrders`（鍵名） | `version` を 12 にし、**`orderItems` を `pendingOrders` に戻す**（v12 の reviver は `pendingOrders` だけを読み、`orderItems` は読まないので、戻さなければ品目集合が空として起動する）。`completedAt` / `interruptedAt` は v12 の reviver が読まないので放置してよい（次の `Persist` で消える）。**切戻しの注意**：v12 は開始済みの品目を消費する契約だったので、v13 で正本に残していた `cooking` / `done` の品目が v12 では**未着手として現れる**——調理中の品目は左レールと計画に戻り、完了済みの品目は POS の再送が無くても待ち行列に復活する。戻す前に `completedAt` を持つ品目と、生きた Timer の参照先の品目を `pendingOrders` から除いておく（v12 の「開始で消費」を下り移行で写す）のが v12 の規律に沿う。走行中の計時（`Timer`）には触れない |
 
 `score` を埋めて残す案は採らない。v9 のゲートは永続された `score` を Committed_Plan の基準にするため、でたらめな値（0 など）を入れると外部解が永遠に棄却されるか、逆に何でも通る。空にして立て直させる方が v9 の規律に沿う。
 

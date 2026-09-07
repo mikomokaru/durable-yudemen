@@ -75,6 +75,8 @@ const TIMER_FACT_FIELDS = new Set([
   "firmness",
   "startTime",
   "endTime",
+  // order-lifecycle が足した Timer → 品目の参照。群の識別（実効 endTime の等値）とは無関係で、一括完了の差分ではない。
+  "orderItem",
 ]);
 
 /**
@@ -363,18 +365,22 @@ describe("(a) engine / domain / shell に一括完了由来の差分が無い（
     expect(SERVER_SIDE_FILES.length).toBeGreaterThan(0);
   });
 
-  it("TimerFact が 6 事実フィールドのみを宣言する（群 id・membership を足していない・要件10.1）", () => {
-    // 群の識別は実効 endTime の等値だけで行う。ゆえに Timer という事実の芯は 1 フィールドも増えない。
+  it("TimerFact が 7 事実フィールドのみを宣言する（群 id・membership を足していない・要件10.1）", () => {
+    // 群の識別は実効 endTime の等値だけで行う。ゆえに Timer という事実の芯は一括完了で 1 フィールドも増えない
+    // （order-lifecycle の orderItem は品目への参照で、群の識別ではない）。
     // 数える範囲は TimerFact の宣言ブロックだけに閉じる（TimerFact はファイル末尾の宣言ゆえ
-    // sliceBetween の終端アンカーが無く、sliceDeclaration で閉じ波括弧を終端に採る）。
+    // sliceBetween の終端アンカーが無く、sliceDeclaration で閉じ波括弧を終端に採る）。行頭のフィールドだけを数える
+    // （orderItem の参照の形は同じ行に閉じたインライン型で、その内側の readonly はフィールドではない）。
     const declaration = sliceDeclaration(
       readBareCode(TIMER_FILE),
       "export interface TimerFact",
       TIMER_FILE,
     );
-    const fields = [...declaration.matchAll(/\breadonly\s+(\w+)\s*:/g)].map((match) => match[1]);
+    const fields = [...declaration.matchAll(/^\s{2}readonly\s+(\w+)\s*:/gm)].map(
+      (match) => match[1],
+    );
     expect(new Set(fields)).toEqual(TIMER_FACT_FIELDS);
-    expect(fields.length, "TimerFact のフィールド数が 6 でない").toBe(TIMER_FACT_FIELDS.size);
+    expect(fields.length, "TimerFact のフィールド数が 7 でない").toBe(TIMER_FACT_FIELDS.size);
   });
 
   it("ClientMessage / ServerMessage の種別集合が既存 7 種と一致する（complete が在り一括用の新種別が無い・要件10.3）", () => {

@@ -219,6 +219,7 @@ export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
+  orderItem: fc.constant(null),
   origin: genTimerOrigin,
 });
 
@@ -323,6 +324,7 @@ const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
+  orderItem: fc.constant(null),
 });
 
 /** TimerFact 集合（id 一意・全置換 snapshot / Reconcile の入力）。空集合も含む。 */
@@ -615,6 +617,7 @@ function liftViewOf(
         firmness: "normal",
         startTime: anchor - batch.anchor.boilSeconds * 1000,
         endTime: anchor,
+        orderItem: null,
         origin: "server",
       });
     }
@@ -667,6 +670,7 @@ function liftViewOf(
       firmness: "normal",
       startTime: endTime - mate.boilSeconds * 1000,
       endTime,
+      orderItem: null,
       origin: "server",
     });
   });

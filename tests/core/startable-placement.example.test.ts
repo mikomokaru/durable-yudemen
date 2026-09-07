@@ -166,7 +166,8 @@ describe("Feature: startable-placement — 観測事実 8（卓なし 8 品・�
     expect(startedB).toHaveLength(1);
     expect(startedB[0]!.at).toBe(75);
     const last = trace[trace.length - 1]!;
-    expect(last.step.state.pendingOrders).toHaveLength(0);
+    // 品目は開始で消費されない（order-lifecycle）——全品目が done（completedAt 付き）で走行中が無いことが「最後まで処理された」。
+    expect(last.step.state.orderItems.every((item) => item.completedAt !== null)).toBe(true);
     expect(last.step.state.timers).toHaveLength(0);
     // 開始はすべて提案の釜——Timer の無い釜——で行われた（開始の直前の snapshot でその釜に Timer が無い）。
     for (const [index, transition] of trace.entries()) {
@@ -307,7 +308,7 @@ describe("Feature: startable-placement — レビュー反例", () => {
       ...EMPTY_STATE,
       timers: running,
       nextSeq: 10,
-      pendingOrders: [b],
+      orderItems: [b],
       acceptedSlices: [accepted],
     };
     const arrived = step(kitchen, state, arrive([a], NOW));
@@ -500,7 +501,8 @@ describe("Feature: startable-placement — 24 品の連続処理で、例外に�
       const run = runOf(tables, slotSpan, options);
       expect(gapsOf(run)).toEqual([]);
       const last = run[run.length - 1]!;
-      expect(last.step.state.pendingOrders).toHaveLength(0);
+      // 品目は開始で消費されない（order-lifecycle）——全品目が done（completedAt 付き）で走行中が無いことが「最後まで処理された」。
+      expect(last.step.state.orderItems.every((item) => item.completedAt !== null)).toBe(true);
       expect(last.step.state.timers).toHaveLength(0);
       // 釜の再利用が二周目以降まで進んでいる（釜ごとに 24 / 6 ≧ 2 回以上の開始）。
       const starts = run.filter((transition) => transition.operation.startsWith("start "));

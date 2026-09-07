@@ -268,14 +268,14 @@ const genScene: fc.Arbitrary<IndependenceScene> = fc
       ...EMPTY_STATE,
       timers,
       nextSeq: timers.length,
-      pendingOrders: pending,
+      orderItems: pending,
       acceptedSlices: plan.slices,
       shownPlan: shownPlanOf(plan, recommend(plan)),
     };
     const shift = ORDER_LIFETIME_MS + seed.extra;
     const expired: TimerState = {
       ...alive,
-      pendingOrders: pending.map((order) => ({ ...order, arrivalTime: order.arrivalTime - shift })),
+      orderItems: pending.map((order) => ({ ...order, arrivalTime: order.arrivalTime - shift })),
     };
     return genEventFor(timers, plan, now).map((event) => ({
       alive,
@@ -309,8 +309,8 @@ describe("Feature: pending-order-expiry, Property 5.9: 注文期限からの独�
       // Validates: Requirements 4.1, 4.2, 4.3, 5.9
       fc.property(genScene, ({ alive, expired, event, params, now }) => {
         // 前提：片方は全件が生きており、もう片方は全件が期限切れ。Timer・設定・now・操作は同じ。
-        expect(liveOrders(alive.pendingOrders, now)).toBe(alive.pendingOrders);
-        expect(liveOrders(expired.pendingOrders, now)).toEqual([]);
+        expect(liveOrders(alive.orderItems, now)).toBe(alive.orderItems);
+        expect(liveOrders(expired.orderItems, now)).toEqual([]);
         expect(expired.timers).toBe(alive.timers);
         expect(event.type).not.toBe("StartOrderItem");
 
@@ -372,7 +372,7 @@ describe("Feature: pending-order-expiry, Property 5.9: 注文期限からの独�
         expect(fromAlive.timers).toEqual(fromExpired.timers);
         expect(fromAlive.serverTime).toBe(fromExpired.serverTime);
         expect(fromExpired.pendingOrders).toEqual([]);
-        expect(fromAlive.pendingOrders).toEqual(alive.pendingOrders);
+        expect(fromAlive.pendingOrders).toEqual(alive.orderItems);
 
         // 確定の settle（同じ状態から・確定変化として）も Timer と Alarm は同じ——Boil_Sync の結果は待ち行列に依らない。
         const settledAlive = settle(alive, { ...alive }, params, now, true);

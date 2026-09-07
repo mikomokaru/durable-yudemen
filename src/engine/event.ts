@@ -22,7 +22,7 @@ export type Event =
       readonly now: EpochMillis;
     }
   // 注文品目を指す開始（slot-suggested-start）。運ぶのは鍵と釜だけで、麺種・茹で加減・茹で秒は運ばない
-  // ——engine が pendingOrders の当該品目と params.noodlePresets から導く。Start と一つに畳まないのは、
+  // ——engine が orderItems の当該品目（未調理・`pendingOrders`）と params.noodlePresets から導く。Start と一つに畳まないのは、
   // 「主張を検証して使う」と「事実から導く」で義務が違うためである（畳めば引数で切り替える分岐が生まれる）。
   | {
       readonly type: "StartOrderItem";

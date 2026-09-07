@@ -8,7 +8,7 @@
 // 不変条件（SSOT 規律）: 確定結果が直前と変わるときのみ Effect を出し、その列は必ず Persist が先頭。
 // 確定結果が直前と同一なら put も broadcast もしない（要件7.7）。
 //
-// 調理順スケジューリングが足したのは 3 点。確定結果に Pending_Order 集合と採用済み PlanSlice 列を加え、
+// 調理順スケジューリングが足したのは 3 点。確定結果に Order_Item 集合と採用済み PlanSlice 列を加え、
 // snapshot に確定計画からの推奨を同乗させ、外部計画を要求してよいかの旗（mayRequestPlan）を受ける。
 //
 // snapshot の組み立て（toWireSnapshot）は公開する。確定変化の broadcast と接続直後の hydration が同じ形を
@@ -26,12 +26,12 @@ import { nextAlarmEffect } from "./alarm";
 import { toWireTimer } from "./project";
 import { committedSchedule } from "./commit";
 import { recommend } from "./recommend";
-import { isSamePending } from "./pending";
+import { isSameOrderItems } from "./pending";
 import { digestInput, type InputDigest } from "./digest";
 import type { ScheduleParams } from "./objective";
 import { planTargets, type AcceptedSlice, type CookSchedule, type Placement } from "./schedule";
 import { shownPlanOf } from "./stability";
-import { liveOrders, type OrderItem } from "../domain/order";
+import { orderItemsToBroadcast, pendingOrders, type OrderItem } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 import type { CookRecommendation, ServerMessage } from "../domain/messages";
 
@@ -56,7 +56,7 @@ export interface SettleParams extends SyncParams, ScheduleParams {
  * 集合変更後の共通後処理（全体再同期＋no-op 検出＋Effect 列組み立て）。
  *
  * running のみ synchronize で Adjustment を全体置換し、boiled は据え置く（発火時の調整を凍結保持）。
- * 確定結果（Timer 集合・Pending_Order 集合・採用済み PlanSlice 列）が直前と同一なら Effect を出さず
+ * 確定結果（Timer 集合・Order_Item 集合・採用済み PlanSlice 列）が直前と同一なら Effect を出さず
  * 状態も prev へ戻す。変化があれば Persist を先頭に、SetAlarm|ClearAlarm（実効最早）・全量 snapshot
  * Broadcast（待ち行列と推奨を同乗）の順で Effect 列を組み、要求を出す遷移では末尾に RequestPlan を積む。
  *
@@ -106,11 +106,12 @@ export function settle(
 
   // 現在の指紋は導出値ゆえ確定後の入力から毎回導く（状態には持たない・AC 7.2）。指紋は絞った計画対象から
   // （pending-order-expiry AC 2.6・`now` は絞るためだけに渡し、畳まない）。
-  const digest = digestInput(confirmed.pendingOrders, confirmed.timers, params, now);
+  const digest = digestInput(confirmed.orderItems, confirmed.timers, params, now);
   // 計画対象は planTargets ただ一つから引く（「何が計画対象か」を二度書かない）。抑制の判定と、要求が運ぶ
-  // 集合が同じ値を見ることで、空判定と送出範囲が食い違う余地が構造から消える。期限切れの品目は計画対象に
-  // 無いので要求に乗らず（AC 2.3）、全件期限切れなら空の待ち行列と同じく要求しない（性質 5.6）。
-  const targets = planTargets(confirmed.pendingOrders, now);
+  // 集合が同じ値を見ることで、空判定と送出範囲が食い違う余地が構造から消える。期限切れ・調理中・調理済みの品目は
+  // 未調理（`pendingOrders`）に無いので要求に乗らず（AC 2.3・order-lifecycle AC 4.1）、全件が未調理でなければ空の
+  // 待ち行列と同じく要求しない（性質 5.6）。
+  const targets = planTargets(pendingOrders(confirmed.orderItems, confirmed.timers, now), now);
   // 抑制の条件は 3 つ（AC 5.6 / 5.7）。要求してよい遷移か、入力が前回の要求時から変わったか、そして
   // 計画する対象が在るか。**空の待ち行列では要求しない** ——改善しうるものが存在しない要求だからである
   // （このとき新しい指紋も永続しない。次に対象が現れた遷移で指紋はまだ食い違っており、要求はそこで出る）。
@@ -135,7 +136,7 @@ export function settle(
 /**
  * 外部への計画要求を組む（AC 5.1 / 5.3）。列の**末尾**に置かれる（順序の規律は assembleEffects の注記）。
  *
- * 運ぶ対象集合は**計画対象**（planTargets の出力）である。全 Pending_Order を渡して外部に切り直させれば、
+ * 運ぶ対象集合は**計画対象**（planTargets の出力・未調理の品目から組む）である。品目全件を渡して外部に切り直させれば、
  * 「何が計画対象か」の規則が engine と Solver_Worker の二箇所に生まれる。指紋が畳んだ範囲と要求が運ぶ範囲を
  * 同一にしておくことが、受領時に「この計画はどの入力に対するものか」を指紋で同定できる根拠でもある。
  * その集合は呼び出し側から受け取る——抑制の空判定が見た対象と、要求が運ぶ対象が同一の値であることを、
@@ -171,14 +172,14 @@ function requestPlan(
 /**
  * 確定結果の同一性判定（要件7.7 / AC 7.6）。永続され broadcast される事実のすべてが prev と next で一致するか。
  *
- * 突き合わせるのは 4 つ——Timer 集合・Pending_Order 集合・採用済み PlanSlice 列・取り込みの判定材料。
+ * 突き合わせるのは 4 つ——Timer 集合・Order_Item 集合・採用済み PlanSlice 列・取り込みの判定材料。
  * **待ち行列と採用済み計画を見なければオーダー到着が握り潰される**（Timer は 1 つも動かないため、Timer
  * だけを見る判定は「変化なし」と答えて Persist も Broadcast も出さない）。
  *
  * **判定材料（lastSequenceByTerminal）を含めるのは、集合が変わらずに材料だけが進む受領が実在するため
  * である**——翻訳結果が 0 件で当該注文が集合に無い受領（麺を含まない注文）がそれで、材料を確定させ
  * なければ同じ注文が再送のたびに翻訳をやり直される（pos-order-ingress AC 6.12・Property 16）。材料は
- * 永続され Pending_Order 集合と同一の `Persist` で確定する事実であり、確定結果の一部である（Property 14）。
+ * 永続され Order_Item 集合と同一の `Persist` で確定する事実であり、確定結果の一部である（Property 14）。
  * 受領以外の遷移はこの材料を一切動かさないため、判定を足しても他の分岐の挙動は変わらない。
  *
  * `requestedDigest` は含めない（design が挙げる 2 つに限る）。指紋だけが変わる確定結果は存在しない——
@@ -192,7 +193,7 @@ function requestPlan(
 function isSameConfirmedResult(prev: TimerState, next: TimerState): boolean {
   return (
     isSameTimers(prev.timers, next.timers) &&
-    isSamePending(prev.pendingOrders, next.pendingOrders) &&
+    isSameOrderItems(prev.orderItems, next.orderItems) &&
     isSameAccepted(prev.acceptedSlices, next.acceptedSlices) &&
     isSameLastSequence(prev.lastSequenceByTerminal, next.lastSequenceByTerminal)
   );
@@ -249,7 +250,7 @@ function isSameTimers(prev: readonly Timer[], next: readonly Timer[]): boolean {
  * 並びを含めるのは、この列が計画順（接頭辞採用の順序）そのものであり、順序が変われば確定計画が変わるためである。
  * 内容で突き合わせるのは、判定を呼び出し側の配列インスタンスの扱いに依存させないため——同じ内容の列を
  * 作り直した遷移が「変化」に見えれば、AC 7.6 が禁じる空振りの Persist / Broadcast が出る。
- * Pending_Order 側の同一性は pending.ts の isSamePending ただ一つ（同じ概念を二度書かない）。
+ * Order_Item 側の同一性は pending.ts の isSameOrderItems ただ一つ（同じ概念を二度書かない）。
  */
 function isSameAccepted(prev: readonly AcceptedSlice[], next: readonly AcceptedSlice[]): boolean {
   if (prev === next) return true;
@@ -313,17 +314,17 @@ export function toWireSnapshot(
  * 判断 4）。** 比較の文脈は再同期後の Timer 集合と、この時点の now（判断 8）。settle からは確定前の nextState、hydration
  * からは確定済みの状態が来るが、どちらも shownPlan は直前に Persist したものである。
  *
- * **待ち行列はこの時点の生きている待ち行列（Live_Orders）を読む（pending-order-expiry AC 2.4）。** 変更費用の文脈
- * （`pending`）にも同じ値を渡す——期限切れの品目は対応から外れ、費用に倒れない（「消えた品目」・plan-stability 判断 3）。
- * 正本の集合を文脈に残せば、期限切れの旧先頭を Head と数え、生きている次品目を遅らせる計画の先頭の変更（2L）が
- * 0 に消える。
+ * **待ち行列はこの時点の未調理の品目（`pendingOrders`＝期限内 ∧ unstarted）を読む（pending-order-expiry AC 2.4・
+ * order-lifecycle AC 4.1）。** 変更費用の文脈（`pending`）にも同じ値を渡す——期限切れ・開始済み・完了済みの品目は
+ * 対応から外れ、費用に倒れない（「消えた品目」・plan-stability 判断 3）。正本の集合を文脈に残せば、期限切れの旧先頭を
+ * Head と数え、生きている次品目を遅らせる計画の先頭の変更（2L）が 0 に消える。
  */
 function deriveRecommendations(
   state: TimerState,
   params: SettleParams,
   now: EpochMillis,
 ): { readonly committed: CookSchedule; readonly recommendations: readonly CookRecommendation[] } {
-  const live = liveOrders(state.pendingOrders, now);
+  const live = pendingOrders(state.orderItems, state.timers, now);
   // 生きた Timer は running / boiled とも釜の解放表に効く（boiled は実効 endTime の時点で解放済み扱い）。
   const committed = committedSchedule(
     state.acceptedSlices,
@@ -354,10 +355,12 @@ function snapshotMessage(
     serverTime: now,
     // 全量 snapshot は実効 endTime（toWireTimer が畳み込む）を載せ、集合全体の調整変化を一度に反映する。
     timers: state.timers.map(toWireTimer),
-    // 待ち行列は生きている待ち行列の全量（計画対象 64 件を超える分も含む・AC 2.3 / 2.4）。正本の集合そのものは
-    // 載せない——期限切れの品目は読まれない（pending-order-expiry AC 2.2・性質 5.5）。確定変化の Broadcast と hydration は
-    // 同じこの関数を通るので、両方が同時に絞られる。推奨は確定計画からの導出値。
-    pendingOrders: liveOrders(state.pendingOrders, now),
+    // 品目は「期限内 ∨ 生きた Timer の参照先」の全量（計画対象 64 件を超える分も含む・AC 2.3 / 2.4・order-lifecycle
+    // AC 4.2）。正本の集合そのものは載せない——期限切れの未調理・調理済みは読まれない（pending-order-expiry AC 2.2・
+    // 性質 5.5）が、調理中の品目は期限を超えても Complete まで載る（釜側が参照で卓・品名を引く・性質 7.7）。
+    // 確定変化の Broadcast と hydration は同じこの関数を通るので、両方が同時に絞られる。推奨は確定計画からの導出値。
+    // wire のフィールド名（`pendingOrders` → `orderItems`）の改名は task 3 で行う。
+    pendingOrders: orderItemsToBroadcast(state.orderItems, state.timers, now),
     recommendations,
   };
 }

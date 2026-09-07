@@ -18,7 +18,8 @@ import type { OrderItem } from "../domain/order";
  *
  * 次の 4 つは**いずれも状態に置かない**（AC 7.2）。すべて上の事実からの導出値であり、状態として持てば
  * 二つの真実の源が生まれて必ずズレる（design-philosophy.md「導出値を状態に昇格させない」）。
- *   - Committed_Plan — acceptedSlices と現在の Pending_Order / Timer 集合から committedSchedule が導く
+ *   - Committed_Plan — acceptedSlices と現在の未調理の品目（`pendingOrders`）/ Timer 集合から committedSchedule が導く
+ *   - Item_Status — 品目を指す生きた Timer の有無と completedAt から itemStatusOf が導く（order-lifecycle 判断 1）
  *   - Cook_Recommendation — Committed_Plan から recommend が導く
  *   - 現在の Input_Fingerprint — 現在の入力から digestInput が導く（保持するのは「直前に要求した時点の値」だけ）
  *   - Wait_Time — arrivalTime（事実）と提供時刻から引き算で出る
@@ -31,8 +32,13 @@ export interface TimerState {
   readonly timers: readonly Timer[];
   /** 次に割り当てる登録順（seq）。 */
   readonly nextSeq: number;
-  /** 未着手オーダーの品目集合。POS の状態ではなくここが正本（AC 2.1）。 */
-  readonly pendingOrders: readonly OrderItem[];
+  /**
+   * 注文品目の集合（状態を問わない正本・旧 pendingOrders・order-lifecycle 判断 10）。POS の状態ではなくここが正本（AC 2.1）。
+   *
+   * 品目は開始で消費されず、完了・中断は品目に記録される（`completedAt` / `interruptedAt`）。状態は保存せず
+   * `itemStatusOf` で導き、「未調理」は関数 `pendingOrders(orderItems, timers, now)` だけが表す。
+   */
+  readonly orderItems: readonly OrderItem[];
   /** Acceptance_Gate が採用した外部計画の一片。再計算では復元できない事実ゆえ状態に属する（AC 7.1）。 */
   readonly acceptedSlices: readonly AcceptedSlice[];
   /** 直前に外部計画を要求した時点の入力の指紋。null は「まだ一度も要求していない」。 */
@@ -60,11 +66,11 @@ export interface TimerState {
   readonly shownPlan: ShownPlan;
 }
 
-/** 空の初期状態。Timer なし・seq は 0 から・待ち行列も採用済み計画も空・未要求・判定材料なし・前回の提案なし。 */
+/** 空の初期状態。Timer なし・seq は 0 から・品目も採用済み計画も空・未要求・判定材料なし・前回の提案なし。 */
 export const EMPTY_STATE: TimerState = {
   timers: [],
   nextSeq: 0,
-  pendingOrders: [],
+  orderItems: [],
   acceptedSlices: [],
   requestedDigest: null,
   lastSequenceByTerminal: {},

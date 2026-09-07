@@ -24,20 +24,25 @@ type VariantKeys<K extends Effect["type"]> = keyof Extract<Effect, { readonly ty
 type ObservationOnlyKeys = "storeId" | "timerId" | "operationKind" | "eventTime" | "Record_Seq";
 type SequenceKeys = "Record_Seq" | "seq" | "nextSeq";
 type ModelShapeAssertions = [
+  // order-lifecycle（タスク 2）が Timer → 品目の参照 orderItem を共有契約に足した（釜側が品目を引く唯一の参照）。
   Assert<
-    Equal<keyof TimerFact, "id" | "slotIds" | "noodleType" | "firmness" | "startTime" | "endTime">
+    Equal<
+      keyof TimerFact,
+      "id" | "slotIds" | "noodleType" | "firmness" | "startTime" | "endTime" | "orderItem"
+    >
   >,
   Assert<Equal<keyof Timer, keyof TimerFact | "seq" | "boiledAt" | "adjustment" | "orderItem">>,
   // 調理順スケジューリング（online-cook-scheduling タスク 5.1）が 3 フィールドを足した。この主張の眼目は
   // 「Operation History が Timer モデルへフィールドを足さないこと」であり、他 spec による正当な拡張は追随させる。
   // POS オーダー取り込み（pos-order-ingress タスク 10）が重複排除の判定材料を 1 つ足した。
   // plan-stability（タスク 2）が前回配信対象として確定した提案（shownPlan・履歴の事実）を 1 つ足した。
+  // order-lifecycle（タスク 2）が pendingOrders を orderItems に改めた（品目は開始で消費されず、状態は導出する）。
   Assert<
     Equal<
       keyof TimerState,
       | "timers"
       | "nextSeq"
-      | "pendingOrders"
+      | "orderItems"
       | "acceptedSlices"
       | "requestedDigest"
       | "lastSequenceByTerminal"
@@ -50,13 +55,14 @@ type ModelShapeAssertions = [
   // 「判定材料だけ進んで注文が無い」欠落が生じるため、同じスナップショットに乗る。
   // v12（plan-stability タスク 2）が shownPlan を永続へ載せた——確定計画と同じ put で確定するので、確定した推奨と
   // Shown_Plan は常に一致する。
+  // v13（order-lifecycle タスク 2）が pendingOrders を orderItems に読み替えた（completedAt / interruptedAt 付き）。
   Assert<
     Equal<
       keyof StoreSnapshot,
       | "version"
       | "timers"
       | "nextSeq"
-      | "pendingOrders"
+      | "orderItems"
       | "acceptedSlices"
       | "requestedDigest"
       | "lastSequenceByTerminal"
@@ -158,7 +164,7 @@ describe("Operation History の Timer モデル規律", () => {
           "acceptedSlices": [],
           "lastSequenceByTerminal": {},
           "nextSeq": 42,
-          "pendingOrders": [],
+          "orderItems": [],
           "requestedDigest": null,
           "shownPlan": [],
           "timers": [
@@ -178,7 +184,7 @@ describe("Operation History の Timer モデル規律", () => {
               "startTime": 1700000000000,
             },
           ],
-          "version": 12,
+          "version": 13,
         },
         "type": "Persist",
       }

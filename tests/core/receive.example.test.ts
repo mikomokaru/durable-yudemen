@@ -56,10 +56,10 @@ function event(...order: readonly ReceivedOrder[]): Event {
 }
 
 /** 待ち行列に品目を据え、判定材料は当該端末について seq を進めた状態。 */
-function stateWith(pendingOrders: readonly OrderItem[], lastSequenceNumber?: string): TimerState {
+function stateWith(orderItems: readonly OrderItem[], lastSequenceNumber?: string): TimerState {
   return {
     ...EMPTY_STATE,
-    pendingOrders,
+    orderItems,
     lastSequenceByTerminal:
       lastSequenceNumber === undefined ? {} : { [TERMINAL]: lastSequenceNumber },
   };
@@ -75,7 +75,7 @@ describe("engine/receive — 受領を 1 つの遷移へ畳む", () => {
     const outcome = decide(before, event(received(SEQ_2, [item(1)])), PARAMS);
 
     // 追加ではなく置換——同一 Unique_Key の後着はそれまでの品目群を丸ごと置き換える。
-    expect(outcome.ok && outcome.state.pendingOrders).toEqual([item(1)]);
+    expect(outcome.ok && outcome.state.orderItems).toEqual([item(1)]);
     expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({ [TERMINAL]: SEQ_2 });
     expect(outcome.ok && persists(outcome.effects)).toHaveLength(1);
   });
@@ -85,7 +85,7 @@ describe("engine/receive — 受領を 1 つの遷移へ畳む", () => {
 
     const outcome = decide(before, event(received(SEQ_2, [])), PARAMS);
 
-    expect(outcome.ok && outcome.state.pendingOrders).toEqual([]);
+    expect(outcome.ok && outcome.state.orderItems).toEqual([]);
     expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({ [TERMINAL]: SEQ_2 });
     expect(outcome.ok && persists(outcome.effects)).toHaveLength(1);
   });
@@ -96,7 +96,7 @@ describe("engine/receive — 受領を 1 つの遷移へ畳む", () => {
     const outcome = decide(before, event(received(SEQ_2, [])), PARAMS);
 
     // 集合は同一インスタンスのまま——麺を含まない注文は正常な入力であり、他の注文を巻き込まない。
-    expect(outcome.ok && outcome.state.pendingOrders).toBe(before.pendingOrders);
+    expect(outcome.ok && outcome.state.orderItems).toBe(before.orderItems);
     // それでも材料は進む。進めなければ同じ注文が再送のたびに翻訳をやり直される。
     expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({ [TERMINAL]: SEQ_2 });
     expect(outcome.ok && persists(outcome.effects)).toHaveLength(1);
@@ -133,6 +133,6 @@ describe("engine/receive — 受領を 1 つの遷移へ畳む", () => {
       [TERMINAL]: SEQ_3,
       "9": SEQ_1,
     });
-    expect(outcome.ok && outcome.state.pendingOrders).toHaveLength(1);
+    expect(outcome.ok && outcome.state.orderItems).toHaveLength(1);
   });
 });

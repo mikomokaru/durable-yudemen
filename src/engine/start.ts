@@ -13,8 +13,7 @@ import type { Outcome } from "./effect";
 import type { Rejection } from "./rejection";
 import { settle } from "./settle";
 import type { SettleParams } from "./settle";
-import { consumeOrder } from "./pending";
-import { liveOrders } from "../domain/order";
+import { itemStatusOf, pendingOrders, refersTo } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS } from "../domain/firmness";
@@ -86,9 +85,9 @@ export function validateStart(input: {
  * 唯一の権威表現）。Persist を先頭に置くのは SSOT 規律の表明。
  * 拒否時（InvalidBoilSeconds / InvalidSlotOrNoodle / CapacityExceeded）は状態を一切変更せず Rejection を返す。
  *
- * **注文品目から始まったときは、その品目を待ち行列から除く**（AC 8.4）。`orderItem` は Timer にも写して
- * 「どの品目から始まったか」を残す——生きた Timer を持つ品目が modification の再送で待ち行列へ復活するのを
- * upsertOrder が防ぐための唯一の手掛かりである（engine/timer.ts の Ordered）。
+ * **注文品目から始まっても、その品目は集合から消えない**（order-lifecycle AC 1.1）。`orderItem` を Timer に写して
+ * 「どの品目から始まったか」を残す——品目の状態（cooking）を導く唯一の出所であり、釜側が品目を引く参照である
+ * （engine/timer.ts の Ordered）。
  * **アドホック経路（`start`）では拒否事由を増やさない**（AC 8.3）。推奨と異なる釜・タイミングで開始しても通す。
  * この経路は品目を指さないため「開始済みの品目を再び開始する」という事象自体が起きない。品目を指す開始
  * （`startOrderItemTimer`）は品目不在を拒否するが、それは推奨との一致を検査するからではなく、麺種を導けない
@@ -140,8 +139,8 @@ type StartOrderItemEvent = Extract<Event, { type: "StartOrderItem" }>;
  *
  * `startTimer` と一つに畳まない。あちらは client が主張した麺種と茹で秒を**検証して使う**、こちらは
  * server が持つ事実から**導く**。畳めば引数で「導くか使うか」を切り替える分岐が生まれ、どちらの義務なのか
- * 読めなくなる。共有するのは末尾——`validateStart` / MAX_TIMERS の検査 / `createTimer` / `consumeOrder` /
- * `settle` はいずれも既存のまま呼ぶ。Effect 列が既存 `start` と同一になるのはこの共有の帰結である。
+ * 読めなくなる。共有するのは末尾——`validateStart` / MAX_TIMERS の検査 / `createTimer` / `settle` はいずれも
+ * 既存のまま呼ぶ。Effect 列が既存 `start` と同一になるのはこの共有の帰結である。
  *
  * 釜の占有・推奨との一致・`slotIds` の数と `slotSpan` の一致は検査しない（AC 8.3）。提案からの重畳は
  * 「押す場所が idle にしかない」ことで client 側の構造が防ぐ。
@@ -151,14 +150,24 @@ export function startOrderItemTimer(
   args: StartOrderItemEvent,
   params: SettleParams,
 ): Outcome {
-  // 品目が待ち行列に無ければ麺種を導けない。他端末が直前に開始した場合に起こりうる正常な競合である。
-  // 照合は生きている待ち行列（Live_Orders）に対して行う——期限切れの品目は「待ち行列に無い品目」であり、同じ
-  // OrderItemNotFound で拒否する（pending-order-expiry AC 2.5・新しい拒否事由は足さない）。消費（consumeOrder）は
-  // 正本に対して行う（絞った集合から消しても正本は変わらない）。
-  const item = liveOrders(state.pendingOrders, args.now).find(
-    (order) => order.externalOrderId === args.externalOrderId && order.itemIndex === args.itemIndex,
+  // 照合は未調理の品目（`pendingOrders`＝期限内 ∧ unstarted）に対して行う（order-lifecycle AC 1.5・判断 12）。
+  // 無ければ、集合に在って調理中（自分を指す生きた Timer が在る）なら OrderItemCooking——他端末が直前に開始した
+  // 場合に起こりうる正常な競合で、二重調理を防ぐ。それ以外（done・期限切れ・不在）は「待ち行列に無い品目」として
+  // 同じ OrderItemNotFound で拒否する（pending-order-expiry AC 2.5）。
+  const item = pendingOrders(state.orderItems, state.timers, args.now).find((order) =>
+    refersTo(args, order),
   );
   if (item === undefined) {
+    const existing = state.orderItems.find((order) => refersTo(args, order));
+    if (existing !== undefined && itemStatusOf(existing, state.timers) === "cooking") {
+      return {
+        ok: false,
+        rejection: {
+          code: "OrderItemCooking",
+          message: `指定された品目は調理中: ${args.externalOrderId}#${args.itemIndex}`,
+        },
+      };
+    }
     return {
       ok: false,
       rejection: {
@@ -205,18 +214,19 @@ export function startOrderItemTimer(
     startTime: args.now,
     endTime,
     seq: state.nextSeq,
-    // 卓も品目の事実から写す。走行中になった後も計画の群の成員に留まるための唯一の手がかり（ADR-0003）。
+    // 卓も品目の事実から写す（開始時点の卓）。走行中になった後も計画の群の成員に留まるための唯一の手がかり
+    // （ADR-0003）。後着で品目の卓が移ってもここは追随しない（order-lifecycle 判断 7）。
     orderItem: {
       externalOrderId: args.externalOrderId,
       itemIndex: args.itemIndex,
       tableId: item.tableId,
     },
   });
+  // 品目は集合に残る（消費しない・AC 1.1）。状態は Timer の参照から cooking と導かれる。
   const moved: TimerState = {
     ...state,
     timers: [...state.timers, timer],
     nextSeq: state.nextSeq + 1,
-    pendingOrders: consumeOrder(state.pendingOrders, args.externalOrderId, args.itemIndex),
   };
   return settle(state, moved, params, args.now, true);
 }

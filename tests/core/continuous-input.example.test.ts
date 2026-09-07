@@ -224,7 +224,7 @@ describe("連続投入の不変 — 同じ卓の同じ茹で時間の品目を 1
               }
             }
           }
-          const remaining = current.state.pendingOrders;
+          const remaining = current.state.orderItems;
           const oldHead = headsOfShown(previous, remaining, current.state, at(now), arms);
           const newHead = headsOfShown(next, remaining, current.state, at(now), arms);
           for (const key of oldHead) {

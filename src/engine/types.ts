@@ -48,5 +48,8 @@ export const EPSILON_MS = 500 as const;
  *      （toleranceRatio・プリセット）を持たず h_i の窓を引けないため推定できない（design Component 10 の
  *      「推定できなければ null」）。合成（committedSchedule）が現在の走行中で再検証し、切るか維持する。
  *  v12: shownPlan（前回配信対象として確定した提案）を追加。欠如は空（plan-stability 判断 1・AC 1.3）。壊れた要素は
- *      その要素だけ落とす——履歴の欠けは Change_Cost 0 に倒れるだけで、状態全体を失わせない。 */
-export const CURRENT_SCHEMA_VERSION = 12 as const;
+ *      その要素だけ落とす——履歴の欠けは Change_Cost 0 に倒れるだけで、状態全体を失わせない。
+ *  v13: pendingOrders を orderItems に読み替え、各品目に厨房の事実 completedAt / interruptedAt を追加（order-lifecycle
+ *      判断 1・3・AC 1.6）。欠如は null。品目は開始で消費されず状態は導出する。不正な品目は既存どおり全体を移行失敗
+ *      （部分受理という嘘を作らない）。v12 由来で参照先の無い走行中 Timer はそのまま動く（判断 14・移行例外）。 */
+export const CURRENT_SCHEMA_VERSION = 13 as const;

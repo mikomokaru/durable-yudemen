@@ -11,6 +11,7 @@ const WIRE_TIMER_KEYS = [
   "firmness",
   "id",
   "noodleType",
+  "orderItem",
   "slotIds",
   "startTime",
 ] as const satisfies readonly (keyof TimerFact)[];
@@ -40,7 +41,9 @@ function expectWireProjection(timer: Timer): void {
   expect(wire).not.toHaveProperty("adjustment");
   expect(wire).not.toHaveProperty("seq");
   expect(wire).not.toHaveProperty("boiledAt");
-  expect(wire).not.toHaveProperty("orderItem");
+  // 品目への参照は鍵だけを写す（order-lifecycle AC 4.4）。開始時点の卓（tableId）は engine 専用ゆえ出ない。
+  expect(wire.orderItem).toEqual({ externalOrderId: "order-1", itemIndex: 0 });
+  expect(wire.orderItem).not.toHaveProperty("tableId");
   expect(timer.endTime).toBe(originalEndTime);
 }
 

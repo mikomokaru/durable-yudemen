@@ -117,7 +117,7 @@ function placementFacts(
 
 /** 待ち行列に A と B が届いた遷移（確定変化）。 */
 function arrive(prev: TimerState, now: EpochMillis) {
-  const outcome = settle(prev, { ...prev, pendingOrders: [LONG, SHORT] }, PARAMS, now, false);
+  const outcome = settle(prev, { ...prev, orderItems: [LONG, SHORT] }, PARAMS, now, false);
   if (!outcome.ok) throw new Error("settle が拒否した");
   return outcome;
 }
@@ -140,7 +140,7 @@ describe("settle — 確定結果の Persist に Shown_Plan が同乗する（AC
     const snapshot = broadcastOf(outcome.effects);
     const committed = committedSchedule(
       outcome.state.acceptedSlices,
-      outcome.state.pendingOrders,
+      outcome.state.orderItems,
       outcome.state.timers,
       NOW,
       PRESETS,
@@ -170,7 +170,7 @@ describe("settle — 確定結果の Persist に Shown_Plan が同乗する（AC
       ...first.state,
       timers: [...first.state.timers, started],
       nextSeq: first.state.nextSeq + 1,
-      pendingOrders: [LONG],
+      orderItems: [LONG],
     };
 
     const second = settle(first.state, moved, PARAMS, LATER, false);
@@ -201,7 +201,7 @@ describe("settle — no-op・棄却・hydration では Shown_Plan を更新し�
 
     const outcome = settle(
       prev,
-      { ...prev, pendingOrders: [...prev.pendingOrders] },
+      { ...prev, orderItems: [...prev.orderItems] },
       PARAMS,
       LATER,
       false,
@@ -219,7 +219,7 @@ describe("settle — no-op・棄却・hydration では Shown_Plan を更新し�
     // 現行 Committed_Plan と同値の計画は改善ではないので棄却される。
     const same: CookSchedule = committedSchedule(
       prev.acceptedSlices,
-      prev.pendingOrders,
+      prev.orderItems,
       prev.timers,
       NOW,
       PRESETS,
@@ -248,7 +248,7 @@ describe("settle — no-op・棄却・hydration では Shown_Plan を更新し�
     expect(placementFacts(message.recommendations)).not.toEqual(placementFacts(before));
     expect(prev.shownPlan).toBe(before);
     // 確定するのは次の確定変化の Persist だけ（そのとき初めて、進んだ時刻で導いた推奨に置き換わる）。
-    const next = arrive({ ...prev, pendingOrders: [] }, LATER).state.shownPlan;
+    const next = arrive({ ...prev, orderItems: [] }, LATER).state.shownPlan;
     expect(placementFacts(next)).toEqual(placementFacts(message.recommendations));
     expect(placementFacts(next)).not.toEqual(placementFacts(before));
   });

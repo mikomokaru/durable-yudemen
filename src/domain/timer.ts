@@ -1,8 +1,8 @@
 // domain/timer.ts — Timer という事実の単一の芯（engine と client が共有する表現非依存の形）。
 // 同じ domain 内の firmness 語彙のみ取り込む（外部基盤には依存しない）。
 //
-// 5つのフィールド（id / slotIds / noodleType / firmness / startTime / endTime）は「茹でタイマーという事実」
-// そのものであり、一度だけここで宣言する。表現（ワイヤの生プリミティブ / engine のブランド型）はフィールド型を
+// 6つのフィールド（id / slotIds / noodleType / firmness / startTime / endTime）と品目への参照（orderItem）は
+// 「茹でタイマーという事実」そのものであり、一度だけここで宣言する。表現（ワイヤの生プリミティブ / engine のブランド型）はフィールド型を
 // 型パラメータで差し替えて導出する。既定（引数なし）はワイヤの生表現。firmness は表現に依らず Firmness で固定。
 //
 // domain は「真に両者で共有される契約」だけを持つ。片側専用の基底（engine 専用の Sequenced など）は
@@ -50,4 +50,12 @@ export interface TimerFact<Id = string, Slot = string, Noodle = string, Time = n
   readonly startTime: Time;
   /** 絶対終了時刻（事実）。残り秒ではない。 */
   readonly endTime: Time;
+  /**
+   * Timer → 注文品目の参照（order-lifecycle 判断 2・9）。null は注文なし（アドホック開始・v12 由来）。
+   *
+   * 品目の一意性のため itemIndex を持つ。client は `orderItemOf(timer, orderItems)` で品目を引き、卓・品名・番号を
+   * 読む（釜側の入口は参照ただ一つ）。engine の `Timer.orderItem` は開始時点の卓 `tableId` を余分に持つが、それは
+   * 計画の錨の出所で engine 専用ゆえ、ここには出さない。
+   */
+  readonly orderItem: { readonly externalOrderId: string; readonly itemIndex: number } | null;
 }

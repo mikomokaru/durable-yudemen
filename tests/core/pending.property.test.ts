@@ -1,18 +1,18 @@
 // tests/core/pending.property.test.ts — Property 8（到着の upsert は冪等で起点を保持する）と
-// Property 21（開始済み品目は upsert で復活しない）。
+// Property 21（後着は注文属性だけを更新し、調理中の品目は正本に残って参照が解ける・order-lifecycle 性質 7.5）。
 //
 // 対象は engine/pending の upsertOrder。純粋関数ゆえ workerd に依らず既定 pool で走る。
 //
-// 生成器の方針：待ち行列（pending）・生きた Timer（running）・到着（arrival）の 3 つは互いに独立ではない。
-// 「開始済みの品目は待ち行列に居ない」（人の開始が consumeOrder で除く）という現実の不変条件を生成器が
-// 尊重する——尊重しないと、実際には起きない状態に対する主張を検証してしまう。ゆえに品目ごとに
+// 生成器の方針：品目集合（pending）・生きた Timer（running）・到着（arrival）の 3 つは互いに独立ではない。
+// 「開始済みの品目は正本に残り、自分を指す生きた Timer を持つ」（order-lifecycle 判断 1・品目は消費されない）という
+// 現実の不変条件を生成器が尊重する——尊重しないと、実際には起きない状態に対する主張を検証してしまう。ゆえに品目ごとに
 // started / pending / gone の札を振り、その札から pending と running の両方を組み立てる。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { upsertOrder } from "../../src/engine/pending";
 import { createTimer, type Timer } from "../../src/engine/timer";
-import type { OrderItem } from "../../src/domain/order";
+import { itemStatusOf, type OrderItem } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
@@ -20,7 +20,7 @@ import { nonEmpty } from "../nonEmpty";
 
 const NOW = 10_000_000;
 
-/** 品目の在り方。started は生きた Timer を持つ（＝待ち行列に居ない）、gone はキャンセル済み。 */
+/** 品目の在り方。started は生きた Timer を持つ（正本に残り cooking）、gone は集合に無い。 */
 type ItemStatus = "started" | "pending" | "gone";
 
 /** 品目の内容（itemIndex は注文内の位置から決定的に振る）。 */
@@ -70,13 +70,13 @@ const genScene: fc.Arbitrary<Scene> = fc
   )
   .map((specs) => buildScene(specs.filter((spec): spec is OrderSpec => spec !== undefined)));
 
-/** 素データから pending / running を組み立てる。札が唯一の出所（同じ品目が両方に現れない）。 */
+/** 素データから pending / running を組み立てる。札が唯一の出所（started は集合と Timer の両方に現れる）。 */
 function buildScene(orders: readonly OrderSpec[]): Scene {
   const pending: OrderItem[] = [];
   const running: Timer[] = [];
   for (const order of orders) {
     order.items.forEach((item, itemIndex) => {
-      if (item.status === "pending")
+      if (item.status !== "gone")
         pending.push(toArrivedItem(order, item, itemIndex, order.arrivalTime));
       if (item.status === "started") {
         running.push(timerFor(order.externalOrderId, itemIndex, running.length));
@@ -225,31 +225,42 @@ describe("engine/pending — 到着の upsert", () => {
     );
   });
 
-  // Feature: online-cook-scheduling, Property 21: 開始済み品目は upsert で復活しない
-  // **Validates: Requirements 1.3, 1.8**
+  // Feature: order-lifecycle, Property 7.5: 後着は注文属性だけ——調理中の品目は正本に残り参照が解ける
+  // **Validates: Requirements 2.1, 2.2, 2.4, 7.2, 7.5**
   //
   // POS が「一部の品目が既に開始された注文」について全品目を含む modification を再送する、という
-  // 現場で実際に起きる事故の形をそのまま生成する。生きた Timer（running / boiled）を持つ品目が
-  // 待ち行列へ戻れば、同じ麺が二度茹でられる。
-  //   1. 生きた Timer を持つ品目は結果に現れない（復活しない）。
-  //   2. それでいて未開始の品目は現れる（除外が到着全体を捨てているのではない）。
-  it("Property 21: 全品目を含む modification でも生きた Timer を持つ品目は待ち行列へ戻らない", () => {
+  // 現場で実際に起きる形をそのまま生成する。かつては生きた Timer を持つ品目を置換から除いていたが、それでは
+  // 正本から参照先が消える（判断 8）。いまは品目が残り、状態が cooking のまま、注文属性だけが更新される。
+  //   1. 生きた Timer を持つ品目は結果に在り、状態は cooking（未調理には戻らない＝二重調理は開始の照合が防ぐ）。
+  //   2. 未開始の到着品目も現れる（更新が到着全体を捨てているのではない）。
+  //   3. 生きた Timer の参照先はすべて結果に在る（参照の整合・性質 7.2）。
+  it("Property 21: 全品目を含む modification でも生きた Timer を持つ品目は正本に残り cooking のまま", () => {
     fc.assert(
       fc.property(genRevivalScene, ({ scene, arrival, startedKeys }) => {
         const next = upsertOrder(scene.pending, scene.running, arrival);
+        const keysOfNext = new Set(
+          next.map((order) => keyOf(order.externalOrderId, order.itemIndex)),
+        );
 
-        // 1. 開始済み品目は復活しない。
+        // 1. 開始済み品目は残り、cooking のまま。
         for (const order of next) {
-          expect(startedKeys.has(keyOf(order.externalOrderId, order.itemIndex))).toBe(false);
+          const key = keyOf(order.externalOrderId, order.itemIndex);
+          expect(itemStatusOf(order, scene.running)).toBe(
+            startedKeys.has(key) ? "cooking" : "unstarted",
+          );
         }
 
-        // 2. 未開始の到着品目は待ち行列に居る（除外が広すぎない）。
+        // 2. 到着の品目はすべて集合に居る（開始済みも未開始も）。
         for (const item of arrival) {
-          const key = keyOf(item.externalOrderId, item.itemIndex);
-          if (startedKeys.has(key)) continue;
-          expect(next.some((order) => keyOf(order.externalOrderId, order.itemIndex) === key)).toBe(
-            true,
-          );
+          expect(keysOfNext.has(keyOf(item.externalOrderId, item.itemIndex))).toBe(true);
+        }
+
+        // 3. 参照の整合——生きた Timer の参照先は集合に在る。
+        for (const timer of scene.running) {
+          if (timer.orderItem === null) continue;
+          expect(
+            keysOfNext.has(keyOf(timer.orderItem.externalOrderId, timer.orderItem.itemIndex)),
+          ).toBe(true);
         }
       }),
       { numRuns: 300 },

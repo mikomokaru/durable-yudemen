@@ -113,7 +113,12 @@ export function shownPlanOf(
  * 偽の先頭変更が生まれる。
  *
  * `pending` と `presets` は Head の共有導出（`LiftItem`）が要る——到着時刻（同値の順）と茹で秒は推奨も Shown_Plan も
- * 持たず、Pending_Order 集合と麺種プリセットから引く（design Component 2 の入力契約）。
+ * 持たず、未調理の品目と麺種プリセットから引く（design Component 2 の入力契約）。
+ *
+ * **`pending` は `pendingOrders(items, timers, now)` の結果（未調理＝期限内 ∧ unstarted）である（order-lifecycle
+ * AC 4.1）。** 対応は「未調理の間」で数える——開始済み（cooking）・完了済み（done）・期限切れの品目は `pending` に無く、
+ * `completeWithShown` / `shownItemsOf` が読む対応から自然に外れる。正本（`orderItems`）を渡せば、開始した品目が
+ * 旧 Shown_Plan の Head に数えられて偽の先頭変更が生まれる。
  */
 export interface ChangeContext {
   /** 旧 Shown_Plan（遷移前の状態が持つ）。空は比較の相手なし（費用 0）。 */
@@ -122,7 +127,7 @@ export interface ChangeContext {
   readonly running: readonly Timer[];
   /** 比較の時点。 */
   readonly now: EpochMillis;
-  /** 品目の到着時刻（同値の順）と麺種・茹で加減（茹で秒）を引く。 */
+  /** 未調理の品目（`pendingOrders` の結果）。到着時刻（同値の順）と麺種・茹で加減（茹で秒）を引き、対応の範囲を定める。 */
   readonly pending: readonly OrderItem[];
   /** 茹で秒の出所。 */
   readonly presets: readonly NoodlePreset[];

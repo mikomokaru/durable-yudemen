@@ -103,6 +103,7 @@ function serverTimer(id: string, endTime: number): TimerFact {
     firmness: "normal",
     startTime: RECEIVED_AT,
     endTime,
+    orderItem: null,
   };
 }
 

@@ -106,12 +106,12 @@ const genAlarmScene: fc.Arbitrary<AlarmScene> = fc
         ...EMPTY_STATE,
         timers,
         nextSeq: timers.length,
-        pendingOrders: pending,
+        orderItems: pending,
         acceptedSlices: accepted,
       };
       return {
         planned,
-        barren: { ...planned, pendingOrders: [], acceptedSlices: [] },
+        barren: { ...planned, orderItems: [], acceptedSlices: [] },
         event,
         now,
         params: seed.params,
@@ -195,7 +195,7 @@ function expectedAlarm(state: TimerState): Effect {
 function recommendationsOf(state: TimerState, scene: AlarmScene) {
   const committed = committedSchedule(
     state.acceptedSlices,
-    state.pendingOrders,
+    state.orderItems,
     state.timers,
     scene.now,
     DEFAULT_NOODLE_PRESETS,

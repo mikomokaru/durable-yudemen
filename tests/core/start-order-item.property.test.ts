@@ -13,7 +13,7 @@ import { decide } from "../../src/engine/decide";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
 import type { Firmness } from "../../src/domain/firmness";
-import type { OrderItem } from "../../src/domain/order";
+import { itemStatusOf, pendingOrders, type OrderItem } from "../../src/domain/order";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
 import { settleParams } from "../settleParams";
@@ -49,7 +49,7 @@ const genOrder: fc.Arbitrary<OrderItem> = fc
 
 /** 当該品目を待ち行列に持つ状態。 */
 function stateWith(orders: readonly OrderItem[]): TimerState {
-  return { ...EMPTY_STATE, pendingOrders: orders };
+  return { ...EMPTY_STATE, orderItems: orders };
 }
 
 /** 品目を指す開始を 1 件流す。 */
@@ -122,8 +122,8 @@ describe("Feature: slot-suggested-start, Property 4: 品目からの開始は品
   });
 });
 
-describe("Feature: slot-suggested-start, Property 5: 待ち行列の消費は当該品目だけ", () => {
-  it("受理後、指した品目だけが消え他の品目は変わらない", () => {
+describe("Feature: order-lifecycle, AC 1.1 / 性質 7.1: 開始は品目を消費せず、指した品目だけが cooking になる", () => {
+  it("受理後、品目集合は写しのまま（順序も含めて）で、指した品目だけが cooking・他は unstarted", () => {
     fc.assert(
       fc.property(
         fc.uniqueArray(genOrder, {
@@ -137,24 +137,26 @@ describe("Feature: slot-suggested-start, Property 5: 待ち行列の消費は当
           const outcome = start(stateWith(orders), target);
           expect(outcome.ok).toBe(true);
           if (!outcome.ok) return;
-          const remaining = outcome.state.pendingOrders;
-          // 指した品目は消える。
-          expect(
-            remaining.some(
-              (order) =>
-                order.externalOrderId === target.externalOrderId &&
-                order.itemIndex === target.itemIndex,
-            ),
-          ).toBe(false);
-          // 他は写しのまま（順序も含めて）。
-          expect(remaining).toEqual(orders.filter((order) => order !== target));
+          const remaining = outcome.state.orderItems;
+          // 品目は消費されない——集合は同じ参照のまま（開始は品目に触れない）。
+          expect(remaining).toBe(orders);
+          // 状態は Timer の参照から導く：指した品目だけが cooking、他は unstarted。
+          for (const order of remaining) {
+            expect(itemStatusOf(order, outcome.state.timers)).toBe(
+              order === target ? "cooking" : "unstarted",
+            );
+          }
+          // 未調理の入口（pendingOrders）からは指した品目だけが外れる。
+          expect(pendingOrders(remaining, outcome.state.timers, NOW)).toEqual(
+            orders.filter((order) => order !== target),
+          );
         },
       ),
       { numRuns: 200 },
     );
   });
 
-  it("Timer は由来した品目を持つ（modification の再送で待ち行列へ復活させないための手掛かり）", () => {
+  it("Timer は由来した品目を持つ（品目の状態を cooking と導く唯一の出所・釜側が品目を引く参照）", () => {
     fc.assert(
       fc.property(genOrder, (order) => {
         const outcome = start(stateWith([order]), order);

@@ -196,12 +196,12 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
       ...EMPTY_STATE,
       timers,
       nextSeq: timers.length,
-      pendingOrders: pending,
+      orderItems: pending,
       acceptedSlices: plan.slices,
     };
     return genEventFor(timers, plan, now).map((event) => ({
       state,
-      bare: { ...state, pendingOrders: [], acceptedSlices: [] },
+      bare: { ...state, orderItems: [], acceptedSlices: [] },
       event,
       params,
       now,

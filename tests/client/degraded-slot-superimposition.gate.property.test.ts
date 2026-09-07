@@ -144,6 +144,7 @@ function occupantsFrom(
       firmness: spec.firmness,
       startTime: spec.endTime - 60_000,
       endTime: spec.endTime,
+      orderItem: null,
       origin: spec.origin,
     });
   }

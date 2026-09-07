@@ -347,7 +347,7 @@ describe("1 受領は 1 遷移・1 put である（Requirements 5.5）", () => {
     expect(client.messages.length).toBe(before + 1);
 
     const persisted = await readSnapshot(stub);
-    expect(persisted?.pendingOrders).toHaveLength(10);
+    expect(persisted?.orderItems).toHaveLength(10);
     // 判定材料も同じ put で確定する（端末は 1 つゆえ最後の seq が残る）。
     expect(persisted?.lastSequenceByTerminal).toEqual({ "1": seq(10) });
 
@@ -405,7 +405,7 @@ describe("未プロビジョニングと非活性は別の結末である（Requ
       orderRecord({ billNo: "bill-b", sequenceNumber: seq(1) }),
     ]);
     expect(deactivated.kind).toBe("deactivated");
-    expect((await readSnapshot(closed))?.pendingOrders ?? []).toEqual([]);
+    expect((await readSnapshot(closed))?.orderItems ?? []).toEqual([]);
 
     // 2 つが同じ種別に畳まれていない（畳めば店舗開設の瞬間に届いた注文が「飛ばして数える」で消える）。
     expect(unprovisioned.kind).not.toBe(deactivated.kind);
@@ -434,7 +434,7 @@ describe("翻訳できた品目のみが写る（Requirements 6.5, 6.16, 6.27, 6
     });
 
     const persisted = await readSnapshot(stub);
-    const orders = persisted?.pendingOrders ?? [];
+    const orders = persisted?.orderItems ?? [];
     // 位置 0・2（非麺）は欠番として残る。詰め直せば元のペイロードのどこから来たかという事実が失われる。
     expect(orders.map((order) => order.itemIndex)).toEqual([1, 3]);
     // 麺量が slotSpan へ、硬さの商品コードが firmness へ翻訳される（指定が無い品目は既定へ畳む）。
@@ -460,7 +460,7 @@ describe("翻訳できた品目のみが写る（Requirements 6.5, 6.16, 6.27, 6
       kind: "settled",
       counts: { doDedupeSkipped: 0, unknownNoodleType: 1 },
     });
-    const orders = (await readSnapshot(stub))?.pendingOrders ?? [];
+    const orders = (await readSnapshot(stub))?.orderItems ?? [];
     expect(orders.map((order) => order.itemIndex)).toEqual([0]);
     expect(orders.map((order) => order.noodleType)).toEqual([NOODLE]);
   });
@@ -474,7 +474,7 @@ describe("翻訳できた品目のみが写る（Requirements 6.5, 6.16, 6.27, 6
     ]);
     expect(outcome.kind).toBe("settled");
 
-    const orders = (await readSnapshot(stub))?.pendingOrders ?? [];
+    const orders = (await readSnapshot(stub))?.orderItems ?? [];
     expect(orders).toHaveLength(3);
     expect(orders.map((order) => order.tableId)).toEqual([null, null, "5"]);
   });
@@ -492,7 +492,7 @@ describe("重複は読み飛ばして数える（Requirements 12.15）", () => {
       counts: { doDedupeSkipped: 0, unknownNoodleType: 0 },
     });
     const confirmed = await readSnapshot(stub);
-    expect(itemKeys(confirmed?.pendingOrders ?? [])).toHaveLength(2);
+    expect(itemKeys(confirmed?.orderItems ?? [])).toHaveLength(2);
 
     // 同一バッチの再送（同じ seq）＋ より小さい seq。いずれも単調性で弾かれる。
     const resent = await stub.receiveRecords([
@@ -624,7 +624,7 @@ describe("Property 11: Record 間には原子性が無い（Requirements 5.5, 9.
     expect(overlapped.putCalls).toBe(1);
 
     const persisted = await readSnapshot(stub);
-    expect(persisted?.pendingOrders.map((order) => order.externalOrderId)).toEqual([
+    expect(persisted?.orderItems.map((order) => order.externalOrderId)).toEqual([
       "0007:1:bill-a:2026-08-17T20%3A52%3A19",
       "0007:1:bill-b:2026-08-17T20%3A52%3A19",
       "0007:1:bill-c:2026-08-17T20%3A52%3A19",
@@ -651,7 +651,7 @@ describe("Property 16: 後着は置換・0 件は除去または無変更（Requ
       }),
     ]);
     expect(first.kind).toBe("settled");
-    expect((await readSnapshot(stub))?.pendingOrders).toHaveLength(3);
+    expect((await readSnapshot(stub))?.orderItems).toHaveLength(3);
 
     // 同一 Unique_Key（4 要素が同じ）への後着。内容が違えば別 Record として届き、後着が新しい状態である。
     const superseded = await receiveCountingPuts(stub, [
@@ -666,8 +666,8 @@ describe("Property 16: 後着は置換・0 件は除去または無変更（Requ
     expect(superseded.putCalls).toBe(1);
     const persisted = await readSnapshot(stub);
     // 全置換であって差分の当て込みではない（残り 2 品目が待ち行列に取り残されない）。
-    expect(persisted?.pendingOrders).toHaveLength(1);
-    expect(persisted?.pendingOrders.map((order) => order.slotSpan)).toEqual([2]);
+    expect(persisted?.orderItems).toHaveLength(1);
+    expect(persisted?.orderItems.map((order) => order.slotSpan)).toEqual([2]);
     expect(persisted?.lastSequenceByTerminal).toEqual({ "1": seq(2) });
   });
 
@@ -686,7 +686,7 @@ describe("Property 16: 後着は置換・0 件は除去または無変更（Requ
     expect(removed.kind).toBe("settled");
     const persisted = await readSnapshot(stub);
     // 消えるのは当該 Unique_Key の分だけで、他のオーダーは残る。
-    expect(persisted?.pendingOrders.map((order) => order.externalOrderId)).toEqual([
+    expect(persisted?.orderItems.map((order) => order.externalOrderId)).toEqual([
       "0007:1:bill-b:2026-08-17T20%3A52%3A19",
     ]);
     expect(persisted?.lastSequenceByTerminal).toEqual({ "1": seq(3) });
@@ -707,7 +707,7 @@ describe("Property 16: 後着は置換・0 件は除去または無変更（Requ
 
     expect(unchanged.kind).toBe("settled");
     const persisted = await readSnapshot(stub);
-    expect(persisted?.pendingOrders).toEqual(confirmed?.pendingOrders);
+    expect(persisted?.orderItems).toEqual(confirmed?.orderItems);
     expect(persisted?.lastSequenceByTerminal).toEqual({ "1": seq(2) });
 
     // 判定材料が進んでいるため、同じ Record の再送は読み飛ばされる（0 件の受領も冪等である）。
@@ -742,7 +742,7 @@ describe("対応表が空でも経路は成立する（`[Q8]` の値が未提示
       counts: { doDedupeSkipped: 0, unknownNoodleType: 0 },
     });
     const persisted = await readSnapshot(stub);
-    expect(persisted?.pendingOrders).toEqual([]);
+    expect(persisted?.orderItems).toEqual([]);
     // 判定材料は進む（進まなければ再送のたびに同じ Record を翻訳し直すことになる）。
     expect(persisted?.lastSequenceByTerminal).toEqual({ "1": seq(1) });
 
@@ -765,6 +765,6 @@ describe("対応表が空でも経路は成立する（`[Q8]` の値が未提示
         ])
       ).kind,
     ).toBe("settled");
-    expect((await readSnapshot(tabled))?.pendingOrders).toHaveLength(2);
+    expect((await readSnapshot(tabled))?.orderItems).toHaveLength(2);
   });
 });

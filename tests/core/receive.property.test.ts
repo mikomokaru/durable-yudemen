@@ -162,7 +162,7 @@ describe("engine/receive — 受領の畳み込み", () => {
 
     expect(outcome.ok && effectsOfType(outcome.effects, "Persist")).toHaveLength(1);
     expect(outcome.ok && effectsOfType(outcome.effects, "Broadcast")).toHaveLength(1);
-    expect(outcome.ok && outcome.state.pendingOrders).toHaveLength(10);
+    expect(outcome.ok && outcome.state.orderItems).toHaveLength(10);
     expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({
       "t-1": toSequenceNumber(10),
     });
@@ -196,15 +196,15 @@ describe("engine/receive — 受領の畳み込み", () => {
         // 受理があれば確定は 1 回。その状態が集合の最終形も持つ（品目群は最後に効いた受領のもの）。
         expect(effectsOfType(outcome.effects, "Persist")).toHaveLength(1);
         for (const [externalOrderId, last] of lastAcceptedByOrder(accepted)) {
-          const settled = outcome.state.pendingOrders.filter(
+          const settled = outcome.state.orderItems.filter(
             (o) => o.externalOrderId === externalOrderId,
           );
           expect(settled.map((o) => o.itemIndex)).toEqual(last.items.map((o) => o.itemIndex));
         }
         // 受領が触れていない注文は巻き込まれない。
         const touched = new Set(accepted.map((one) => one.externalOrderId));
-        expect(outcome.state.pendingOrders.filter((o) => !touched.has(o.externalOrderId))).toEqual(
-          state.pendingOrders.filter((o) => !touched.has(o.externalOrderId)),
+        expect(outcome.state.orderItems.filter((o) => !touched.has(o.externalOrderId))).toEqual(
+          state.orderItems.filter((o) => !touched.has(o.externalOrderId)),
         );
       }),
       { numRuns: 300 },
@@ -260,14 +260,14 @@ describe("engine/receive — 受領の畳み込み", () => {
           expect(outcome.ok).toBe(true);
           if (!outcome.ok) return;
 
-          const existed = state.pendingOrders.some((o) => o.externalOrderId === externalOrderId);
+          const existed = state.orderItems.some((o) => o.externalOrderId === externalOrderId);
           if (existed) {
-            expect(outcome.state.pendingOrders).toEqual(
-              state.pendingOrders.filter((o) => o.externalOrderId !== externalOrderId),
+            expect(outcome.state.orderItems).toEqual(
+              state.orderItems.filter((o) => o.externalOrderId !== externalOrderId),
             );
           } else {
             // 集合は同一インスタンス（他の注文を巻き込まない）。
-            expect(outcome.state.pendingOrders).toBe(state.pendingOrders);
+            expect(outcome.state.orderItems).toBe(state.orderItems);
           }
           // どちらの側でも材料は進み、その確定は 1 回の Persist に載る。
           expect(outcome.state.lastSequenceByTerminal[terminalId]).toBe(sequenceNumber);

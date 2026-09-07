@@ -121,7 +121,7 @@ function cloneConfirmedState(state: TimerState): TimerState {
       slotIds: nonEmpty([...timer.slotIds]),
       orderItem: timer.orderItem === null ? null : { ...timer.orderItem },
     })),
-    pendingOrders: [...state.pendingOrders],
+    orderItems: [...state.orderItems],
     acceptedSlices: [...state.acceptedSlices],
     lastSequenceByTerminal: { ...state.lastSequenceByTerminal },
   };

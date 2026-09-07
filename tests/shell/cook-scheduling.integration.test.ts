@@ -279,7 +279,7 @@ async function confirmedWithAcceptedSlice(
   return runInDurableObject(stub, async (_instance, state) => {
     const persisted = await state.storage.get<StoreSnapshot>(SNAPSHOT_KEY);
     if (persisted === undefined) throw new Error("到着が永続されていない");
-    const order = persisted.pendingOrders[0];
+    const order = persisted.orderItems[0];
     if (order === undefined) throw new Error("待ち行列が空である");
     const next: StoreSnapshot = {
       ...persisted,
@@ -344,7 +344,7 @@ describe("20.2 `Persist` 失敗の抑止と回復（Requirements 10.5）", () =>
 
     const client = await connect(stub);
     const hydrated = await client.waitForSnapshot(() => true);
-    expect(hydrated.pendingOrders).toEqual(confirmed.pendingOrders);
+    expect(hydrated.pendingOrders).toEqual(confirmed.orderItems);
     const beforeFailure = client.messages.length;
 
     // put を失敗させたまま別オーダーの到着を通す。応答の側（受理を返さないこと）は 20.4 が受け持つため、
@@ -366,13 +366,13 @@ describe("20.2 `Persist` 失敗の抑止と回復（Requirements 10.5）", () =>
 
     // 直前の確定状態が保たれる——待ち行列に order-b は無く、採用済み PlanSlice も失われていない。
     const persisted = await readSnapshot(stub);
-    expect(persisted?.pendingOrders).toEqual(confirmed.pendingOrders);
+    expect(persisted?.orderItems).toEqual(confirmed.orderItems);
     expect(persisted?.acceptedSlices).toEqual(confirmed.acceptedSlices);
 
     // 後続の hydration が確定状態を回復する（推奨も確定状態から改めて導出される）。
     const recovered = await connect(stub);
     const rehydrated = await recovered.waitForSnapshot(() => true);
-    expect(rehydrated.pendingOrders).toEqual(confirmed.pendingOrders);
+    expect(rehydrated.pendingOrders).toEqual(confirmed.orderItems);
     expect(itemKeys(rehydrated.recommendations)).toEqual([["order-a", 0]]);
 
     client.close();
@@ -394,7 +394,7 @@ describe("20.3 hibernation 越しの復元（Requirements 2.5）", () => {
     expect(await arrive(stub, [item("order-b", 0, "t-2")])).toBe(200);
 
     const persisted = await readSnapshot(stub);
-    expect(itemKeys(persisted?.pendingOrders ?? [])).toEqual([
+    expect(itemKeys(persisted?.orderItems ?? [])).toEqual([
       ["order-a", 0],
       ["order-b", 0],
     ]);
@@ -456,7 +456,7 @@ describe("20.7 スキーマ v6 → v7 移行（Requirements 2.5）", () => {
     expect(await arrive(stub, [item("order-a", 0, "t-1")])).toBe(200);
     const persisted = await readSnapshot(stub);
     expect(persisted?.version).toBe(CURRENT_SCHEMA_VERSION);
-    expect(itemKeys(persisted?.pendingOrders ?? [])).toEqual([["order-a", 0]]);
+    expect(itemKeys(persisted?.orderItems ?? [])).toEqual([["order-a", 0]]);
     expect(persisted?.acceptedSlices).toEqual([]);
     // 指紋は「直前に要求した時点の値」として埋まる（到着は要求を出してよい遷移である）。
     expect(typeof persisted?.requestedDigest).toBe("number");
@@ -700,7 +700,7 @@ describe("20.4 Order_Ingress の認可・拒否・確定順序（Requirements 1.
     // 状態を変更しない（AC 1.1）。永続にも broadcast にも痕跡が無い。
     await idle(200);
     expect(client.messages.length).toBe(before);
-    expect((await readSnapshot(stub))?.pendingOrders ?? []).toEqual([]);
+    expect((await readSnapshot(stub))?.orderItems ?? []).toEqual([]);
 
     // **401 が DO 由来でないことの証。** DO の受け口は 401 を返さない（未プロビジョニング・非活性は 403、
     // 不正ボディは 400、put 失敗は 503）。同じ要求に正しいトークンを添えれば到達して受理される。
@@ -785,7 +785,7 @@ describe("20.4 Order_Ingress の認可・拒否・確定順序（Requirements 1.
     // broadcast も出ない。受理応答と broadcast が put 成功という一点に揃っていることの表明である。
     await idle(200);
     expect(client.messages.length).toBe(beforeFailure);
-    expect(itemKeys((await readSnapshot(stub))?.pendingOrders ?? [])).toEqual([["order-a", 0]]);
+    expect(itemKeys((await readSnapshot(stub))?.orderItems ?? [])).toEqual([["order-a", 0]]);
 
     client.close();
   });
@@ -803,7 +803,7 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
         calls += 1;
         // **送出の時点で put は既に成功している。** Effect 列は `Persist` を先頭に持ち `RequestPlan` を
         // 末尾に置くため、外部へ要求が出るのは確定の後だけである。
-        pendingAtSend = (await state.storage.get<StoreSnapshot>(SNAPSHOT_KEY))?.pendingOrders;
+        pendingAtSend = (await state.storage.get<StoreSnapshot>(SNAPSHOT_KEY))?.orderItems;
         // 復路を応答ボディに載せて返す（毒入りの 202）。読まれれば採用が起きてしまう計画である
         // ——同じ計画を `deliverPlan` へ渡すと採用されることは 20.6 が示す。
         return Response.json(improvingPlan(Date.now() + PLAN_START_LEAD_MS), { status: 202 });

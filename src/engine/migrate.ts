@@ -76,9 +76,11 @@ export function migrate(raw: unknown): MigrationOutcome {
     return { ok: false, failure: { code: "MigrationFailed" } };
   }
   // v7 で追加した 3 フィールド。欠如（v6 以前）は空値／null で埋める（design.md の移行表）。
-  const pendingOrders = revivePendingOrders(record.pendingOrders);
+  // 品目の集合は v13 で `orderItems` に読み替えた（v12 以前は `pendingOrders`）。両方が在ることは無い——v13 の
+  // `toSnapshot` は `orderItems` だけを書く——ので、現行の鍵を優先し、無ければ旧鍵を読む。
+  const orderItems = reviveOrderItems(record.orderItems ?? record.pendingOrders);
   const acceptedSlices = reviveAcceptedSlices(record.acceptedSlices);
-  if (pendingOrders === null || acceptedSlices === null) {
+  if (orderItems === null || acceptedSlices === null) {
     return { ok: false, failure: { code: "MigrationFailed" } };
   }
 
@@ -88,7 +90,7 @@ export function migrate(raw: unknown): MigrationOutcome {
       version: CURRENT_SCHEMA_VERSION,
       timers,
       nextSeq,
-      pendingOrders,
+      orderItems,
       acceptedSlices,
       // 指紋は「直前に要求した時点の値」でしかなく、失えば次の状態変化で 1 回余分に要求が出るだけ。
       // 壊れた値を移行失敗にする代償（店舗が起動しない）に見合わないため null へ畳む。
@@ -174,30 +176,35 @@ function reviveLastSequenceByTerminal(value: unknown): Readonly<Record<string, s
 }
 
 /**
- * Pending_Order 集合として解釈する（v7 で追加）。
- * - 欠如 / null（v6 以前は待ち行列を持たない）→ 空集合。POS 連携前の稼働店に未着手オーダーは存在しない。
+ * Order_Item 集合として解釈する（v7 で追加・v13 で `orderItems` に読み替え）。
+ * - 欠如 / null（v6 以前は待ち行列を持たない）→ 空集合。POS 連携前の稼働店に注文品目は存在しない。
  * - 配列 → 全要素を検証して写す。**一件でも形を満たさなければ全体を移行失敗**（null）。
  *   reviveTimers と同じ規律であり、domain の toOrderItems が部分受理を許さないのと同じ理由——
- *   不正要素を落とせば「注文の一部だけが待ち行列に在る」嘘が生まれ、現場が欠品に気づけない。
+ *   不正要素を落とせば「注文の一部だけが待ち行列に在る」嘘が生まれ、現場が欠品に気づけない。**v13 でも個別に
+ *   捨てない**（order-lifecycle レビュー P2）：Shown_Plan と違い、完了済みの品目を捨てれば POS の再送で未調理として
+ *   復活し得る——失う事実の重さが違う。
  * - 配列でない → 壊れたデータ（null）。
  */
-function revivePendingOrders(value: unknown): readonly OrderItem[] | null {
+function reviveOrderItems(value: unknown): readonly OrderItem[] | null {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) return null;
-  const orders: OrderItem[] = [];
+  const items: OrderItem[] = [];
   for (const element of value) {
-    const order = revivePendingOrder(element);
-    if (order === null) return null;
-    orders.push(order);
+    const item = toOrderItem(element);
+    if (item === null) return null;
+    items.push(item);
   }
-  return orders;
+  return items;
 }
 
 /**
- * 一件の raw を OrderItem へ写す。永続値ゆえ noodleType はプリセットと突き合わせない
+ * 一件の raw を OrderItem へ写す（永続の検証・v13）。永続値ゆえ noodleType はプリセットと突き合わせない
  * （突き合わせは受理時の関心事で、移行時に設定を要求すれば永続層が設定に依存してしまう）。形だけを見る。
+ *
+ * 厨房の事実（`completedAt` / `interruptedAt`）は v13 で追加。欠如 / null（v12 以前は品目に完了も中断も記録しない
+ * ——開始で消費していた）は null、有限数値はその値、それ以外は壊れたデータ（呼び出し側が全体を移行失敗にする）。
  */
-function revivePendingOrder(value: unknown): OrderItem | null {
+function toOrderItem(value: unknown): OrderItem | null {
   if (typeof value !== "object" || value === null) return null;
   const o = value as Record<string, unknown>;
   if (typeof o.externalOrderId !== "string" || o.externalOrderId.length === 0) return null;
@@ -218,6 +225,10 @@ function revivePendingOrder(value: unknown): OrderItem | null {
   // slotSpan は v8 で追加。欠如は 1、値域外・非整数は壊れたデータ（呼び出し側が全体を移行失敗にする）。
   const slotSpan = reviveSlotSpan(o.slotSpan);
   if (slotSpan === null) return null;
+  const completedAt = reviveRecordedAt(o.completedAt);
+  if (completedAt === INVALID_RECORDED_AT) return null;
+  const interruptedAt = reviveRecordedAt(o.interruptedAt);
+  if (interruptedAt === INVALID_RECORDED_AT) return null;
   return {
     externalOrderId: o.externalOrderId,
     itemIndex: o.itemIndex,
@@ -228,9 +239,24 @@ function revivePendingOrder(value: unknown): OrderItem | null {
     slotSpan,
     itemName: itemName.name,
     sizeName: sizeName.name,
-    completedAt: null,
-    interruptedAt: null,
+    completedAt,
+    interruptedAt,
   };
+}
+
+/** reviveRecordedAt の「壊れたデータ」標識（null は正当な値ゆえ別の番兵が要る・reviveBoiledAt と同じ形）。 */
+const INVALID_RECORDED_AT = Symbol("invalid-recordedAt");
+
+/**
+ * 永続の厨房の記録（`completedAt` / `interruptedAt`）を現行 v13 形へ写す。
+ * - 欠如 / null（v12 以前は記録を持たない・未完了 / 未中断）→ null。
+ * - 有限数値 → その値（記録した時刻）。
+ * - それ以外（非有限数・文字列等）→ 壊れたデータ（INVALID_RECORDED_AT）。
+ */
+function reviveRecordedAt(value: unknown): number | null | typeof INVALID_RECORDED_AT {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return INVALID_RECORDED_AT;
 }
 
 /**
@@ -253,7 +279,7 @@ function reviveSlotSpan(value: unknown): number | null {
 /**
  * 採用済み PlanSlice 列として解釈する（v7 で追加）。
  * 欠如は空集合（採用済み外部計画なし＝Committed_Plan は Baseline のみ）。
- * 不正要素は revivePendingOrders と同じく全体を移行失敗にする——採用は再計算で復元できない事実であり、
+ * 不正要素は reviveOrderItems と同じく全体を移行失敗にする——採用は再計算で復元できない事実であり、
  * 一部を黙って落とせば「この店が採用した計画」が静かに書き換わる。
  */
 function reviveAcceptedSlices(value: unknown): readonly AcceptedSlice[] | null {
@@ -326,7 +352,7 @@ const INVALID_ANCHOR = Symbol("invalid-anchor");
  * - それ以外（非有限数・文字列等）→ 壊れたデータ（INVALID_ANCHOR）。
  *
  * **v10 の一片は h_i の窓で推定しない（AC 9.9・レビュー追記で仕様を揃えた）。** h_i = 茹で時間 × toleranceRatio / 100
- * の toleranceRatio は StoreConfig にあって永続には無く、移行は設定を要求しない（revivePendingOrder と同じ規律——
+ * の toleranceRatio は StoreConfig にあって永続には無く、移行は設定を要求しない（toOrderItem と同じ規律——
  * 永続層を設定に依存させない）。ゆえに推定できず null へ畳む。代償は、採用済み一片は合成（committedSchedule）が
  * 現在の走行中で毎回再検証する導出の入口であり、所属を失った合流分は 1 品の単位として、押し出しなら切られて
  * 自前解が置き直し、そうでなければ後続の batch として維持される——後者は次の再計画（外部計画の採用・品目の開始・
@@ -419,8 +445,9 @@ function reviveTimer(value: unknown): Timer | null {
  *   壊れていても orderItem 全体を捨てない——orderItem の喪失は二重調理の防止を失うが、tableId の喪失は
  *   その卓の同期が 1 回崩れるだけで、代償の軽い方へ畳む。
  *
- * 移行失敗にしないのは、この参照の用途が「開始済み品目を Pending_Order の置換から除く」ひとつであり、
- * 失っても起きるのは二重調理の防止が効かない可能性だけで、Timer 自体の計時は完全に保たれるためである。
+ * 移行失敗にしないのは、この参照の用途が「品目の状態の導出（cooking）と釜側の参照解決」であり、失っても
+ * 起きるのは品目が未調理に見えて二重調理の防止が効かない可能性と、カードが注文なし相当になることだけで、
+ * Timer 自体の計時は完全に保たれるためである。
  * 壊れた紐づけで店舗全体を起動不能にする代償の方が大きい（adjustment を移行失敗にする判断とは、
  * 失われる事実の重さが違う——あちらは実効 endTime、すなわち計時そのものを歪める）。
  */

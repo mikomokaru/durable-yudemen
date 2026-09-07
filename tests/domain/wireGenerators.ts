@@ -55,6 +55,14 @@ const genTimerFact: fc.Arbitrary<TimerFact> = fc.record({
   firmness: genFirmness,
   startTime: genEpoch,
   endTime: genEpoch,
+  // Timer → 品目の参照（order-lifecycle）。null（アドホック）と参照の双方を往復させる。
+  orderItem: fc.oneof(
+    fc.constant(null),
+    fc.record({
+      externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+      itemIndex: fc.integer({ min: 0, max: 8 }),
+    }),
+  ),
 });
 
 const genPendingOrder: fc.Arbitrary<OrderItem> = fc.record({

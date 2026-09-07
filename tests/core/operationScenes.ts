@@ -29,7 +29,7 @@ import {
   type SlotSuggestion,
 } from "../../src/client/components/liftGroups";
 import type { ServerMessage } from "../../src/domain/messages";
-import { compareArrival, itemKeyOf, liveOrders, type OrderItem } from "../../src/domain/order";
+import { compareArrival, itemKeyOf, pendingOrders, type OrderItem } from "../../src/domain/order";
 import { occupiedSlotsOf, SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { configResidualDefaults } from "../storeConfigDefaults";
@@ -567,7 +567,13 @@ export function operate(
         startItem(head.order, head.suggestion.slotIds, now),
       );
     }
-    if (current.state.pendingOrders.length === 0 && current.state.timers.length === 0) break;
+    // 品目は開始で消費されず正本に残る（order-lifecycle）——未調理が無く走行中も無ければ全品目が処理済み。
+    if (
+      pendingOrders(current.state.orderItems, current.state.timers, now).length === 0 &&
+      current.state.timers.length === 0
+    ) {
+      break;
+    }
   }
   return trace;
 }
@@ -578,7 +584,7 @@ export function operate(
  */
 function adoptCommitted(kitchen: Kitchen, current: Step): Step {
   const { state, now } = current;
-  const live = liveOrders(state.pendingOrders, now);
+  const live = pendingOrders(state.orderItems, state.timers, now);
   const committed = committedSchedule(
     state.acceptedSlices,
     live,

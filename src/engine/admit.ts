@@ -16,7 +16,7 @@
 // 劣る計画が上書きできてしまう（AC 6.2(d) が Committed_Plan 基準を要求する理由そのもの）。
 
 import { SLOTS_PER_UNIT, type NoodlePreset } from "../domain/store";
-import { liveOrders, type OrderItem } from "../domain/order";
+import { pendingOrders, type OrderItem } from "../domain/order";
 import { committedSchedule } from "./commit";
 import { advanceLifts, initialLifts, liftsOf, withinLiftCap } from "./lift";
 import { scoreSchedule, type ScheduleParams, type ScoreContext } from "./objective";
@@ -38,7 +38,7 @@ import type { EpochMillis } from "./types";
  * admit — 外部計画を PlanSlice ごとに検証し、計画順の接頭辞のうち採用できる範囲を返す（AC 6.2〜6.4）。
  *
  * 段 1 の判定は 4 つを一体で行う。
- *   (a) 陳腐化A — 一片の対象品目が現在も計画対象の Pending_Order に在る
+ *   (a) 陳腐化A — 一片の対象品目が現在も計画対象の未調理の品目に在る
  *   (b) 陳腐化B — 一片の Table_Group に計画が知らない新着が加わっていない
  *   (c) feasibility — Requirement 3 のハード制約を満たす
  *   (d) 改善 — 部分和が Committed_Plan の対応部分和より真に良い（同値は棄却）
@@ -76,10 +76,11 @@ export function admit(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
-  // 受領時刻の生きている待ち行列（Live_Orders）を冒頭で一度だけ導き、変更費用の文脈・採点・計画対象（段 1 の
-  // `planTargets`）・段 2 の合成のすべてがそれを読む（pending-order-expiry AC 2.3 / 2.4）。正本の集合を文脈に残せば、
-  // 期限切れの旧先頭が Head に数えられ、生きている次品目を遅らせる計画の先頭の変更（2L）が 0 に消える。
-  const live = liveOrders(pending, now);
+  // 受領時刻の未調理の品目（`pendingOrders`＝期限内 ∧ unstarted）を冒頭で一度だけ導き、変更費用の文脈・採点・計画対象
+  // （段 1 の `planTargets`）・段 2 の合成のすべてがそれを読む（pending-order-expiry AC 2.3 / 2.4・order-lifecycle AC 4.1）。
+  // 正本の集合を文脈に残せば、期限切れの旧先頭が Head に数えられ、生きている次品目を遅らせる計画の先頭の変更（2L）が
+  // 0 に消える。呼び手が既に絞った集合を渡しても冪等。
+  const live = pendingOrders(pending, running, now);
   // 卓の成員表と上げ表は 1 回だけ引き、変更費用の文脈と束ねて段 1・段 2 の採点 3 回（と段 1 の (e)(f)）で共有する。
   const scoreContext: ScoreContext = {
     members: tableMembers(running),

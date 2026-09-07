@@ -66,6 +66,7 @@ function timer(overrides: Partial<ClientTimer> & { id: string; endTime: number }
     noodleType: "Long",
     firmness: "normal",
     startTime: overrides.endTime - 510 * SECOND,
+    orderItem: null,
     origin: "server",
     ...overrides,
   };
