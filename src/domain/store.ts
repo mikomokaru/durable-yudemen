@@ -75,8 +75,14 @@ export const TOLERANCE_RATIO_MIN = 1;
 /** 許容調整割合（toleranceRatio）の上限（整数パーセント）。 */
 export const TOLERANCE_RATIO_MAX = 50;
 
-/** 許容調整割合（toleranceRatio）の既定（整数パーセント）。env シード不在・不正のフォールバックに用いる。 */
-export const DEFAULT_TOLERANCE_RATIO = 10;
+/**
+ * 許容調整割合（toleranceRatio）の既定（整数パーセント）。投影 config 不在・不正のフォールバックに用いる。
+ *
+ * 2026-09-07 に 10 から 5 へ下げた——±10% の窓と maximin（窓が許す限り離す）の組で、茹で 600 秒の調整が
+ * ±60 秒まで振れて大胆すぎたため。本番の Effective_Config はレジストリのイデア（Chain / Policy / Store_Override）
+ * から来るので、この値は投影が無い・不正なときの安全網に限られる。
+ */
+export const DEFAULT_TOLERANCE_RATIO = 5;
 
 /** ソフト制約の重みの下限。0 は当該項を無効化する（3 つの重みは同じ妥当域を共有する）。 */
 export const WEIGHT_MIN = 0;

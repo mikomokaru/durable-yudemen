@@ -19,7 +19,7 @@ import { decideView, EMPTY_VIEW, type ClientView } from "../../src/client/connec
 import type { ServerMessage } from "../../src/domain/messages";
 import { settleParams } from "../settleParams";
 
-/** 実運用の既定同期パラメータ（arms=2 / toleranceRatio=10%）。近接 start が synchronize で調整される。 */
+/** 既定の同期パラメータ（DEFAULT_ARMS / DEFAULT_TOLERANCE_RATIO・実値に追随する）。近接 start が synchronize で調整される。 */
 const PARAMS: SettleParams = settleParams({
   arms: DEFAULT_ARMS,
   toleranceRatio: DEFAULT_TOLERANCE_RATIO,

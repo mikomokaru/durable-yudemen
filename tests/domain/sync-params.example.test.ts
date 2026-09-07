@@ -8,9 +8,9 @@ import {
 
 describe("domain/store — 同期調整パラメータの固定境界", () => {
   // **Validates: Requirements 6.2, 6.3, 6.4**
-  it("既定値は arms=2、toleranceRatio=10 である", () => {
+  it("既定値は arms=2、toleranceRatio=5 である", () => {
     expect(DEFAULT_ARMS).toBe(2);
-    expect(DEFAULT_TOLERANCE_RATIO).toBe(10);
+    expect(DEFAULT_TOLERANCE_RATIO).toBe(5);
   });
 
   it.each([
@@ -42,15 +42,15 @@ describe("domain/store — 同期調整パラメータの固定境界", () => {
   });
 
   it.each([
-    [0, 10],
-    [51, 10],
-    [-1, 10],
-    [1.5, 10],
-    [Number.NaN, 10],
-    [Number.POSITIVE_INFINITY, 10],
-    [Number.NEGATIVE_INFINITY, 10],
-    [undefined, 10],
-    [null, 10],
+    [0, 5],
+    [51, 5],
+    [-1, 5],
+    [1.5, 5],
+    [Number.NaN, 5],
+    [Number.POSITIVE_INFINITY, 5],
+    [Number.NEGATIVE_INFINITY, 5],
+    [undefined, 5],
+    [null, 5],
   ])("不正な toleranceRatio %s は既定値へ畳まれる", (raw, expected) => {
     expect(toToleranceRatio(raw)).toBe(expected);
   });
@@ -71,7 +71,7 @@ describe("domain/store — 同期調整パラメータの固定境界", () => {
       toleranceRatio: toToleranceRatio(51),
     }).toEqual({
       arms: 7,
-      toleranceRatio: 10,
+      toleranceRatio: 5,
     });
   });
 });

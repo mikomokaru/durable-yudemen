@@ -335,18 +335,18 @@ export const ARMS_MAX = 10;
 export const DEFAULT_ARMS = 2;
 export const TOLERANCE_RATIO_MIN = 1;   // 整数パーセント
 export const TOLERANCE_RATIO_MAX = 50;  // 整数パーセント
-export const DEFAULT_TOLERANCE_RATIO = 10;
+export const DEFAULT_TOLERANCE_RATIO = 5;   // 2026-09-07 に 10 → 5（requirements Requirement 6 の改訂を参照）
 
 export interface StoreConfig {
   readonly unitCount: number;
   readonly noodlePresets: NonEmptyArray<NoodlePreset>;
   readonly arms: number;            // 1..10 の整数（既定 2）
-  readonly toleranceRatio: number;  // 1..50 の整数パーセント（既定 10）
+  readonly toleranceRatio: number;  // 1..50 の整数パーセント（既定 5）
 }
 
 /** 任意の生値を範囲内の整数 arms へ写す。非整数・範囲外・非有限は既定 2 へ畳む（要件6.3 / 6.4）。 */
 export function toArms(raw: unknown): number;
-/** 任意の生値を範囲内の整数パーセント toleranceRatio へ写す。不正は既定 10 へ畳む（要件6.3 / 6.4）。 */
+/** 任意の生値を範囲内の整数パーセント toleranceRatio へ写す。不正は既定 5 へ畳む（要件6.3 / 6.4）。 */
 export function toToleranceRatio(raw: unknown): number;
 ```
 

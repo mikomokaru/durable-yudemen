@@ -37,6 +37,8 @@ export const EXPIRY_PARAMS: SettleParams = {
   noodlePresets: EXPIRY_PRESETS,
   ...schedulingDefaults(1),
   arms: 1,
+  // 許容 10%（h_i = 60 秒）を前提にした場面。既定は 5% に下がった（2026-09-07）
+  toleranceRatio: 10,
 };
 
 export interface MixedScene {
