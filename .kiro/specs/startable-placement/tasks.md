@@ -28,6 +28,15 @@
   - [x] 3.6 チェックポイント（typecheck / lint 0 errors / test / fmt:check）とコミット
   - _Requirements: 1.1〜1.8, 2.1〜2.3, 3.1〜3.3, 4.1, 4.2, 4.4〜4.7_
 
+- [ ] 3′. 2 段目の改訂と保持候補 R（2026-09-07・レビュー判断。task 3 は「実装済み・受入未了」）
+  - [ ] 3′.1 `isStale` の対象集合を「置ける品目」に（`plan-stability` Requirement 7）——定義を一箇所に置き、自前解・合成・ゲート・復元が同じ集合を使う。回帰：未知麺種を含む卓の外部計画が採用できる／設定変更で再び置けるようになると以前の一片が欠落で落ちる
+  - [ ] 3′.2 共有の述語：`cannotStart`（保持の条件）と解放の feasibility を合成・ゲート・復元で一つに。`tableKeyOf` の公開（または `restoreSchedule`）
+  - [ ] 3′.3 `retain`（復元 → retime → 一片ごとに検証 → 不正はその位置で再生成）と `baselineSchedule` / `committedSchedule` の R 経路。R と F を同じ旧 Shown_Plan の総費用で比べ R ≤ F なら R。`Continuity.faithful` の撤去
+  - [ ] 3′.4 2 段目を「復元 → 検証 → 不正だけ再生成 → 新たな『今』を配分して固定」の loop に改め、`reserve`（後群の取り置き）・`fixedSpan`・`raiseToFloor` を撤去
+  - [ ] 3′.5 テスト：`schedule.property` の 5.6 / 5.7 (i) を実占有（`occupiedSlotsOf(running)`）に戻し、配置の一致と Change_Cost = 0 を別々に検査（3 回目まで）。`plan-stability-occupancy.example` の 4 場面と `self-solution-gate.probe` の場面 E から `it.fails` を外す。`self-solution-gate` を性質に（完成した R・F が (c)(e)(f) と `isStale` を満たす）。`zz-restore.probe` は `retain` の実装に置き換える。摂動あり（2 秒経過・先頭開始・新着・Complete）で選ばれた計画の総費用が F 単独より高くならない・提案変更量の集計。task 3 の例（8 品・24 品・反例 3 件）と 4.7′ / 4.8
+  - [ ] 3′.6 チェックポイントとコミット
+  - _Requirements: plan-stability 6.1〜6.5, 7.1〜7.5, 5.6, 5.10, 5.11; startable-placement 1.8（改訂）, 4.7〜4.8_
+
 - [ ] 4. 文書と最終ゲート
   - [ ] 4.1 `lift-group-planning`（`baselineSchedule` の署名・2 段・`initialRelease` の注記「Complete は釜の占有ではない」に「開始の可否は別」を添える）、`lift-group-display`（`occupiedSlots` は domain の共有述語）、`plan-stability`（前回の釜の第一候補は 2 段目の配分に吸収）、`online-cook-scheduling`（合成の失効に開始を妨げる配置）に日付付きの注記
   - [ ] 4.2 ADR-0012：予測（解放表）と事実（Timer の無い釜）を分け、「今」置く配置の釜の選択にだけ事実を読ませる。Considered Options：boiled を占有として解放表に載せる／連鎖を緩めて後続群を出す／同点処理だけ／client だけで直す

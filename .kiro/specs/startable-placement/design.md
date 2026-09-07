@@ -104,6 +104,26 @@ baselineSchedule(pending, release, members, lifts, presets, params, now, occupie
 
 **なぜ「今」の集合が保たれるか。** 固定した品目は 1 段目と同じ `startAt = now`。残りの品目は下限 ≥ 1 段目の `startAt > now` なので `now` にならない。固定した釜は解放 `now` の釜だけなので固定した品目の時刻も動かない。
 
+### Component 3′: 2 段目の改訂（2026-09-07・下限と取り置きの撤去）
+
+Component 3 の「2 段目 = 固定を載せて残りを下限つきで組み直す」を次に改める（実装の task 3 で入れた後群の取り置き `reserve`・`fixedSpan`・`raiseToFloor` は撤去）。
+
+```
+stage1 = generate(…)                                   // 文脈つきの候補比較（faithful は無い）
+pinned = pinNow(stage1, …)                             // 表示順・pool 上の排他的な割当
+loop:
+  plan = restore(stage1 の将来配置) + pinned            // 将来配置は 1 段目のまま
+  plan = validateAndRegenerate(plan, tables)           // 計画順に、固定と手前の一片で進めた表に対して物理的なハード制約で検証。不正な一片はその位置で卓を再生成
+  fresh = plan の「今」のうち pinned に無い品目          // 再生成で「今」になった品目
+  if fresh が空: break
+  pinned += allocate(fresh, 残りの pool)                // 表示順で配分し固定
+```
+
+- 検証と再生成は `plan-stability` Component 7 の `retain` と同じ関数（対象が Shown_Plan か 1 段目かの違いだけ）。
+- 固定した品目は `pinNow` の配分のとおり互いに素で `pool` に載る（構造）。再生成は固定した釜を含む進めた表の上で行うので、固定と衝突しない。
+- 終了：固定した品目は増えるだけで有限。
+- 完成した候補は `verify`（物理的なハード制約）を性質として検査する。1 段目への実行時のフォールバックは置かない。
+
 ### Component 4: 呼び手（`commit.ts` / `settle.ts` / `plan.ts` / `admit.ts` / `src/solver`）
 
 - `committedSchedule(accepted, pending, running, now, presets, params, changeContext)`：`occupied = occupiedSlotsOf(running)` を一度作り、`livePrefix` と `baselineSchedule` へ渡す。署名は変えない（`running` から導ける）。

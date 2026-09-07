@@ -176,6 +176,23 @@ effects = [Persist(toSnapshot(confirmed)), Alarm, Broadcast(snapshotMessage), (R
 
 `RequestPlan` に `shownPlan: ShownPlan` を足し、外部ソルバが同じ費用で最適化できるようにする。指紋には畳まない（AC 4.5）。`src/solver` の自前解経路は `baselineSchedule` に同じ context を渡す。
 
+### Component 7: 保持候補 R（2026-09-07 改訂・Requirement 6〜7）
+
+```
+baselineSchedule / committedSchedule:
+  F = generate(pending, tables, changeContext)            // 現行の文脈つき生成 ＋ startable-placement の割当補正（Continuity.faithful は無い）
+  R = retain(shownPlan, pending, tables, now, occupied)   // 復元 → retime → 一片ごとに検証 → 不正はその位置で再生成
+  verify(F) / verify(R)                                    // 物理的なハード制約（構造から成り立つ。性質として検査）
+  return total(R | shown) ≤ total(F | shown) ? R : F
+```
+
+- **`restoreSchedule(shown, pending)`**（`src/engine/stability.ts` か `schedule.ts`）：Live_Orders に在る品目を初出順の一片に組む。`tableKeyOf` を公開して同じ鍵を使う。
+- **`retain`**：一片ごとに計画順で、置ける品目に限る `isStale`・`cannotStart`（保持の条件）・解放表・`keepsAnchor`・`withinLiftCap` を、採用済み接頭辞とそれまでの一片で進めた表に対して当てる。通れば表を進めて残す。落ちた一片はその卓の残り品目を `placeGroup`（文脈つき）で置き直す。前回に無い品目（新着）はその卓の再生成に含め、卓ごと新しいなら末尾に置く。復元した「今」の配置は `startable-placement` の配分（`pinNow`）に固定として渡す（既に Timer の無い釜に在ることを `cannotStart` が保証する）。
+- **retime**：`startAt < now` の復元配置は `startAt = now`・`serveAt = now + 茹で時間` に置き直してから検証する（完全復元 44 → 855 場面・実測）。
+- **比較**：`scoreSchedule(…, { members, lifts, change: { shown, … } })` の `total` を両候補で同じ旧 Shown_Plan に対して取り、`R ≤ F` なら R。
+- **verify**：完成候補の各一片を計画順に、ゲートの (c)(e)(f) と Requirement 7 の `isStale` で検証する性質（`self-solution-gate`）。構造から成り立つ（R は検証済みの復元 ＋ 生成器、F は生成器）ので実行時の分岐は置かない。生成器が違反を作り得る箇所（`startable-placement` の下限）は撤去する（同 spec の改訂）。
+- **共有する述語**：`cannotStart`・解放の feasibility・`isStale` は合成（`livePrefix`）・ゲート（`admit`）・復元（`retain`）が同じ関数を呼ぶ。適用先は Requirement 6 判断 13 のとおり分ける。
+
 ## Error Handling
 
 | 状況 | 扱い | 出所 |
