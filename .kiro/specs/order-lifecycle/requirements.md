@@ -38,7 +38,7 @@
 11. **solver には `pendingOrders` と `running` を渡す。** `PlanRequest.pending` は engine が導いた未調理の品目（solver は今どおり自分の `now` で期限をもう一度当てる）。`running` は走行中の Timer 全件（注文由来もアドホックも・`orderItem` 参照付き）のまま。品目全件は solver に渡さない。
 12. **読む側の入口は `pendingOrders` を読む。** 計画対象・指紋・`RequestPlan.pending`・変更費用の対応・開始の照合（`cooking` の品目への開始は `OrderItemCooking` で拒否——新しい拒否事由を一つ足す。`done`・期限切れ・不在は `OrderItemNotFound`）。
 13. **アドホック開始は注文を持たない Timer のまま。** 参照先の無い Timer を扱う経路は一つで、表示は麺種だけ。
-14. **v12 の走行中 Timer は限定された移行例外（レビュー P1）。** 旧実装は開始時に品目を消しているので、v12 → v13 の移行（`pendingOrders` → `orderItems`・`completedAt` 欠如 → null）をしても、既に始まっている Timer の参照先は存在せず、Timer には品名・到着時刻が無いので復元できない。推測で品目を作らず、限界を明示する——旧版由来で参照先の無い Timer はそのまま動かす／カードの参照が解決できなければ注文なし相当の表示／完了・Cancel は従来どおり Timer を除去し、存在しない品目に完了日時は書かない／この旧 Timer を Cancel しても注文品目は戻らない／v13 で新しく開始した注文 Timer について参照整合を保証する。
+14. **v12 の走行中 Timer は限定された移行例外（レビュー P1・適用は操作時にも参照先が無い場合だけ）。** 旧実装は開始時に品目を消しているので、v12 → v13 の移行（`pendingOrders` → `orderItems`・`completedAt` 欠如 → null）をしても、既に始まっている Timer の参照先は存在せず、Timer には品名・到着時刻が無いので復元できない。推測で品目を作らず、限界を明示する——旧版由来で参照先の無い Timer はそのまま動かす／カードの参照が解決できなければ注文なし相当の表示／完了・Cancel は従来どおり Timer を除去し、存在しない品目に完了日時は書かない／この旧 Timer を Cancel しても注文品目は戻らない／v13 で新しく開始した注文 Timer について参照整合を保証する。
 15. **残滓（`lastResults`）は変えない。** 将来 `done` の品目から導出に置き換えられるが、本 spec の範囲外。
 16. **保持量（レビュー 6）。** 通常どおり調理・完了した品目も正本に残るので、永続は以前より増える。2 時間で配信対象から外しても永続は減らない。整理（折りたたんだ期限切れ一覧からの一括削除）は別の機能として意味を持ち、そのとき生きた Timer の参照先は削除対象から外す。wire の `done` を別配列に分けても全件送る限り配信量は減らない（未決 1）。
 17. **`lift-order-numbering` はこの上に載る表示。** 番号の単位「同じ実効 endTime かつ同じ注文」は `TimerFact.orderItem.externalOrderId` で切る。卓・品名も参照で引く。
@@ -75,7 +75,7 @@
 1. THE 後着 SHALL 同じ品目（`externalOrderId` + `itemIndex`）について、状態（`unstarted` / `cooking` / `done`）にかかわらず **POS 由来の注文属性だけ**（`noodleType` / `firmness` / `tableId` / `slotSpan` / `itemName` / `sizeName`）を更新する
 2. THE 後着 SHALL 厨房の事実（`completedAt` / `interruptedAt`）と、生きた Timer を保持する（上書きしない・消さない。既存の「生きた Timer を持つ品目は置換の結果から除く」規則は撤去する）
 3. THE 後着 SHALL `arrivalTime` について既存の引継ぎ規則（同じ注文の最早を引き継ぐ・`pending.ts` / `online-cook-scheduling` AC 1.8）を守る
-4. THE 後着に新しく現れた品目 SHALL `unstarted` として加わる（`completedAt` / `interruptedAt` は null）
+4. THE 後着に新しく現れた品目 SHALL `completedAt` / `interruptedAt` を null として加わる。状態は `itemStatusOf` で導き、参照する生きた Timer が無ければ `unstarted`、在れば `cooking`（v12 由来で参照先の無い Timer が残る中で POS がその品目を再送すれば、実際の入力で参照先が補われる——推測による復元ではない）
 5. THE 後着に現れない品目（前提の外＝削除・数量減少・0 件） SHALL `unstarted` なら既存どおり除き、`cooking` / `done` なら残す（参照整合と履歴。前提の外でも壊さない）。その意味づけは本 spec で定めない
 6. THE 受理 SHALL 前提（POS の取消なし）を理由に変えない。置換が黙って取消の意味を持たないことを回帰で固定する
 
@@ -103,7 +103,7 @@
 ### Requirement 6: 移行（v12 → v13）
 
 1. THE 移行 SHALL `pendingOrders` を `orderItems` に読み替え、各品目の `completedAt` / `interruptedAt` を null にする
-2. THE v12 由来で参照先の無い Timer SHALL そのまま動く（発火・完了・Cancel は従来どおり）。完了しても存在しない品目に `completedAt` は書かない。Cancel しても注文品目は戻らない（限界を明記する）
+2. THE v12 由来で参照先の無い Timer SHALL そのまま動く（発火・完了・Cancel は従来どおり）。移行例外は**操作時にも参照先が無い場合**にだけ適用する——完了しても存在しない品目に `completedAt` は書かず、Cancel しても注文品目は戻らない（限界を明記する）。後着で参照先が補われた後の Complete / Cancel は通常どおり日時を記録する
 3. THE v13 で新しく開始した注文 Timer SHALL 参照整合（性質 7.2）を満たす
 
 ### Requirement 7: 検証可能な性質
@@ -117,7 +117,8 @@
 6. **読む側の一致**：計画対象・指紋・要求・対応・開始の照合・左レール・ラジアルが同じ `pendingOrders(items, timers, now)` を見る
 7. **配信の集合**：snapshot の品目集合は「期限内 ∨ 生きた Timer の参照先」。期限を超えた調理中の品目は Complete まで配信される
 8. **注文情報と調理の記録**：後着で卓が変わると、カードは新しい卓、計画の `tableMembers` は Timer の旧卓（既存契約）
-9. **移行**：v12 の永続は `orderItems` に読み替えられ、参照先の無い Timer は動き続け、完了・Cancel で消える。`completedAt` は書かれない
+9. **移行**：v12 の永続は `orderItems` に読み替えられ、参照先の無い Timer は動き続け、完了・Cancel で消える。操作時に参照先が無ければ `completedAt` / `interruptedAt` は書かれない
+9′. **移行後の再送**：参照先の無い v12 由来の Timer が残る中で POS がその品目を再送すると、品目は `cooking` として加わり、その後の Complete は `completedAt` を、Cancel は `interruptedAt` を通常どおり記録する
 10. **不変**：Timer の集合・Boil_Sync・Alarm・一括完了・残滓は変わらない
 
 ### naming ゲート（`naming.md`）
