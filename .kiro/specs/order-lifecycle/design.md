@@ -90,12 +90,12 @@ export interface TimerState { …; readonly orderItems: readonly OrderItem[]; �
 - **`start.ts`**：`consumeOrder` を撤去。照合は `pendingOrders(state.orderItems, state.timers, args.now)`。見つからなければ、`state.orderItems` に在って `itemStatusOf === "cooking"` なら `OrderItemCooking`、それ以外は `OrderItemNotFound`。Timer の `orderItem` は従来どおり（`tableId` は開始時点の値）。
 - **`complete.ts`**：対象 Timer を除去し、`orderItemOf(timer, state.orderItems)` が在れば `completedAt: now` に更新（無ければ何もしない・移行例外）。`settle` へ。
 - **`cancel.ts`**：対象 Timer を除去し、参照先が在れば `interruptedAt: now` に更新（上書き）。無ければ何もしない。
-- **`pending.ts` `upsertOrder(items, arrival)`**：`running` 引数を落とす。同じ鍵の品目が在れば注文属性（`noodleType` / `firmness` / `tableId` / `slotSpan` / `itemName` / `sizeName`）だけを更新し、`completedAt` / `interruptedAt` / `arrivalTime`（引継ぎ規則）を保持。無ければ `completedAt: null, interruptedAt: null` で追加。後着に無い同じ注文の品目は、`itemStatusOf === "unstarted"` なら除き、`cooking` / `done` なら残す（Requirement 2.5）。`removeOrder`（0 件・`OrderCancelled`）も同じ規則（`unstarted` だけ除く）。`isSamePending` は `orderItems` の比較に改名。
+- **`pending.ts` `upsertOrder(items, timers, arrival)` / `removeOrder(items, timers, externalOrderId)`**：**Timer 集合は落とせない**（レビュー P1：`completedAt = null` の品目は Timer が在れば `cooking`、無ければ `unstarted` で、品目だけでは区別できない）。両方に `state.timers` を渡し、欠落品目の扱いを `itemStatusOf(item, timers)` で判定する。同じ鍵の品目が在れば注文属性（`noodleType` / `firmness` / `tableId` / `slotSpan` / `itemName` / `sizeName`）だけを更新し、`completedAt` / `interruptedAt` / `arrivalTime`（引継ぎ規則）を保持。無ければ `completedAt: null, interruptedAt: null` で追加。後着に無い同じ注文の品目は、`itemStatusOf === "unstarted"` なら除き、`cooking` / `done` なら残す（Requirement 2.5）。`removeOrder`（0 件・`OrderCancelled`）も同じ規則（`unstarted` だけ除く）。`isSamePending` は `orderItems` の比較に改名。
 - **`settle.ts`**：`snapshotMessage` の `orderItems = orderItemsToBroadcast(state.orderItems, state.timers, now)`；`deriveRecommendations` / `requestPlan` / `ChangeContext.pending` は `pendingOrders(state.orderItems, state.timers, now)`。`planTargets(pending, now)` はその結果を受ける（`liveOrders` を二度当てても冪等）。
 - **`plan.ts` / `admit.ts`**：`live = pendingOrders(...)`。
 - **`digest.ts`**：`digestInput(orderItems, running, params, now)` は内部で `pendingOrders` → `planTargets`。
 - **`project.ts` `toWireTimer`**：`orderItem: timer.orderItem === null ? null : { externalOrderId, itemIndex }`。
-- **`migrate.ts`**：v13。`pendingOrders` → `orderItems`（各要素に `completedAt: null, interruptedAt: null`）。v13 の要素は `toOrderItem` で検証（`completedAt` / `interruptedAt` は number か null。壊れた要素はその要素だけ落とす——`reviveShownItem` と同じ規律）。`docs/persisted-schema-rollback.md` に v13 行（切戻しは `version` を 12 にし `orderItems` を `pendingOrders` に戻す。`completedAt` / `interruptedAt` は落ちる。v12 は開始済みの品目を消費する契約だったので、v13 で残していた `cooking` / `done` の品目が v12 では未着手として現れる——切戻しの注意として明記）。
+- **`migrate.ts`**：v13。`pendingOrders` → `orderItems`（各要素に `completedAt: null, interruptedAt: null`）。v13 の要素は `toOrderItem` で検証（`completedAt` / `interruptedAt` は number か null）。**注文品目が不正なら既存どおり `MigrationFailed`**（レビュー P2：個別に捨てる Shown_Plan とは失う事実の重さが違う。完了済み品目を捨てれば POS の再送で未調理として復活し得る。`migrate.ts:79` の現行の区別を維持）。`docs/persisted-schema-rollback.md` に v13 行（切戻しは `version` を 12 にし `orderItems` を `pendingOrders` に戻す。`completedAt` / `interruptedAt` は落ちる。v12 は開始済みの品目を消費する契約だったので、v13 で残していた `cooking` / `done` の品目が v12 では未着手として現れる——切戻しの注意として明記）。
 
 ### Component 3: wire（`src/domain/messages.ts` / `wire.ts` / `timer.ts`）
 
@@ -109,7 +109,7 @@ export interface TimerState { …; readonly orderItems: readonly OrderItem[]; �
 - `queueDisplay.ts`：`livePending(view, corrected)` → `pendingOrders(view.orderItems, view.timers, corrected)`（`ClientTimer` は `TimerFact` を含むので `orderItem` を持つ）。左レール・ラジアル・`suggestedItemOf` はこれを読む。
 - `SlotCard` / `slotDisplay.ts`：走行中・茹で上がりのカードは `orderItemOf(display.timer, view.orderItems)` で品目を引ける（何を出すかは `lift-order-numbering`）。
 - 停止ボタン：`cancelGuard` の決定に `complete` を足す——残り < `CANCEL_GUARD_THRESHOLD_MS` の 1 タップは `{ kind: "complete" }` を返し、`SlotCard` は `onComplete` を呼ぶ。それ以外は従来どおり `arm` → `cancel`。
-- `persistence.ts`：`orderItems` は永続しない（従来と同じ）。
+- `persistence.ts`：`orderItems` は永続しない（従来と同じ）。**ただし Timer は永続され `toClientTimer`（`persistence.ts:136`）がリテラルで復元しているので、`Timer.orderItem` の復元経路を足す**（レビュー P2）——新しい保存データでは `orderItem` を検証して復元（`null` か `{ externalOrderId: 非空 string, itemIndex: 非負整数 }`・不正なら null に畳んで Timer は失わない）、旧 localStorage の欠如は null に畳む（Timer を失わない）。品目集合を保存しないことと、Timer の参照を復元することは別。
 
 ### Component 5: 移行例外（Requirement 6）
 
@@ -133,7 +133,7 @@ export interface TimerState { …; readonly orderItems: readonly OrderItem[]; �
 
 ## naming ゲート（実装前にユーザー確認）
 
-requirements の表（12 件）のとおり。加えて実装の内部名：`isLive(item, now)`（期限の述語を関数として共有・`liveOrders` の内側）、`refersTo(ref, item)`（既存の `itemKeyOf` と同じ鍵）、`toOrderItemFromWire`、拒否事由 `OrderItemCooking`。
+requirements の表（12 件）のとおり。加えて実装の内部名（承認済み・2026-09-07）：`ItemStatus`（型）、`isLive(item, now)`（期限の述語を関数として共有・`liveOrders` の内側）、`refersTo(ref, item)`（既存の `itemKeyOf` と同じ鍵）、`toOrderItem`（永続の検証）、`toOrderItemFromWire`（wire の検証）、`ClientView.orderItems`、`isSameOrderItems`（旧 `isSamePending`）、拒否事由 `OrderItemCooking`。
 
 ## 未決の決定（requirements の「未決」への答え）
 
