@@ -2,7 +2,7 @@
 
 前提：main（#37 まで）。永続は v12 → v13。`startable-placement` と同じ進め方（task ごとに `[-]` → `[x]` と実測・チェックポイント・コミット）。`lift-order-numbering`（番号・卓・品名・中断の色分け）は本 spec の後に載せる。
 
-- [ ] 0. naming ゲート（requirements の表 12 件 ＋ design の内部名）をユーザーが承認する
+- [x] 0. naming ゲート（requirements の表 12 件 ＋ design の内部名）をユーザーが承認する（2026-09-07 承認）
 
 - [ ] 1. domain：`OrderItem` と導出
   - [ ] 1.1 `PendingOrder` → `OrderItem`（`completedAt` / `interruptedAt` を足す）、`refersTo` / `isLive`、`itemStatusOf` / `pendingOrders` / `orderItemsToBroadcast` / `orderItemOf`（`liveOrders` は `pendingOrders` の内側へ）。型の改名は src / tests 全体（機械的）
