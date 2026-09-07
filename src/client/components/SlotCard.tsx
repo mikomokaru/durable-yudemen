@@ -13,7 +13,7 @@ import { cn } from "../cn";
 import type { TimerFact } from "../../domain/timer";
 import type { SlotDisplay } from "./slotDisplay";
 import type { GroupItem, SlotSuggestion } from "./liftGroups";
-import type { NoodleColor } from "./noodleColor";
+import { fadedTint, type NoodleColor } from "./noodleColor";
 import { PlayIcon, StopIcon, LiftIcon } from "./icons";
 import { FirmnessCornerControl } from "./FirmnessCornerControl";
 import {
@@ -223,7 +223,8 @@ function ProgressRing({
  * 麺種を表す色付きピル（塗り）。色＝種類の identity を担う全相共通の表現（running / boiled / idle 残滓）。
  * 背景はアクセント（時間・リング・「ふつう」タグと同色）、文字はアクセント上で読める濃色（#15120c）。
  * 長い名称はカード幅からリング領域を引いた max-width で折り返す（省略記号は使わない）。faded は idle 残滓
- * （過去の結果・best-effort）を淡く示すため。実行時に変わる色だけインライン、寸法・折返しはクラス。
+ * （過去の結果・best-effort）を淡く示すため——不透明度に加えて彩度を落とし（`fadedTint`）、稼働中と遠目に
+ * 見分けられるようにする。実行時に変わる色だけインライン、寸法・折返しはクラス。
  */
 /**
  * バッジ prefix のマーカー。相ごとに状態を 1 記号で示す（identity は色、状態はこのマーカー）。
@@ -266,7 +267,8 @@ function NoodleBadge({
         faded && "opacity-60",
         className,
       )}
-      style={{ backgroundColor: tint, color: "#15120c" }}
+      // 残滓（faded）は色相だけ残して彩度を落とす（稼働中のピルと遠目に見分けるため・fadedTint）。
+      style={{ backgroundColor: faded ? fadedTint(tint) : tint, color: "#15120c" }}
     >
       {/* 走行中は点滅ドット（bg-current = 濃色文字色）、上がり/前回結果は ✓。いずれも色＝種類とは独立の状態記号。 */}
       {marker === "boiling" && (

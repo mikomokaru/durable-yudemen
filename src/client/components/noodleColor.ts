@@ -75,3 +75,23 @@ export function noodleColors(menu: readonly string[]): NoodleColor {
   }
   return (noodleType) => NOODLE_PALETTE[slotOf.get(noodleType) ?? hashIndex(noodleType)]!;
 }
+
+/**
+ * fadedTint — 残滓（idle スロットの直前結果）用に、麺色の identity（色相）だけ残して彩度を落とした色。
+ *
+ * 残滓は過去の best-effort 情報であり、稼働中（running / boiled）のピルと同じ彩度で塗ると遠目に見分けがつかない
+ * （厨房での実感）。色相はそのまま、彩度（chroma）をモノクロにほんのり色が残る程度まで下げ、明度も一段落として
+ * 「動いていないもの」として退かせる。パレットは oklch で持つので oklch の文字列だけを解釈し、それ以外は手を
+ * 付けずに返す（色は麺種の導出値であり、ここで新しい状態を持たない）。
+ */
+export function fadedTint(color: string): string {
+  const match = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/.exec(color);
+  if (match === null) return color;
+  const hue = match[3]!;
+  return `oklch(${FADED_LIGHTNESS} ${FADED_CHROMA} ${hue})`;
+}
+
+/** 残滓の明度（パレットの 0.74〜0.86 より一段暗い）。 */
+const FADED_LIGHTNESS = 0.66;
+/** 残滓の彩度。パレット（0.070〜0.090）の 1/4 程度＝モノクロにほんのり色。 */
+const FADED_CHROMA = 0.02;
