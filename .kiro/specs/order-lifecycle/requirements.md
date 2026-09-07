@@ -31,8 +31,8 @@
 4. **早め上げは `complete` で送る（ユーザー確定 (a)）。** client は残り 60 秒未満の 1 タップで `complete` を、60 秒以上の 2 段タップで `cancel` を送る。しきいは UI の関心事のまま（engine は残り時間で判定しない）。engine は `complete` でだけ `completedAt` を書く。
 5. **調理の状態と期限（2 時間）は別の軸（レビュー P1）。** 期限切れは第 4 の状態ではなく、「未調理だが期限切れ」「調理済みで期限切れ」は普通に在る。読む集合は二つに分かれる——**計画・左レール・ラジアル**＝期限内 ∧ `unstarted`（`pendingOrders(items, timers, now)`）／**snapshot の品目集合**＝期限内 **または** 生きた Timer の参照先（`orderItemsToBroadcast`）。注文から 1 時間 59 分で 10 分茹での品目を開始し 2 時間 1 分に snapshot を送っても、Timer が残る間は品目を配信して卓・品名を引ける。期限判定を共有することと、全用途で同じ集合を読むことは別。
 6. **厨房 Cancel は状態を戻し、期限は戻さない（レビュー P2）。** Cancel 後の品目は `unstarted` に戻るが、期限外なら左レール・計画には戻らない。`arrivalTime` は更新しない（「注文から 2 時間」を「最後にやり直した時刻から 2 時間」に変えない）。
-7. **後着は注文情報を更新し、調理の記録は変えない（レビュー 5）。** `OrderItem` は最新の注文情報（名称・盛り・卓・麺種・茹で加減）、`Timer` はその調理を開始した時点の情報。POS の後着で、いま茹でている麺の条件は書き換えない。卓の変更ではカードは新しい卓を表示する一方、計画の `tableMembers` は Timer に残る旧卓を使う——既存の契約（`timer.ts:59`）を据え置き、その意味をここに書く。`done` の品目は同じ注文の再送で `unstarted` に戻らない（`completedAt` を保つ）。
-8. **受理は変えない。生きた Timer が指す品目は消えない。** 後着の全置換は既存どおり「生きた Timer を持つ品目は置換の結果から除く」（`pending.ts:31`）。前提（POS の取消なし）を理由に受理を黙って変えず、置換が取消の意味を持たない範囲を Requirement 2 に定める。
+7. **後着は注文属性を更新し、調理の記録と厨房の事実は変えない（レビュー 5）。** `OrderItem` は最新の注文情報（名称・盛り・卓・麺種・茹で加減）、`Timer` はその調理を開始した時点の情報。POS の後着で、いま茹でている麺の条件は書き換えない。卓の変更ではカードは新しい卓を表示する一方、計画の `tableMembers` は Timer に残る旧卓を使う——既存の契約（`timer.ts:59`）を据え置き、その意味をここに書く。`done` の品目は同じ注文の再送で `unstarted` に戻らない（`completedAt` を保つ）。
+8. **後着は一つの規則に揃える（レビュー P1・P2・2026-09-07）。** 既存の「生きた Timer を持つ品目は置換の結果から除く」（`pending.ts:31`）は新しいモデルでは誤り——A を調理中に同じ注文 {A, B} が再送されるだけで正本が {B} に置き換わり、A の参照先が消える。また「未調理を全置換」では、開始 → Cancel（`interruptedAt = 100`）→ 再送の系列で中断の事実が失われる（POS は厨房の中断時刻を持たない）。ゆえに規則は一つ：**同じ品目の後着は、状態にかかわらず POS 由来の注文属性（麺種・茹で加減・卓・盛り・名称・`slotSpan`）だけを更新する。厨房の事実である `completedAt`・`interruptedAt` と、生きた Timer は保持する。`arrivalTime` は既存の引継ぎ規則（同じ注文の最早を引き継ぐ）を守る。** 前提（POS の取消なし）を理由に受理を黙って変えるのではなく、更新の規則をここで定める。
 9. **wire は「期限内または生きた Timer の参照先」の品目全件と参照を運ぶ。** snapshot は `pendingOrders` を `orderItems` に改め、`orderItemsToBroadcast` の集合（`unstarted` / `cooking` / `done`・`completedAt` 付き）を運ぶ。`TimerFact` に `orderItem: { externalOrderId, itemIndex } | null` を足す。client は状態を導出し、左レールは `pendingOrders(items, timers, correctedNow)` だけを出す。番号・卓・品名は釜のカードが `orderItemOf(timer, items)` で引く。
 10. **「未調理」は保存された集合ではなく関数。** 保存する型を `PendingOrder` から `OrderItem` に改名し（`TimerState.orderItems`・永続 v13 の移行で鍵も読み替える）、読む側の導出は 4 つに限る——`itemStatusOf(item, timers)`（状態の正本）、`pendingOrders(items, timers, now)`（計画と左レールの入口＝期限 ∧ unstarted・`liveOrders` を内側に畳む）、`orderItemsToBroadcast(items, timers, now)`（snapshot の集合＝期限内 ∨ 参照先）、`orderItemOf(timer, items)`（Timer → 品目の参照解決・無ければ null＝注文なしと同じ経路）。`cookingOrders` は読み手が現れるまで作らない。語彙は Timer 側 `running`、品目側 `cooking`。
 11. **solver には `pendingOrders` と `running` を渡す。** `PlanRequest.pending` は engine が導いた未調理の品目（solver は今どおり自分の `now` で期限をもう一度当てる）。`running` は走行中の Timer 全件（注文由来もアドホックも・`orderItem` 参照付き）のまま。品目全件は solver に渡さない。
@@ -70,12 +70,14 @@
 6. THE 永続スキーマ SHALL 版を 12 から 13 へ上げ、`pendingOrders` を `orderItems` に読み替え、`completedAt` / `interruptedAt` の欠如を null に畳む
 7. THE 型名 SHALL `PendingOrder` を `OrderItem` に改める（状態のフィールドは `TimerState.orderItems`）。「未調理」は `pendingOrders` 関数だけが表す
 
-### Requirement 2: POS の後着（取消なしの前提）
+### Requirement 2: POS の後着（取消なしの前提・更新の規則）
 
-1. THE 後着 SHALL 注文情報（名称・盛り・卓・麺種・茹で加減）の変更通知として扱い、`unstarted` の品目を既存どおり全置換する
-2. THE 生きた Timer が指す品目 SHALL 置換の結果から除かれ、集合から消えない（既存の `pending.ts:31` の規則のまま。参照整合）
-3. THE `done` の品目 SHALL 同じ注文の再送で `unstarted` に戻らない（`completedAt` を保つ）。注文情報の追随だけを受ける
-4. THE 受理 SHALL 前提（POS の取消なし）を理由に変えない。前提の外（品目の削除・数量減少・0 件への後着）の意味は本 spec で定めず、置換が黙って取消の意味を持たないことを回帰で固定する
+1. THE 後着 SHALL 同じ品目（`externalOrderId` + `itemIndex`）について、状態（`unstarted` / `cooking` / `done`）にかかわらず **POS 由来の注文属性だけ**（`noodleType` / `firmness` / `tableId` / `slotSpan` / `itemName` / `sizeName`）を更新する
+2. THE 後着 SHALL 厨房の事実（`completedAt` / `interruptedAt`）と、生きた Timer を保持する（上書きしない・消さない。既存の「生きた Timer を持つ品目は置換の結果から除く」規則は撤去する）
+3. THE 後着 SHALL `arrivalTime` について既存の引継ぎ規則（同じ注文の最早を引き継ぐ・`pending.ts` / `online-cook-scheduling` AC 1.8）を守る
+4. THE 後着に新しく現れた品目 SHALL `unstarted` として加わる（`completedAt` / `interruptedAt` は null）
+5. THE 後着に現れない品目（前提の外＝削除・数量減少・0 件） SHALL `unstarted` なら既存どおり除き、`cooking` / `done` なら残す（参照整合と履歴。前提の外でも壊さない）。その意味づけは本 spec で定めない
+6. THE 受理 SHALL 前提（POS の取消なし）を理由に変えない。置換が黙って取消の意味を持たないことを回帰で固定する
 
 ### Requirement 3: 調理の状態と期限
 
@@ -111,7 +113,7 @@
 3. **Cancel は状態を戻す**：`cancel` の後、その品目は `unstarted` で `interruptedAt` を持つ。期限内なら左レールと計画に再び現れ、期限外なら現れない。`arrivalTime` は不変
 3′. **中断は状態に効かない**：`interruptedAt` の有無は `itemStatusOf` と `pendingOrders` の結果を変えない。再開始→完了で `done`、再中断で `interruptedAt` は上書き
 4. **早め上げは完了**：残り 60 秒未満の停止は `completedAt` を書き、品目は `done`
-5. **全置換の範囲**：後着は `unstarted` だけを置換し、`cooking` / `done` は注文情報の追随だけ。`done` は再送で `unstarted` に戻らない
+5. **後着は注文属性だけ**：状態にかかわらず POS 由来の注文属性だけが更新され、`completedAt` / `interruptedAt` / 生きた Timer / `arrivalTime` の引継ぎは保たれる。回帰：A を調理中に {A, B} が再送されても A は正本に残り参照が解ける／`done` は再送で `unstarted` に戻らない／**Cancel → 再送でも `interruptedAt` を保持／再開始・完了でも保持／次の Cancel でだけ上書き**
 6. **読む側の一致**：計画対象・指紋・要求・対応・開始の照合・左レール・ラジアルが同じ `pendingOrders(items, timers, now)` を見る
 7. **配信の集合**：snapshot の品目集合は「期限内 ∨ 生きた Timer の参照先」。期限を超えた調理中の品目は Complete まで配信される
 8. **注文情報と調理の記録**：後着で卓が変わると、カードは新しい卓、計画の `tableMembers` は Timer の旧卓（既存契約）
