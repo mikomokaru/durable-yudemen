@@ -1,17 +1,21 @@
-// tests/core/startable-placement.property.test.ts — 2 段の計画（baselineSchedule → pinNow → 2 段目）の性質。
+// tests/core/startable-placement.property.test.ts — 「今」の配分の loop（baselineSchedule → 1 段目 → placeNow：配分 → 復元 →
+// 検証 → 不正だけ再生成 → 新たな「今」を含めて配り直す）の性質。
 //
 // Feature: startable-placement
-// **Validates: Requirements 1.1, 1.4〜1.8, 2.1, 4.1, 4.6, 4.7**
+// **Validates: Requirements 1.1, 1.4〜1.8（改訂）, 2.1, 4.1（改訂）, 4.6, 4.7（改訂）**
 //
-// 1 段目は `occupied` を空にして呼ぶと得られる——今割り当てられる釜が母集団の全部になり、配分は 1 段目の釜をそのまま採る
-// （(i)(b)）ので 2 段目は組まれない。2 段目は場面の Timer から引いた占有（`occupiedSlotsOf`）で呼ぶ。生成器は
-// `schedule.property` と同じ形（走行中・boiled・卓・大盛・未知の麺種を振る）に、前回の提案の有無を足す。
+// 1 段目は `occupied` を空にして呼ぶと得られる——今割り当てられる釜が母集団の全部になり、配分はいまの釜をそのまま採る
+// （(i)(b)）ので何も動かず、検証もすべて通る。完成した候補は場面の Timer から引いた占有（`occupiedSlotsOf`）で呼ぶ。
+// 生成候補 F と保持候補 R（`scheduleCandidates`）のそれぞれについて主張する——`baselineSchedule` が選ぶのはどちらかで、
+// 選択は総費用で決まるので、候補ごとに 1 段目と完成形を対応づける。生成器は `schedule.property` と同じ形（走行中・
+// boiled・卓・大盛・未知の麺種を振る）に、前回の提案の有無を足す。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   baselineSchedule,
   initialRelease,
+  scheduleCandidates,
   type CookSchedule,
   type Placement,
   type SlotRelease,
@@ -53,7 +57,7 @@ interface Scene {
   readonly running: readonly Timer[];
   readonly slotCount: number;
   readonly params: ScheduleParams;
-  /** 前回の提案を渡すか（前回の釜の第一候補と (i)(a) の経路を踏む）。 */
+  /** 前回の提案を渡すか（前回の釜の第一候補と (i)(a) の経路・保持候補 R を踏む）。 */
   readonly withShown: boolean;
 }
 
@@ -85,10 +89,7 @@ const genScene: fc.Arbitrary<Scene> = fc
     };
   });
 
-/**
- * 場面の計画を `occupied` で組む。変更費用の文脈は場面ごとに一つ——前回の提案は「場面の占有で組んだ計画」を Shown_Plan に
- * したもので、1 段目と 2 段目の比較は同じ文脈で行う（文脈が違えば 1 段目そのものが違う計画になる）。
- */
+/** 場面の計画（選ばれた候補）を `occupied` で組む。変更費用の文脈は場面ごとに一つ。 */
 function planOf(scene: Scene, occupied: ReadonlySet<number>): CookSchedule {
   return baselineSchedule(
     scene.pending,
@@ -101,6 +102,22 @@ function planOf(scene: Scene, occupied: ReadonlySet<number>): CookSchedule {
     occupied,
     contextOf(scene),
   );
+}
+
+/** 場面の 2 候補（F・R）を `occupied` で組む。R は前回が無ければ null。 */
+function candidatesOf(scene: Scene, occupied: ReadonlySet<number>) {
+  const { fresh, retained } = scheduleCandidates(
+    scene.pending,
+    scene.release,
+    scene.members,
+    scene.lifts,
+    DEFAULT_NOODLE_PRESETS,
+    scene.params,
+    NOW,
+    occupied,
+    contextOf(scene),
+  );
+  return retained === null ? [fresh] : [fresh, retained];
 }
 
 function contextOf(scene: Scene): ChangeContext | null {
@@ -124,16 +141,6 @@ function contextOf(scene: Scene): ChangeContext | null {
     pending,
     presets: DEFAULT_NOODLE_PRESETS,
   };
-}
-
-/** 1 段目（占有なし——今割り当てられる釜が母集団の全部で、配分は 1 段目の釜をそのまま採る）。 */
-function stage1Of(scene: Scene): CookSchedule {
-  return planOf(scene, new Set());
-}
-
-/** 2 段目（場面の Timer の占有）。 */
-function stage2Of(scene: Scene): CookSchedule {
-  return planOf(scene, occupiedSlotsOf(scene.running));
 }
 
 /** 「今」の配置（`startAt ≤ now`）を表示の順（startAt 昇順・同値は到着順）に。 */
@@ -173,29 +180,27 @@ function liftItemsOf(
   });
 }
 
-describe("Feature: startable-placement — 2 段の計画の性質", () => {
-  // Feature: startable-placement, Property 4.1 — 開始できる先頭
-  // **Validates: Requirements 1.1, 1.5, 2.1, 3.1, 4.1**
+describe("Feature: startable-placement — 「今」の配分の loop の性質", () => {
+  // Feature: startable-placement, Property 4.1（改訂）— 開始できる先頭
+  // **Validates: Requirements 1.1, 1.5, 1.8, 2.1, 3.1, 4.1**
   //
-  // 1 段目で「今」に選ばれた品目のうち表示の順で最初の品目について、今割り当てられる釜（解放 ≤ now かつ Timer なし）が
-  // その slotSpan に足りるなら、2 段目はその品目を Timer の無い釜に `startAt ≤ now` で置き、表示（群 → 連鎖 → 全釜 idle →
-  // 先頭 arms 本）にその品目が先頭として現れる。1 段目が「今」を一つも選ばない計画では何も主張しない。
-  it("Property 4.1: 1 段目の「今」の表示先頭は、今割り当てられる釜が足りれば Timer の無い釜に今置かれ、表示の先頭に現れる", () => {
+  // **最終的に「今」に選ばれた品目の集合**（1 段目の「今」と、再生成で「今」になった品目）のうち最終的な表示の順で最初の品目
+  // について、今割り当てられる釜（解放 ≤ now かつ Timer なし）がその slotSpan に足りるなら、その品目は Timer の無い釜に
+  // `startAt ≤ now` で置かれ、表示（群 → 連鎖 → 全釜 idle → 先頭 arms 本）に先頭として現れる。「今」が一つも無ければ何も
+  // 主張しない。選ばれた候補について主張する（どちらの候補も同じ loop を通る）。
+  it("Property 4.1: 最終的な「今」の表示先頭は、今割り当てられる釜が足りれば Timer の無い釜に今置かれ、表示の先頭に現れる", () => {
     fc.assert(
       fc.property(genScene, (scene) => {
-        const stage1 = stage1Of(scene);
-        const head = nowItemsOf(stage1, scene.pending)[0];
-        if (head === undefined) return;
         const occupied = occupiedSlotsOf(scene.running);
+        const plan = planOf(scene, occupied);
+        const head = nowItemsOf(plan, scene.pending)[0];
+        if (head === undefined) return;
         const assignable = scene.release.filter((at, slot) => at <= NOW && !occupied.has(slot));
         if (assignable.length < head.slotIds.length) return;
 
-        const stage2 = stage2Of(scene);
-        const placed = byKey(stage2).get(itemKeyOf(head))!;
-        expect(placed.startAt).toBeLessThanOrEqual(NOW);
-        expect(placed.slotIds.every((slotId) => !occupied.has(slotOf(slotId)))).toBe(true);
+        expect(head.slotIds.every((slotId) => !occupied.has(slotOf(slotId)))).toBe(true);
         // 表示の先頭（arms ≥ 1 ゆえ最初の群の先頭は必ず Head に入る）。
-        const groups = liftGroupsOf(liftItemsOf(stage2, scene.pending), NOW);
+        const groups = liftGroupsOf(liftItemsOf(plan, scene.pending), NOW);
         const heads = headsOf(visibleGroupsOf(groups), occupied, NOW, scene.params.arms);
         expect(heads).toContain(itemKeyOf(head));
       }),
@@ -206,8 +211,8 @@ describe("Feature: startable-placement — 2 段の計画の性質", () => {
   // Feature: startable-placement, Property 4.6 — 将来配置は現在の占有を直接の条件にしない
   // **Validates: Requirements 1.2, 4.6**
   //
-  // 1 段目が「今」を一つも選ばない計画（全員が待つ）では、占有は配分に読まれる相手を持たず、計画は `occupied` に依らない
-  // ——場面の Timer の占有でも、任意の釜の部分集合でも、占有なしの計画と一致する。
+  // どちらの候補も 1 段目に「今」を一つも選ばない計画（全員が待つ）では、占有は配分に読まれる相手を持たず、計画は `occupied`
+  // に依らない——場面の Timer の占有でも、任意の釜の部分集合でも、占有なしの計画と一致する。
   it("Property 4.6: 1 段目に「今」の品目が無ければ、計画は占有（どの釜に Timer が在るか）に依らない", () => {
     fc.assert(
       fc.property(
@@ -217,9 +222,13 @@ describe("Feature: startable-placement — 2 段の計画の性質", () => {
             .map((subset) => ({ scene, subset })),
         ),
         ({ scene, subset }) => {
-          const stage1 = stage1Of(scene);
-          if (nowItemsOf(stage1, scene.pending).length > 0) return;
-          expect(stage2Of(scene)).toEqual(stage1);
+          const none = new Set<number>();
+          if (
+            candidatesOf(scene, none).some((stage1) => nowItemsOf(stage1, scene.pending).length > 0)
+          )
+            return;
+          const stage1 = planOf(scene, none);
+          expect(planOf(scene, occupiedSlotsOf(scene.running))).toEqual(stage1);
           expect(planOf(scene, new Set(subset))).toEqual(stage1);
         },
       ),
@@ -227,33 +236,41 @@ describe("Feature: startable-placement — 2 段の計画の性質", () => {
     );
   });
 
-  // Feature: startable-placement, Property 4.7 — 「今」の集合の不変
+  // Feature: startable-placement, Property 4.7（改訂）— 「今」の集合と時刻の保持
   // **Validates: Requirements 1.8, 4.7**
   //
-  // 2 段目の `startAt ≤ now` の品目の集合は 1 段目と等しく、各品目の `startAt` は 1 段目以上（前倒ししない）。配置される
-  // 品目の集合も同じ。固定した配置（2 段目の「今」の品目）どうしの釜は相異なる（`pool` の上の排他的な割当）。
-  it("Property 4.7: 「今」の集合は 1 段目と等しく、各 startAt は 1 段目以上、固定配置どうしの釜は重ならない", () => {
+  // 候補ごとに、完成形の `startAt ≤ now` の品目の集合は 1 段目の集合を**含み**（再生成で「今」になった品目が足される）、
+  // 1 段目の「今」の品目の時刻は動かず、すべての「今」の品目は互いに素な釜を持つ（`pool` の上の排他的な割当・釜は反復で
+  // 変わり得る）。配置される品目の集合も同じ。時刻は有限（取り置いた釜を取ることは無い）。
+  it("Property 4.7: 「今」の集合は 1 段目を含み、1 段目の「今」の時刻は動かず、「今」の品目どうしの釜は重ならない", () => {
     fc.assert(
       fc.property(genScene, (scene) => {
-        const stage1 = byKey(stage1Of(scene));
-        const stage2 = byKey(stage2Of(scene));
-        expect([...stage2.keys()].sort()).toEqual([...stage1.keys()].sort());
+        const stages = candidatesOf(scene, new Set());
+        const completed = candidatesOf(scene, occupiedSlotsOf(scene.running));
+        expect(completed).toHaveLength(stages.length);
         const nowOf = (placements: ReadonlyMap<ItemKey, Placement>) =>
           [...placements.entries()]
             .filter(([, placement]) => placement.startAt <= NOW)
             .map(([key]) => key)
             .sort();
-        expect(nowOf(stage2)).toEqual(nowOf(stage1));
-        for (const [key, placement] of stage2) {
-          expect(placement.startAt, key).toBeGreaterThanOrEqual(stage1.get(key)!.startAt);
-          // 取り置いた釜（解放が無限大）を取ることは無い——時刻は有限（上げ表の走査が止まる前提）。
-          expect(Number.isFinite(placement.serveAt), key).toBe(true);
-        }
-        const claimed = new Set<number>();
-        for (const key of nowOf(stage2)) {
-          for (const slotId of stage2.get(key)!.slotIds) {
-            expect(claimed.has(slotOf(slotId)), key).toBe(false);
-            claimed.add(slotOf(slotId));
+        for (const [index, stage1] of stages.entries()) {
+          const before = byKey(stage1);
+          const after = byKey(completed[index]!);
+          expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
+          const nowBefore = nowOf(before);
+          const nowAfter = nowOf(after);
+          expect(nowAfter.filter((key) => nowBefore.includes(key))).toEqual(nowBefore);
+          for (const key of nowBefore)
+            expect(after.get(key)!.startAt, key).toBe(before.get(key)!.startAt);
+          for (const [key, placement] of after) {
+            expect(Number.isFinite(placement.serveAt), key).toBe(true);
+          }
+          const claimed = new Set<number>();
+          for (const key of nowAfter) {
+            for (const slotId of after.get(key)!.slotIds) {
+              expect(claimed.has(slotOf(slotId)), key).toBe(false);
+              claimed.add(slotOf(slotId));
+            }
           }
         }
       }),

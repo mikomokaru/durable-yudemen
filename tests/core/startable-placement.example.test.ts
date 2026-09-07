@@ -236,7 +236,7 @@ function placementsOf(schedule: {
 }
 
 describe("Feature: startable-placement — レビュー反例", () => {
-  it("(i) 配分は表示の順——卓 X（−3 秒 Thin・−1 秒 Long）と卓 Y（−2 秒 Long）で、空き釜は表示で先の Y の品目に渡る（AC 1.5）", () => {
+  it("(i) 配分は表示の順——卓 X（−3 秒 Thin・−1 秒 Long）と卓 Y（−2 秒 Long）で、空き釜は最終的な表示順で先の品目に渡る（AC 1.5・1.8 改訂）", () => {
     // 釜 0 だけ空き、釜 1・2 は boiled（解放 `now`・Timer あり）、釜 3〜5 は遠い未来まで走行中。
     const running = [
       timerOn(1, -20),
@@ -248,13 +248,16 @@ describe("Feature: startable-placement — レビュー反例", () => {
     const x1 = order("x-thin", { noodleType: "Thin", tableId: "X", arrivalTime: at(-3) });
     const x2 = order("x-long", { noodleType: "Long", tableId: "X", arrivalTime: at(-1) });
     const y = order("y-long", { noodleType: "Long", tableId: "Y", arrivalTime: at(-2) });
-    // 1 段目：計画の一片の順は X（最早到着 −3 秒）→ Y。X は Long を今・Thin を 540 秒後に揃え、Y の Long も今。
-    // 「今」の表示順は y（−2 秒）→ x-long（−1 秒）——計画順と逆。
+    // 1 段目：計画の一片の順は X（最早到着 −3 秒）→ Y。X は Long を釜 0 に今・Thin を釜 1 に 540 秒後で揃え、Y の Long は
+    // 釜 2 に今。「今」の表示順は y（−2 秒）→ x-long（−1 秒）——計画順と逆なので、1 回目の配分は空き釜 0 を y に渡し、
+    // x-long は待つ釜 1 へ。すると X の一片は Thin（釜 1・540 秒）が x-long と重なって不正になり、x-long を残して再生成される
+    // ——Thin は残った釜（boiled の釜 2）に今（60 秒）で置かれ、新たに「今」になる（design Component 3′ の反例と同じ形）。
+    // 2 回目の配分は「今」の全体を最終的な表示順 x-thin（−3 秒）→ y（−2 秒）→ x-long（−1 秒）で配り直し、空き釜 0 は
+    // x-thin に渡る。y と x-long は待つ釜へ（いまの釜 → index 順）。
     const plan = placementsOf(ownPlan([x1, x2, y], running));
-    expect(plan.get("y-long")).toEqual([[0], 0]);
-    expect(plan.get("x-long")![1]).toBe(0);
-    expect([1, 2]).toContain(plan.get("x-long")![0][0]);
-    expect(plan.get("x-thin")![1]).toBe(540);
+    expect(plan.get("x-thin")).toEqual([[0], 0]);
+    expect(plan.get("y-long")).toEqual([[1], 0]);
+    expect(plan.get("x-long")).toEqual([[2], 0]);
   });
 
   it("(ii) 採用済み接頭辞の予約——Timer の無い釜 1 を採用済み B が 30〜90 秒に予約していれば、A は boiled の釜 0 で待つ（性質 4.1 の除外・AC 3.2）", () => {
@@ -331,10 +334,12 @@ describe("Feature: startable-placement — レビュー反例", () => {
 });
 
 describe("Feature: startable-placement — 2 段目の固定配置の扱い（design Component 3 のレビュー反例）", () => {
-  it("固定配置は卓の成員表（走行中の錨）に足さない——同卓の Long を今・Thin を 540 秒後に置く卓で、Thin に錨は付かない", () => {
-    // 走行中の仲間は無い（釜 0 の boiled は卓なし）。1 段目は Long を釜 0（boiled）に「今」、Thin を 540 秒後に揃える。
-    // 配分が Long を空き釜 1 へ動かして 2 段目を組むとき、固定した Long を成員表に足せば Thin が実在しない Timer に
-    // 合流して `anchor: 600` を運ぶ——`keepsAnchor` (a) が現実の Timer に対して失敗する。
+  it("固定配置は卓の成員表（走行中の錨）に足さない——同卓の Long を今・Thin を後に置く卓で、再生成した Thin に錨は付かない", () => {
+    // 走行中の仲間は無い（釜 0 の boiled は卓なし）。1 段目は Long を釜 0（boiled）に「今」、Thin を釜 1 に 540 秒後で揃える。
+    // 配分が Long を空き釜 1 へ動かすと Thin（釜 1）は重なって不正になり、Long を残して Thin が再生成される。固定した Long を
+    // 成員表に足せば Thin が実在しない Timer に合流して `anchor: 600` を運ぶ——`keepsAnchor` (a) が現実の Timer に対して
+    // 失敗する。再生成した Thin は残った釜 0（boiled・解放 `now`）に「今」で置かれ（design Component 3′ の反例と同じ形）、
+    // 配り直しでも空き釜は表示で先の Long が保つ（AC 1.7）ので、Thin は待つ釜 0 に残る。
     const running = [timerOn(0, -20), ...[2, 3, 4, 5].map((slot) => timerOn(slot, 3000))];
     const long = order("long", { noodleType: "Long", tableId: "T", arrivalTime: at(-2) });
     const thin = order("thin", { noodleType: "Thin", tableId: "T", arrivalTime: at(-1) });
@@ -345,7 +350,7 @@ describe("Feature: startable-placement — 2 段目の固定配置の扱い（de
         .map((each) => [each.externalOrderId, each]),
     );
     expect(placementsOf(schedule).get("long")).toEqual([[1], 0]);
-    expect(placementsOf(schedule).get("thin")![1]).toBe(540);
+    expect(placementsOf(schedule).get("thin")).toEqual([[0], 0]);
     expect(placements.get("long")!.anchor).toBeNull();
     expect(placements.get("thin")!.anchor).toBeNull();
   });
