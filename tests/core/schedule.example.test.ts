@@ -15,7 +15,9 @@ import {
   PLAN_TARGET_LIMIT,
   baselineSchedule,
   initialRelease,
+  isStale,
   keepsAnchor,
+  placeableTargets,
   planTargets,
   toCookSchedule,
   type Placement,
@@ -2000,5 +2002,98 @@ describe("baselineSchedule — 期限切れの旧先頭を文脈から外す（p
     ]);
     expect(changeCostOf(scene.pack, scene, scene.pending)).toBe(0);
     expect(changeCostOf(scene.pack, scene, scene.live)).toBe(2 * EXPIRY_PARAMS.liftIntervalSeconds);
+  });
+});
+
+describe("placeableTargets — 置ける品目（plan-stability Requirement 7・startable-placement task 3′.1）", () => {
+  // Feature: plan-stability
+  // **Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5**
+  const pad = (index: number) => String(index).padStart(3, "0");
+  const SECS = 1_000;
+  /** 生きている 65 件（1 件は枠から溢れる）。5 件目はプリセットに無い麺種、10 件目は単体で上限（arms 2 + 2 = 4）を超える大盛。 */
+  const alive = Array.from({ length: PLAN_TARGET_LIMIT + 1 }, (_unused, index) =>
+    pendingItem({
+      orderId: `live-${pad(index)}`,
+      arrivalTime: NOW - 100_000 + index,
+      noodleType: index === 4 ? "Ghost" : "Thin",
+      slotSpan: index === 9 ? 5 : 1,
+    }),
+  );
+  const ids = (orders: readonly PendingOrder[]) => orders.map((order) => order.externalOrderId);
+  const GHOST_PRESET = {
+    noodleType: "Ghost",
+    boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 },
+  };
+
+  it("計画対象を決めた後に絞る：先頭 64 件のうち置けない 2 件が落ち、65 件目は繰り上がらない（AC 7.1）", () => {
+    const placeable = placeableTargets(alive, NOW, DEFAULT_NOODLE_PRESETS, PARAMS);
+    expect(placeable).toHaveLength(PLAN_TARGET_LIMIT - 2);
+    expect(ids(placeable)).not.toContain("live-004");
+    expect(ids(placeable)).not.toContain("live-009");
+    expect(ids(placeable)).not.toContain(`live-${pad(PLAN_TARGET_LIMIT)}`);
+    // 正本の計画対象（指紋・要求が指す範囲）は 64 件のまま。
+    expect(planTargets(alive, NOW)).toHaveLength(PLAN_TARGET_LIMIT);
+  });
+
+  it("自前解が置く品目集合は置ける品目に一致し、一片は置ける品目に対して isStale が偽（AC 7.4）", () => {
+    const placeable = placeableTargets(alive, NOW, DEFAULT_NOODLE_PRESETS, PARAMS);
+    const schedule = baselineSchedule(
+      alive,
+      EMPTY_KITCHEN,
+      NO_MEMBERS,
+      NO_LIFTS,
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+      NOW,
+      occupiedSlotsOf([]),
+      null,
+    );
+    const placed = schedule.slices.flatMap((slice) => slice.placements);
+    expect(new Set(placed.map((placement) => placement.externalOrderId))).toEqual(
+      new Set(ids(placeable)),
+    );
+    for (const slice of schedule.slices) expect(isStale(slice, placeable)).toBe(false);
+    // 正本のまま比べると、置けない品目の単独一片が「欠落」で落ちる（自前解はそれを置かない）——Requirement 7 の動機。
+    const targets = planTargets(alive, NOW);
+    expect(schedule.slices.some((slice) => isStale(slice, targets))).toBe(false);
+    expect(targets.filter((order) => !ids(placeable).includes(order.externalOrderId))).toHaveLength(
+      2,
+    );
+  });
+
+  it("設定変更で麺種が置けるようになれば集合が広がり、arms を上げれば大盛も入る（AC 7.5）", () => {
+    const withGhost = placeableTargets(
+      alive,
+      NOW,
+      [...DEFAULT_NOODLE_PRESETS, GHOST_PRESET],
+      PARAMS,
+    );
+    expect(ids(withGhost)).toContain("live-004");
+    expect(withGhost).toHaveLength(PLAN_TARGET_LIMIT - 1);
+    const wideArms = placeableTargets(alive, NOW, DEFAULT_NOODLE_PRESETS, { ...PARAMS, arms: 3 });
+    expect(ids(wideArms)).toContain("live-009");
+    expect(wideArms).toHaveLength(PLAN_TARGET_LIMIT - 1);
+  });
+
+  it("空き不足は除外理由にしない：全釜が遠い将来まで塞がっていても置ける品目は同じ（AC 7.2）", () => {
+    const blocked = [0, 1, 2, 3, 4, 5].map((slot) =>
+      timerOn({ id: `r${slot}`, slot: String(slot), endTime: NOW + 10_000 * SECS }),
+    );
+    // 置ける品目は待ち行列と設定だけから決まる（`running` を受けない署名がそれを語る）。自前解は待たせて置く。
+    const placeable = placeableTargets(alive, NOW, DEFAULT_NOODLE_PRESETS, PARAMS);
+    const schedule = baselineSchedule(
+      alive,
+      initialRelease(blocked, NOW, 6),
+      tableMembers(blocked),
+      initialLifts(blocked),
+      DEFAULT_NOODLE_PRESETS,
+      PARAMS,
+      NOW,
+      occupiedSlotsOf(blocked),
+      null,
+    );
+    const placed = schedule.slices.flatMap((slice) => slice.placements);
+    expect(placed).toHaveLength(placeable.length);
+    expect(placed.every((placement) => placement.startAt >= NOW + 10_000 * SECS)).toBe(true);
   });
 });

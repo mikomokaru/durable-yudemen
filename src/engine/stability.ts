@@ -17,6 +17,7 @@ import { slotOf, type NoodlePreset } from "../domain/store";
 import type { NonEmptyArray } from "../domain/timer";
 import { boilMillisOf, joinWindowMillis } from "./boil";
 import type { ScheduleParams } from "./objective";
+import { tableKeyOf } from "./project";
 import { recommend } from "./recommend";
 import type { CookSchedule, Placement } from "./schedule";
 import type { Timer } from "./timer";
@@ -335,11 +336,13 @@ function completeWithShown(
       serveAt: item.serveAt,
       anchor: item.anchor,
     };
-    if (current !== undefined && order.tableId !== null && current.tableKey === order.tableId) {
+    // 一片の鍵は計画と同じ `tableKeyOf`（卓なしは単独キー）。単独キーがいま置いている一片の鍵に一致することは無い——
+    // その一片の品目は既に置かれている（`placedKeys`）ので、ここには来ない。
+    const tableKey = tableKeyOf(order);
+    if (current !== undefined && current.tableKey === tableKey) {
       currentExtra.push(placement);
       continue;
     }
-    const tableKey = order.tableId ?? key;
     const slice = bySlice.get(tableKey);
     if (slice === undefined) bySlice.set(tableKey, [placement]);
     else slice.push(placement);

@@ -1,20 +1,21 @@
 // tests/core/restoreScenes.ts — plan-stability の調査（実占有での性質 5.6）が共有する「前回の提案の復元」の試作。
 //
-// **src は変えない。** ここに置くのは、前回配信対象として確定した提案（Shown_Plan）を**再生成せず復元**して保持候補にし、
+// ここに置くのは、前回配信対象として確定した提案（Shown_Plan）を**再生成せず復元**して保持候補にし、
 // 確定計画の合成（`commit.ts` の `livePrefix`）と同じハード制約の述語で現在の入力に対して検証し、新しく組んだ候補と
-// 総費用（業務費用 ＋ 変更費用・`scoreSchedule`）で比べる規則（規則 B）の試作である。合成側の非公開の述語
-// （`tableKeyOf` / `cannotStart` / `feasibleRelease`）は写しを置く——写しであることが、src に何が要るかを語る。
+// 総費用（業務費用 ＋ 変更費用・`scoreSchedule`）で比べる規則（規則 B）の試作である。述語（`tableKeyOf` / `cannotStart` /
+// `feasibleRelease` / 置ける品目 `placeableTargets`）は src の公開関数を呼ぶ（task 3′.1 / 3′.2 で写しを撤去）。復元と
+// 選択の規則そのものは task 3′.3 が `retain` として src に移す。
 
 import {
   advanceRelease,
   baselineSchedule,
-  boilMillisOf,
+  cannotStart,
+  feasibleRelease,
   initialRelease,
   isStale,
   keepsAnchor,
-  occupiesSlotSpan,
-  planTargets,
-  refersTo,
+  placeableTargets,
+  tableKeyOf,
   type CookSchedule,
   type Placement,
   type PlanSlice,
@@ -24,7 +25,6 @@ import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
 import {
   advanceLifts,
   initialLifts,
-  liftCap,
   liftsOf,
   withinLiftCap,
   type LiftTable,
@@ -44,7 +44,6 @@ import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
   occupiedSlotsOf,
-  slotOf,
   type NoodlePreset,
 } from "../../src/domain/store";
 import { NOW, timerOn, toPending, type OrderSpec, type RunningSpec } from "./scheduleScenes";
@@ -165,15 +164,11 @@ export function samePlan(a: CookSchedule, b: CookSchedule): boolean {
 // 復元（Shown_Plan → CookSchedule の形）と検証（livePrefix と同じ述語）
 // ────────────────────────────────────────────────────────────────────────────
 
-/** schedule.ts の `tableKeyOf`（非公開）の写し。復元には一片の鍵が要るので、src が公開するか復元関数を持つべき値。 */
-export function tableKeyOf(order: PendingOrder): string {
-  return order.tableId ?? `\u0000${order.externalOrderId}\u0000${order.itemIndex}`;
-}
-
 /**
  * Shown_Plan を一片の列に組む。一片の順は Shown_Plan での初出順（`shownPlanOf` は計画順に平坦化するので計画順が残る）。
- * 計画対象に無い品目（開始済み・キャンセル・期限切れ）は落とす——落ちた卓は `isStale` で丸ごと再生成に回る。
- * `mates` は読まない（群は `recommend` が一片の index と錨・提供時刻から付け直す）。
+ * 計画対象（置ける品目）に無い品目（開始済み・キャンセル・期限切れ・置けない）は落とす——落ちた卓は `isStale` で
+ * 丸ごと再生成に回る。`mates` は読まない（群は `recommend` が一片の index と錨・提供時刻から付け直す）。一片の鍵は
+ * 計画と同じ `tableKeyOf`（schedule.ts が公開）。
  */
 export function restoreSlices(
   shown: ShownPlan,
@@ -209,55 +204,15 @@ export function restoreSlices(
 
 export type Reason = "stale" | "cannotStart" | "release" | "anchor" | "liftCap";
 
-/** commit.ts の `cannotStart`（非公開）の写し：過去開始 ∨ 開始時刻が来ているのに釜に Timer。 */
-export function cannotStart(
-  slice: PlanSlice,
-  now: EpochMillis,
-  occupied: ReadonlySet<number>,
-): boolean {
-  return slice.placements.some(
-    (placement) =>
-      placement.startAt < now ||
-      (placement.startAt <= now &&
-        placement.slotIds.some((slotId) => occupied.has(slotOf(slotId)))),
-  );
-}
-
-/** admit.ts の `feasibleRelease`（非公開）のうち (a)(c)(d) と茹で時間の一致の写し。(e)(f) は公開の述語を別に呼ぶ。 */
-export function feasibleOnRelease(
-  placements: readonly Placement[],
-  release: SlotRelease,
-  targets: readonly PendingOrder[],
-  presets: readonly NoodlePreset[],
-): boolean {
-  const ordered = [...placements].sort(
-    (placement, other) =>
-      placement.startAt - other.startAt || slotOf(placement.slotIds[0]) - slotOf(other.slotIds[0]),
-  );
-  let free = release;
-  for (const placement of ordered) {
-    const order = targets.find((candidate) => refersTo(placement, candidate));
-    if (order === undefined) return false;
-    const boilMillis = boilMillisOf(order, presets);
-    if (boilMillis === null) return false;
-    if (placement.serveAt - placement.startAt !== boilMillis) return false;
-    if (!occupiesSlotSpan(placement, order)) return false;
-    for (const slotId of placement.slotIds) {
-      const at = free[slotOf(slotId)];
-      if (at === undefined) return false;
-      if (placement.startAt < at) return false;
-    }
-    free = advanceRelease(free, [placement]);
-  }
-  return true;
+/** 場面の置ける品目（`placeableTargets`・plan-stability Requirement 7）。復元・検証・再生成が同じ集合を読む。 */
+export function targetsOf(scene: Scene): readonly PendingOrder[] {
+  return placeableTargets(scene.pending, scene.now, DEFAULT_NOODLE_PRESETS, scene.params);
 }
 
 /**
  * 一片が現在の入力に対してどのハード制約で落ちるか（null は落ちない）。`release` / `lifts` は一片を置く前の表。
- *
- * `isStale` は**置ける品目**（茹で時間が引け、span が上限以下）に限った計画対象に対して見る。自前解は置けない品目を
- * 置かない（一片 ≠ 卓の計画対象）ので、正本の `isStale`（全品目）をそのまま当てると置けない品目を含む卓は常に落ちる
- * ——復元には「置ける品目の集合が一致する」読みが要る（src 側の変更点）。
+ * 述語は合成（`livePrefix`）・ゲート（`prune`）と同じ src の公開関数で、`targets` は置ける品目（`placeableTargets`）。
+ * 理由の順（stale → cannotStart → release → anchor → liftCap）は、ゲートが落とす順ではなく調査の分類のため。
  */
 export function reasonOf(
   slice: PlanSlice,
@@ -270,13 +225,9 @@ export function reasonOf(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): Reason | null {
-  const cap = liftCap(params);
-  const placeable = targets.filter(
-    (order) => boilMillisOf(order, presets) !== null && order.slotSpan <= cap,
-  );
-  if (isStale(slice, placeable)) return "stale";
+  if (isStale(slice, targets)) return "stale";
   if (cannotStart(slice, now, occupied)) return "cannotStart";
-  if (!feasibleOnRelease(slice.placements, release, targets, presets)) return "release";
+  if (feasibleRelease(slice.placements, release, targets, presets) === null) return "release";
   const siblings = members.get(slice.tableKey) ?? null;
   if (!keepsAnchor(slice.placements, release, lifts, siblings, targets, presets, params))
     return "anchor";
@@ -289,7 +240,7 @@ export function violationsOf(
   scene: Scene,
   schedule: CookSchedule,
 ): readonly { readonly tableKey: string; readonly reason: Reason }[] {
-  const targets = planTargets(scene.pending, scene.now);
+  const targets = targetsOf(scene);
   const found: { tableKey: string; reason: Reason }[] = [];
   let free = scene.release;
   let ends = scene.lifts;
@@ -408,8 +359,8 @@ export function select(
   changeContext: ChangeContext,
   options: RuleOptions,
 ): Selection {
-  const { pending, release, members, lifts, occupied, params, now } = scene;
-  const targets = planTargets(pending, now);
+  const { release, members, lifts, occupied, params, now } = scene;
+  const targets = targetsOf(scene);
   const r = restoredPrefix(
     changeContext.shown,
     targets,

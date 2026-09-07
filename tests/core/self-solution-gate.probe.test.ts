@@ -19,8 +19,7 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { boilMillisOf, isStale, planTargets } from "../../src/engine/schedule";
-import { liftCap } from "../../src/engine/lift";
+import { isStale, placeableTargets } from "../../src/engine/schedule";
 import type { ScheduleParams } from "../../src/engine/objective";
 import type { Firmness } from "../../src/domain/firmness";
 import {
@@ -137,10 +136,11 @@ describe("自前解と共通のハード制約（合成・ゲートと同じ述�
     fc.assert(
       fc.property(genRaw, (raw) => {
         const scene = sceneOf(raw);
-        const cap = liftCap(scene.params);
-        const placeable = planTargets(scene.pending, NOW).filter(
-          (candidate) =>
-            boilMillisOf(candidate, DEFAULT_NOODLE_PRESETS) !== null && candidate.slotSpan <= cap,
+        const placeable = placeableTargets(
+          scene.pending,
+          NOW,
+          DEFAULT_NOODLE_PRESETS,
+          scene.params,
         );
         const first = planOf(scene, null);
         const second = planOf(scene, contextOf(scene, first));

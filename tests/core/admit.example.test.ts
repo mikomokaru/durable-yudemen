@@ -970,3 +970,78 @@ describe("admit — 期限切れの品目（pending-order-expiry AC 2.3 / 2.4）
     });
   });
 });
+
+describe("admit — 置ける品目に限って計画対象と比べる（plan-stability Requirement 7・startable-placement task 3′.1）", () => {
+  // Feature: plan-stability
+  // **Validates: Requirements 7.3, 7.4, 7.5**
+  //
+  // 卓 t-m に短い麺 M と、プリセットに無い麺種 G（設定の差し替えを跨いで待ち行列に残った品目）。自前解は G を置かない
+  // ので、正本の計画対象のまま比べると t-m の一片は（自前解・外部解とも）常に「欠落」で落ちていた。
+  const M = order("o-m", "Short", "t-m");
+  const G = order("o-g", "Ghost", "t-m");
+  const GHOST_PRESET: NoodlePreset = {
+    noodleType: "Ghost",
+    boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 },
+  };
+  /** 待ち行列 [A, M, G]。同時到着ゆえ自前解は卓 id 順に t-a（A 600 秒）→ t-m（M は A の後）。 */
+  const PENDING_M = [LONG, M, G];
+  const gateWith = (arrived: CookSchedule, presets: readonly NoodlePreset[], params = PARAMS) =>
+    admit(
+      arrived,
+      committedSchedule([], PENDING_M, BLOCKED, NOW, presets, params, null),
+      PENDING_M,
+      BLOCKED,
+      EMPTY_SHOWN_PLAN,
+      NOW,
+      presets,
+      params,
+    );
+  /** M を今始める外部計画（G は置かない・自前解と同じ集合）。合成後は 720 < 1260 ゆえ改善。 */
+  const M_NOW = plan(slice("t-m", [{ order: M, startAt: NOW, serveAt: NOW + 60 * SECOND }]));
+
+  it("(a) 未知麺種 G を含む卓の外部計画は、置ける品目 M を正しく置けば採用される", () => {
+    expect(gateWith(M_NOW, PRESETS)).toEqual([M_NOW.slices[0]!]);
+  });
+
+  it("(b) 設定変更で G が置けるようになると、同じ一片は置ける品目 G の欠落で落ちる（AC 7.5）", () => {
+    const presets = [...PRESETS, GHOST_PRESET];
+    expect(gateWith(M_NOW, presets)).toEqual([]);
+    // 落ちた理由が欠落であること：G も置く一片（釜 0 を順に使う）は採用される。
+    const both = plan(
+      slice("t-m", [
+        { order: M, startAt: NOW, serveAt: NOW + 60 * SECOND },
+        { order: G, startAt: NOW + 60 * SECOND, serveAt: NOW + 120 * SECOND },
+      ]),
+    );
+    expect(gateWith(both, presets)).toEqual([both.slices[0]!]);
+  });
+
+  it("(c) 単体で上限（arms 2 + 2 = 4）を超える span 5 も同じ——置けない間は集合に無く、arms 3 で置けるようになれば欠落で落ちる", () => {
+    const wide: PendingOrder = { ...order("o-wide", "Short", "t-m"), slotSpan: 5 };
+    const pendingWide = [LONG, M, wide];
+    const gateWide = (arrived: CookSchedule, params: ScheduleParams) =>
+      admit(
+        arrived,
+        committedSchedule([], pendingWide, BLOCKED, NOW, PRESETS, params, null),
+        pendingWide,
+        BLOCKED,
+        EMPTY_SHOWN_PLAN,
+        NOW,
+        PRESETS,
+        params,
+      );
+    // 空き不足（使える釜は 0 番だけ）は除外理由にならない（AC 7.2）——上限で置けないから集合に無い。
+    expect(gateWide(M_NOW, PARAMS)).toEqual([M_NOW.slices[0]!]);
+    expect(gateWide(M_NOW, { ...PARAMS, arms: 3 })).toEqual([]);
+  });
+
+  it("(d) 置けない品目を置いた一片は対象外の混入として落ちる（AC 7.3）", () => {
+    const withGhost = plan(
+      slice("t-m", [
+        { order: M, startAt: NOW, serveAt: NOW + 60 * SECOND },
+        { order: G, startAt: NOW + 60 * SECOND, serveAt: NOW + 120 * SECOND },
+      ]),
+    );
+    expect(gateWith(withGhost, PRESETS)).toEqual([]);
+  });
+});

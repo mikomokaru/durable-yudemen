@@ -424,3 +424,68 @@ describe("committedSchedule — 開始を妨げる配置の失効 cannotStart（
     });
   });
 });
+
+describe("committedSchedule — 採用済み一片は置ける品目に限って計画対象と比べる（plan-stability Requirement 7・task 3′.1）", () => {
+  // Feature: plan-stability
+  // **Validates: Requirements 7.3, 7.4, 7.5**
+  //
+  // 6 釜・走行中なし。卓 t-m に Thin の M と、プリセットに無い麺種 G。採用済み一片は M を釜 3 に今置く（自前解なら釜 0）。
+  const M: PendingOrder = { ...WIDE, externalOrderId: "o-m", slotSpan: 1, tableId: "t-m" };
+  const G: PendingOrder = { ...M, externalOrderId: "o-g", noodleType: "Ghost" };
+  const GHOST_PRESET: NoodlePreset = {
+    noodleType: "Ghost",
+    boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 },
+  };
+  const ACCEPTED_M: AcceptedSlice = {
+    tableKey: "t-m",
+    placements: [
+      {
+        externalOrderId: M.externalOrderId,
+        itemIndex: 0,
+        slotIds: nonEmpty(["3" as SlotId]),
+        startAt: NOW,
+        serveAt: (NOW + 60 * SECOND) as EpochMillis,
+        anchor: null,
+      },
+    ],
+  };
+
+  it("未知麺種 G を含む卓の採用済み一片は、置ける品目 M が一致すれば維持される", () => {
+    const schedule = committedSchedule([ACCEPTED_M], [M, G], [], NOW, PRESETS, PARAMS, null);
+    expect(schedule.slices).toEqual([ACCEPTED_M]);
+  });
+
+  it("設定変更で G が置けるようになると、その一片は欠落で落ち、自前解が M と G を置き直す（AC 7.5）", () => {
+    const presets = [...PRESETS, GHOST_PRESET];
+    const schedule = committedSchedule([ACCEPTED_M], [M, G], [], NOW, presets, PARAMS, null);
+    const placements = schedule.slices.flatMap((slice) => slice.placements);
+    expect(schedule.slices[0]).not.toBe(ACCEPTED_M);
+    expect(placements.map((placement) => placement.externalOrderId).sort()).toEqual(["o-g", "o-m"]);
+    // 置き直しの証拠：M は採用済みの釜 3 ではなく自前解の釜（G と揃えて釜 0・1 のどちらか）。
+    expect(
+      placements.find((placement) => placement.externalOrderId === "o-m")!.slotIds,
+    ).not.toEqual(["3"]);
+  });
+
+  it("単体で上限を超える span 5 も同じ——arms 2（上限 4）では集合に無く維持、arms 3（上限 5）では欠落で落ちる", () => {
+    const wide: PendingOrder = { ...M, externalOrderId: "o-wide", slotSpan: 5 };
+    expect(
+      committedSchedule([ACCEPTED_M], [M, wide], [], NOW, PRESETS, PARAMS, null).slices,
+    ).toEqual([ACCEPTED_M]);
+    const relaxed = committedSchedule(
+      [ACCEPTED_M],
+      [M, wide],
+      [],
+      NOW,
+      PRESETS,
+      { ...PARAMS, arms: 3 },
+      null,
+    );
+    const placements = relaxed.slices.flatMap((slice) => slice.placements);
+    expect(relaxed.slices[0]).not.toBe(ACCEPTED_M);
+    expect(placements.map((placement) => placement.externalOrderId).sort()).toEqual([
+      "o-m",
+      "o-wide",
+    ]);
+  });
+});

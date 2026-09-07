@@ -9,7 +9,7 @@
 
 import type { EpochMillis, SlotId } from "./types";
 import type { Timer } from "./timer";
-import { adjustedEndTime, type TableMembers } from "./project";
+import { adjustedEndTime, tableKeyOf, type TableMembers } from "./project";
 import { scoreSchedule, type ScheduleParams } from "./objective";
 import {
   advanceLifts,
@@ -40,6 +40,8 @@ import {
 
 // 茹で時間と合流の窓の導出は boil.ts に在る（変更費用が同じ導出を読むため）。読む側の入口はここのまま。
 export { boilMillisOf, joinWindowMillis } from "./boil";
+// Table_Group の識別子は project.ts に在る（成員表の鍵と同じ規則・変更費用と復元が同じ鍵を読むため）。入口は同じくここ。
+export { tableKeyOf } from "./project";
 
 /**
  * Placement — 1 品目の配置。engine 内部形。
@@ -594,6 +596,9 @@ function buildSchedule(
   let ends = advanceLifts(lifts, liftsOf(fixed));
   // まだ置いていない固定配置（後の群のもの）。その釜は手前の群に対して取り置く。
   const ahead = new Set(fixed);
+  // 群は正本の計画対象から組む（群の順＝卓の最早到着は置けない品目も数える・従来どおり）。置くのは群の中の置ける品目
+  // だけ（`placeGroup` が `isPlaceable` で絞る＝`placeableTargets` と同じ一箇所の定義）——合成・ゲート・復元が `isStale`
+  // で比べる集合と、自前解の一片の品目集合はこれで一致する（plan-stability Requirement 7.4）。
   for (const group of tableGroups(planTargets(pending, now))) {
     // 走行中の錨＝同じ卓の走行中の仲間の提供時刻の最大（表の値は昇順ゆえ末尾）。卓なしの単独キーは
     // NUL 始まりで非空の tableId と一致しないため、表に当たらない（条件を書かない・ADR-0003）。
@@ -651,6 +656,40 @@ export function planTargets(
 }
 
 /**
+ * 置ける品目——計画対象（`planTargets`）のうち、茹で時間が引け（プリセットに在る麺種）、品目単体で上げ窓の上限
+ * （slotSpan ≤ arms + HELPER_ARMS・`liftCap`）に収まるもの（plan-stability Requirement 7・2026-09-07）。
+ *
+ * **計画対象を決めた後に絞る（AC 7.1）。** 期限と 64 件の制限は正本（`planTargets`）の関心事で、そこで切った後に
+ * 置けるかで絞る。除外した分の繰り上げはしない——65 件目は入らない（絞ってから切れば、プリセットの差し替えが
+ * 計画対象の範囲を動かし、指紋と要求が指す範囲（`planTargets`）と食い違う）。
+ *
+ * **現在の空き不足や上げ窓の混雑は除外理由にしない（AC 7.2）。** それらは「置けない品目」ではなく「待つ品目」で、
+ * 待つ配置（boiled の釜の Complete を待つ・startable-placement AC 1.4）は合法である。
+ *
+ * **定義はここ一箇所（AC 7.4）。** 自前解（`placeGroup` が群の中で置く品目・同じ `isPlaceable`）・合成（`livePrefix`・
+ * 尾部の残り）・ゲート（`prune`）・復元（retain）が同じ集合を `isStale` に渡す。正本の計画対象のまま比べると、自前解は
+ * 置けない品目を置かないので未知麺種を含む卓の一片（自前解・外部解とも）が常に「欠落」で落ちる（3000 場面中 1319 一片・
+ * 実測）。自前解の**群の順**（卓の最早到着）は正本の計画対象で決めたまま——置けない品目が卓の先着でも群の順は変えない
+ * （集合の定義ではなく並びの規則で、Requirement 7 の外。`schedule.example` の性質 5.6 の回帰がその並びに立つ）。
+ * 指紋（`digestInput`）と要求（`RequestPlan.pending`）は正本の計画対象のまま——「何が計画対象か」と「そのうち何が
+ * 置けるか」は別の問いで、要求は置けない品目もプリセットと共に外部へ運ぶ（外部は同じ規則で絞る）。
+ */
+export function placeableTargets(
+  pending: readonly PendingOrder[],
+  now: EpochMillis,
+  presets: readonly NoodlePreset[],
+  params: ScheduleParams,
+): readonly PendingOrder[] {
+  const cap = liftCap(params);
+  return planTargets(pending, now).filter((order) => isPlaceable(order, presets, cap));
+}
+
+/** 置ける品目か——茹で時間が引け（プリセットに在る麺種）、品目単体で上げ窓の上限 `cap`（`liftCap`）に収まる。 */
+function isPlaceable(order: PendingOrder, presets: readonly NoodlePreset[], cap: number): boolean {
+  return boilMillisOf(order, presets) !== null && order.slotSpan <= cap;
+}
+
+/**
  * isStale — 採用済みの一片が現在の計画対象と食い違っているか（design の陳腐化A・陳腐化B）。
  *
  * 2 つの判定は一つの集合比較に畳める。
@@ -659,16 +698,19 @@ export function planTargets(
  * ⟺ **一片の品目集合が、計画対象のうち同じ Table_Group の品目集合と一致する。** 片方向で足りないのは
  * (a) が「一片 ⊆ 計画対象」、(b) が「計画対象 ⊆ 一片」を言っているためで、両方向＝一致である。
  *
- * `commit.ts`（確定計画の合成）と `admit.ts`（Acceptance_Gate の段 1）が同じ述語を用いる。判定を二箇所に
- * 書けば、採用の基準と維持の基準が黙ってずれる。置き場所をここにするのは、PlanSlice・計画対象・Table_Group
- * 識別子のいずれもこのモジュールが定めているためである（tableKeyOf を公開せずに済む）。
+ * `commit.ts`（確定計画の合成）と `admit.ts`（Acceptance_Gate の段 1）と復元（retain）が同じ述語を用いる。判定を
+ * 二箇所に書けば、採用の基準と維持の基準が黙ってずれる。置き場所をここにするのは、PlanSlice・計画対象の
+ * いずれもこのモジュールが定めているためである（Table_Group の識別子 `tableKeyOf` は project.ts・入口はここ）。
  *
  * **`startAt < now`（過去開始）はここに含めない。** それは「人が推奨時刻に開始しなかった」という時間の事実で、
- * 計画対象との食い違いではない。合成側（commit.ts）の関心事として分ける。Acceptance_Gate の側では
+ * 計画対象との食い違いではない。保持の条件（`cannotStart`）として分ける。Acceptance_Gate の側では
  * ハード制約 (c) が独立に落とす——解放表の下限が now ゆえ、過去に始まる配置は feasibility を満たさない。
  *
- * targets は計画対象（planTargets の出力）を渡す。全 Pending_Order を渡して内部で切り直すと、一片ごとに
- * 同じ整列を繰り返すうえ、呼び出し側が既に持っている範囲と別の範囲を指す余地が生まれる。
+ * **targets は置ける品目（`placeableTargets` の出力）を渡す（plan-stability Requirement 7・2026-09-07）。** 正本の
+ * 計画対象（`planTargets`）を渡すと、自前解が置かない品目（茹で時間の引けない麺種・単体で上限を超える span）を含む卓の
+ * 一片は常に「欠落」で落ちる。置ける品目の欠落と、対象外（置けない・計画対象外）の品目の混入は引き続き落とす
+ * （AC 7.3）——本数の一致と「計画対象 ⊆ 一片」の走査がそのまま両方を言う。全 Pending_Order を渡して内部で切り直すと、
+ * 一片ごとに同じ整列を繰り返すうえ、呼び出し側が既に持っている範囲と別の範囲を指す余地が生まれる。
  */
 export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boolean {
   // 品目を持たない一片は採用/棄却の単位になり得ない（baselineSchedule も空の一片を作らない）。
@@ -685,6 +727,102 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
     const placement = slice.placements.find((candidate) => refersTo(candidate, order));
     return placement === undefined || !occupiesSlotSpan(placement, order);
   });
+}
+
+/**
+ * cannotStart — 開始できない配置を含む一片か（startable-placement 判断 8・Requirement 3.4 / 3.5）。二つの事実の
+ * どちらかで立つ。
+ *   - **過去開始**（`startAt < now`）——人が推奨時刻に開始しなかった事実。その前提の上に積んだ後方も意味を失う。
+ *   - **押せない釜**（`startAt ≤ now` かつ釜のどれかに Timer が残っている）——開始時刻が来ているのに、その釜は
+ *     Complete 待ち（boiled）か走行中で、現場は押せない事実。解放表は boiled の釜を `now` に空く予測で扱うので
+ *     feasibility は通るが、そのまま維持すれば「今」の先頭が押せない品目のまま固定され、尾部が空き釜に置いた
+ *     品目も連鎖で隠れる（観測事実 10）。過去に受領した将来計画が時刻の到来で「今」になり、その釜がまだ boiled
+ *     なら同じ規則で落ちる（3.5）。開始時刻がまだ先の配置は見ない——boiled の釜はそれまでに Complete される
+ *     予測に立つ（判断 2）。
+ *
+ * **これは採用済み・復元した一片を保持する条件であって、生成した計画全体の成立の条件ではない（plan-stability
+ * Requirement 6 判断 13）。** 合成（`livePrefix`）は採用済み接頭辞に、復元（retain）は Shown_Plan から戻した一片に当て、
+ * 落ちた分を自前解が置き直す。生成した計画には一律に当てない——空き釜不足で boiled の釜の Complete を待つ配置
+ * （startable-placement AC 1.4）は合法で、自前解はそれを意図して置く。ゲート（admit）の feasibility もこの述語を読まない
+ * （判断 5）。述語の実装は一つ、適用先は別。
+ *
+ * 一片の中の 1 本でも該当すれば全体を陳腐化と見る。同一 Table_Group の配置は提供時刻を揃えるために
+ * 互いの開始時刻を前提にしているので、1 本だけを落として残りを維持すれば、その一片が主張していた
+ * 同時提供はもう成り立たない。`occupied` は Timer（running / boiled とも）の載る釜（domain の `occupiedSlotsOf`）。
+ */
+export function cannotStart(
+  slice: PlanSlice,
+  now: EpochMillis,
+  occupied: ReadonlySet<number>,
+): boolean {
+  return slice.placements.some(
+    (placement) =>
+      placement.startAt < now ||
+      (placement.startAt <= now &&
+        placement.slotIds.some((slotId) => occupied.has(slotOf(slotId)))),
+  );
+}
+
+/**
+ * feasibleRelease — 一片の配置が解放表の上に置けるか。置けるなら当該一片の占有で進めた解放表を、置けないなら null。
+ *
+ * 検査するのは Requirement 3 のハード制約 (a)(b)(c) と、**配置が物理的に成立していること**である。ゲート（admit の
+ * 段 1 (c)）と復元（retain・plan-stability 判断 10 の「解放表の feasibility」）が同じ関数を呼ぶ。合成（`livePrefix`）は
+ * 採用済み接頭辞にこれを当てない——接頭辞は採用時にこの検査を通っており、その後の変化は `isStale` / `cannotStart` /
+ * `keepsAnchor` / `withinLiftCap` が見る（採用済み一片の契約は従来のまま）。
+ *
+ * - (a) 同一 slot の時間帯を重複させない — 解放表が請け負う。配置を開始時刻の昇順に見て、その釜の解放時刻
+ *   より前に始まる配置を落とす。一片の内側でも同じ釜を順に使う配置はあり得る（釜の数を超える大人数の卓は
+ *   分割して置かれる）ため、一片の中でも表を進めながら見る。
+ * - (b) 各時点の同時走行本数 ≤ slot 数 — (a) から従う。各配置は自分の釜の時間帯を排他に占めるので、
+ *   ある瞬間に走れる本数は表の長さ＝釜の数を超えられない。独立の検査を置かない（同じ事実を二度書かない）。
+ * - (c) 開始済み Timer の割当と実効 endTime を変えない — `initialRelease` が請け負う。表の初期値が開始済み
+ *   Timer の実効 endTime であり、下限が now ゆえ過去に始まる配置もここで落ちる。
+ *
+ * **(d) slotSpan を検査する。** 配置の釜は当該品目の slotSpan 個で、かつ相異なること。本数だけを見ると
+ * `["3","3"]` が本数 2 を満たしながら 1 釜しか占めず、advanceRelease が重複を吸収するので解放表にも現れない。
+ * 本数で容量を数える設計（lift-group-planning AC 4.5）が開けた穴を、同じ場所で閉じる。述語は occupiesSlotSpan
+ * ただ一つ（相異なるかは釜番号で比べる。`["0","00"]` は 1 釜）。isStale も同じ述語を読むので (a)(b) で既に落ちて
+ * いるが、feasibility の側にも書くのは「解放表に置ける配置か」がここの主張だから。
+ *
+ * **serveAt = startAt ＋ 当該品目の茹で時間 を検査する。** 外部計画は startAt と serveAt の両方を主張してくるが、
+ * 両者を結ぶのは品目の茹で時間ただ一つである。検査しないと「10 秒で茹で上がる」と主張する計画が作れ、Wait_Time も
+ * 解放表もその嘘に従う——目的関数値はいくらでも小さくでき、改善判定と段 2 が無条件に通る。外部を信用しない設計の
+ * 要は、外部が申告した値のうち検証できるものをすべて検証することにある。`targets` に無い品目（置けない品目を含む）を
+ * 指す配置もここで落ちる。
+ *
+ * 走行中の錨 (e)（`keepsAnchor`）と上げ窓の上限 (f)（`withinLiftCap`）は別の公開述語で、呼び手が同じ位置（一片を置く前の
+ * 表）で当てる。
+ */
+export function feasibleRelease(
+  placements: readonly Placement[],
+  release: SlotRelease,
+  targets: readonly PendingOrder[],
+  presets: readonly NoodlePreset[],
+): SlotRelease | null {
+  // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
+  const ordered = [...placements].sort(
+    (placement, other) =>
+      placement.startAt - other.startAt || slotOf(placement.slotIds[0]) - slotOf(other.slotIds[0]),
+  );
+
+  let free = release;
+  for (const placement of ordered) {
+    const order = targets.find((candidate) => refersTo(placement, candidate));
+    if (order === undefined) return null;
+    const boilMillis = boilMillisOf(order, presets);
+    if (boilMillis === null) return null;
+    if (placement.serveAt - placement.startAt !== boilMillis) return null;
+    if (!occupiesSlotSpan(placement, order)) return null;
+    for (const slotId of placement.slotIds) {
+      const at = free[slotOf(slotId)];
+      // 表の外を指す slot は存在しない釜であり、置き場所ではない。
+      if (at === undefined) return null;
+      if (placement.startAt < at) return null;
+    }
+    free = advanceRelease(free, [placement]);
+  }
+  return free;
 }
 
 /**
@@ -956,16 +1094,6 @@ function tableGroups(targets: readonly PendingOrder[]): readonly TableGroup[] {
 }
 
 /**
- * Table_Group の識別子。tableId を持たない品目は「その品目だけの単独グループ」へ写す。
- *
- * 単独キーの区切りに NUL を使う。tableId は任意の非空文字列を採れるため、単独キーが本物の卓 id と
- * 衝突すれば、卓に紐づかない品目が黙って一つの卓へ束ねられる（objective.ts の品目鍵と同じ規律）。
- */
-function tableKeyOf(order: PendingOrder): string {
-  return order.tableId ?? `\u0000${order.externalOrderId}\u0000${order.itemIndex}`;
-}
-
-/**
  * Continuity — 自前解が前回の提案を残すための文脈（plan-stability Requirement 3・design Component 5）。
  *
  * `changeContext` は変更費用の比較の文脈（旧 Shown_Plan・遷移後の Timer・比較の時点の now・pending・presets）、
@@ -1005,14 +1133,14 @@ function after(
 /**
  * 1 つの Table_Group を配置する。
  *
- * **茹で時間が引けない品目は配置しない。** 未知の noodleType は Order_Ingress では弾かれる
+ * **茹で時間が引けない品目は配置しない（絞るのは `placeableTargets`）。** 未知の noodleType は Order_Ingress では弾かれる
  * （toPendingOrders が presets と突き合わせる）が、永続した待ち行列が設定の差し替えを跨いだ後には
  * 起こり得る——プリセットから消えた麺種の品目が残る経路が実在する。そのとき既定の茹で時間を当てれば
  * 「その秒数で茹でれば良い」という嘘の計画ができる。ゆえに置かない。品目は待ち行列に残って表示され、
  * 推奨だけが付かない（計画対象を超えた品目と同じ扱い）。
  *
- * **1 品で上げ窓の上限（arms + HELPER_ARMS）を超える品目も配置しない（AC 9.12）。** いつまで待っても入る窓が
- * 無く（`firstFit` は null）、茹で時間が引けない品目と同じ扱いに落とす。ラジアルからは始められる。
+ * **1 品で上げ窓の上限（arms + HELPER_ARMS）を超える品目も配置しない（AC 9.12・同じく `placeableTargets`）。** いつまで
+ * 待っても入る窓が無く（`firstFit` は null）、茹で時間が引けない品目と同じ扱いに落とす。ラジアルからは始められる。
  *
  * **釜容量を超える品目は同時に置けない。** 容量は本数ではなく slotSpan の合計で数える（大盛は 2 釜）。
  * 大人数の卓が容量を超えることは表現可能ゆえ、正準順序のまま容量に収まる分ずつ batch に分けて順に置く
@@ -1056,10 +1184,13 @@ function placeGroup(
 ): { readonly placements: readonly Placement[]; readonly placed: readonly Placement[] } {
   // 残りの batch の錨は走行中の最遅（表の値は昇順ゆえ末尾）。合流の判定は個々の走行中の提供時刻で行う。
   const runningAnchor = siblings === null ? null : siblings[siblings.length - 1]!;
+  // 置ける品目だけを置く（絞る規則は `isPlaceable` ただ一つ＝`placeableTargets` と同じ定義）。置ける品目は茹で時間が
+  // 必ず引けるので、`toBoiling` の null の除外は型の関門にすぎない。
   const cap = liftCap(params);
   const boilings = group.items
+    .filter((order) => isPlaceable(order, presets, cap))
     .map((order) => toBoiling(order, presets))
-    .filter((boiling): boiling is Boiling => boiling !== null && boiling.order.slotSpan <= cap);
+    .filter((boiling): boiling is Boiling => boiling !== null);
   // 同時に置ける幅＝置ける釜の数。解放表の長さが「置ける場所」の全体を語る（表の外に釜は無い）。2 段目で後の群の
   // 固定配置に取り置かれた釜（解放が無限大）は数えない——数えれば batch が置ける釜より広くなり、無限大の釜を取って
   // 配置の時刻が無限大になる（上げ表の走査が止まらない）。この群の固定配置の釜は数える（1 段目と同じ切り方）。

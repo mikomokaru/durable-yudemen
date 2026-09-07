@@ -8,7 +8,7 @@
 // 確定計画は**導出値**であって状態ではない。正本は採用済み PlanSlice 列（TimerState.acceptedSlices）と
 // 現在の Pending_Order / Timer 集合である。ゆえにここに永続する形は現れない。
 
-import { SLOTS_PER_UNIT, occupiedSlotsOf, slotOf, type NoodlePreset } from "../domain/store";
+import { SLOTS_PER_UNIT, occupiedSlotsOf, type NoodlePreset } from "../domain/store";
 import type { PendingOrder } from "../domain/order";
 import { advanceLifts, initialLifts, liftsOf, withinLiftCap, type LiftTable } from "./lift";
 import type { ScheduleParams } from "./objective";
@@ -16,10 +16,11 @@ import { tableMembers } from "./project";
 import {
   advanceRelease,
   baselineSchedule,
+  cannotStart,
   initialRelease,
   isStale,
   keepsAnchor,
-  planTargets,
+  placeableTargets,
   refersTo,
   type AcceptedSlice,
   type CookSchedule,
@@ -66,8 +67,10 @@ export function committedSchedule(
   params: ScheduleParams,
   changeContext: ChangeContext | null,
 ): CookSchedule {
-  // 計画対象は生きている待ち行列から（期限切れは `planTargets` が `now` で絞る・pending-order-expiry AC 2.1）。
-  const targets = planTargets(pending, now);
+  // 計画対象は生きている待ち行列から（期限切れは `planTargets` が `now` で絞る・pending-order-expiry AC 2.1）のうち
+  // **置ける品目**（茹で時間が引け・単体で上限に収まる・`placeableTargets`・plan-stability Requirement 7）。接頭辞の
+  // `isStale` も尾部の残りも同じ集合を読む——置けない品目を含む卓の一片が「欠落」で常に落ちる経路を閉じる。
+  const targets = placeableTargets(pending, now, presets, params);
   // 解放表は開始済み Timer の占有から始め、接頭辞の配置で順に進める（design の合成手順 2）。
   // 卓の成員表も同じ走行中から引く（「その釜がいつ空くか」と「その卓がいつ上がるか」の二つの表）。
   const initial = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);
@@ -116,7 +119,10 @@ export function committedSchedule(
  *     満たさない（v9 で採用された 1 釜の配置は v10 の制約で再検証され、ここで切れる）。`admit` と共有する
  *     述語（schedule.ts）。
  *   - `cannotStart` — 開始できない配置を含む。推奨開始時刻を過ぎた（過去開始）か、開始時刻が来ているのに釜に
- *     Timer が残っている（押せない釜）。合成側だけの関心事ゆえここに置く。
+ *     Timer が残っている（押せない釜）。採用済み・復元した一片を**保持する**条件（plan-stability 判断 13）で、復元
+ *     （retain）と共有する述語（schedule.ts）。生成した計画全体には当てない（待つ配置は合法・AC 1.4）。
+ *   - 解放表の feasibility（`feasibleRelease`）はここでは当てない——採用済み一片は採用時にゲートで通っており、その後の
+ *     変化（新しい Timer・錨・上げ窓）は上の 4 つが見る（採用済み接頭辞の契約は従来のまま）。
  *   - `keepsAnchor` の否定 — 配置の `anchor` が現在の走行中の仲間の実効 endTime に無い（AC 9.10 (a)）、走行中の
  *     錨が在る卓で pack が集合として合流できていない・窓以外の理由で延期している（(b)〜(d)）、または合流できる
  *     品目を押し出している。採用済み一片は採用時の
@@ -158,34 +164,6 @@ function livePrefix(
     lifts = advanceLifts(lifts, liftsOf(slice.placements));
   }
   return { prefix, release, lifts };
-}
-
-/**
- * 開始できない配置を含む一片か（startable-placement 判断 8・Requirement 3.4 / 3.5）。二つの事実のどちらかで立つ。
- *   - **過去開始**（`startAt < now`）——人が推奨時刻に開始しなかった事実。その前提の上に積んだ後方も意味を失う。
- *   - **押せない釜**（`startAt ≤ now` かつ釜のどれかに Timer が残っている）——開始時刻が来ているのに、その釜は
- *     Complete 待ち（boiled）か走行中で、現場は押せない事実。解放表は boiled の釜を `now` に空く予測で扱うので
- *     feasibility は通るが、そのまま維持すれば「今」の先頭が押せない品目のまま固定され、尾部が空き釜に置いた
- *     品目も連鎖で隠れる（観測事実 10）。過去に受領した将来計画が時刻の到来で「今」になり、その釜がまだ boiled
- *     なら同じ規則で落ちる（3.5）。開始時刻がまだ先の配置は見ない——boiled の釜はそれまでに Complete される
- *     予測に立つ（判断 2）。
- * どちらも接頭辞をここで切り、尾部の自前解が置き直す。ゲート（admit）の feasibility はこの述語を読まない（判断 5）。
- *
- * 一片の中の 1 本でも該当すれば全体を陳腐化と見る。同一 Table_Group の配置は提供時刻を揃えるために
- * 互いの開始時刻を前提にしているので、1 本だけを落として残りを維持すれば、その一片が主張していた
- * 同時提供はもう成り立たない。
- */
-function cannotStart(
-  slice: AcceptedSlice,
-  now: EpochMillis,
-  occupied: ReadonlySet<number>,
-): boolean {
-  return slice.placements.some(
-    (placement) =>
-      placement.startAt < now ||
-      (placement.startAt <= now &&
-        placement.slotIds.some((slotId) => occupied.has(slotOf(slotId)))),
-  );
 }
 
 /** 接頭辞が既に配置した品目か。品目の同一性は schedule.ts の refersTo ただ一つ。 */
