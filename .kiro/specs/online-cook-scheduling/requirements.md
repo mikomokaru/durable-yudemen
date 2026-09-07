@@ -169,6 +169,8 @@
 5. THE Cook_Scheduling SHALL 採用済み計画を時間経過のみでは失効させず、次の状態変化を処理する `decide` 内で再評価し、陳腐化しない Plan_Unit を維持し、陳腐化した Plan_Unit を Baseline_Plan の対応部分で置き換え、その合成を新しい Committed_Plan とする（有効期間は次の状態変化まで。時刻起動の失効判定を設けない）
 6. IF 再評価の結果が直前の確定結果から変化しない、THEN THE Cook_Scheduling SHALL 永続層への書き込みと broadcast のいずれも行わない
 
+> **改訂（`startable-placement` 判断 8・Requirement 3.4〜3.5・ADR-0012・2026-09-07）:** AC 7.5 の合成が採用済み接頭辞を落とす条件は、`isStale`（対象集合は置ける品目——Requirement 5 の 2026-09-07 の改訂）・`keepsAnchor`・`withinLiftCap` に加え、「過去開始」（`startAt < now`）を広げた **`cannotStart`**——過去開始 ∨ 開始を妨げる配置（`startAt ≤ now` かつ `slotIds` のどれかに Timer（running / boiled）が残っている）——になった。boiled の釜は解放表では `now` に空く予測ゆえ feasibility は通るが、そのまま維持すれば「今」の先頭が押せない品目に固定され、尾部が空き釜に置いた品目も連鎖で隠れる。過去に受領した将来計画が時刻の到来で「今」になり、その釜がまだ boiled なら次の遷移の合成で同じ規則で落ちる（遷移なしの時刻経過だけでは置き直さない——「時刻起動の失効判定を設けない」はそのまま）。`cannotStart` は採用済み接頭辞を**保持する**条件であって、生成した計画全体や復元した一片には当てない（空き釜不足で boiled の Complete を待つ配置は合法・`plan-stability` 判断 13）。**`livePrefix` は解放表の feasibility（`feasibleRelease`）を採用済み接頭辞に当てない**（採用時にゲートで通っており、その後の変化は上の 4 つが見る——記録する事実であって新しい契約ではない）。Acceptance_Gate（AC 6.2 (c)）は変えない——Timer の在る釜に「今」置く外部計画は feasible のまま採り得て、次の合成で落ちる。
+
 ### Requirement 8: 推奨提示と人の最終決定
 
 **User Story:** 厨房スタッフとして、次にどれをどの釜に入れるべきかの推奨は見たいが、最終判断は自分がしたい。現場には機械の知らない事情（麺の在庫・客の様子・手の空き具合）があるからだ。

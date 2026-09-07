@@ -66,6 +66,8 @@ running: Timer[]  ──┬─→ initialRelease(running, now, slotCount) ─→
 
 **解放表と同じ資格の第二の表を立てる。** `baselineSchedule` が `running` ではなく `SlotRelease` を受けるのは、「過去に開始しない」という事実の置き場所を表ひとつに定めるためだった（既存の注記）。卓の錨も同じ形にする——走行中 Timer から射影した表を渡し、配置と採点は表だけを読む。射影が一箇所なら、実効 endTime（`adjustedEndTime`）を二度書く余地が消える。
 
+> **改訂（`startable-placement` 判断 1・ADR-0012・2026-09-07）:** 解放表は「その釜がいつ空くか」の**予測**であり、boiled（Complete 前）の釜を `now` に空くと扱う（`initialRelease`——湯切りで釜は空き、Complete は釜の占有ではない）。**開始の可否は別の事実**——対象釜に Timer（running / boiled とも）が無いこと（Startable_Slot・`src/domain/store.ts` の `occupiedSlotsOf` の補集合・client の全釜 idle と同じ述語）——で、`committedSchedule` が `occupiedSlotsOf(running)` を一度作り、接頭辞の失効（`cannotStart`）と尾部の「今」置く配置の釜の配分（`pinNow`）にだけ渡す。解放表の値は変えない（第四の表ではなく、表の外に置く事実である）。
+
 ## Components and Interfaces
 
 ### Component 1: `project.ts` — 走行中から卓ごとの提供時刻へ
@@ -189,6 +191,8 @@ export function baselineSchedule(
 `scoreSchedule` を呼ばない。採点は比較の時点の関心事であり、配置の関心事ではない（判断 7）。この関数から採点が消えることで、`baselineSchedule` は「配置を決める」だけの関数になる。
 
 > **改訂（`plan-stability` Component 5・ADR-0010・2026-09-06）:** `baselineSchedule` / `committedSchedule` は末尾に `changeContext: ChangeContext | null` を受ける。非 null なら自前解は前回配信対象として確定した提案（Shown_Plan）を残す——釜の第一候補（`chooseSlots(..., preferred)`）、batch の並びの同値を前回の `startAt` で断つ、列の分割の候補（前回の配置の再現 → 前回のまとまり → 前回の先頭 → pack → split）を局所費用（業務費用 + 変更費用の差分）で比べる。そのうえで前回に忠実な計画と候補を比べた計画の 2 本を組み、総費用（`scoreSchedule`）が真に下がるときだけ後者を採る。null は比較の相手なしで、前回を残す経路を一つも通らず従来と同じ計画が出る。「`scoreSchedule` を呼ばない」は、忠実な計画と比べた計画の 2 本の最終比較にだけ例外を持つ（配置の途中では呼ばない）。
+
+> **改訂（`startable-placement` Component 3′・`plan-stability` Requirement 6〜7・ADR-0012・2026-09-07）:** 署名は `baselineSchedule(pending, release, members, lifts, presets, params, now, occupied, changeContext)` になった。`occupied` は Timer（running / boiled とも）の載る釜（domain の `occupiedSlotsOf(running)`・client の全釜 idle と同じ事実）で、解放表（予測・boiled の釜は `now` に空く）とは別の入力である。計画は **2 段 ＋ loop** で組む——**1 段目**は従来の業務費用の計画（生成候補 F は文脈つきの生成器 `buildSchedule`、保持候補 R は旧 Shown_Plan の復元 `retain`）で「今」置く品目（`startAt ≤ now`）とその時刻を決め、**`pinNow`** が「今」の品目を最終的な表示順（`startAt` → `compareArrival`）に並べ、`release ≤ now` の釜（`pool`・採用済み接頭辞の予約を反映済み）の上で排他的に釜を配る——今割り当てられる釜（`pool ∖ occupied`）が足りれば Startable_Slot だけから（前回の釜 → いまの釜 → `chooseSlots`）、足りなければ待つ釜（boiled）だけから、それも足りなければ index 順の退避先。**loop**（`placeNow`）は 1 段目の将来配置をそのまま復元し、計画順に `revalidate`（置ける品目に限る `isStale`・`feasibleRelease`・`keepsAnchor`・`withinLiftCap`）で検証して不正な一片だけをその位置で再生成し、再生成で新たに「今」になった品目が在れば「今」の集合全体を配り直す（集合の増加で停止）。1 段目の時刻を下限にする規則も、後群の固定釜の取り置き・`fixedSpan` も**持たない**（後の一片の「今」の釜だけを手前の一片に対して取り置く——計画順の解放表を成り立たせるためで、上がりは載せない）。固定した「今」を残した再生成が成り立たない場面は候補 K（1 段目の時刻を保ち、配分した釜だけを交換）を組み、合法なら再生成と同じ旧 Shown_Plan の総費用で比べる（判断 14）。「今」の配分と保持候補は前回に忠実な計画（`Continuity.faithful`）を置き換え、上の「2 本の最終比較」は R と F の比較になった。`chooseSlots` / `assignSlots` / `placeGroup` の規則と、性質 7.1（錨への一致）の主張は `startAt > now` の配置について従来どおり（「今」に固定した品目を除く・`startable-placement` 判断 15）。`isStale` に渡す対象集合は `placeableTargets(pending, now, presets, params)`（`planTargets` を「茹で時間が引ける ∧ `slotSpan ≤ arms + HELPER_ARMS`」で絞る・定義は一箇所）、`tableKeyOf` は `project.ts` の公開関数（`schedule.ts` が再公開）になった。
 
 #### `placeGroup` — 容量は `slotSpan` の合計
 
@@ -318,6 +322,8 @@ for placement in 開始時刻昇順:
 `committedSchedule` から `scoreSchedule` の呼び出しと `score` の埋め込みが消える。`running` は既に受けているので、`initialRelease` と並べて `tableMembers` を導き、`baselineSchedule` へ渡す。
 
 > **改訂（`plan-stability`・ADR-0010・2026-09-06）:** `committedSchedule(accepted, pending, running, now, presets, params, changeContext: ChangeContext | null)`。尾部の `baselineSchedule` に同じ `changeContext` を渡す（`settle` は `state.shownPlan`・再同期後の Timer・now・pending・presets から組む。`admit` / `receivePlan` は採点の `ScoreContext.change` と同じ文脈）。
+
+> **改訂（`startable-placement` Component 2・4・ADR-0012・2026-09-07）:** `committedSchedule` は `targets = placeableTargets(pending, now, presets, params)` と `occupied = occupiedSlotsOf(running)` を一度ずつ作り、`livePrefix(accepted, targets, now, occupied, initial, lifts, members, presets, params)` と尾部の `baselineSchedule(remaining, release, members, lifts, presets, params, now, occupied, changeContext)` に渡す（署名は不変・どちらも `running` / `pending` から導く）。接頭辞の失効は `isStale`（置ける品目に対して）・`cannotStart`（過去開始 ∨ `startAt ≤ now` で釜に Timer）・`keepsAnchor`・`withinLiftCap` の 4 つで、解放表の feasibility（`feasibleRelease`）は採用済み接頭辞には当てない（採用時にゲートで通っている）。
 
 ```ts
 const release = initialRelease(running, now, params.unitOrigins.length * SLOTS_PER_UNIT);

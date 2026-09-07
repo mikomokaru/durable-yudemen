@@ -201,6 +201,8 @@ _出所: 判断 5・6, 観測事実 2・3・19・22_
 7. THE Acceptance_Gate SHALL 走行中の実効 endTime を、採用後に確定する Boil_Sync の同期結果（現行の設定で同期し直した値）で読む。設定の差し替えを跨いだ状態の古い adjustment で採点しない（判定の錨と確定の錨を一つにする）
 8. THE 確定計画の合成 SHALL 採用済み一片を現在の走行中で再検証する——走行中の仲間が在る卓では、配置が走行中の最早より h_i を超えて手前に散らされておらず、かつ合流できる品目を最遅の走行中 + h_i より後ろへ押し出していないこと（`keepsAnchor`・Acceptance_Gate の (e) と同じ述語・判断 18 で窓を h_i に改めた）。違反した一片以降を切り、残した接頭辞の解放表から尾部を再計算する。受領時の比較も同じ合成を通す。合流する部分集合は外部解に強制しない（残り容量が 1 品分で自前解が A を選んでも、外部解が B を合流させ A を後ろに置く一片は、A が B の後では合流できないので守っている）。錨が早まって本当に合流できなくなった品目の一片は正当な後続の batch として維持する
 
+> **改訂（`startable-placement` Requirement 1〜3・ADR-0012・2026-09-07）:** AC 4.3 の釜の選択（最早解放 → 釜距離 → index）と `plan-stability` AC 3.1 の前回の釜の第一候補は、**将来配置（`startAt > now`）**についてそのまま。**「今」置く配置（`startAt ≤ now`）**の釜は、1 段目の計画の後に `pinNow` が最終的な表示順（`startAt` → `compareArrival`）で配り直す——解放時刻が `now` 以下の釜のうち Timer の無い釜（Startable_Slot・`occupiedSlotsOf` の補集合）を Timer の在る釜（boiled・Complete 待ち）より先に採り、前回の釜も Timer が在れば採らない（釜の変更費用 L は払う）。Startable_Slot が足りなければ余りは boiled の釜で Complete を待つ（空き釜不足の待ちは残す）。解放表の値（boiled は `now`・観測事実 2）は変えない——Complete は釜の占有ではなく、**開始の可否は別の事実**（Timer の無い釜・`occupiedSlotsOf`）として計画の釜の選択にだけ読ませる。AC 4.6 / 4.8 の合成の再検証には「開始を妨げる配置」（`startAt ≤ now` かつ釜に Timer・`cannotStart`）が加わり、`isStale` が比べる計画対象は置ける品目（`placeableTargets`・`plan-stability` Requirement 7）になった。`baselineSchedule` の署名は `(pending, release, members, lifts, presets, params, now, occupied, changeContext)`。
+
 _出所: 判断 11, 観測事実 8・9・12_
 
 ### Requirement 5: 外部ソルバとゲート

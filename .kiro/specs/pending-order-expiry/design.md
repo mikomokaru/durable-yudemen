@@ -58,6 +58,8 @@ export function liveOrders(pending: readonly PendingOrder[], now: number): reado
 - `isStale(slice, targets)` は変えない。受領時の `targets` が受領時刻の Live_Orders から組まれるので、期限切れの品目を指す一片は「計画対象と一致しない」で落ちる（AC 2.3）。
 - `livePrefix`（接頭辞の合成）は `targets` を受けるままで変えない。
 
+> **改訂（`plan-stability` Requirement 7・`startable-placement`・ADR-0012・2026-09-07）:** 計画対象の絞りは **期限 → 64 件 → 置けるか** の順で二段になった——`planTargets(pending, now)`（Live_Orders → 正準順序 → 先頭 64 件・正本の計画対象）と、その出力を「茹で時間が引ける（プリセットに在る麺種）∧ `slotSpan ≤ arms + HELPER_ARMS`」で絞った **`placeableTargets(pending, now, presets, params)`**（置ける品目）。除外した分の繰り上げはしない（65 件目は入らない——絞ってから切れば、プリセットの差し替えが計画対象の範囲を動かし、指紋と要求が指す範囲と食い違う）。`isStale` に渡す対象集合（合成 `livePrefix`・尾部の残り・ゲート `prune`・復元 `retain`・自前解の一片の品目集合）は `placeableTargets`、**指紋（`digestInput`）と要求（`RequestPlan.pending`）は `planTargets` のまま**——「何が計画対象か」と「そのうち何が置けるか」は別の問いで、本 spec の判断 5（要求と指紋の範囲は正本の計画対象）は変わらない。期限切れの扱い（Live_Orders が入口）も変わらない。`baselineSchedule` は `now` の隣に `occupied`（`occupiedSlotsOf(running)`）を受ける。
+
 ### Component 3: snapshot と要求と対応（`src/engine/settle.ts` / `plan.ts`）
 
 - `snapshotMessage(state, recommendations, now)`：`pendingOrders: liveOrders(state.pendingOrders, now)`（AC 2.2）。確定結果の Broadcast と hydration（`toWireSnapshot`）は同じ関数を通るので、両方が同時に絞られる。

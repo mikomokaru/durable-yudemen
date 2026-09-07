@@ -217,6 +217,9 @@ export type SlotRelease = readonly EpochMillis[];
  * **boiled に分岐を書かない。** boiled（boiledAt 非 null）の実効 endTime は定義上過去なので、同じ式が
  * 当該 slot を「今すぐ空いている」と扱う。湯切りで麺が釜から上がるため釜は空いており、Complete は
  * UI 上の確認であって釜の占有ではない——この事実が式ひとつで表せることが、扱いの正しさの証である。
+ * **開始の可否は別の事実である**——対象釜に Timer（running / boiled とも）が無いこと（domain の occupiedSlotsOf の
+ * 補集合・startable-placement 判断 1）。この表は予測だけを持ち、その事実は committedSchedule が別に作って接頭辞の失効
+ * （cannotStart）と「今」置く配置の釜の配分（pinNow）にだけ渡す。
  *
  * **下限は now に置く。** 過去の解放時刻は「今すぐ空いている」と同義だが、表を now から先の値に揃えると
  * 「過去に開始しない」という事実の置き場所が 1 箇所に定まる。解放表を受け取る baselineSchedule は now を
