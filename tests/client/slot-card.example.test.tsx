@@ -25,7 +25,7 @@ import { SlotCard, type SuggestionView } from "../../src/client/components/SlotC
 import type { GroupItem, SlotSuggestion } from "../../src/client/components/liftGroups";
 import type { SlotDisplay } from "../../src/client/components/slotDisplay";
 import { fadedTint, noodleColors } from "../../src/client/components/noodleColor";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import { nonEmpty } from "../nonEmpty";
 
 afterEach(cleanup);
@@ -33,7 +33,7 @@ afterEach(cleanup);
 const noodleColor = noodleColors(["Thin", "Medium", "Thick"]);
 const T0 = 1_700_000_000_000;
 
-function item(externalOrderId: string, overrides: Partial<PendingOrder> = {}): GroupItem {
+function item(externalOrderId: string, overrides: Partial<OrderItem> = {}): GroupItem {
   return {
     order: {
       externalOrderId,
@@ -45,6 +45,8 @@ function item(externalOrderId: string, overrides: Partial<PendingOrder> = {}): G
       slotSpan: 1,
       itemName: "プレ塩",
       sizeName: "中盛",
+      completedAt: null,
+      interruptedAt: null,
       ...overrides,
     },
     suggestion: { slotIds: nonEmpty(["0"]), startAt: T0, boilSeconds: 60, serveAt: T0 + 60_000 },

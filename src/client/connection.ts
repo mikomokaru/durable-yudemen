@@ -21,7 +21,7 @@
 
 import { BOIL_SECONDS_MAX, BOIL_SECONDS_MIN } from "../engine/types";
 import type { CookRecommendation, ServerMessage } from "../domain/messages";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { TimerFact, NonEmptyArray } from "../domain/timer";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
@@ -110,7 +110,7 @@ export interface ClientView {
    * 到着順の並び・担当範囲での絞り込みは表示時の導出であって、ここには保持しない（保持は全量・表示は導出）。
    * Timer と違い provisional の対概念を持たない——待ち行列はサーバだけが確定させる事実なので、全置換で足りる。
    */
-  readonly pendingOrders: readonly PendingOrder[];
+  readonly pendingOrders: readonly OrderItem[];
   /**
    * サーバが Committed_Plan から導いた開始推奨の写し（online-cook-scheduling AC 8.1 / 8.5）。
    *
@@ -187,7 +187,7 @@ export type ClientEvent =
       readonly timers: readonly TimerFact[];
       // 待ち行列と推奨も運ぶ。Timer と違い provisional の対概念を持たないため snapshot と同じ全置換で足りる。
       // 運ばないと再接続後の最初の snapshot だけ待ち行列が更新されず、他端末との一致（AC 2.4）が破れる。
-      readonly pendingOrders: readonly PendingOrder[];
+      readonly pendingOrders: readonly OrderItem[];
       readonly recommendations: readonly CookRecommendation[];
       readonly receivedAt: number;
     };

@@ -16,12 +16,7 @@ import type { ClientView } from "../../src/client/connection";
 import { correctedNow } from "../../src/client/clock";
 import { liftGroups, slotSuggestions, visibleGroups } from "../../src/client/components/liftGroups";
 import { orderQueueEntries, suggestedItemOf } from "../../src/client/components/queueDisplay";
-import {
-  itemKeyOf,
-  liveOrders,
-  ORDER_LIFETIME_MS,
-  type PendingOrder,
-} from "../../src/domain/order";
+import { itemKeyOf, liveOrders, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import { SLOTS_PER_UNIT } from "../../src/domain/store";
 import { genLiftScene } from "./generators";
 
@@ -55,7 +50,7 @@ const genAgedScene = genLiftScene.chain(({ view, corrected }) =>
       }),
     })
     .map(({ offset, agings }) => {
-      const pendingOrders: readonly PendingOrder[] = view.pendingOrders.map((order, index) => {
+      const pendingOrders: readonly OrderItem[] = view.pendingOrders.map((order, index) => {
         const aging = agings[index] ?? "keep";
         if (aging === "keep") return order;
         const delta = aging === "exact" ? 0 : aging === "before" ? 1 : -1;

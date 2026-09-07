@@ -1,17 +1,21 @@
-// domain/order.ts — 未着手オーダー（Pending_Order）という事実の契約。同じ domain 内の語彙（firmness・timer・store）だけを取り込む。
+// domain/order.ts — 注文品目（Order_Item）という事実の契約と、その状態の導出。同じ domain 内の語彙（firmness・timer・store）だけを取り込む。
 //
-// Pending_Order は「まだ茹で始めていないオーダーの 1 品目」であり、正本は DO の永続層に置く（AC 2.1）。
-// POS の状態を正本として参照しない——外部の可用性に待ち行列の真実を委ねると、瞬断のたびに現場の見え方が
-// 揺れる。届いた事実をこちらで確定させ、確定した事実だけを配る。
+// Order_Item は「POS 由来の 1 品目」であり、**生涯を通じて一つの事実として残る**（order-lifecycle 判断 1）。正本は DO の
+// 永続層に置く（AC 2.1）。POS の状態を正本として参照しない——外部の可用性に待ち行列の真実を委ねると、瞬断のたびに
+// 現場の見え方が揺れる。届いた事実をこちらで確定させ、確定した事実だけを配る。
+//
+// **状態（unstarted / cooking / done）は保存せず導出する。** 自分を指す生きた Timer（走行中・茹で上がりとも）が在れば
+// cooking、無く `completedAt` が在れば done、どちらも無ければ unstarted（`itemStatusOf`）。「未調理」は保存された集合では
+// なく関数（`pendingOrders`）である（判断 10）。
 //
 // なぜ TimerFact と別に立つか（timer-model.md の判定）:
 //   1. 「両者で共有される事実か」→ client が待ち行列と推奨を表示するため、共有される事実である。
 //      ゆえに片側専用（engine / client）ではなく domain に置く。
-//   2. 「TimerFact を god type にしないか」→ Timer は「既に茹でている釜の計時」、Pending_Order は
-//      「まだ釜に入っていない品目」。占有する slot も endTime も持たない、基数も生存期間も違う概念である。
+//   2. 「TimerFact を god type にしないか」→ Timer は「一回の調理の記録」、Order_Item は「注文の品目」。
+//      占有する slot も endTime も持たない、基数も生存期間も違う概念である（Timer has 0..1 Order item）。
 //      共有だからといって一つの型へ混ぜれば、共有の芯が片側都合で膨らみ、複雑性は抑制ではなく増幅に転じる。
-//   3. 「概念が別なら名前を分ける」→ よって独立した契約として立てる。両者を結ぶのは engine 専用の
-//      Ordered.orderItem（{ externalOrderId; itemIndex }）で、その紐づけは domain へは露出しない。
+//   3. 「概念が別なら名前を分ける」→ よって独立した契約として立てる。両者を結ぶのは Timer 側の参照
+//      `orderItem`（{ externalOrderId; itemIndex }）ただ一つで、品目 → Timer の参照は状態に持たない（判断 2）。
 
 import { isFirmness, type Firmness } from "./firmness";
 import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";
@@ -19,13 +23,13 @@ import { isNonEmpty, type NonEmptyArray } from "./timer";
 import { SLOT_SPAN_MAX, SLOT_SPAN_MIN, type NoodlePreset } from "./store";
 
 /**
- * PendingOrder — 未着手オーダーの 1 品目。
+ * OrderItem — 注文品目（旧 PendingOrder）。生涯を通じて一つの事実として残り、状態は `itemStatusOf` で導く。
  *
  * 茹で秒（boilSeconds）は持たない。StoreConfig.noodlePresets から noodleType × firmness で引ける導出値であり、
  * 持てば同じ真実が二箇所に生まれて必ずズレる（麺の設定変更が既存の待ち行列に反映されない、という形で現れる）。
  * Wait_Time も同様に持たない。arrivalTime（事実）と提供時刻からの導出値である。
  */
-export interface PendingOrder {
+export interface OrderItem {
   /** POS 側の識別子。同一オーダーの再送（modification）を upsert する鍵。 */
   readonly externalOrderId: string;
   /** 同一オーダー内の品目連番。externalOrderId との組で 1 品目を一意に指す。 */
@@ -59,10 +63,31 @@ export interface PendingOrder {
   readonly itemName: string | null;
   /** POS が申告した麺量 child の商品名。slotSpan を決めた child と同じ同定結果から取る。欠落は null。 */
   readonly sizeName: string | null;
+  /**
+   * 完了の事実（厨房が完了を確定した時刻）。null は未完了。engine の `complete` だけが書く（判断 3）。
+   *
+   * 茹で上がり（Timer が boiled になる）とは別の事実である——時間が来ただけでは done にならない。
+   */
+  readonly completedAt: number | null;
+  /**
+   * 中断の事実（厨房 Cancel で調理が止められ未調理に戻った最後の時刻）。null は一度も中断されていない。
+   * engine の `cancel` だけが書き、次の Cancel で上書きする。**状態には効かない**（判断 3′）——unstarted の条件は
+   * 「生きた Timer なし ∧ completedAt なし」のままで、表示の色分けにだけ使う。
+   */
+  readonly interruptedAt: number | null;
 }
 
+/** Item_Status — 品目の状態。保存しない導出値（`itemStatusOf` が唯一の出所）。 */
+export type ItemStatus = "unstarted" | "cooking" | "done";
+
+/** 品目への参照（externalOrderId と itemIndex の組）。`Timer.orderItem` / `TimerFact.orderItem` の形。 */
+type ItemRef = { readonly externalOrderId: string; readonly itemIndex: number };
+
+/** 参照を持つもの（engine の Timer・wire の TimerFact）。null はアドホック（注文を持たない）Timer。 */
+type RefHolder = { readonly orderItem: ItemRef | null };
+
 /**
- * ItemKey — 品目の鍵（externalOrderId と itemIndex の組を一つの文字列に畳んだもの）。推奨・Pending_Order・
+ * ItemKey — 品目の鍵（externalOrderId と itemIndex の組を一つの文字列に畳んだもの）。推奨・Order_Item・
  * 走行中 Timer の品目参照を突き合わせる唯一の同定手段。文字列なのは Map / Set の鍵に置くためで、鍵から
  * 組へ戻す読み手は無い（戻したければ元の品目を持て）。
  */
@@ -71,7 +96,7 @@ export type ItemKey = string;
 /**
  * 品目の鍵を組む。区切りは NUL——externalOrderId は POS の任意文字列で、`#` や `-` は識別子の中に現れうる。
  *
- * 推奨（CookRecommendation）も Pending_Order も同じ二つの項目を持つので、どちらからでも同じ鍵に達する
+ * 推奨（CookRecommendation）も Order_Item も同じ二つの項目を持つので、どちらからでも同じ鍵に達する
  * （構造で受け、型を問わない）。engine の pending / objective も同じ形の鍵を持つが、ここは client と engine が
  * 共有する Head の導出（lift-group.ts）が要る正本である。
  */
@@ -89,7 +114,7 @@ export function itemKeyOf(item: {
  * lift-group.ts）は同じ順序を要る。第 2・第 3 の鍵はサーバ側の計画対象の整列と同じで、同時到着でも端末間・
  * 再描画間で並びが揺れない。
  */
-export function compareArrival(a: PendingOrder, b: PendingOrder): number {
+export function compareArrival(a: OrderItem, b: OrderItem): number {
   return (
     a.arrivalTime - b.arrivalTime ||
     compareText(a.externalOrderId, b.externalOrderId) ||
@@ -114,33 +139,117 @@ function compareText(a: string, b: string): number {
 export const ORDER_LIFETIME_MS = 2 * 60 * 60 * 1000;
 
 /**
- * liveOrders — Live_Orders（生きている待ち行列）。期限内（`arrivalTime + ORDER_LIFETIME_MS > now`）の品目だけを、
- * 入力の並びのまま返す（並び替えない・重複を作らない・入力を変えない・AC 1.1）。`now` と `pending` だけに依存する
- * （Timer・設定・前回の計画を読まない・AC 1.2）。
+ * isLive — 期限の述語。`arrivalTime + ORDER_LIFETIME_MS > now` なら期限内（半開区間・ちょうど寿命の時点で切れる・
+ * pending-order-expiry AC 1.4）。`arrivalTime` が `now` より未来（上流の時計が進んでいる）なら期限内として扱う——
+ * 未来の到着を弾くのは期限の関心ではない。
  *
- * **正本（`TimerState.pendingOrders`）は変えず、絞った値を正とする（pending-order-expiry 判断 1）。** 期限は状態を書き換える
- * 出来事ではなく `now` から導く述語であり、待ち行列を読む入口（計画対象・snapshot・外部要求・変更費用の対応・開始の
- * 照合・client の左レール）が、それぞれの `now` でこの一つの関数を呼ぶ（判断 3）。述語を domain に置くのは engine と
- * client が同じ式を呼ぶため（`lift-group.ts` の Head と同じ規律・AC 3.2）。
- *
- * **全件が期限内なら入力と同じ配列を返す**（新しい配列を作らない）。通常はこれが既定の経路であり、`ClientView` の
- * 参照同値で再描画を抑える既存の経路（React の props 比較）を壊さない。`arrivalTime` が `now` より未来（上流の時計が
- * 進んでいる）なら期限内として扱う——未来の到着を弾くのは本 spec の関心ではない（design Error Handling）。
+ * 述語は domain にこの一つ。`liveOrders` / `pendingOrders` / `orderItemsToBroadcast` が内側で同じ式を呼び、engine と
+ * client が同じ線を引く（`lift-group.ts` の Head と同じ規律・AC 3.2）。調理の状態と期限は別の軸である
+ * （order-lifecycle 判断 5）——「未調理だが期限切れ」「調理済みで期限切れ」は普通に在る。
  */
-export function liveOrders(pending: readonly PendingOrder[], now: number): readonly PendingOrder[] {
-  const live = pending.filter((order) => order.arrivalTime + ORDER_LIFETIME_MS > now);
-  return live.length === pending.length ? pending : live;
+export function isLive(item: { readonly arrivalTime: number }, now: number): boolean {
+  return item.arrivalTime + ORDER_LIFETIME_MS > now;
 }
 
 /**
- * Order_Ingress が受けた到着の生値（品目の配列）を PendingOrder 列へ写す純粋関数。
+ * liveOrders — Live_Orders（期限内の品目）。期限内（`isLive`）の品目だけを、入力の並びのまま返す（並び替えない・
+ * 重複を作らない・入力を変えない・AC 1.1）。`now` と `items` だけに依存する（Timer・設定・前回の計画を読まない・AC 1.2）。
  *
- * **1 品目でも不正なら全体を null へ落とす**（AC 1.4「当該到着を拒否し、Pending_Order 集合と Timer 集合の
+ * **正本（`TimerState.orderItems`）は変えず、絞った値を正とする（pending-order-expiry 判断 1）。** 期限は状態を書き換える
+ * 出来事ではなく `now` から導く述語である。読む側の入口はこれを直接呼ばず、`pendingOrders`（計画・左レール）と
+ * `orderItemsToBroadcast`（snapshot）の内側で呼ばれる（order-lifecycle 判断 10）。
+ *
+ * **全件が期限内なら入力と同じ配列を返す**（新しい配列を作らない）。通常はこれが既定の経路であり、`ClientView` の
+ * 参照同値で再描画を抑える既存の経路（React の props 比較）を壊さない。
+ */
+export function liveOrders(items: readonly OrderItem[], now: number): readonly OrderItem[] {
+  const live = items.filter((item) => isLive(item, now));
+  return live.length === items.length ? items : live;
+}
+
+/**
+ * refersTo — 参照が品目を指すか。`externalOrderId` と `itemIndex` の一致（`itemKeyOf` と同じ鍵）。
+ *
+ * Timer → 品目の対応はこの述語ただ一つから出る。engine の `Timer.orderItem`（tableId を余分に持つ）も wire の
+ * `TimerFact.orderItem` も構造で受ける。
+ */
+export function refersTo(ref: ItemRef, item: ItemRef): boolean {
+  return ref.externalOrderId === item.externalOrderId && ref.itemIndex === item.itemIndex;
+}
+
+/**
+ * itemStatusOf — 品目の状態の正本（order-lifecycle 判断 1・AC 1.2）。
+ *
+ * 導出の順は (1) 自分を参照する生きた Timer が在る → `cooking`、(2) 無く `completedAt` が在る → `done`、(3) どちらも
+ * 無い → `unstarted`。**生きた Timer は走行中だけでなく、茹で上がって Complete を待つ boiled も含む**——`timers` は状態の
+ * Timer 全件で、running / boiled を区別しない。時間が来ただけでは done にならない（茹で上がりと、厨房が完了を確定する
+ * ことは別）。`interruptedAt` は読まない（判断 3′）。第 4 の状態は作らない。
+ */
+export function itemStatusOf(item: OrderItem, timers: readonly RefHolder[]): ItemStatus {
+  if (timers.some((timer) => timer.orderItem !== null && refersTo(timer.orderItem, item))) {
+    return "cooking";
+  }
+  return item.completedAt !== null ? "done" : "unstarted";
+}
+
+/**
+ * pendingOrders — 未調理の品目（期限内 ∧ `unstarted`）。計画と左レール・ラジアル・開始の照合・指紋・外部要求・変更費用の
+ * 対応が読む入口（order-lifecycle Requirement 3.1 / 4.1）。「未調理」は保存された集合ではなくこの関数である（判断 10）。
+ *
+ * 並びは入力のまま。**全件が通れば入力と同じ参照を返す**（`liveOrders` と同じ理由・再描画の抑制）。`liveOrders` を内側に
+ * 畳むので、期限の述語はここでも一つのまま。二度当てても冪等（`planTargets` が再び `liveOrders` を通してよい）。
+ */
+export function pendingOrders(
+  items: readonly OrderItem[],
+  timers: readonly RefHolder[],
+  now: number,
+): readonly OrderItem[] {
+  const live = liveOrders(items, now);
+  const unstarted = live.filter((item) => itemStatusOf(item, timers) === "unstarted");
+  return unstarted.length === live.length ? live : unstarted;
+}
+
+/**
+ * orderItemsToBroadcast — snapshot に載せる品目集合（期限内 **または** 生きた Timer の参照先・Requirement 3.2）。
+ *
+ * 調理中の品目は期限を超えても Complete まで配信され、釜のカードが参照で卓・品名を引ける（注文から 1 時間 59 分で
+ * 10 分茹での品目を開始し、2 時間 1 分に snapshot を送っても品目は載る）。`done` と `unstarted` は期限で消える
+ * （Requirement 3.4・保持は正本）。期限の述語は `isLive` を共有し、状態の述語は `itemStatusOf` を共有する——
+ * 期限判定を共有することと、全用途で同じ集合を読むことは別である（判断 5）。並びは入力のまま。全件が通れば同じ参照。
+ */
+export function orderItemsToBroadcast(
+  items: readonly OrderItem[],
+  timers: readonly RefHolder[],
+  now: number,
+): readonly OrderItem[] {
+  const kept = items.filter(
+    (item) => isLive(item, now) || itemStatusOf(item, timers) === "cooking",
+  );
+  return kept.length === items.length ? items : kept;
+}
+
+/**
+ * orderItemOf — Timer → 品目の参照解決（釜側の入口・Requirement 4.6）。
+ *
+ * `orderItem` が null（アドホック開始）なら null。参照先が集合に無い（v12 由来の走行中 Timer・判断 14）場合も null で、
+ * 呼び手は「注文なし」と同じ経路を通る——参照先の無い Timer を扱う経路は一つである（判断 13）。engine の `Timer` と
+ * wire の `TimerFact` の両方から呼べるよう、引数は参照を持つものを構造で受ける。
+ */
+export function orderItemOf(holder: RefHolder, items: readonly OrderItem[]): OrderItem | null {
+  const ref = holder.orderItem;
+  if (ref === null) return null;
+  return items.find((item) => refersTo(ref, item)) ?? null;
+}
+
+/**
+ * Order_Ingress が受けた到着の生値（品目の配列）を OrderItem 列へ写す純粋関数。
+ *
+ * **1 品目でも不正なら全体を null へ落とす**（AC 1.4「当該到着を拒否し、Order_Item 集合と Timer 集合の
  * いずれも変更しない」）。この点だけが toNoodlePresets と形が違う——設定は不正要素を畳んで残りで営業を続ける
  * のが善だが、到着は「注文の一部だけを受理した」状態を作れば現場が欠品に気づけない。要件が全体拒否を定めて
  * いるのは、部分受理という嘘を許さないためである。空配列も受理する内容が無いため null。
  *
- * 受理拒否（400）への写しは呼び出し側（shell の受け口）が行う。ここは「妥当な PendingOrder 列か否か」だけを
+ * 受理拒否（400）への写しは呼び出し側（shell の受け口）が行う。ここは「妥当な OrderItem 列か否か」だけを
  * 答え、HTTP の語彙を domain へ持ち込まない。
  *
  * noodleType は presets との突き合わせで「未知の品目種別」（AC 1.4）を弾く。設定全体（StoreConfig）ではなく
@@ -150,27 +259,32 @@ export function liveOrders(pending: readonly PendingOrder[], now: number): reado
  *
  * 同一 (externalOrderId, itemIndex) の重複はここでは見ない。集合としての一意性は upsertOrder の関心事である。
  */
-export function toPendingOrders(
+export function toOrderItems(
   raw: unknown,
   presets: readonly NoodlePreset[],
   arrivalTime: number,
-): NonEmptyArray<PendingOrder> | null {
+): NonEmptyArray<OrderItem> | null {
   if (!Array.isArray(raw)) return null;
-  const orders: PendingOrder[] = [];
+  const orders: OrderItem[] = [];
   for (const item of raw) {
-    const order = toPendingOrder(item, presets, arrivalTime);
+    const order = toArrivedItem(item, presets, arrivalTime);
     if (order === null) return null;
     orders.push(order);
   }
   return isNonEmpty(orders) ? orders : null;
 }
 
-/** 生値を 1 件の PendingOrder へ正規化する。必須属性の欠落・未知の品目種別・型違反はいずれも null。 */
-function toPendingOrder(
+/**
+ * 生値を 1 件の OrderItem へ正規化する。必須属性の欠落・未知の品目種別・型違反はいずれも null。
+ *
+ * 厨房の事実（`completedAt` / `interruptedAt`）は到着が持たない——POS は厨房の完了も中断も知らない。新しい品目は
+ * null で生まれ、同じ鍵の品目が既に在れば `upsertOrder`（engine/pending.ts）が既存の事実を保つ。
+ */
+function toArrivedItem(
   value: unknown,
   presets: readonly NoodlePreset[],
   arrivalTime: number,
-): PendingOrder | null {
+): OrderItem | null {
   if (!isRecord(value)) return null;
   const candidate = value;
   if (!isNonEmptyString(candidate.externalOrderId)) return null;
@@ -204,6 +318,8 @@ function toPendingOrder(
     sizeName: toDeclaredName(candidate.sizeName)?.name ?? null,
     arrivalTime,
     slotSpan,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 

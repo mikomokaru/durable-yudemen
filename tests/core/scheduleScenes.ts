@@ -30,7 +30,7 @@ import {
 } from "../../src/domain/store";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import {
   AFFINITY_TOLERANCE_DISTANCE_MIN,
@@ -173,8 +173,8 @@ export function timerOn(seed: RunningSpec, seq: number): Timer {
   });
 }
 
-/** 注文の素データを PendingOrder 列へ（id は位置から振るので (id, itemIndex) は一意）。 */
-export function toPending(orders: readonly OrderSpec[]): readonly PendingOrder[] {
+/** 注文の素データを OrderItem 列へ（id は位置から振るので (id, itemIndex) は一意）。 */
+export function toPending(orders: readonly OrderSpec[]): readonly OrderItem[] {
   return orders.flatMap((order, orderIndex) =>
     order.items.map((item, itemIndex) => ({
       externalOrderId: `o-${orderIndex}`,
@@ -186,6 +186,8 @@ export function toPending(orders: readonly OrderSpec[]): readonly PendingOrder[]
       slotSpan: item.slotSpan,
       itemName: null,
       sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
     })),
   );
 }
@@ -206,7 +208,7 @@ export function toPending(orders: readonly OrderSpec[]): readonly PendingOrder[]
  * 書けば、片方だけが採用の起きない生成器へ退化しても気づけない。
  */
 export function externalPlan(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
   slotCount: number,
   params: ScheduleParams,
@@ -243,7 +245,7 @@ export function externalPlan(
  * とする——比較の相手が現実の自前解の形（群・釜・時刻の並び）を持つことで、変更費用の性質が空虚に通らない。
  */
 export function baselinePlan(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
   slotCount: number,
   params: ScheduleParams,
@@ -277,14 +279,14 @@ export function baselinePlan(
  * `itemIndex`）であり、採点も判定も呼び出し側の**本物の待ち行列**に対して行われる。
  */
 export function shortestFirstPlan(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
   slotCount: number,
   params: ScheduleParams,
 ): CookSchedule {
   const byBoil = [...pending].sort((order, other) => boilSecondsOf(order) - boilSecondsOf(other));
   // 置き換えるのは arrivalTime だけ（他の 6 属性はそのまま写す）。
-  const resequenced: readonly PendingOrder[] = byBoil.map((order, index) => ({
+  const resequenced: readonly OrderItem[] = byBoil.map((order, index) => ({
     externalOrderId: order.externalOrderId,
     itemIndex: order.itemIndex,
     noodleType: order.noodleType,
@@ -294,6 +296,8 @@ export function shortestFirstPlan(
     slotSpan: order.slotSpan,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   }));
   return baselineSchedule(
     resequenced,
@@ -309,7 +313,7 @@ export function shortestFirstPlan(
 }
 
 /** 品目の茹で時間（秒）。プリセットに無い麺種は最後尾へ回す（そもそも配置されない）。 */
-function boilSecondsOf(order: PendingOrder): number {
+function boilSecondsOf(order: OrderItem): number {
   const preset = DEFAULT_NOODLE_PRESETS.find(
     (candidate) => candidate.noodleType === order.noodleType,
   );

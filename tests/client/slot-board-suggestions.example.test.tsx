@@ -33,7 +33,7 @@ import { FIRMNESS_LABEL } from "../../src/client/components/firmness";
 import { noodleColors } from "../../src/client/components/noodleColor";
 import { EMPTY_VIEW, type ClientView, type TimerConnection } from "../../src/client/connection";
 import type { CookRecommendation } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import { defaultUnitOrigins, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
@@ -72,7 +72,7 @@ const PRESETS: NonEmptyArray<NoodlePreset> = [
 /** 麺色の resolver は盤面と同じ工場で組む（塗りの期待値を盤面の実装から独立に引くため）。 */
 const colorOf = noodleColors(PRESETS.map((preset) => preset.noodleType));
 
-function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): PendingOrder {
+function order(overrides: Partial<OrderItem> & { externalOrderId: string }): OrderItem {
   return {
     itemIndex: 0,
     noodleType: "Long",
@@ -82,13 +82,15 @@ function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): 
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
 
 /** 推奨。群の所属と錨は engine が付ける値をそのまま書く（既定は一つの群 `g1`・合流していない）。 */
 function recommendation(
-  order: PendingOrder,
+  order: OrderItem,
   slotIds: readonly string[],
   startAt: number,
   {
@@ -117,6 +119,8 @@ const LONG = order({
   slotSpan: 2,
   itemName: "Salt",
   sizeName: "L",
+  completedAt: null,
+  interruptedAt: null,
 });
 const MID = order({ externalOrderId: "mid", noodleType: "Mid" });
 const SHORT = order({ externalOrderId: "short", noodleType: "Short" });

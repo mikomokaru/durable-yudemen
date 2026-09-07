@@ -41,7 +41,7 @@ import { env, evictDurableObject, reset, runInDurableObject } from "cloudflare:t
 import type { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
 import type { ServerMessage } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
 import { SLOTS_PER_UNIT } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
@@ -247,7 +247,7 @@ async function fillEverySlot(client: WsProbe): Promise<void> {
  * 採用経路（`admit`）を通さないのは意図で、そちらはタスク 20.6 が受け持つ。ここで要るのは
  * 「永続に載った採用の事実が、失敗や hibernation を跨いで残るか」だけである。
  */
-function acceptedSliceFor(order: PendingOrder, slotId: string, boilMillis: number): AcceptedSlice {
+function acceptedSliceFor(order: OrderItem, slotId: string, boilMillis: number): AcceptedSlice {
   return {
     tableKey: order.tableId ?? `${order.externalOrderId}#${order.itemIndex}`,
     placements: [
@@ -795,7 +795,7 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
   it("shell は 202 のみを await して event 処理を終え、応答ボディを復路として読まない", async () => {
     const stage = await planStage("cook-solver-outbound");
     let calls = 0;
-    let pendingAtSend: readonly PendingOrder[] | undefined;
+    let pendingAtSend: readonly OrderItem[] | undefined;
 
     const status = await withSolver(
       stage.stub,

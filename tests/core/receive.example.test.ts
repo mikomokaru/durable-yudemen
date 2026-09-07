@@ -11,7 +11,7 @@ import type { Event, ReceivedOrder } from "../../src/engine/event";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Effect } from "../../src/engine/effect";
 import type { EpochMillis } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import { settleParams } from "../settleParams";
 
 const PARAMS = settleParams({ arms: 2, toleranceRatio: 0.1 });
@@ -26,7 +26,7 @@ const SEQ_3 = "49590338271490256608027716141221070800233838749102571523";
 const ORDER_ID = "1%3A2%3A3%3A2026-08-17T20%3A52%3A19";
 const TERMINAL = "2";
 
-function item(itemIndex: number, externalOrderId: string = ORDER_ID): PendingOrder {
+function item(itemIndex: number, externalOrderId: string = ORDER_ID): OrderItem {
   return {
     externalOrderId,
     itemIndex,
@@ -37,12 +37,14 @@ function item(itemIndex: number, externalOrderId: string = ORDER_ID): PendingOrd
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
 function received(
   sequenceNumber: string,
-  items: readonly PendingOrder[],
+  items: readonly OrderItem[],
   externalOrderId: string = ORDER_ID,
   terminalId: string = TERMINAL,
 ): ReceivedOrder {
@@ -54,10 +56,7 @@ function event(...order: readonly ReceivedOrder[]): Event {
 }
 
 /** 待ち行列に品目を据え、判定材料は当該端末について seq を進めた状態。 */
-function stateWith(
-  pendingOrders: readonly PendingOrder[],
-  lastSequenceNumber?: string,
-): TimerState {
+function stateWith(pendingOrders: readonly OrderItem[], lastSequenceNumber?: string): TimerState {
   return {
     ...EMPTY_STATE,
     pendingOrders,

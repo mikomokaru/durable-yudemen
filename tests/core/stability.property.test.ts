@@ -22,7 +22,7 @@ import { boilMillisOf, type CookSchedule, type Placement } from "../../src/engin
 import type { ScheduleParams } from "../../src/engine/objective";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { itemKeyOf, type ItemKey, type PendingOrder } from "../../src/domain/order";
+import { itemKeyOf, type ItemKey, type OrderItem } from "../../src/domain/order";
 import { DEFAULT_NOODLE_PRESETS, SLOTS_PER_UNIT, slotOf } from "../../src/domain/store";
 import {
   baselinePlan,
@@ -42,7 +42,7 @@ const PRESETS = DEFAULT_NOODLE_PRESETS;
 
 /** 前回の計画（自前解から作った Shown_Plan）と、それを生んだ場面。 */
 interface ShownScene {
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   readonly running: readonly Timer[];
   readonly params: ScheduleParams;
   readonly slotCount: number;
@@ -104,7 +104,7 @@ function contextOf(
 /** Glossary の Head——推奨と品目・茹で秒を組み、表示と同じ導出（domain/lift-group.ts）で先頭 arms 本を引く。 */
 function headOf(
   schedule: CookSchedule,
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
   now: EpochMillis,
   params: ScheduleParams,
@@ -205,7 +205,7 @@ describe("engine/stability — changeCost の性質", () => {
   // Feature: plan-stability, Property: 5.4 — 減衰
   // **Validates: Requirements 2.2(d), 5.4**
   it("同じ幅の時刻の移動は、旧 startAt が今から遠い品目ほど Change_Cost が大きくならない（単調非増加）", () => {
-    const ITEM: PendingOrder = {
+    const ITEM: OrderItem = {
       externalOrderId: "o-far",
       itemIndex: 0,
       noodleType: KNOWN_NOODLE_TYPES[0]!,
@@ -215,6 +215,8 @@ describe("engine/stability — changeCost の性質", () => {
       slotSpan: 1,
       itemName: null,
       sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
     };
     const shownAt = (startAt: number): ShownPlan => [
       {
@@ -318,7 +320,7 @@ describe("engine/stability — changeCost の性質", () => {
 
           // (2) 新規：pending と新しい計画に在って Shown_Plan に無い品目。先頭に関わらない遠い将来に置く
           //     （Head を押しのける新規の品目は、押しのけられた対応する品目の側に費用が付く——それは新規の費用ではない）。
-          const newcomers: readonly PendingOrder[] = Array.from(
+          const newcomers: readonly OrderItem[] = Array.from(
             { length: newcomerCount },
             (_, index) => ({
               externalOrderId: `new-${index}`,
@@ -330,6 +332,8 @@ describe("engine/stability — changeCost の性質", () => {
               slotSpan: 1,
               itemName: null,
               sizeName: null,
+              completedAt: null,
+              interruptedAt: null,
             }),
           );
           const farFuture = (now + 24 * 3600 * SECOND) as EpochMillis;
@@ -369,7 +373,7 @@ describe("engine/stability — changeCost の性質", () => {
   // Feature: plan-stability, Property: 5.9 — 時間経過の保護
   // **Validates: Requirements 2.2(a), 5.9**
   it("「10 秒に開始」だった品目は 10 秒以降の比較で旧 Head に入り、先頭から外す計画に 2L が付く", () => {
-    const ITEM: PendingOrder = {
+    const ITEM: OrderItem = {
       externalOrderId: "o-ten",
       itemIndex: 0,
       noodleType: KNOWN_NOODLE_TYPES[0]!,
@@ -379,6 +383,8 @@ describe("engine/stability — changeCost の性質", () => {
       slotSpan: 1,
       itemName: null,
       sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
     };
     const START = (NOW + 10 * SECOND) as EpochMillis;
     const boilMillis = boilMillisOf(ITEM, PRESETS)!;

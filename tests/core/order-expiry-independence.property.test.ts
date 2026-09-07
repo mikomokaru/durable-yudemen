@@ -49,7 +49,7 @@ import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { Firmness } from "../../src/domain/firmness";
-import { liveOrders, ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { liveOrders, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
@@ -96,7 +96,7 @@ function itemsOf(
   count: number,
   arrivalTime: number,
   tableId: string | null,
-): readonly PendingOrder[] {
+): readonly OrderItem[] {
   return Array.from({ length: count }, (_unused, itemIndex) => ({
     externalOrderId,
     itemIndex,
@@ -107,6 +107,8 @@ function itemsOf(
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   }));
 }
 

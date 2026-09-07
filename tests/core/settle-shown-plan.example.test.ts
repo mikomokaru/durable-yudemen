@@ -22,7 +22,7 @@ import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { Effect } from "../../src/engine/effect";
 import type { ServerMessage } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -57,7 +57,7 @@ const BLOCKED: readonly Timer[] = [1, 2, 3, 4, 5].map((slot) =>
   }),
 );
 
-const LONG: PendingOrder = {
+const LONG: OrderItem = {
   externalOrderId: "o-long",
   itemIndex: 0,
   noodleType: "Long",
@@ -67,8 +67,10 @@ const LONG: PendingOrder = {
   slotSpan: 1,
   itemName: null,
   sizeName: null,
+  completedAt: null,
+  interruptedAt: null,
 };
-const SHORT: PendingOrder = {
+const SHORT: OrderItem = {
   ...LONG,
   externalOrderId: "o-short",
   noodleType: "Short",

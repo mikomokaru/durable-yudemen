@@ -41,7 +41,7 @@ import {
 import { tableMembers } from "../../src/engine/project";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
@@ -166,7 +166,7 @@ function pendingItem(input: {
   tableId?: string | null;
   arrivalTime?: number;
   slotSpan?: number;
-}): PendingOrder {
+}): OrderItem {
   return {
     externalOrderId: input.orderId,
     itemIndex: input.itemIndex ?? 0,
@@ -177,6 +177,8 @@ function pendingItem(input: {
     slotSpan: input.slotSpan ?? 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
@@ -934,7 +936,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
 // （AC 9.12）——を具体値で固定する。既定は arms 2・L 45 秒・手伝い 2 本（上限 4 本）。
 describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）", () => {
   /** 同じ卓の Thin（60 秒）n 本。到着は同時。 */
-  function family(count: number, slotSpan = 1): readonly PendingOrder[] {
+  function family(count: number, slotSpan = 1): readonly OrderItem[] {
     return Array.from({ length: count }, (_unused, itemIndex) =>
       pendingItem({ orderId: "F", itemIndex, noodleType: "Thin", tableId: "t-1", slotSpan }),
     );
@@ -1236,12 +1238,12 @@ describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10�
     return timerOn({ id: `blocked-${slot}`, slot, endTime: NOW + 10_000 * SECS });
   }
   /** 卓 t-1 の未着手。 */
-  function item(itemIndex: number, noodleType: string, slotSpan = 1): PendingOrder {
+  function item(itemIndex: number, noodleType: string, slotSpan = 1): OrderItem {
     return pendingItem({ orderId: "F", itemIndex, noodleType, tableId: "t-1", slotSpan });
   }
   /** 外部計画の配置。serveAt は startAt + 茹で時間。 */
   function place(
-    order: PendingOrder,
+    order: OrderItem,
     slots: readonly string[],
     startSeconds: number,
     anchorSeconds: number | null,
@@ -1256,7 +1258,7 @@ describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10�
     };
   }
   /** 走行中と未着手から、一片を置く前の表で述語を引く。 */
-  function keeps(running: readonly Timer[], pending: readonly PendingOrder[]) {
+  function keeps(running: readonly Timer[], pending: readonly OrderItem[]) {
     return (placements: readonly Placement[]) =>
       keepsAnchor(
         placements,
@@ -1269,7 +1271,7 @@ describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10�
       );
   }
   /** 自前解の一片（卓 t-1 だけを置く）。 */
-  function own(running: readonly Timer[], pending: readonly PendingOrder[]) {
+  function own(running: readonly Timer[], pending: readonly OrderItem[]) {
     return baselineSchedule(
       pending,
       initialRelease(running, NOW, 6),
@@ -1432,10 +1434,10 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
 
   /** 前回の提案の 1 品目（釜・開始秒・錨秒・同じ群だった相手）。serveAt は startAt + 茹で時間。 */
   function shown(
-    order: PendingOrder,
+    order: OrderItem,
     slots: readonly string[],
     startSeconds: number,
-    options: { readonly anchorSeconds?: number; readonly mates?: readonly PendingOrder[] } = {},
+    options: { readonly anchorSeconds?: number; readonly mates?: readonly OrderItem[] } = {},
   ): ShownItem {
     return {
       externalOrderId: order.externalOrderId,
@@ -1454,13 +1456,13 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
   function changeContextOf(
     shownPlan: readonly ShownItem[],
     running: readonly Timer[],
-    pending: readonly PendingOrder[],
+    pending: readonly OrderItem[],
   ): ChangeContext {
     return { shown: shownPlan, running, now: NOW, pending, presets: PRESETS };
   }
   /** 自前解（NOW の解放表・卓の成員表・上げ表から）。 */
   function plan(
-    pending: readonly PendingOrder[],
+    pending: readonly OrderItem[],
     running: readonly Timer[],
     params: ScheduleParams,
     changeContext: ChangeContext | null,
@@ -1955,7 +1957,7 @@ describe("planTargets — 期限切れの品目は計画対象に入らない（
 describe("baselineSchedule — 期限切れの旧先頭を文脈から外す（pending-order-expiry AC 2.4・レビュー実走）", () => {
   const scene = mixedScene(NOW);
   /** 場面の自前解。`pending` は変更費用の文脈が対応の相手にする集合（null は前回なし）。 */
-  function planWith(pending: readonly PendingOrder[] | null) {
+  function planWith(pending: readonly OrderItem[] | null) {
     return baselineSchedule(
       scene.pending,
       initialRelease(scene.running, NOW, 6),
@@ -2020,7 +2022,7 @@ describe("placeableTargets — 置ける品目（plan-stability Requirement 7・
       slotSpan: index === 9 ? 5 : 1,
     }),
   );
-  const ids = (orders: readonly PendingOrder[]) => orders.map((order) => order.externalOrderId);
+  const ids = (orders: readonly OrderItem[]) => orders.map((order) => order.externalOrderId);
   const GHOST_PRESET = {
     noodleType: "Ghost",
     boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 },

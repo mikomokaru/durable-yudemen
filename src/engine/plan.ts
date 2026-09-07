@@ -13,7 +13,7 @@
 //
 // **engine が受け取るのは検証済みの CookSchedule ただ一つである。** 解析不能・スキーマ不正・
 // Input_Fingerprint の欠落（AC 10.3）は境界で落とし、ここには型の立った計画だけが届く。生値の検証を
-// engine に置かないのは既存の規律そのもので（domain の toPendingOrders・shell の parseClientMessage が
+// engine に置かないのは既存の規律そのもので（domain の toOrderItems・shell の parseClientMessage が
 // 境界で検証し、engine は検証済みの型だけを受ける）、CookSchedule がブランド型と非空配列を含むことが
 // その規律を型で要求している。届かなかった計画は状態を一切変えない——AC 10.3 の「全体棄却」は、
 // 受け口が事象を起こさないという形で満たされる。型の内側で成立していない計画（釜の割り込み・

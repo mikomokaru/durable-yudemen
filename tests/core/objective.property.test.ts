@@ -17,7 +17,7 @@ import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
 import type { PlanSlice } from "../../src/engine/schedule";
 import { tableMembers } from "../../src/engine/project";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import {
   ARMS_MAX,
   ARMS_MIN,
@@ -64,7 +64,7 @@ interface ItemSeed {
 /** 生成した計画。scoreSchedule の引数（上げ表は走行中なしの空）がそのまま揃う。 */
 interface PlanSeed {
   readonly slices: readonly PlanSlice[];
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   readonly params: ScheduleParams;
 }
 
@@ -171,7 +171,7 @@ const genPlan: fc.Arbitrary<PlanSeed> = fc
   )
   .map(({ params, groups }) => {
     const slices: PlanSlice[] = [];
-    const pending: PendingOrder[] = [];
+    const pending: OrderItem[] = [];
     groups.forEach((orders, groupIndex) => {
       const tableKey = `t-${groupIndex}`;
       const placements = orders.flatMap((items, orderIndex) => {
@@ -189,6 +189,8 @@ const genPlan: fc.Arbitrary<PlanSeed> = fc
               slotSpan: 1,
               itemName: null,
               sizeName: null,
+              completedAt: null,
+              interruptedAt: null,
             });
           }
           return {

@@ -17,7 +17,7 @@ import { toSnapshot } from "./snapshot";
 import type { AcceptedSlice, Placement } from "./schedule";
 import type { InputDigest } from "./digest";
 import type { ShownItem, ShownPlan } from "./stability";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness, type Firmness } from "../domain/firmness";
@@ -177,14 +177,14 @@ function reviveLastSequenceByTerminal(value: unknown): Readonly<Record<string, s
  * Pending_Order 集合として解釈する（v7 で追加）。
  * - 欠如 / null（v6 以前は待ち行列を持たない）→ 空集合。POS 連携前の稼働店に未着手オーダーは存在しない。
  * - 配列 → 全要素を検証して写す。**一件でも形を満たさなければ全体を移行失敗**（null）。
- *   reviveTimers と同じ規律であり、domain の toPendingOrders が部分受理を許さないのと同じ理由——
+ *   reviveTimers と同じ規律であり、domain の toOrderItems が部分受理を許さないのと同じ理由——
  *   不正要素を落とせば「注文の一部だけが待ち行列に在る」嘘が生まれ、現場が欠品に気づけない。
  * - 配列でない → 壊れたデータ（null）。
  */
-function revivePendingOrders(value: unknown): readonly PendingOrder[] | null {
+function revivePendingOrders(value: unknown): readonly OrderItem[] | null {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) return null;
-  const orders: PendingOrder[] = [];
+  const orders: OrderItem[] = [];
   for (const element of value) {
     const order = revivePendingOrder(element);
     if (order === null) return null;
@@ -194,10 +194,10 @@ function revivePendingOrders(value: unknown): readonly PendingOrder[] | null {
 }
 
 /**
- * 一件の raw を PendingOrder へ写す。永続値ゆえ noodleType はプリセットと突き合わせない
+ * 一件の raw を OrderItem へ写す。永続値ゆえ noodleType はプリセットと突き合わせない
  * （突き合わせは受理時の関心事で、移行時に設定を要求すれば永続層が設定に依存してしまう）。形だけを見る。
  */
-function revivePendingOrder(value: unknown): PendingOrder | null {
+function revivePendingOrder(value: unknown): OrderItem | null {
   if (typeof value !== "object" || value === null) return null;
   const o = value as Record<string, unknown>;
   if (typeof o.externalOrderId !== "string" || o.externalOrderId.length === 0) return null;
@@ -228,6 +228,8 @@ function revivePendingOrder(value: unknown): PendingOrder | null {
     slotSpan,
     itemName: itemName.name,
     sizeName: sizeName.name,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 

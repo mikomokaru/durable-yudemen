@@ -16,7 +16,7 @@ import { REJECTION_CLOSE_CODE } from "../transport/rejection";
 import type { ServerMessage } from "../domain/messages";
 import { toClientMessage, toDecodeFailureLine } from "../domain/wire";
 import { toDeclaredName } from "../domain/predicate";
-import { toPendingOrders, type PendingOrder } from "../domain/order";
+import { toOrderItems, type OrderItem } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { StoreConfig, NoodlePreset, FirmnessCode, MenuItem } from "../domain/store";
 import {
@@ -130,13 +130,13 @@ class InitError extends Error {
  * 正本が POS の書き方に依存する。
  */
 type OrderIntent =
-  | { readonly kind: "arrival"; readonly arrival: NonEmptyArray<PendingOrder> }
+  | { readonly kind: "arrival"; readonly arrival: NonEmptyArray<OrderItem> }
   | { readonly kind: "cancellation"; readonly externalOrderId: string };
 
 /**
  * Order_Ingress の生ボディを OrderIntent へ解釈する。不正・判別不能はすべて null（呼び出し側が 400 に写す）。
  *
- * 品目の検証は domain の `toPendingOrders` に委ね、ここでは書かない（同じ検証を二度書かない）。必須属性の
+ * 品目の検証は domain の `toOrderItems` に委ね、ここでは書かない（同じ検証を二度書かない）。必須属性の
  * 欠落・未知の品目種別・型違反はあちらが 1 品目でも見つけた時点で全体を null へ落とす——部分受理は
  * 現場が欠品に気づけない嘘になる（AC 1.4）。arrivalTime は shell が採る受け手側の事実で、POS の主張ではない。
  */
@@ -155,7 +155,7 @@ function toOrderIntent(
       ? { kind: "cancellation", externalOrderId: cancelledOrderId }
       : null;
   }
-  const arrival = toPendingOrders(candidate.items, presets, arrivalTime);
+  const arrival = toOrderItems(candidate.items, presets, arrivalTime);
   return arrival === null ? null : { kind: "arrival", arrival };
 }
 
@@ -205,7 +205,7 @@ interface RecordTranslation {
 /**
  * 受領した Record 群を `ReceivedOrder` 列へ翻訳する純粋関数（AC 6.5 / 6.26〜6.28 / 6.34）。
  *
- * **`toPendingOrders` の全体拒否をここへ持ち込まない**（AC 6.27）。あちらは「1 つのオーダーの品目群」の
+ * **`toOrderItems` の全体拒否をここへ持ち込まない**（AC 6.27）。あちらは「1 つのオーダーの品目群」の
  * 原子性を守るために 1 品目でも不正なら全体を落とすが、本経路では翻訳できない品目が正常に起こる
  * ——非麺の品目（丼・餃子・飲料）がそれで、実データ 3 件すべてに含まれる。全体拒否を適用すれば、
  * 丼が付いたラーメンの注文がまるごと弾かれる。ゆえに品目単位で扱い、翻訳できた品目のみを写す。
@@ -232,7 +232,7 @@ function toReceivedOrders(
     // engine へ渡せないためである（`externalOrderId` は置換・除去の鍵そのものである）。
     if (externalOrderId === null || terminalId === null) continue;
     const tableId = toTableId(record.payload.table_no);
-    const items: PendingOrder[] = [];
+    const items: OrderItem[] = [];
     const rawItems = record.payload.order_items;
     if (Array.isArray(rawItems)) {
       for (let itemIndex = 0; itemIndex < rawItems.length; itemIndex += 1) {
@@ -259,6 +259,8 @@ function toReceivedOrders(
           // slotSpan を決めた同定結果から取る（noodle-spec が同じ 1 度の同定から返す）。
           itemName: toDeclaredName((rawItem as Record<string, unknown>).item_name)?.name ?? null,
           sizeName: spec.sizeName,
+          completedAt: null,
+          interruptedAt: null,
         });
       }
     }

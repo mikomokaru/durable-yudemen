@@ -1,7 +1,7 @@
-// src/ingress/batch.ts — Arrival_Batch の解釈。生値 → 検証済みの形 または null（既存の toPendingOrders /
+// src/ingress/batch.ts — Arrival_Batch の解釈。生値 → 検証済みの形 または null（既存の toOrderItems /
 // toOrderIntent と同型の規律）。cloudflare:workers にも storage にも触れない純粋モジュール。
 //
-// ここは上流ペイロードが本経路へ入る唯一の関門である。domain（PendingOrder・Firmness）へ一方向に依存する
+// ここは上流ペイロードが本経路へ入る唯一の関門である。domain（OrderItem・Firmness）へ一方向に依存する
 // 場所であって、domain はこの形を知らない——運搬の形は共有契約の中立地帯へ置かない。
 //
 // **payload の構造を型として書かない**（Pass_Through の型による表明）。ここに POS ペイロードの構造を

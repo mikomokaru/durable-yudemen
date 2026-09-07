@@ -22,7 +22,7 @@ import type { ClientMessage, CookRecommendation, ServerMessage } from "./message
 import { isNonEmpty, type NonEmptyArray, type TimerFact } from "./timer";
 import { isFirmness } from "./firmness";
 import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";
-import type { PendingOrder } from "./order";
+import type { OrderItem } from "./order";
 import {
   DEFAULT_LIFT_INTERVAL_SECONDS,
   SLOTS_PER_UNIT,
@@ -167,7 +167,7 @@ function toSnapshotMessage(
 ): ServerMessage | null {
   const timers = toArrayOf(record.timers, toTimerFact);
   if (timers === null) return null;
-  const pendingOrders = toArrayOf(record.pendingOrders, toPendingOrderFromWire);
+  const pendingOrders = toArrayOf(record.pendingOrders, toOrderItemFromWire);
   if (pendingOrders === null) return null;
   const recommendations = toArrayOf(record.recommendations, toRecommendation);
   if (recommendations === null) return null;
@@ -188,14 +188,14 @@ function toTimerFact(value: unknown): TimerFact | null {
 }
 
 /**
- * ワイヤの PendingOrder を確立する。
+ * ワイヤの OrderItem を確立する。
  *
- * order.ts の toPendingOrder を流用しない。あちらは arrivalTime を引数で受け（POS の主張を許さない）
+ * order.ts の toArrivedItem を流用しない。あちらは arrivalTime を引数で受け（POS の主張を許さない）
  * noodleType を presets と照合する受け口用の検証で、義務が違う。ここは arrivalTime を値から読み、
  * presets 照合をしない——サーバが送った待ち行列の写しであり、整合は送り手が既に確立している。
  * 同じ形に見えて義務が違う二つの検証は、一つに畳まない。
  */
-function toPendingOrderFromWire(value: unknown): PendingOrder | null {
+function toOrderItemFromWire(value: unknown): OrderItem | null {
   if (!isRecord(value)) return null;
   const { externalOrderId, itemIndex, noodleType, firmness, arrivalTime, slotSpan } = value;
   if (!isNonEmptyString(externalOrderId)) return null;
@@ -211,6 +211,11 @@ function toPendingOrderFromWire(value: unknown): PendingOrder | null {
   if (sizeName === null) return null;
   if (!isNonNegativeInteger(arrivalTime)) return null;
   if (!isNonNegativeInteger(slotSpan)) return null;
+  // 厨房の事実（order-lifecycle）。null か時刻（非負整数）。欠如は落とす——サーバは常に両方を書く。
+  const completedAt = toRecordedAt(value.completedAt);
+  if (completedAt === undefined) return null;
+  const interruptedAt = toRecordedAt(value.interruptedAt);
+  if (interruptedAt === undefined) return null;
   return {
     externalOrderId,
     itemIndex,
@@ -221,7 +226,15 @@ function toPendingOrderFromWire(value: unknown): PendingOrder | null {
     slotSpan,
     itemName: itemName.name,
     sizeName: sizeName.name,
+    completedAt,
+    interruptedAt,
   };
+}
+
+/** 厨房が記録した時刻（`completedAt` / `interruptedAt`）を確立する。null はそのまま、非負整数はその値、他は undefined（拒否）。 */
+function toRecordedAt(value: unknown): number | null | undefined {
+  if (value === null) return null;
+  return isNonNegativeInteger(value) ? value : undefined;
 }
 
 /** 開始推奨 1 件を確立する。slotIds の非空はここで型へ載せる（受け手の読み飛ばしを不要にする）。 */

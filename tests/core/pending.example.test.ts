@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { consumeOrder, removeOrder, upsertOrder } from "../../src/engine/pending";
 import { createTimer, type Timer } from "../../src/engine/timer";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { nonEmpty } from "../nonEmpty";
 
@@ -16,7 +16,7 @@ const ARRIVED_AT = 1_000_000;
 const MODIFIED_AT = ARRIVED_AT + 300_000;
 
 /** 3 品の注文 o-1（同卓 t-7）。品目 0 を人が茹で始めた、という場面を組む。 */
-function item(itemIndex: number, noodleType: string, arrivalTime: number): PendingOrder {
+function item(itemIndex: number, noodleType: string, arrivalTime: number): OrderItem {
   return {
     externalOrderId: "o-1",
     itemIndex,
@@ -27,6 +27,8 @@ function item(itemIndex: number, noodleType: string, arrivalTime: number): Pendi
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
@@ -44,7 +46,7 @@ const started: Timer = createTimer({
 
 describe("upsertOrder — 一部開始済みの注文への modification", () => {
   // 開始で品目 0 は待ち行列から消えている（consumeOrder の帰結）。残るのは 1 と 2。
-  const pending: readonly PendingOrder[] = [
+  const pending: readonly OrderItem[] = [
     item(1, "thick", ARRIVED_AT),
     item(2, "curly", ARRIVED_AT),
   ];
@@ -82,7 +84,7 @@ describe("upsertOrder — 一部開始済みの注文への modification", () =>
 });
 
 describe("removeOrder / consumeOrder — キャンセルと開始による除去", () => {
-  const pending: readonly PendingOrder[] = [
+  const pending: readonly OrderItem[] = [
     item(1, "thick", ARRIVED_AT),
     item(2, "curly", ARRIVED_AT),
   ];

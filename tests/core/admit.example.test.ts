@@ -32,7 +32,7 @@ import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import { occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
 import type { ShownPlan } from "../../src/engine/stability";
 import { schedulingDefaults } from "../storeConfigDefaults";
@@ -65,7 +65,7 @@ const BLOCKED: readonly Timer[] = [1, 2, 3, 4, 5].map((slot) =>
 );
 
 /** 待ち行列の 1 品目（1 注文 1 品目・卓は注文ごとに別）。 */
-function order(externalOrderId: string, noodleType: string, tableId: string): PendingOrder {
+function order(externalOrderId: string, noodleType: string, tableId: string): OrderItem {
   return {
     externalOrderId,
     itemIndex: 0,
@@ -76,13 +76,15 @@ function order(externalOrderId: string, noodleType: string, tableId: string): Pe
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
 /** 長い麺の A（卓 t-a）と短い麺の B（卓 t-b）。到着は同時ゆえ自前解は卓 id 順に A → B と置く。 */
 const LONG = order("o-long", "Long", "t-a");
 const SHORT = order("o-short", "Short", "t-b");
-const PENDING: readonly PendingOrder[] = [LONG, SHORT];
+const PENDING: readonly OrderItem[] = [LONG, SHORT];
 
 /**
  * 外部計画の一片を組む。点数は載せない——計画は点数を持たず、採点は比較の時点で engine が行う
@@ -90,7 +92,7 @@ const PENDING: readonly PendingOrder[] = [LONG, SHORT];
  */
 function slice(
   tableKey: string,
-  items: readonly { order: PendingOrder; startAt: number; serveAt: number }[],
+  items: readonly { order: OrderItem; startAt: number; serveAt: number }[],
 ) {
   return {
     tableKey,
@@ -271,8 +273,8 @@ describe("admit — 外部の申告を検証する", () => {
 
 describe("admit — slotSpan は釜番号で数える（レビュー指摘・AC 4.2）", () => {
   /** 2 釜を要する短い麺。空いている釜は 0 番だけなので、正しく数えれば今は置けない。 */
-  const WIDE: PendingOrder = { ...SHORT, slotSpan: 2 };
-  const PENDING_WIDE: readonly PendingOrder[] = [LONG, WIDE];
+  const WIDE: OrderItem = { ...SHORT, slotSpan: 2 };
+  const PENDING_WIDE: readonly OrderItem[] = [LONG, WIDE];
   const COMMITTED_WIDE = committedSchedule([], PENDING_WIDE, BLOCKED, NOW, PRESETS, PARAMS, null);
 
   function wide(slotIds: readonly SlotId[]): CookSchedule {
@@ -483,7 +485,7 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
     seq: 0,
     orderItem: { externalOrderId: "o-table", itemIndex: 0, tableId: "t-1" },
   });
-  const REST: readonly PendingOrder[] = [1, 2, 3].map((itemIndex) => ({
+  const REST: readonly OrderItem[] = [1, 2, 3].map((itemIndex) => ({
     externalOrderId: "o-table",
     itemIndex,
     noodleType: "Wide",
@@ -493,6 +495,8 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
     slotSpan: 2,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   }));
   const COMMITTED_WIDE = committedSchedule([], REST, [FIRST], NOW, WIDE_PRESETS, PARAMS, null);
 
@@ -691,10 +695,10 @@ describe("admit — 後続品のために合流分を遅らせた計画は棄却
   ];
   const SHORT_C = order("o-short-c", "Short", "t-c");
   const LONG_C = order("o-long-c", "Long", "t-c");
-  const PENDING_C: readonly PendingOrder[] = [SHORT_C, LONG_C];
+  const PENDING_C: readonly OrderItem[] = [SHORT_C, LONG_C];
 
   function place(
-    target: PendingOrder,
+    target: OrderItem,
     slot: string,
     startSeconds: number,
     anchorSeconds: number | null,
@@ -827,7 +831,7 @@ describe("admit — 前回提示した提案からの変更費用で採点する
   // 外部計画は A → B に入れ替える——順の逆転と 2 本の時刻の移動で、前回とは大きく違う。
   const A = order("o-a", "Short", "t-a");
   const B = order("o-b", "Short", "t-b");
-  const TWO: readonly PendingOrder[] = [A, B];
+  const TWO: readonly OrderItem[] = [A, B];
   const L = PARAMS.liftIntervalSeconds;
   /** B を先に、A を後に（外部計画）。合成後は A 0〜60 秒・B 60〜120 秒で総和 180。 */
   const A_FIRST = plan(
@@ -897,11 +901,11 @@ describe("admit — 前回提示した提案からの変更費用で採点する
 
 describe("admit — 期限切れの品目（pending-order-expiry AC 2.3 / 2.4）", () => {
   /** 2 時間前に届いて誰も作らなかった注文（卓 t-x）。正本には残るが、計画対象には無い。 */
-  const EXPIRED: PendingOrder = {
+  const EXPIRED: OrderItem = {
     ...order("o-expired", "Short", "t-x"),
     arrivalTime: NOW - ORDER_LIFETIME_MS,
   };
-  const WITH_EXPIRED: readonly PendingOrder[] = [EXPIRED, ...PENDING];
+  const WITH_EXPIRED: readonly OrderItem[] = [EXPIRED, ...PENDING];
   const gateWithExpired = (arrived: CookSchedule) =>
     admit(arrived, COMMITTED, WITH_EXPIRED, BLOCKED, EMPTY_SHOWN_PLAN, NOW, PRESETS, PARAMS);
 
@@ -934,7 +938,7 @@ describe("admit — 期限切れの品目（pending-order-expiry AC 2.3 / 2.4）
         EXPIRY_PARAMS,
       );
     /** 場面の文脈（旧 Shown_Plan・走行中・now）で `pending` を対応の相手にした総費用。 */
-    const totalOf = (schedule: CookSchedule, pending: readonly PendingOrder[]) =>
+    const totalOf = (schedule: CookSchedule, pending: readonly OrderItem[]) =>
       scoreSchedule(
         schedule.slices,
         scene.live,
@@ -1017,7 +1021,7 @@ describe("admit — 置ける品目に限って計画対象と比べる（plan-s
   });
 
   it("(c) 単体で上限（arms 2 + 2 = 4）を超える span 5 も同じ——置けない間は集合に無く、arms 3 で置けるようになれば欠落で落ちる", () => {
-    const wide: PendingOrder = { ...order("o-wide", "Short", "t-m"), slotSpan: 5 };
+    const wide: OrderItem = { ...order("o-wide", "Short", "t-m"), slotSpan: 5 };
     const pendingWide = [LONG, M, wide];
     const gateWide = (arrived: CookSchedule, params: ScheduleParams) =>
       admit(

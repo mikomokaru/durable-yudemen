@@ -31,7 +31,7 @@ import { shownPlanOf, type ChangeContext } from "../../src/engine/stability";
 import { boilMillisOf } from "../../src/engine/boil";
 import type { Timer } from "../../src/engine/timer";
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
-import { compareArrival, itemKeyOf, type ItemKey, type PendingOrder } from "../../src/domain/order";
+import { compareArrival, itemKeyOf, type ItemKey, type OrderItem } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
@@ -54,7 +54,7 @@ import {
 import { physicalViolationsOf, sceneFrom, totalOf } from "./restoreScenes";
 
 interface Scene {
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   readonly release: SlotRelease;
   readonly members: TableMembers;
   readonly lifts: LiftTable;
@@ -164,10 +164,7 @@ function contextOf(scene: Scene): ChangeContext | null {
 }
 
 /** 「今」の配置（`startAt ≤ now`）を表示の順（startAt 昇順・同値は到着順）に。 */
-function nowItemsOf(
-  schedule: CookSchedule,
-  pending: readonly PendingOrder[],
-): readonly Placement[] {
+function nowItemsOf(schedule: CookSchedule, pending: readonly OrderItem[]): readonly Placement[] {
   const orderByKey = new Map(pending.map((order) => [itemKeyOf(order), order]));
   return allPlacements(schedule.slices)
     .filter((placement) => placement.startAt <= NOW)
@@ -185,10 +182,7 @@ function byKey(schedule: CookSchedule): ReadonlyMap<ItemKey, Placement> {
 }
 
 /** 推奨を表示の入力（LiftItem）へ（client の liftGroups と同じ組み立て）。 */
-function liftItemsOf(
-  schedule: CookSchedule,
-  pending: readonly PendingOrder[],
-): readonly LiftItem[] {
+function liftItemsOf(schedule: CookSchedule, pending: readonly OrderItem[]): readonly LiftItem[] {
   const orderByKey = new Map(pending.map((order) => [itemKeyOf(order), order]));
   return recommend(schedule).map((recommendation) => {
     const order = orderByKey.get(itemKeyOf(recommendation))!;

@@ -34,7 +34,7 @@ import {
 import type { SettleParams } from "../../src/engine/settle";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
+import { itemKeyOf, type OrderItem } from "../../src/domain/order";
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
 import { DEFAULT_NOODLE_PRESETS, occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
 import { physicalViolationsOf, sceneFrom, totalOf } from "./restoreScenes";
@@ -211,7 +211,7 @@ function timerOn(slot: number, endSeconds: number): Timer {
 }
 
 /** 自前解（NOW の解放表・成員表・上げ表・占有から）。 */
-function ownPlan(pending: readonly PendingOrder[], running: readonly Timer[]) {
+function ownPlan(pending: readonly OrderItem[], running: readonly Timer[]) {
   return baselineSchedule(
     pending,
     initialRelease(running, NOW, 6),
@@ -450,7 +450,7 @@ const TABLES = {
   quads: (index: number) => `t${Math.floor(index / 4)}`,
 } as const;
 
-function itemsOf(tables: keyof typeof TABLES, slotSpan: number): readonly PendingOrder[] {
+function itemsOf(tables: keyof typeof TABLES, slotSpan: number): readonly OrderItem[] {
   return Array.from({ length: 24 }, (_unused, index) =>
     order(`o${index}`, {
       noodleType: "Thin",

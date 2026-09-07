@@ -15,7 +15,7 @@ import type { Event, ReceivedOrder } from "../../src/engine/event";
 import { EMPTY_STATE, isNewerSequence, type TimerState } from "../../src/engine/state";
 import type { Effect } from "../../src/engine/effect";
 import type { EpochMillis } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import { settleParams } from "../settleParams";
 
 const PARAMS = settleParams({ arms: 2, toleranceRatio: 0.1 });
@@ -28,7 +28,7 @@ const TERMINAL_IDS = ["t-1", "t-2"] as const;
 /** 実データと同じ 56 桁へ揃える（桁数が同じなら辞書順が数値順に一致する）。 */
 const toSequenceNumber = (n: number): string => String(n).padStart(56, "0");
 
-function item(externalOrderId: string, itemIndex: number): PendingOrder {
+function item(externalOrderId: string, itemIndex: number): OrderItem {
   return {
     externalOrderId,
     itemIndex,
@@ -39,11 +39,13 @@ function item(externalOrderId: string, itemIndex: number): PendingOrder {
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
 /** 品目 0 件も作る（キャンセル・麺を含まない注文）。 */
-const itemsOf = (externalOrderId: string, count: number): readonly PendingOrder[] =>
+const itemsOf = (externalOrderId: string, count: number): readonly OrderItem[] =>
   Array.from({ length: count }, (_unused, itemIndex) => item(externalOrderId, itemIndex));
 
 const genReceived: fc.Arbitrary<ReceivedOrder> = fc

@@ -18,7 +18,7 @@ import {
   visibleGroups,
 } from "../../src/client/components/liftGroups";
 import type { CookRecommendation } from "../../src/domain/messages";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import { defaultUnitOrigins, occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
@@ -33,7 +33,7 @@ const PRESETS: NonEmptyArray<NoodlePreset> = [
   { noodleType: "Short", boilSeconds: { extraHard: 330, hard: 330, normal: 330, soft: 330 } },
 ];
 
-function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): PendingOrder {
+function order(overrides: Partial<OrderItem> & { externalOrderId: string }): OrderItem {
   return {
     itemIndex: 0,
     noodleType: "Long",
@@ -43,6 +43,8 @@ function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): 
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
@@ -480,7 +482,7 @@ describe("Feature: lift-group-display — 釜の組（pairSlots・判断 10）",
 describe("Feature: pending-order-expiry — 寿命を跨いだ品目は釜の提案からも同じ瞬間に消える（AC 3.1 / 3.3）", () => {
   /** long の到着を寿命の境界に置く：`EXPIRY` でちょうど切れ、`EXPIRY − 1` では生きている。 */
   const EXPIRY = T0 + 180 * SECOND;
-  const [LONG, MID, SHORT] = THREE as [PendingOrder, PendingOrder, PendingOrder];
+  const [LONG, MID, SHORT] = THREE as [OrderItem, OrderItem, OrderItem];
   const expiringLong = { ...LONG, arrivalTime: EXPIRY - ORDER_LIFETIME_MS };
   const current = view({ pendingOrders: [expiringLong, MID, SHORT], recommendations: THREE_PLAN });
 

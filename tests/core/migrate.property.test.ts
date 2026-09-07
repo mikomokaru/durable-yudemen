@@ -179,10 +179,18 @@ describe("core/migrate — v7 → v8 の面", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         // slotSpan を除いた待ち行列は v7 の値そのままである。
-        // v9 が埋めるのは 3 つ（slotSpan・itemName・sizeName）。埋めた分を除いた残りが写しであることを問う。
+        // v9 が埋めるのは 3 つ（slotSpan・itemName・sizeName）、v13 が埋めるのは 2 つ（completedAt・interruptedAt）。
+        // 埋めた分を除いた残りが写しであることを問う。
         expect(
           result.snapshot.pendingOrders.map(
-            ({ slotSpan: _span, itemName: _item, sizeName: _size, ...rest }) => rest,
+            ({
+              slotSpan: _span,
+              itemName: _item,
+              sizeName: _size,
+              completedAt: _completed,
+              interruptedAt: _interrupted,
+              ...rest
+            }) => rest,
           ),
         ).toEqual(v7.pendingOrders);
         // v10 で一片は点数を持たない。v7 の score は余剰として捨てられ、v11 が配置に埋める anchor（null）を
@@ -297,8 +305,14 @@ describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさ
         for (const [index, order] of result.snapshot.pendingOrders.entries()) {
           expect(order.itemName).toBeNull();
           expect(order.sizeName).toBeNull();
-          // 埋めた 2 つ以外は写しである。
-          const { itemName: _item, sizeName: _size, ...rest } = order;
+          // 埋めた 2 つ（と v13 の厨房の事実 2 つ）以外は写しである。
+          const {
+            itemName: _item,
+            sizeName: _size,
+            completedAt: _completed,
+            interruptedAt: _interrupted,
+            ...rest
+          } = order;
           expect(rest).toEqual(pendingOrders[index]);
         }
         expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
@@ -325,6 +339,8 @@ describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさ
           slotSpan: 1,
           itemName: "",
           sizeName: null,
+          completedAt: null,
+          interruptedAt: null,
         },
       ],
       lastSequenceByTerminal: {},

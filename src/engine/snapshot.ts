@@ -7,7 +7,7 @@ import type { Timer } from "./timer";
 import type { AcceptedSlice } from "./schedule";
 import type { InputDigest } from "./digest";
 import type { ShownPlan } from "./stability";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 
 /**
  * StoreSnapshot — 永続層に単一キーで丸ごと put / get する「店舗の全状態」の形。
@@ -26,7 +26,7 @@ export interface StoreSnapshot {
   /** 次に割り当てる登録順（seq）。 */
   readonly nextSeq: number;
   /** 未着手オーダーの品目集合（正本・v7）。 */
-  readonly pendingOrders: readonly PendingOrder[];
+  readonly pendingOrders: readonly OrderItem[];
   /** 採用済み外部計画の一片（再計算では復元できない事実・v7。配置の anchor は v11）。 */
   readonly acceptedSlices: readonly AcceptedSlice[];
   /** 直前に外部計画を要求した時点の入力の指紋（v7）。null は未要求。 */

@@ -22,7 +22,7 @@ import type { CookSchedule } from "../../src/engine/schedule";
 import { EMPTY_SHOWN_PLAN } from "../../src/engine/stability";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { liveOrders, ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { liveOrders, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -59,7 +59,7 @@ const BLOCKED: readonly Timer[] = [1, 2, 3, 4, 5].map((slot) =>
 );
 
 /** 長い麺の A（卓 t-a）と短い麺の B（卓 t-b）。同時到着ゆえ自前解は卓 id 順に A → B と置く。 */
-const LONG: PendingOrder = {
+const LONG: OrderItem = {
   externalOrderId: "o-long",
   itemIndex: 0,
   noodleType: "Long",
@@ -69,8 +69,10 @@ const LONG: PendingOrder = {
   slotSpan: 1,
   itemName: null,
   sizeName: null,
+  completedAt: null,
+  interruptedAt: null,
 };
-const SHORT: PendingOrder = {
+const SHORT: OrderItem = {
   ...LONG,
   externalOrderId: "o-short",
   noodleType: "Short",
@@ -321,7 +323,7 @@ describe("receivePlan — 採否は採用後に確定する走行中と同じ実
 
 describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 2.4）", () => {
   /** 2 時間前に届いて誰も作らなかった注文（卓 t-x）。正本には残るが、生きている待ち行列には無い。 */
-  const EXPIRED: PendingOrder = {
+  const EXPIRED: OrderItem = {
     ...SHORT,
     externalOrderId: "o-expired",
     tableId: "t-x",
@@ -329,7 +331,7 @@ describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 
   };
   const WITH_EXPIRED: TimerState = { ...STATE, pendingOrders: [EXPIRED, LONG, SHORT] };
 
-  function placementFor(order: PendingOrder, startAt: number, boilSeconds: number) {
+  function placementFor(order: OrderItem, startAt: number, boilSeconds: number) {
     return {
       externalOrderId: order.externalOrderId,
       itemIndex: order.itemIndex,
@@ -437,7 +439,7 @@ describe("receivePlan — 未知麺種を含む卓の外部計画が採用でき
   // Feature: plan-stability
   // **Validates: Requirements 7.4, 7.5**
   /** 卓 t-b に B と並ぶ、プリセットに無い麺種の品目（設定の差し替えを跨いで残った）。 */
-  const GHOST: PendingOrder = { ...SHORT, externalOrderId: "o-ghost", noodleType: "Ghost" };
+  const GHOST: OrderItem = { ...SHORT, externalOrderId: "o-ghost", noodleType: "Ghost" };
   const WITH_GHOST: TimerState = { ...STATE, pendingOrders: [LONG, SHORT, GHOST] };
   const GHOST_PRESET: NoodlePreset = {
     noodleType: "Ghost",

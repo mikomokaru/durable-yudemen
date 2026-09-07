@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../cn";
-import type { PendingOrder } from "../../domain/order";
+import type { OrderItem } from "../../domain/order";
 import type { NoodlePreset } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
 import { FIRMNESS_LABEL } from "./firmness";
@@ -26,7 +26,7 @@ import { displayName } from "./queueDisplay";
 
 /** 待ち行列の帯の 1 行。品目の事実と、押した釜から組めた釜の集合。 */
 export interface RadialQueueItem {
-  readonly order: PendingOrder;
+  readonly order: OrderItem;
   /**
    * 押した釜から組めた釜の集合（起点の釜を先頭に slotSpan 個）。null は組めない（選べない形で示す）。
    *

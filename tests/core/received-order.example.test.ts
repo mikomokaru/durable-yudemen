@@ -9,7 +9,7 @@ import { decide } from "../../src/engine/decide";
 import type { Event, ReceivedOrder } from "../../src/engine/event";
 import { EMPTY_STATE } from "../../src/engine/state";
 import type { EpochMillis } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { settleParams } from "../settleParams";
 
@@ -40,9 +40,9 @@ type ReceivedShapeAssertions = [
   Assert<Equal<keyof ReceivedOrder, "externalOrderId" | "terminalId" | "sequenceNumber" | "items">>,
   // **items は NonEmptyArray ではない。** 非空を型で要求するのは 1 つの到着だけを扱う OrderArrived の側で、
   // 受領単位では空が意味を持つ（0 件は除去または無変更）。両者が別の基数を持つことをここで固定する。
-  Assert<Equal<ReceivedOrder["items"], readonly PendingOrder[]>>,
+  Assert<Equal<ReceivedOrder["items"], readonly OrderItem[]>>,
   Assert<
-    Equal<Extract<Event, { readonly type: "OrderArrived" }>["arrival"], NonEmptyArray<PendingOrder>>
+    Equal<Extract<Event, { readonly type: "OrderArrived" }>["arrival"], NonEmptyArray<OrderItem>>
   >,
 ];
 const receivedShapeAssertions: ReceivedShapeAssertions = [true, true, true, true, true];

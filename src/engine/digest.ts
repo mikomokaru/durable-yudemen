@@ -13,7 +13,7 @@ import type { SettleParams } from "./settle";
 import type { Timer } from "./timer";
 import type { EpochMillis } from "./types";
 import { FIRMNESS_ORDER } from "../domain/firmness";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 
 /**
@@ -79,7 +79,7 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
  * あちらは「色をどう割り当てるか」であってこちらは「入力が変わったか」——概念が違うので共有しない）。
  */
 export function digestInput(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
   params: SettleParams,
   now: EpochMillis,
@@ -160,7 +160,7 @@ export function digestInput(
  */
 function drawnPresets(
   presets: readonly NoodlePreset[],
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
 ): readonly NoodlePreset[] {
   const drawn = new Set(targets.map((order) => order.noodleType));
   return presets

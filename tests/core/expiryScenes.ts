@@ -20,7 +20,7 @@ import { changeCost, type ShownPlan } from "../../src/engine/stability";
 import { recommend } from "../../src/engine/recommend";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { itemKeyOf, ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { itemKeyOf, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -44,15 +44,15 @@ export const EXPIRY_PARAMS: SettleParams = {
 export interface MixedScene {
   readonly now: EpochMillis;
   /** 期限切れの旧先頭（arrivalTime + 寿命 = now・ちょうど切れる）。 */
-  readonly expired: PendingOrder;
+  readonly expired: OrderItem;
   /** 生きている次品目（大盛・2 釜）。正しい文脈では旧 Head。 */
-  readonly next: PendingOrder;
+  readonly next: OrderItem;
   /** 同卓の生きている品目。 */
-  readonly mate: PendingOrder;
+  readonly mate: OrderItem;
   /** 正本（期限切れを含む）。 */
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   /** 生きている待ち行列（liveOrders(pending, now) と同じ値）。 */
-  readonly live: readonly PendingOrder[];
+  readonly live: readonly OrderItem[];
   /** 走行中の仲間 M（釜 0・600 秒に上がる）。 */
   readonly running: readonly Timer[];
   /** 前回の提案：A 今の 1 秒前（釜 5）・B 今（釜 2・3）・C 45 秒後（釜 4）。 */
@@ -67,7 +67,7 @@ export interface MixedScene {
 
 /** 混在の場面を `now` から組む。 */
 export function mixedScene(now: EpochMillis): MixedScene {
-  const item = (externalOrderId: string, arrivalTime: number, slotSpan = 1): PendingOrder => ({
+  const item = (externalOrderId: string, arrivalTime: number, slotSpan = 1): OrderItem => ({
     externalOrderId,
     itemIndex: 0,
     noodleType: "Long",
@@ -77,6 +77,8 @@ export function mixedScene(now: EpochMillis): MixedScene {
     slotSpan,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   });
   const at = (seconds: number) => (now + seconds * SECOND) as EpochMillis;
   const expired = item("A", now - ORDER_LIFETIME_MS);
@@ -95,11 +97,11 @@ export function mixedScene(now: EpochMillis): MixedScene {
     }),
   ];
   const shownItem = (
-    order: PendingOrder,
+    order: OrderItem,
     slots: readonly string[],
     startSeconds: number,
     anchorSeconds: number | null,
-    mates: readonly PendingOrder[],
+    mates: readonly OrderItem[],
   ) => ({
     externalOrderId: order.externalOrderId,
     itemIndex: order.itemIndex,
@@ -114,7 +116,7 @@ export function mixedScene(now: EpochMillis): MixedScene {
     shownItem(next, ["2", "3"], 0, 600, [mate]),
     shownItem(mate, ["4"], 45, 600, [next]),
   ];
-  const placement = (order: PendingOrder, slots: readonly string[], startSeconds: number) => ({
+  const placement = (order: OrderItem, slots: readonly string[], startSeconds: number) => ({
     externalOrderId: order.externalOrderId,
     itemIndex: order.itemIndex,
     slotIds: nonEmpty(slots.map((slot) => slot as SlotId)),
@@ -164,7 +166,7 @@ export function mixedScene(now: EpochMillis): MixedScene {
 export function changeCostOf(
   schedule: CookSchedule,
   scene: MixedScene,
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
 ): number {
   return changeCost(
     { schedule, recommendations: recommend(schedule) },

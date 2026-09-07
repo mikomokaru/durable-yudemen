@@ -13,7 +13,7 @@ import { decide } from "../../src/engine/decide";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
 import type { Firmness } from "../../src/domain/firmness";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
 import { settleParams } from "../settleParams";
@@ -26,7 +26,7 @@ const NOODLES = DEFAULT_NOODLE_PRESETS.map((preset) => preset.noodleType);
 const genFirmness: fc.Arbitrary<Firmness> = fc.constantFrom(...FIRMNESS_ORDER);
 
 /** 待ち行列の 1 品目。麺種と茹で加減を振り、Timer へ写る値の出所を問えるようにする。 */
-const genOrder: fc.Arbitrary<PendingOrder> = fc
+const genOrder: fc.Arbitrary<OrderItem> = fc
   .tuple(
     fc.string({ minLength: 1, maxLength: 6 }),
     fc.nat({ max: 3 }),
@@ -43,15 +43,17 @@ const genOrder: fc.Arbitrary<PendingOrder> = fc
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   }));
 
 /** 当該品目を待ち行列に持つ状態。 */
-function stateWith(orders: readonly PendingOrder[]): TimerState {
+function stateWith(orders: readonly OrderItem[]): TimerState {
   return { ...EMPTY_STATE, pendingOrders: orders };
 }
 
 /** 品目を指す開始を 1 件流す。 */
-function start(state: TimerState, order: PendingOrder, slotIds: readonly string[] = ["0"]) {
+function start(state: TimerState, order: OrderItem, slotIds: readonly string[] = ["0"]) {
   return decide(
     state,
     {
@@ -95,7 +97,7 @@ describe("Feature: slot-suggested-start, Property 4: 品目からの開始は品
         // 硬さ別の秒数が全て同じプリセットでは対照にならない（既定のプリセットは 4 値が異なる）。
         fc.pre(new Set(Object.values(preset.boilSeconds)).size > 1);
         const durations = FIRMNESS_ORDER.map((firmness) => {
-          const order: PendingOrder = {
+          const order: OrderItem = {
             externalOrderId: "o-1",
             itemIndex: 0,
             noodleType,
@@ -105,6 +107,8 @@ describe("Feature: slot-suggested-start, Property 4: 品目からの開始は品
             slotSpan: 1,
             itemName: null,
             sizeName: null,
+            completedAt: null,
+            interruptedAt: null,
           };
           const outcome = start(stateWith([order]), order);
           if (!outcome.ok) throw new Error("受理されるはず");

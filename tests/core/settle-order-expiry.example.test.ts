@@ -12,13 +12,13 @@ import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Effect } from "../../src/engine/effect";
 import type { EpochMillis } from "../../src/engine/types";
 import type { ServerMessage } from "../../src/domain/messages";
-import { liveOrders, ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { liveOrders, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import { changeCostOf, EXPIRY_PARAMS, mixedScene, SECOND, startOffsets } from "./expiryScenes";
 
 const NOW = 1_700_000_000_000 as EpochMillis;
 const HOUR = 60 * 60 * 1000;
 
-function order(externalOrderId: string, arrivalTime: number): PendingOrder {
+function order(externalOrderId: string, arrivalTime: number): OrderItem {
   return {
     externalOrderId,
     itemIndex: 0,
@@ -29,6 +29,8 @@ function order(externalOrderId: string, arrivalTime: number): PendingOrder {
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
@@ -60,7 +62,7 @@ function requestOf(effects: readonly Effect[]) {
 }
 
 /** 待ち行列が `pending` になる確定変化（要求してよい遷移）。 */
-function arrive(prev: TimerState, pending: readonly PendingOrder[], now: EpochMillis) {
+function arrive(prev: TimerState, pending: readonly OrderItem[], now: EpochMillis) {
   const outcome = settle(prev, { ...prev, pendingOrders: pending }, EXPIRY_PARAMS, now, true);
   if (!outcome.ok) throw new Error("settle が拒否した");
   return outcome;

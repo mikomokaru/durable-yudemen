@@ -18,7 +18,7 @@
 
 import type { LiftItem } from "../../domain/lift-group";
 import type { CookRecommendation } from "../../domain/messages";
-import { compareArrival, itemKeyOf, liveOrders, type PendingOrder } from "../../domain/order";
+import { compareArrival, itemKeyOf, liveOrders, type OrderItem } from "../../domain/order";
 import type { NoodlePreset } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
 import type { ClientView } from "../connection";
@@ -111,7 +111,7 @@ export function suggestedItemOf(
  */
 export interface QueueEntry {
   /** 未着手オーダーの事実そのもの（サーバ由来の写し）。 */
-  readonly order: PendingOrder;
+  readonly order: OrderItem;
   /** 到着から現在までの経過（ミリ秒・導出値）。負にはしない。 */
   readonly waitingMs: number;
   /** 担当範囲内の提案。無ければ null。 */
@@ -160,7 +160,7 @@ export function orderQueueEntries(
  * レール・釜カードの提案・ラジアルの待ち行列は同じ品目を同じ語で呼ぶ必要があり、代替と正規化の規則を
  * 描画側へ散らせば三つの真実になる。語を組むのはここだけで、描画側は受け取った文字列を置くだけである。
  */
-export function displayName(order: PendingOrder): string {
+export function displayName(order: OrderItem): string {
   const name = (order.itemName ?? order.noodleType).normalize("NFKC");
   const size = order.sizeName?.normalize("NFKC");
   return size === undefined ? name : `${name} ${size}`;
@@ -175,15 +175,15 @@ export function displayName(order: PendingOrder): string {
  * `corrected` は境界で 1 回計算した補正済みの値を受け、ここでは補正しない。全件が期限内なら liveOrders は
  * 入力と同じ配列を返すので、参照同値で再描画を抑える経路もそのまま生きる。
  */
-function livePending(view: ClientView, corrected: number): readonly PendingOrder[] {
+function livePending(view: ClientView, corrected: number): readonly OrderItem[] {
   return liveOrders(view.pendingOrders, corrected);
 }
 
 /** 推奨が指す品目を待ち行列から引く（品目の鍵で 1 品目を指す・domain の itemKeyOf）。無ければ undefined。 */
 function pendingItemOf(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   recommendation: CookRecommendation,
-): PendingOrder | undefined {
+): OrderItem | undefined {
   const key = itemKeyOf(recommendation);
   return pending.find((candidate) => itemKeyOf(candidate) === key);
 }
@@ -196,7 +196,7 @@ function pendingItemOf(
  * 引き方で、startAt + 茹で秒 は両端で整数ミリ秒として一致する（lift-group-display 観測事実 9）。serveAt の
  * 等号はここでは組まない——組むのは suggestedItemOf だけである。
  */
-function boilSecondsOf(presets: readonly NoodlePreset[], order: PendingOrder): number | null {
+function boilSecondsOf(presets: readonly NoodlePreset[], order: OrderItem): number | null {
   const preset = presets.find((candidate) => candidate.noodleType === order.noodleType);
   if (preset === undefined) return null;
   return preset.boilSeconds[order.firmness];

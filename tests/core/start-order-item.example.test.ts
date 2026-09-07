@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_STATE } from "../../src/engine/state";
 import { decide } from "../../src/engine/decide";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { TimerState } from "../../src/engine/state";
 import { settleParams } from "../settleParams";
@@ -18,7 +18,7 @@ import { nonEmpty } from "../nonEmpty";
 const NOW = 1_700_000_000_000 as EpochMillis;
 const PARAMS = settleParams({ arms: 2, toleranceRatio: 10 });
 
-const ORDER: PendingOrder = {
+const ORDER: OrderItem = {
   externalOrderId: "o-1",
   itemIndex: 0,
   noodleType: DEFAULT_NOODLE_PRESETS[0].noodleType,
@@ -28,6 +28,8 @@ const ORDER: PendingOrder = {
   slotSpan: 1,
   itemName: "プレ塩",
   sizeName: "中盛",
+  completedAt: null,
+  interruptedAt: null,
 };
 
 function start(
@@ -66,7 +68,7 @@ describe("Feature: slot-suggested-start — 拒否は状態を変えない（要
   });
 
   it("品目の麺種がプリセットに無ければ既存の InvalidSlotOrNoodle で拒否する", () => {
-    const retired: PendingOrder = { ...ORDER, noodleType: "Retired" };
+    const retired: OrderItem = { ...ORDER, noodleType: "Retired" };
     const outcome = start({ ...EMPTY_STATE, pendingOrders: [retired] }, retired);
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
@@ -88,7 +90,7 @@ describe("Feature: slot-suggested-start — 検査しないもの（要件 3.7�
     const first = start({ ...EMPTY_STATE, pendingOrders: [ORDER] }, ORDER);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
-    const second: PendingOrder = { ...ORDER, externalOrderId: "o-2" };
+    const second: OrderItem = { ...ORDER, externalOrderId: "o-2" };
     const outcome = decide(
       { ...first.state, pendingOrders: [second] },
       {
@@ -105,7 +107,7 @@ describe("Feature: slot-suggested-start — 検査しないもの（要件 3.7�
   });
 
   it("押した釜数が slotSpan と違っても拒否しない（現場の判断に委ねる）", () => {
-    const wide: PendingOrder = { ...ORDER, slotSpan: 2 };
+    const wide: OrderItem = { ...ORDER, slotSpan: 2 };
     // slotSpan 2 の品目を 1 釜で開始する。
     expect(start({ ...EMPTY_STATE, pendingOrders: [wide] }, wide, ["0"]).ok).toBe(true);
     // 逆（slotSpan 1 を 2 釜で）も通る。
@@ -138,7 +140,7 @@ describe("Feature: slot-suggested-start — Effect 列は既存 start と同一�
 });
 
 describe("Feature: lift-group-planning — 走行中の Timer は由来する卓を持つ（要件 3.1 / 3.2 / 3.6）", () => {
-  it("品目からの開始は PendingOrder の卓を orderItem の内側へ写す", () => {
+  it("品目からの開始は OrderItem の卓を orderItem の内側へ写す", () => {
     const state: TimerState = { ...EMPTY_STATE, pendingOrders: [ORDER] };
     const outcome = start(state, ORDER);
     expect(outcome.ok).toBe(true);
@@ -181,7 +183,7 @@ describe("Feature: lift-group-planning — 走行中の Timer は由来する卓
 
 describe("Feature: pending-order-expiry — 期限切れの品目への開始は品目不在で拒否する（AC 2.5）", () => {
   /** 2 時間前に届いた品目。now がちょうど寿命なら期限切れ、1 ms 手前なら期限内。 */
-  const OLD: PendingOrder = {
+  const OLD: OrderItem = {
     ...ORDER,
     externalOrderId: "o-old",
     arrivalTime: NOW - ORDER_LIFETIME_MS,

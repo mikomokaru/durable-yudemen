@@ -15,7 +15,7 @@
 import type { ScheduleParams } from "../engine/objective";
 import type { ShownPlan } from "../engine/stability";
 import type { Timer } from "../engine/timer";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 
 /**
@@ -29,7 +29,7 @@ export interface PlanRequest {
   /** 要求元の店舗。復路 `deliverPlan` の宛先（`idFromName` の引数）はこれただ一つで決まる。 */
   readonly storeId: string;
   /** 計画の対象集合（計画対象＝待ち行列の先頭 PLAN_TARGET_LIMIT 件）。 */
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   /** 釜を占める Timer。slot 解放表の所与（送り手と同じ集合から表を組むことが feasibility の噛み合いの根拠）。 */
   readonly running: readonly Timer[];
   /** 重み 3・arms・許容調整割合・許容幅 2・距離 1・上げの間隔（`liftIntervalSeconds`）・レイアウト 2 の 11 値（`RequestPlan` と同じ）。 */

@@ -9,7 +9,7 @@ import { digestInput } from "../../src/engine/digest";
 import { PLAN_TARGET_LIMIT } from "../../src/engine/schedule";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import {
   DEFAULT_NOODLE_PRESETS,
@@ -51,7 +51,7 @@ function slots(...slotIds: readonly string[]): NonEmptyArray<SlotId> {
 }
 
 /** 品目 1 件。arrivalTime は index から決定的に振る（正準順序が並びを一意にする）。 */
-function order(externalOrderId: string, itemIndex: number, arrivalTime: number): PendingOrder {
+function order(externalOrderId: string, itemIndex: number, arrivalTime: number): OrderItem {
   return {
     externalOrderId,
     itemIndex,
@@ -62,10 +62,12 @@ function order(externalOrderId: string, itemIndex: number, arrivalTime: number):
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
-const PENDING: readonly PendingOrder[] = [
+const PENDING: readonly OrderItem[] = [
   order("o-1", 0, NOW - 300_000),
   order("o-1", 1, NOW - 300_000),
   order("o-2", 0, NOW - 100_000),

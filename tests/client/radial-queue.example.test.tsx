@@ -25,7 +25,7 @@ import {
   type ClientView,
   type TimerConnection,
 } from "../../src/client/connection";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import { defaultUnitOrigins, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
@@ -44,7 +44,7 @@ const PRESETS: NonEmptyArray<NoodlePreset> = [
   { noodleType: "Short", boilSeconds: { extraHard: 330, hard: 330, normal: 330, soft: 330 } },
 ];
 
-function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): PendingOrder {
+function order(overrides: Partial<OrderItem> & { externalOrderId: string }): OrderItem {
   return {
     itemIndex: 0,
     noodleType: "Long",
@@ -54,6 +54,8 @@ function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): 
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
@@ -77,6 +79,8 @@ const B = order({
   slotSpan: 2,
   itemName: "Salt",
   sizeName: "L",
+  completedAt: null,
+  interruptedAt: null,
   arrivalTime: T0 - 90 * SECOND,
 });
 /** 1 釜の品目。2 番目に到着。商品名が無いので麺種の名で呼ばれる。 */

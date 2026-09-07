@@ -16,7 +16,7 @@
 // 劣る計画が上書きできてしまう（AC 6.2(d) が Committed_Plan 基準を要求する理由そのもの）。
 
 import { SLOTS_PER_UNIT, type NoodlePreset } from "../domain/store";
-import { liveOrders, type PendingOrder } from "../domain/order";
+import { liveOrders, type OrderItem } from "../domain/order";
 import { committedSchedule } from "./commit";
 import { advanceLifts, initialLifts, liftsOf, withinLiftCap } from "./lift";
 import { scoreSchedule, type ScheduleParams, type ScoreContext } from "./objective";
@@ -69,7 +69,7 @@ import type { EpochMillis } from "./types";
 export function admit(
   arrived: CookSchedule,
   committed: CookSchedule,
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
   shown: ShownPlan,
   now: EpochMillis,
@@ -126,7 +126,7 @@ function prune(
   arrived: CookSchedule,
   committed: CookSchedule,
   committedBySlice: readonly number[],
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
   now: EpochMillis,
   scoreContext: ScoreContext,

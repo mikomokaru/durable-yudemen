@@ -174,7 +174,14 @@ describe("migrate — v7 → v8", () => {
     // v7 の待ち行列は slotSpan / itemName / sizeName を持たない。欠如は 1 スロット占有と「名前なし」として
     // 読み戻る（当時の実際の挙動に一致する——v7 に商品名の概念が無かったことと、名前が無い状態は同じである）。
     expect(result.snapshot.pendingOrders).toEqual([
-      { ...v7Raw.pendingOrders[0], slotSpan: 1, itemName: null, sizeName: null },
+      {
+        ...v7Raw.pendingOrders[0],
+        slotSpan: 1,
+        itemName: null,
+        sizeName: null,
+        completedAt: null,
+        interruptedAt: null,
+      },
     ]);
     // v10 で一片は点数を持たない。v7 の score（140）は余剰として捨てられ、鍵と配置は写しである。
     // v11 で配置は合流の所属（anchor）を持つ。v7 の配置は持たないので null で埋まる。
@@ -253,6 +260,8 @@ describe("migrate — v8 の往復", () => {
     slotSpan: 2,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   } as const;
 
   it("v8 で書いた slotSpan と判定材料を読み戻す", () => {

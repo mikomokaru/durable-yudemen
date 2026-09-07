@@ -12,7 +12,7 @@
 
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../domain/lift-group";
 import type { CookRecommendation } from "../domain/messages";
-import { itemKeyOf, type ItemKey, type PendingOrder } from "../domain/order";
+import { itemKeyOf, type ItemKey, type OrderItem } from "../domain/order";
 import { slotOf, type NoodlePreset } from "../domain/store";
 import type { NonEmptyArray } from "../domain/timer";
 import { boilMillisOf, joinWindowMillis } from "./boil";
@@ -37,7 +37,7 @@ import type { EpochMillis, SlotId } from "./types";
  * 同じ now・同じ Timer 集合で導く（判断 8）。ここに残すのは配置という履歴であり、いま守る対象はそこから導く。
  */
 export interface ShownItem {
-  /** POS 側の識別子。itemIndex との組で 1 品目を指す（Placement / PendingOrder と同じ鍵）。 */
+  /** POS 側の識別子。itemIndex との組で 1 品目を指す（Placement / OrderItem と同じ鍵）。 */
   readonly externalOrderId: string;
   /** 同一オーダー内の品目連番。 */
   readonly itemIndex: number;
@@ -123,7 +123,7 @@ export interface ChangeContext {
   /** 比較の時点。 */
   readonly now: EpochMillis;
   /** 品目の到着時刻（同値の順）と麺種・茹で加減（茹で秒）を引く。 */
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   /** 茹で秒の出所。 */
   readonly presets: readonly NoodlePreset[];
 }
@@ -315,7 +315,7 @@ function costBetween(
 function completeWithShown(
   partial: CookSchedule,
   shown: ShownPlan,
-  pendingByKey: ReadonlyMap<ItemKey, PendingOrder>,
+  pendingByKey: ReadonlyMap<ItemKey, OrderItem>,
 ): CookSchedule {
   const placedKeys = new Set(
     partial.slices.flatMap((slice) => slice.placements.map((placement) => itemKeyOf(placement))),
@@ -365,7 +365,7 @@ function completeWithShown(
  */
 function shownItemsOf(
   shown: ShownPlan,
-  pendingByKey: ReadonlyMap<ItemKey, PendingOrder>,
+  pendingByKey: ReadonlyMap<ItemKey, OrderItem>,
   presets: readonly NoodlePreset[],
 ): readonly LiftItem[] {
   const groupByKey = shownGroupsOf(shown);
@@ -438,7 +438,7 @@ function nextItemsOf(
     readonly schedule: CookSchedule;
     readonly recommendations: readonly CookRecommendation[];
   },
-  pendingByKey: ReadonlyMap<ItemKey, PendingOrder>,
+  pendingByKey: ReadonlyMap<ItemKey, OrderItem>,
   presets: readonly NoodlePreset[],
 ): readonly LiftItem[] {
   const recommendationByKey = new Map(

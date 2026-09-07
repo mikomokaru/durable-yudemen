@@ -49,7 +49,7 @@ import {
 import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
@@ -82,7 +82,7 @@ interface CommitScene {
   /** 採用済み計画（計画順）。別パラメータの自前解を外部計画に見立てたもの。 */
   readonly accepted: readonly AcceptedSlice[];
   /** 現在の待ち行列（採用時から 1 箇所だけ変えてある）。 */
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   readonly running: readonly Timer[];
   readonly now: EpochMillis;
   readonly slotCount: number;
@@ -165,11 +165,11 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
  *   （tableId を持たない品目）には足せないので、そのときは除去へ倒す。
  */
 function stale(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   slice: AcceptedSlice,
   mutation: "consume" | "arrive",
-  newcomer: { readonly noodleType: string; readonly firmness: PendingOrder["firmness"] },
-): readonly PendingOrder[] {
+  newcomer: { readonly noodleType: string; readonly firmness: OrderItem["firmness"] },
+): readonly OrderItem[] {
   const tableId = slice.tableKey.startsWith("\u0000") ? null : slice.tableKey;
   if (mutation === "consume" || tableId === null) {
     const victim = slice.placements[0]!;
@@ -190,6 +190,8 @@ function stale(
       slotSpan: 1,
       itemName: null,
       sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
     },
   ];
 }

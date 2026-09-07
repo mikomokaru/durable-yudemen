@@ -31,7 +31,7 @@ import { digestInput, type InputDigest } from "./digest";
 import type { ScheduleParams } from "./objective";
 import { planTargets, type AcceptedSlice, type CookSchedule, type Placement } from "./schedule";
 import { shownPlanOf } from "./stability";
-import { liveOrders, type PendingOrder } from "../domain/order";
+import { liveOrders, type OrderItem } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 import type { CookRecommendation, ServerMessage } from "../domain/messages";
 
@@ -153,7 +153,7 @@ function requestPlan(
   state: TimerState,
   params: SettleParams,
   digest: InputDigest,
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
 ): Effect {
   return {
     type: "RequestPlan",

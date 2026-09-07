@@ -41,7 +41,7 @@ import {
   type SlotSuggestion,
 } from "../../src/client/components/liftGroups";
 import type { ServerMessage } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { FirmnessSeconds, NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { configResidualDefaults } from "../storeConfigDefaults";
@@ -120,8 +120,8 @@ function advance(state: TimerState, events: readonly Event[]): TimerState {
 
 function order(
   externalOrderId: string,
-  overrides: Partial<PendingOrder> & { readonly noodleType: string; readonly tableId: string },
-): PendingOrder {
+  overrides: Partial<OrderItem> & { readonly noodleType: string; readonly tableId: string },
+): OrderItem {
   return {
     externalOrderId,
     itemIndex: 0,
@@ -130,6 +130,8 @@ function order(
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
@@ -139,12 +141,12 @@ function nameOf(item: { readonly externalOrderId: string; readonly itemIndex: nu
   return `${item.externalOrderId}#${item.itemIndex}`;
 }
 
-function arrive(orders: readonly PendingOrder[], now: EpochMillis): Event {
+function arrive(orders: readonly OrderItem[], now: EpochMillis): Event {
   return { type: "OrderArrived", arrival: nonEmpty(orders), now };
 }
 
 /** 品目を指す開始。釜は現場が押した釜——推奨と一致しなくても engine は通す（観測事実 12）。 */
-function startItem(item: PendingOrder, slots: readonly number[], now: EpochMillis): Event {
+function startItem(item: OrderItem, slots: readonly number[], now: EpochMillis): Event {
   return {
     type: "StartOrderItem",
     slotIds: slots.map(String),
@@ -171,7 +173,7 @@ function fire(now: EpochMillis): Event {
   return { type: "AlarmFired", now };
 }
 
-function complete(item: PendingOrder, now: EpochMillis): Event {
+function complete(item: OrderItem, now: EpochMillis): Event {
   return { type: "Complete", timerId: `timer-${nameOf(item)}`, now };
 }
 

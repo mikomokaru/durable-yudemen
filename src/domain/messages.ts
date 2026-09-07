@@ -9,7 +9,7 @@
 
 import type { TimerFact, NonEmptyArray } from "./timer";
 import type { StoreConfig } from "./store";
-import type { PendingOrder } from "./order";
+import type { OrderItem } from "./order";
 import type { Firmness } from "./firmness";
 
 /**
@@ -93,7 +93,7 @@ export type ServerMessage =
       readonly serverTime: number;
       readonly timers: readonly TimerFact[];
       /** 未着手オーダーの全量（計画対象の 64 件を超える分も含む・要件2.3 / 2.4）。 */
-      readonly pendingOrders: readonly PendingOrder[];
+      readonly pendingOrders: readonly OrderItem[];
       /** Committed_Plan からの導出値。永続しない（要件8.1 / 8.5）。 */
       readonly recommendations: readonly CookRecommendation[];
     }

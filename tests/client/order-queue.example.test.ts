@@ -11,7 +11,7 @@ import { decideView, EMPTY_VIEW, type ClientView } from "../../src/client/connec
 import { orderQueueEntries, suggestedItemOf } from "../../src/client/components/queueDisplay";
 import { liftGroups, slotSuggestions, visibleGroups } from "../../src/client/components/liftGroups";
 import { correctedNow } from "../../src/client/clock";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { CookRecommendation } from "../../src/domain/messages";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
@@ -19,7 +19,7 @@ import type { NonEmptyArray } from "../../src/domain/timer";
 const T = 1_700_000_000_000;
 
 /** 品目の鍵（`id#itemIndex`・比較用の読める形）。 */
-function keyOf(order: PendingOrder): string {
+function keyOf(order: OrderItem): string {
   return `${order.externalOrderId}#${order.itemIndex}`;
 }
 
@@ -28,8 +28,8 @@ function order(
   externalOrderId: string,
   itemIndex: number,
   arrivalTime: number,
-  overrides: Partial<PendingOrder> = {},
-): PendingOrder {
+  overrides: Partial<OrderItem> = {},
+): OrderItem {
   return {
     externalOrderId,
     itemIndex,
@@ -40,6 +40,8 @@ function order(
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
@@ -56,7 +58,7 @@ function recommendation(
 
 /** synced 済みのビュー（待ち行列と推奨だけを差し替える）。 */
 function viewWith(
-  pendingOrders: readonly PendingOrder[],
+  pendingOrders: readonly OrderItem[],
   recommendations: readonly CookRecommendation[],
 ): ClientView {
   return {

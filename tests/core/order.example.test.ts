@@ -1,4 +1,4 @@
-// domain/order の toPendingOrders が「到着の内容が不正なら全体を拒否する」ことを固定する（要件1.4）。
+// domain/order の toOrderItems が「到着の内容が不正なら全体を拒否する」ことを固定する（要件1.4）。
 //
 // 部分受理は現場が欠品に気づけない嘘になるため、1 品目でも不正なら null へ落ちる。逆に妥当な到着は
 // 余剰フィールドを落とし、卓なし（tableId 欠落）を単独グループ（null）へ正規化して通る。
@@ -6,7 +6,7 @@
 // 受理拒否（400）への写しは shell の受け口の関心事ゆえ、ここでは null か否かだけを見る。
 
 import { describe, it, expect } from "vitest";
-import { toPendingOrders } from "../../src/domain/order";
+import { toOrderItems } from "../../src/domain/order";
 import { DEFAULT_NOODLE_PRESETS, SLOT_SPAN_MAX, SLOT_SPAN_MIN } from "../../src/domain/store";
 
 const presets = DEFAULT_NOODLE_PRESETS;
@@ -23,11 +23,13 @@ const validItem = {
   slotSpan: 2,
   itemName: null,
   sizeName: null,
+  completedAt: null,
+  interruptedAt: null,
 } as const;
 
-describe("toPendingOrders — 正常値の正規化", () => {
-  it("妥当な到着を PendingOrder 列へ写し、受理時刻を arrivalTime に据える", () => {
-    expect(toPendingOrders([validItem], presets, arrivalTime)).toEqual([
+describe("toOrderItems — 正常値の正規化", () => {
+  it("妥当な到着を OrderItem 列へ写し、受理時刻を arrivalTime に据える", () => {
+    expect(toOrderItems([validItem], presets, arrivalTime)).toEqual([
       {
         externalOrderId: "order-7",
         itemIndex: 0,
@@ -38,6 +40,8 @@ describe("toPendingOrders — 正常値の正規化", () => {
         slotSpan: 2,
         itemName: null,
         sizeName: null,
+        completedAt: null,
+        interruptedAt: null,
       },
     ]);
   });
@@ -46,13 +50,13 @@ describe("toPendingOrders — 正常値の正規化", () => {
     const withoutSpan: Record<string, unknown> = { ...validItem };
     delete withoutSpan.slotSpan;
 
-    expect(toPendingOrders([withoutSpan], presets, arrivalTime)?.[0]?.slotSpan).toBe(1);
+    expect(toOrderItems([withoutSpan], presets, arrivalTime)?.[0]?.slotSpan).toBe(1);
   });
 
   it("slotSpan の値域の境界（SLOT_SPAN_MIN・SLOT_SPAN_MAX）を通す", () => {
     const bounds = [SLOT_SPAN_MIN, SLOT_SPAN_MAX];
 
-    const orders = toPendingOrders(
+    const orders = toOrderItems(
       bounds.map((slotSpan, itemIndex) => ({ ...validItem, itemIndex, slotSpan })),
       presets,
       arrivalTime,
@@ -65,7 +69,7 @@ describe("toPendingOrders — 正常値の正規化", () => {
     const withoutTable = { ...validItem, tableId: undefined };
     const explicitNull = { ...validItem, itemIndex: 1, tableId: null };
 
-    const orders = toPendingOrders([withoutTable, explicitNull], presets, arrivalTime);
+    const orders = toOrderItems([withoutTable, explicitNull], presets, arrivalTime);
 
     expect(orders?.map((order) => order.tableId)).toEqual([null, null]);
   });
@@ -73,17 +77,17 @@ describe("toPendingOrders — 正常値の正規化", () => {
   it("余剰フィールドと生値の arrivalTime 主張を落とす（起点は受け手側の事実）", () => {
     const noisy = { ...validItem, boilSeconds: 999, arrivalTime: 1, note: "extra" };
 
-    const orders = toPendingOrders([noisy], presets, arrivalTime);
+    const orders = toOrderItems([noisy], presets, arrivalTime);
 
     expect(orders?.[0]).toEqual({ ...validItem, arrivalTime });
   });
 });
 
-describe("toPendingOrders — 不正な到着は全体を拒否する", () => {
+describe("toOrderItems — 不正な到着は全体を拒否する", () => {
   it("配列でない生値・空配列を拒否する", () => {
-    expect(toPendingOrders(validItem, presets, arrivalTime)).toBeNull();
-    expect(toPendingOrders(null, presets, arrivalTime)).toBeNull();
-    expect(toPendingOrders([], presets, arrivalTime)).toBeNull();
+    expect(toOrderItems(validItem, presets, arrivalTime)).toBeNull();
+    expect(toOrderItems(null, presets, arrivalTime)).toBeNull();
+    expect(toOrderItems([], presets, arrivalTime)).toBeNull();
   });
 
   it("必須属性の欠落を拒否する", () => {
@@ -91,15 +95,13 @@ describe("toPendingOrders — 不正な到着は全体を拒否する", () => {
       const item: Record<string, unknown> = { ...validItem };
       delete item[missing];
 
-      expect(toPendingOrders([item], presets, arrivalTime), `${missing} の欠落が通った`).toBeNull();
+      expect(toOrderItems([item], presets, arrivalTime), `${missing} の欠落が通った`).toBeNull();
     }
   });
 
   it("未知の品目種別を拒否する", () => {
-    expect(
-      toPendingOrders([{ ...validItem, noodleType: "Udon" }], presets, arrivalTime),
-    ).toBeNull();
-    expect(toPendingOrders([{ ...validItem, noodleType: "" }], presets, arrivalTime)).toBeNull();
+    expect(toOrderItems([{ ...validItem, noodleType: "Udon" }], presets, arrivalTime)).toBeNull();
+    expect(toOrderItems([{ ...validItem, noodleType: "" }], presets, arrivalTime)).toBeNull();
   });
 
   it("型違反を拒否する", () => {
@@ -126,7 +128,7 @@ describe("toPendingOrders — 不正な到着は全体を拒否する", () => {
 
     for (const item of violations) {
       expect(
-        toPendingOrders([item], presets, arrivalTime),
+        toOrderItems([item], presets, arrivalTime),
         `${JSON.stringify(item)} が通った`,
       ).toBeNull();
     }
@@ -135,6 +137,6 @@ describe("toPendingOrders — 不正な到着は全体を拒否する", () => {
   it("妥当な品目に 1 件の不正が混ざれば到着全体を拒否する（部分受理をしない）", () => {
     const arrival = [validItem, { ...validItem, itemIndex: 1, firmness: "veryHard" }];
 
-    expect(toPendingOrders(arrival, presets, arrivalTime)).toBeNull();
+    expect(toOrderItems(arrival, presets, arrivalTime)).toBeNull();
   });
 });

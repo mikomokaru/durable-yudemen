@@ -136,6 +136,8 @@ describe("Feature: slot-suggested-start, Property 7: 商品名の往復", () => 
           slotSpan: 1,
           itemName: "",
           sizeName: null,
+          completedAt: null,
+          interruptedAt: null,
         },
       ],
     };

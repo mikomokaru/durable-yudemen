@@ -4,9 +4,11 @@
 
 - [x] 0. naming ゲート（requirements の表 12 件 ＋ design の内部名）をユーザーが承認する（2026-09-07 承認）
 
-- [ ] 1. domain：`OrderItem` と導出
-  - [ ] 1.1 `PendingOrder` → `OrderItem`（`completedAt` / `interruptedAt` を足す）、`refersTo` / `isLive`、`itemStatusOf` / `pendingOrders` / `orderItemsToBroadcast` / `orderItemOf`（`liveOrders` は `pendingOrders` の内側へ）。型の改名は src / tests 全体（機械的）
-  - [ ] 1.2 `tests/domain/order.example` / `order.property`：性質 7.1（排他・boiled は cooking）・7.3′（中断は状態に効かない）・`pendingOrders` と `orderItemsToBroadcast` の境界（1 時間 59 分開始・2 時間 1 分）・`orderItemOf` の null
+- [x] 1. domain：`OrderItem` と導出
+  - [x] 1.1 `PendingOrder` → `OrderItem`（`completedAt` / `interruptedAt` を足す）、`refersTo` / `isLive`、`itemStatusOf` / `pendingOrders` / `orderItemsToBroadcast` / `orderItemOf`（`liveOrders` は `pendingOrders` の内側へ）。型の改名は src / tests 全体（機械的）
+    - 実測（2026-09-07）：`src/domain/order.ts` に `ItemStatus` / `isLive` / `refersTo` / `itemStatusOf` / `pendingOrders` / `orderItemsToBroadcast` / `orderItemOf` を足し、`toPendingOrders` → `toOrderItems`（内部の 1 件は `toArrivedItem`・厨房の事実は null で生まれる）。型名の改名は src / tests の 76 ファイル（機械的・`PendingOrder` の残りは doc の「旧 PendingOrder」1 箇所）。wire の `toOrderItemFromWire` は `completedAt` / `interruptedAt` を null か非負整数で受け、欠如は落とす（design Component 3 の decode をここで先に満たした。snapshot のフィールド名の改名と `TimerFact.orderItem` は task 2 / 3）。移行（`migrate.ts`）は v12 以前の品目を null で埋める形に留め、v13 の検証は task 2。`pnpm typecheck` 0 error（tests 含む）・`pnpm lint` 0 error・`pnpm test` 250 files / 1795 tests 全通過・`pnpm fmt:check` 通過
+  - [x] 1.2 `tests/domain/order.example` / `order.property`：性質 7.1（排他・boiled は cooking）・7.3′（中断は状態に効かない）・`pendingOrders` と `orderItemsToBroadcast` の境界（1 時間 59 分開始・2 時間 1 分）・`orderItemOf` の null
+    - 実測（2026-09-07）：example 14 件（排他・boiled → cooking・Timer が completedAt に優先・片方一致とアドホックは効かない・7.3′・`pendingOrders` の並びと同じ参照と冪等・1 時間 59 分開始 / 2 時間 1 分 snapshot で配信に載り計画に載らない・Complete 後と未調理期限切れは消える・`orderItemOf` の null 3 経路と engine Timer からの解決）、property 4 件（7.1 の排他・7.3′・`pendingOrders` = live ∩ unstarted ⊆ broadcast ∧ 参照先は必ず配信・同じ参照と冪等・各 300 runs）。`tests/domain` 8 files / 100 tests 通過、`order.example` + `order.property` の 3 回再実行はいずれも 37 / 37
   - _Requirements: 1.2, 1.7, 3.1, 3.2, 7.1, 7.3′_
 
 - [ ] 2. engine：状態・遷移・後着・永続

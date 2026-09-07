@@ -5,7 +5,7 @@ import type { Timer } from "./timer";
 import type { AcceptedSlice } from "./schedule";
 import type { InputDigest } from "./digest";
 import { EMPTY_SHOWN_PLAN, type ShownPlan } from "./stability";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 
 /**
  * TimerState — core の状態。
@@ -32,7 +32,7 @@ export interface TimerState {
   /** 次に割り当てる登録順（seq）。 */
   readonly nextSeq: number;
   /** 未着手オーダーの品目集合。POS の状態ではなくここが正本（AC 2.1）。 */
-  readonly pendingOrders: readonly PendingOrder[];
+  readonly pendingOrders: readonly OrderItem[];
   /** Acceptance_Gate が採用した外部計画の一片。再計算では復元できない事実ゆえ状態に属する（AC 7.1）。 */
   readonly acceptedSlices: readonly AcceptedSlice[];
   /** 直前に外部計画を要求した時点の入力の指紋。null は「まだ一度も要求していない」。 */

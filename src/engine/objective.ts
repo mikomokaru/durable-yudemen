@@ -11,7 +11,7 @@
 // SyncParams を持つのと同じ置き方）。
 
 import { position, slotDistance, slotOf, type SlotOffsets, type UnitOrigin } from "../domain/store";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { advanceLifts, liftOverflow, liftsOf, type LiftTable } from "./lift";
 import type { TableMembers } from "./project";
@@ -157,7 +157,7 @@ const MILLIS_PER_SECOND = 1000;
  */
 export function scoreSchedule(
   slices: readonly PlanSlice[],
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   scoreContext: ScoreContext,
   params: ScheduleParams,
 ): ScheduleScore {

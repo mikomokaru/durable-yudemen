@@ -20,7 +20,7 @@ import {
   type LiftGroupOf,
 } from "../../domain/lift-group";
 import { itemKeyOf } from "../../domain/order";
-import type { PendingOrder } from "../../domain/order";
+import type { OrderItem } from "../../domain/order";
 import { SLOTS_PER_UNIT, occupiedSlotsOf, slotDistance, slotOf } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
 import { mode, type ClientView } from "../connection";
@@ -34,7 +34,7 @@ import { suggestedItemOf, type QueueSuggestion, type SuggestedItem } from "./que
  * （AC 3.1）。群の品目（SuggestedItem）はこの形を満たす——domain の LiftItem に提案を重ねたものである。
  */
 export interface GroupItem {
-  readonly order: PendingOrder;
+  readonly order: OrderItem;
   readonly suggestion: QueueSuggestion;
 }
 

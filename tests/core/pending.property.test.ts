@@ -12,7 +12,7 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { upsertOrder } from "../../src/engine/pending";
 import { createTimer, type Timer } from "../../src/engine/timer";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
@@ -41,7 +41,7 @@ interface OrderSpec {
 /** 素データから組み立てた場面。pending と running は同じ札から出るので互いに矛盾しない。 */
 interface Scene {
   readonly orders: readonly OrderSpec[];
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   readonly running: readonly Timer[];
 }
 
@@ -72,12 +72,12 @@ const genScene: fc.Arbitrary<Scene> = fc
 
 /** 素データから pending / running を組み立てる。札が唯一の出所（同じ品目が両方に現れない）。 */
 function buildScene(orders: readonly OrderSpec[]): Scene {
-  const pending: PendingOrder[] = [];
+  const pending: OrderItem[] = [];
   const running: Timer[] = [];
   for (const order of orders) {
     order.items.forEach((item, itemIndex) => {
       if (item.status === "pending")
-        pending.push(toPendingOrder(order, item, itemIndex, order.arrivalTime));
+        pending.push(toArrivedItem(order, item, itemIndex, order.arrivalTime));
       if (item.status === "started") {
         running.push(timerFor(order.externalOrderId, itemIndex, running.length));
       }
@@ -89,12 +89,12 @@ function buildScene(orders: readonly OrderSpec[]): Scene {
   return { orders, pending, running };
 }
 
-function toPendingOrder(
+function toArrivedItem(
   order: OrderSpec,
   item: ItemSpec,
   itemIndex: number,
   arrivalTime: number,
-): PendingOrder {
+): OrderItem {
   return {
     externalOrderId: order.externalOrderId,
     itemIndex,
@@ -105,6 +105,8 @@ function toPendingOrder(
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
@@ -136,13 +138,10 @@ function adHocTimer(seq: number): Timer {
 }
 
 /** 到着の品目群（itemIndex は位置から振る。arrivalTime は受理時刻 NOW）。 */
-function arrivalOf(
-  externalOrderId: string,
-  items: readonly ItemSpec[],
-): NonEmptyArray<PendingOrder> {
+function arrivalOf(externalOrderId: string, items: readonly ItemSpec[]): NonEmptyArray<OrderItem> {
   return nonEmpty(
     items.map((item, itemIndex) =>
-      toPendingOrder({ externalOrderId, arrivalTime: NOW, items }, item, itemIndex, NOW),
+      toArrivedItem({ externalOrderId, arrivalTime: NOW, items }, item, itemIndex, NOW),
     ),
   );
 }
@@ -153,7 +152,7 @@ function arrivalOf(
  *   - 内容・件数が変わった再送（modification の正規化）
  *   - 未知の注文の初回到着
  */
-function genArrivalFor(scene: Scene): fc.Arbitrary<NonEmptyArray<PendingOrder>> {
+function genArrivalFor(scene: Scene): fc.Arbitrary<NonEmptyArray<OrderItem>> {
   const changed = fc
     .tuple(
       fc.constantFrom("o-1", "o-2", "o-3", "o-new"),
@@ -175,7 +174,7 @@ const keyOf = (externalOrderId: string, itemIndex: number): string =>
   `${externalOrderId}#${itemIndex}`;
 
 /** 当該注文が集合に持つ最早の arrivalTime。無ければ null。 */
-function originOf(pending: readonly PendingOrder[], externalOrderId: string): number | null {
+function originOf(pending: readonly OrderItem[], externalOrderId: string): number | null {
   const times = pending
     .filter((o) => o.externalOrderId === externalOrderId)
     .map((o) => o.arrivalTime);
@@ -266,7 +265,7 @@ describe("engine/pending — 到着の upsert", () => {
  */
 const genRevivalScene: fc.Arbitrary<{
   scene: Scene;
-  arrival: NonEmptyArray<PendingOrder>;
+  arrival: NonEmptyArray<OrderItem>;
   startedKeys: ReadonlySet<string>;
 }> = fc
   .record({

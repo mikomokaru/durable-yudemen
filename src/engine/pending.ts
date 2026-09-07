@@ -10,14 +10,14 @@
 // 同一性判定が空振りの Persist / Broadcast を落とす前段として、ここで no-op を構造的に見えるように
 // しておく（呼び出し側が差分を再計算しなくても === で分かる）。
 
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { Timer } from "./timer";
 
 /**
  * 到着の upsert（AC 1.2 / 1.3 / 1.8）。
  *
- * arrival は Order_Ingress が受理した到着そのまま——`toPendingOrders` の出力（`NonEmptyArray<PendingOrder>`）を
+ * arrival は Order_Ingress が受理した到着そのまま——`toOrderItems` の出力（`NonEmptyArray<OrderItem>`）を
  * 形を変えずに受ける。到着を包む別型を立てない：品目は既に externalOrderId と受理時刻を持っており、
  * 包み直しても検査は一切増えず、境界で角度を変える手続きだけが増える。空の到着は型で排除する
  * （「品目のない到着」は注文の消滅を意味するが、それを表明する経路は removeOrder ただ一つである）。
@@ -48,13 +48,13 @@ import type { Timer } from "./timer";
  * 時刻が起点になる。
  */
 export function upsertOrder(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
-  arrival: NonEmptyArray<PendingOrder>,
-): readonly PendingOrder[] {
+  arrival: NonEmptyArray<OrderItem>,
+): readonly OrderItem[] {
   const replacements = replacementsOf(pending, running, arrival);
   const placed = new Set<string>();
-  const next: PendingOrder[] = [];
+  const next: OrderItem[] = [];
 
   for (const order of pending) {
     const group = replacements.get(order.externalOrderId);
@@ -85,9 +85,9 @@ export function upsertOrder(
  * 現場の判断に委ねる。
  */
 export function removeOrder(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   externalOrderId: string,
-): readonly PendingOrder[] {
+): readonly OrderItem[] {
   const next = pending.filter((order) => order.externalOrderId !== externalOrderId);
   return next.length === pending.length ? pending : next;
 }
@@ -99,10 +99,10 @@ export function removeOrder(
  * 拒否しない（AC 8.3）ので、この関数は推奨を一切参照しない。
  */
 export function consumeOrder(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   externalOrderId: string,
   itemIndex: number,
-): readonly PendingOrder[] {
+): readonly OrderItem[] {
   const next = pending.filter(
     (order) => order.externalOrderId !== externalOrderId || order.itemIndex !== itemIndex,
   );
@@ -113,16 +113,16 @@ export function consumeOrder(
  * 到着を「externalOrderId → 置換後の品目群」へ畳む。挿入順は到着に現れた順（Map が保つ）。
  *
  * ここで 3 つを同時に済ませる：起点の引き継ぎ・開始済み品目の除外・同一 (externalOrderId, itemIndex) の
- * 重複の排除。重複の排除がここに居るのは、toPendingOrders が「集合としての一意性は upsertOrder の
+ * 重複の排除。重複の排除がここに居るのは、toOrderItems が「集合としての一意性は upsertOrder の
  * 関心事」として残した一点だからである（品目単位の妥当性と集合の一意性は別の問い）。
  */
 function replacementsOf(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
-  arrival: NonEmptyArray<PendingOrder>,
-): ReadonlyMap<string, readonly PendingOrder[]> {
+  arrival: NonEmptyArray<OrderItem>,
+): ReadonlyMap<string, readonly OrderItem[]> {
   const started = startedItems(running);
-  const groups = new Map<string, PendingOrder[]>();
+  const groups = new Map<string, OrderItem[]>();
   const seen = new Set<string>();
 
   for (const item of arrival) {
@@ -159,7 +159,7 @@ function startedItems(running: readonly Timer[]): ReadonlySet<string> {
  * 最早を採るのは決定性のため——upsert は常に注文単位で同一の arrivalTime を与えるので実際には
  * 全品目が同値だが、最小は集合の並びに依らない。
  */
-function earliestArrival(pending: readonly PendingOrder[], externalOrderId: string): number | null {
+function earliestArrival(pending: readonly OrderItem[], externalOrderId: string): number | null {
   let earliest: number | null = null;
   for (const order of pending) {
     if (order.externalOrderId !== externalOrderId) continue;
@@ -180,16 +180,13 @@ function itemKey(externalOrderId: string, itemIndex: number): string {
  * 「Pending_Order 集合が同一とは何か」を settle 側に書き写せば、待ち行列の同一性が二つになる。
  * 並びを含めるのは、集合が snapshot に全量で載る（並びが配信内容の一部である）ためである。
  */
-export function isSamePending(
-  left: readonly PendingOrder[],
-  right: readonly PendingOrder[],
-): boolean {
+export function isSamePending(left: readonly OrderItem[], right: readonly OrderItem[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((order, index) => isSameOrder(order, right[index]));
 }
 
 /** 1 品目の同一性。arrivalTime を含む全フィールドを突き合わせる（起点の引き継ぎは呼び出し前に済んでいる）。 */
-function isSameOrder(left: PendingOrder, right: PendingOrder | undefined): boolean {
+function isSameOrder(left: OrderItem, right: OrderItem | undefined): boolean {
   return (
     right !== undefined &&
     left.externalOrderId === right.externalOrderId &&

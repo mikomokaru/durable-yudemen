@@ -20,7 +20,7 @@ import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import { synchronize } from "../../src/engine/sync";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -71,7 +71,7 @@ const UNSYNCED: readonly Timer[] = [
 ];
 
 /** 長い麺の A（卓 t-a）と短い麺の B（卓 t-b）。同時到着ゆえ自前解は A → B と置く（総和 1260 秒）。 */
-const LONG: PendingOrder = {
+const LONG: OrderItem = {
   externalOrderId: "o-long",
   itemIndex: 0,
   noodleType: "Long",
@@ -81,8 +81,10 @@ const LONG: PendingOrder = {
   slotSpan: 1,
   itemName: null,
   sizeName: null,
+  completedAt: null,
+  interruptedAt: null,
 };
-const SHORT: PendingOrder = {
+const SHORT: OrderItem = {
   ...LONG,
   externalOrderId: "o-short",
   noodleType: "Short",
@@ -108,12 +110,12 @@ const IMPROVING: CookSchedule = {
   ],
 };
 
-function stateWith(timers: readonly Timer[], pending: readonly PendingOrder[]): TimerState {
+function stateWith(timers: readonly Timer[], pending: readonly OrderItem[]): TimerState {
   return { ...EMPTY_STATE, timers, nextSeq: timers.length, pendingOrders: pending };
 }
 
 /** 待ち行列の arrivalTime だけを寿命以上過去へ動かす（Timer・設定・時刻・計画は同じ）。 */
-function expiredOf(pending: readonly PendingOrder[]): readonly PendingOrder[] {
+function expiredOf(pending: readonly OrderItem[]): readonly OrderItem[] {
   return pending.map((order) => ({
     ...order,
     arrivalTime: order.arrivalTime - ORDER_LIFETIME_MS - SECOND,

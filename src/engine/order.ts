@@ -5,7 +5,7 @@
 // 一切触れず Pending_Order 集合だけを動かす変換であり、集合操作（pending.ts）の上に「遷移」という
 // 一枚を被せるだけの薄さゆえ、別々のファイルに分けても各ファイルが 1 つの式しか持たない。
 //
-// 拒否経路を持たない。到着の内容の検証は受け口（domain の toPendingOrders と shell の receiveOrder）が
+// 拒否経路を持たない。到着の内容の検証は受け口（domain の toOrderItems と shell の receiveOrder）が
 // 済ませており、キャンセルの対象不在は集合を変えない no-op である（AC 1.6）——ここに拒否を作れば
 // 「POS の申告が正しいかどうか」を engine が判断することになる。変化が無ければ settle が Effect を出さない。
 

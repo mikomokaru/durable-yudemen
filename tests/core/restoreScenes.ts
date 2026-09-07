@@ -38,7 +38,7 @@ import {
 } from "../../src/engine/stability";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
@@ -89,7 +89,7 @@ export const genRawScene: fc.Arbitrary<RawScene> = fc
   );
 
 export interface Scene {
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   readonly release: SlotRelease;
   readonly members: TableMembers;
   readonly lifts: LiftTable;
@@ -109,7 +109,7 @@ export function sceneOf(raw: RawScene, now: EpochMillis = NOW): Scene {
 
 /** 待ち行列・Timer・釜数・パラメータ・now から場面を組む（摂動した場面もここから）。 */
 export function sceneFrom(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   timers: readonly Timer[],
   slotCount: number,
   params: ScheduleParams,
@@ -211,7 +211,7 @@ export function samePlan(a: CookSchedule, b: CookSchedule): boolean {
 export type Reason = "stale" | "cannotStart" | "release" | "anchor" | "liftCap";
 
 /** 場面の置ける品目（`placeableTargets`・plan-stability Requirement 7）。復元・検証・再生成が同じ集合を読む。 */
-export function targetsOf(scene: Scene): readonly PendingOrder[] {
+export function targetsOf(scene: Scene): readonly OrderItem[] {
   return placeableTargets(scene.pending, scene.now, DEFAULT_NOODLE_PRESETS, scene.params);
 }
 
@@ -223,7 +223,7 @@ export function targetsOf(scene: Scene): readonly PendingOrder[] {
  */
 export function reasonOf(
   slice: PlanSlice,
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
   now: EpochMillis,
   occupied: ReadonlySet<number>,
   release: SlotRelease,
