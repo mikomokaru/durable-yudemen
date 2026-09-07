@@ -43,6 +43,14 @@
     - 実測・2026-09-07: 3 コミット（3′.3 `2a05f23`・3′.4 `1217204`・3′.5）。最終ゲート：typecheck 0（worker-configuration.d.ts を除く）・lint 0 errors（警告は既存の 3 件）・fmt:check clean（433 files）・全数 249 ファイル 1768 テスト通過（expected fail 0）。property は `startable-placement` / `self-solution-gate` / `schedule` / `plan-retention` の 4 ファイルを 3 回再実行して全通過、`schedule.property` 5.6 は 300 回 × 5 に加え 1500 回 × 8、Property 17 は 1500 回 × 2、`self-solution-gate` は 1500 回 × 3、4.7′ は 1500 回 × 4、`plan-retention` は 2000 回で反例なし。
   - _Requirements: plan-stability 6.1〜6.5, 7.1〜7.5, 5.6, 5.10, 5.11; startable-placement 1.8（改訂）, 4.7〜4.8_
 
+- [ ] 3′.7 「今」の入れ替えを費用改善の判断にする（判断 14・15、2026-09-07 レビュー）
+  - [ ] 3′.7.1 loop で固定した「今」を残した再生成が成り立たない場面：候補 K（1 段目の時刻を保ち釜だけ交換）を組んで `revalidate`、合法なら K と再生成を同じ旧 Shown_Plan の総費用で比べ真に低い方（同点は K）。「物理的な例外として固定を外す」経路を除く
+  - [ ] 3′.7.2 固定 Example：6 釜・釜 0 boiled・arms 1・L 5・同卓の 45 秒麺と別注文の大盛 45 秒麺——K（同卓 30 秒後・大盛 今）と再生成（同卓 今・大盛 5 秒後）の両方が合法で、総費用で再生成が 30 秒相当低いことを示し、選ばれる理由が費用であることを固定
+  - [ ] 3′.7.3 性質 4.7′ の検査を「K を実際に組んで合法性と総費用を比べる」形に改める（完成後の他品目・釜を固定して時刻だけ戻す検査を置き換える）。性質 4.9（再生成した品目どうしのまとまり・固定分を除く）を分けて検査
+  - [ ] 3′.7.4 spec の補足：`reanchor` の定義（plan-stability 判断 9′）。Standards：`placeNow` の手順コメントを削り理由と停止性だけ残す、`plan-retention.property` と `self-solution-gate.property` の場面生成器を共有
+  - [ ] 3′.7.5 チェックポイントとコミット
+  - _Requirements: 4.7〜4.9, 判断 14〜15_
+
 - [ ] 4. 文書と最終ゲート
   - [ ] 4.1 `lift-group-planning`（`baselineSchedule` の署名・2 段・`initialRelease` の注記「Complete は釜の占有ではない」に「開始の可否は別」を添える）、`lift-group-display`（`occupiedSlots` は domain の共有述語）、`plan-stability`（前回の釜の第一候補は 2 段目の配分に吸収）、`online-cook-scheduling`（合成の失効に開始を妨げる配置）に日付付きの注記
   - [ ] 4.2 ADR-0012：予測（解放表）と事実（Timer の無い釜）を分け、「今」置く配置の釜の選択にだけ事実を読ませる。Considered Options：boiled を占有として解放表に載せる／連鎖を緩めて後続群を出す／同点処理だけ／client だけで直す
