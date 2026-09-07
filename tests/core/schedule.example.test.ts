@@ -147,7 +147,8 @@ describe("initialRelease — slot の最早解放時刻", () => {
 });
 
 /** 既定値の採点パラメータ（1 ユニット＝6 slot・既定レイアウト）。8 項目は StoreConfig の残余と同型である。 */
-const PARAMS: ScheduleParams = schedulingDefaults(1);
+// 許容 10%（h_i = 60 秒）を前提にした場面。既定は 5% に下がった（2026-09-07）
+const PARAMS: ScheduleParams = { ...schedulingDefaults(1), toleranceRatio: 10 };
 
 /** 空の厨房（6 slot すべてが今すぐ空いている）。 */
 const EMPTY_KITCHEN = initialRelease([], NOW, 6);

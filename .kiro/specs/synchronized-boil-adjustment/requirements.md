@@ -4,11 +4,11 @@
 
 近接した複数の茹で上がりを「同時に上げられる」ようにそろえる機能である。各 Timer は「規定の茹で時間」から前後一定の **割合** まで茹で上がり時刻を調整してよい——という品質上の許容を持つ。この許容の範囲（許容調整窓）が複数の Timer どうしで重なるとき、それらを共通の茹で上がり時刻へ寄せて、厨房スタッフが一度の動作でまとめて湯切り・盛り付けできるようにする。
 
-許容調整窓の半幅は、各 Timer の **茹で時間（Boil_Duration = endTime − startTime）に対する割合（Tolerance_Ratio、既定 10%）** で決まる。すなわち Timer i の許容半幅は `h_i = Boil_Duration_i × Tolerance_Ratio` であり、絶対秒の上限・下限によるクランプは設けない。割合方式を採る理由は、茹で時間が短いほど 1 秒の品質インパクトが大きく、固定の絶対秒（旧方式の ±15 秒）では短時間の茹で麺に過大な調整を許してしまうためである。窓を茹で時間に比例させることで、調整がもたらす品質インパクトを茹で時間によらず一定に保つ。許容半幅は Timer ごとに異なるため、許容調整窓は Timer ごとに幅の異なる **非対称** な区間の集まりになる。
+許容調整窓の半幅は、各 Timer の **茹で時間（Boil_Duration = endTime − startTime）に対する割合（Tolerance_Ratio、既定 5%）** で決まる。すなわち Timer i の許容半幅は `h_i = Boil_Duration_i × Tolerance_Ratio` であり、絶対秒の上限・下限によるクランプは設けない。割合方式を採る理由は、茹で時間が短いほど 1 秒の品質インパクトが大きく、固定の絶対秒（旧方式の ±15 秒）では短時間の茹で麺に過大な調整を許してしまうためである。窓を茹で時間に比例させることで、調整がもたらす品質インパクトを茹で時間によらず一定に保つ。許容半幅は Timer ごとに異なるため、許容調整窓は Timer ごとに幅の異なる **非対称** な区間の集まりになる。
 
 調整は **双方向** である。共通の茹で上がり時刻へそろえるために、各 Timer の茹で上がりを規定時刻より早める（負方向）ことも遅らせる（正方向）こともできる。ただし、いずれの方向でも各 Timer の許容調整窓（`endTime ± h_i`）を超えてはならない。窓を超える調整は麺の品質を損なうため、決して行わない。
 
-同時に上げられる本数の上限は **腕の本数（arms、既定 2）** に等しい。すなわち arms 本まで同時に上げられ、1 つの「セット（同時に上げる単位 = Sync_Set）」に含められる最大本数は arms 本である。許容調整窓が重なって連鎖する茹で上がりが arms 本を超えるときは、arms 本ずつの Sync_Set に分割し、セットとセットの間隔をできるだけ広くとって段階的に上げられるようにそろえる。腕の本数は店舗ごとに異なりうるため、arms はサーバ権威設定（`StoreConfig`）として店舗ごとに設定できる。同様に許容調整割合（Tolerance_Ratio、既定 10%）も `StoreConfig` に保持し、店舗ごとに設定できる。
+同時に上げられる本数の上限は **腕の本数（arms、既定 2）** に等しい。すなわち arms 本まで同時に上げられ、1 つの「セット（同時に上げる単位 = Sync_Set）」に含められる最大本数は arms 本である。許容調整窓が重なって連鎖する茹で上がりが arms 本を超えるときは、arms 本ずつの Sync_Set に分割し、セットとセットの間隔をできるだけ広くとって段階的に上げられるようにそろえる。腕の本数は店舗ごとに異なりうるため、arms はサーバ権威設定（`StoreConfig`）として店舗ごとに設定できる。同様に許容調整割合（Tolerance_Ratio、既定 5%）も `StoreConfig` に保持し、店舗ごとに設定できる。
 
 共通茹で上がり時刻の決め方は **maximin 最適化** である。連続するセットの共通時刻（Sync_Target）の間隔の最小値を最大化するよう、各セットの Sync_Target を窓の許す範囲で離して均等に配置し、厨房の作業間隔をできるだけ広くとる。セット間隔には下限（最小インターバル）を設けず、各セットの Sync_Target が自身の Window_Intersection 内にあるという制約の下で、連続する確定セットの間隔の最小値を最大化することだけでセット間隔を決める。これは、各セットの自然な中点へ詰める旧方式（貪欲法）を置き換えるものであり、中点は最適解の一候補にすぎず目的そのものではない。
 
@@ -39,7 +39,7 @@ engine は元の規定茹で上がり時刻（オリジナル `endTime`）を **
 - **Boil_Duration（茹で時間）**: オリジナル `endTime − startTime` で算出する不変量。engine 内部の不変アンカー（オリジナル `endTime`）と `startTime` から常に再導出でき、許容半幅の基準になる。
 - **Adjustment（調整時間・engine-only・概念名・仮）**: 同期のために engine が各 Running_Timer へ割り当てる、オリジナル `endTime` に対する **符号付き** オフセット（初期値 0）。負は茹で上がりを早める方向、正は遅らせる方向を表す。値域は当該 Timer の許容半幅により `−h_i` 以上 `+h_i` 以下（Timer ごとに異なる）。**engine 専用の関心事であり、domain・ワイヤ・クライアントには現れない**。engine は Adjusted_Boil_Time を実効 `endTime` として wire へ射影する。Adjustment を永続に持つか都度導出するかは design 判断。
 - **Adjusted_Boil_Time（調整後茹で上がり時刻）**: engine が `オリジナル endTime + Adjustment` で算出する実効茹で上がり時刻。クライアントへは既存の `endTime` フィールドで射影して伝える。engine 内の発火（boiled 遷移）と、クライアントの表示・カウントダウンの基準になる。
-- **Tolerance_Ratio（許容調整割合・概念名・仮）**: 各 Timer が自身の `Boil_Duration` に対して前後に調整してよい割合。既定 10%。サーバ権威設定（`StoreConfig`）として配信し、クライアントは変更できない。旧版 `Adjust_Tolerance`（絶対秒）を概念ごと置き換えたもの。
+- **Tolerance_Ratio（許容調整割合・概念名・仮）**: 各 Timer が自身の `Boil_Duration` に対して前後に調整してよい割合。既定 5%。サーバ権威設定（`StoreConfig`）として配信し、クライアントは変更できない。旧版 `Adjust_Tolerance`（絶対秒）を概念ごと置き換えたもの。
 - **h_i（許容半幅・導出値）**: Running_Timer i の許容調整窓の半幅。`h_i = Boil_Duration_i × Tolerance_Ratio` で算出する。絶対秒の上限・下限によるクランプは設けない。Timer ごとに値が異なる。
 - **Tolerance_Window（許容調整窓）**: ある Running_Timer i の `[endTime_i − h_i, endTime_i + h_i]`（両端を含む閉区間。`endTime_i` はオリジナル `endTime`）。当該 Timer の Adjusted_Boil_Time が取りうる範囲。窓の中心（アンカー）は engine 内部で不変のオリジナル `endTime_i`、半幅 `h_i` は不変の `Boil_Duration_i` から導出される。ゆえに engine はいつでもオリジナル `endTime_i`・`startTime_i` から一意に再導出でき、Adjustment を適用しても移動・伸縮しない。
 - **Running_Timer（走行中 Timer）**: まだ茹で上がっていない Timer（engine の `boiledAt === null`）。Boil_Sync の調整対象になりうるのは Running_Timer のみ。
@@ -133,10 +133,12 @@ engine は元の規定茹で上がり時刻（オリジナル `endTime`）を **
 #### Acceptance Criteria
 
 1. THE Boil_Sync SHALL arms・Tolerance_Ratio の 2 つを `StoreConfig`（サーバ権威設定）の値として参照する
-2. THE Boil_Sync SHALL 既定値として arms を 2 本、Tolerance_Ratio を 10% とする
+2. THE Boil_Sync SHALL 既定値として arms を 2 本、Tolerance_Ratio を 5% とする
 3. THE Boil_Sync SHALL 各調整パラメータの妥当域を、arms は 1 以上 10 以下の整数、Tolerance_Ratio は 1 以上 50 以下の整数パーセントと定める
 4. IF `StoreConfig` の arms・Tolerance_Ratio のいずれかが未指定・非数・非整数・自身の妥当域外のいずれかである、THEN THE Boil_Sync SHALL 当該パラメータのみを当該パラメータの既定値へ畳み、妥当な他パラメータの設定値は保持したまま同期計算を継続する
 5. WHERE クライアント端末が `ServerMessage.config` で調整パラメータを受信する、THE Boil_Sync SHALL 当該パラメータを `ClientView` に保持せず、`ClientMessage` による変更要求を許可せず、同期計算には `StoreConfig` の確定値のみを使用し続ける
+
+> **改訂（2026-09-07）:** Tolerance_Ratio の既定を 10% から 5% へ下げた（`DEFAULT_TOLERANCE_RATIO`）。対称な ±10% の窓に Requirement 3.4 の maximin（「窓が許す限り各セットを離して配置する」）が重なると、Sync_Target は窓の端まで寄り、茹で 600 秒では各 Timer が ±60 秒まで動いた（例: Thin 60 秒を 3 秒差で 2 本始めると、54 秒と 69 秒の 15 秒差に開く）。運用感として自動調整が大胆すぎたため、窓を半分にして振れ幅を半分にする。maximin という目的関数そのものは変えない（追補の候補: セット間隔の広げ幅を `liftIntervalSeconds` で頭打ちにする）。なお本番の店舗の Effective_Config はレジストリのイデア（Chain / Policy / Store_Override）の合成で決まり、この既定値は投影が無い・不正なときのフォールバックにすぎない。イデアが 10 を主張している店舗は `PUT /admin/stores/{id}` で変えるまで 10 のままである。
 
 ### Requirement 7: 集合変化時の再計算（追加・キャンセル・完了）
 

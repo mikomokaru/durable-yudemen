@@ -6,7 +6,10 @@ import type { SettleParams } from "../../src/engine/settle";
 import type { StoreSnapshot } from "../../src/engine/snapshot";
 import type { TimerState } from "../../src/engine/state";
 import type { EpochMillis } from "../../src/engine/types";
+import type { StoreProjection } from "../../src/registry/projection";
 import type { StoreTimerDO } from "../../src/shell/store-timer-do";
+import { DEFAULT_ARMS, DEFAULT_UNIT_COUNT } from "../../src/domain/store";
+import { configResidualDefaults } from "../storeConfigDefaults";
 
 declare module "cloudflare:test" {
   interface ProvidedEnv extends Env {}
@@ -14,6 +17,26 @@ declare module "cloudflare:test" {
 
 const EVENT_TIME = 1_700_000_000_000;
 const SNAPSHOT_KEY = "activeTimers";
+
+/**
+ * 再同期の場面に押し込む投影。Thin 60 秒を 10 秒ずらして 2 本始めたとき、両者の許容調整窓が重なって
+ * Proximity_Cluster を成す（0 でない Adjustment が付く）には h_i = 6 秒（許容 10%）が要る。
+ * 許容 10%（h_i = 6 秒）を前提にした場面。既定は 5% に下がった（2026-09-07）——フォールバック config には頼らず明示する。
+ */
+const RESYNC_PROJECTION: StoreProjection = {
+  active: true,
+  version: 1,
+  roster: [],
+  config: {
+    unitCount: DEFAULT_UNIT_COUNT,
+    arms: DEFAULT_ARMS,
+    toleranceRatio: 10,
+    noodlePresets: [
+      { noodleType: "Thin", boilSeconds: { extraHard: 45, hard: 52, normal: 60, soft: 75 } },
+    ],
+    ...configResidualDefaults(DEFAULT_UNIT_COUNT),
+  },
+};
 
 function stub(storeId: string): DurableObjectStub<StoreTimerDO> {
   return env.STORE_TIMER_DO.getByName(storeId) as DurableObjectStub<StoreTimerDO>;
@@ -135,6 +158,7 @@ describe("StoreTimerDO Operation History 入口", () => {
     clock.mockReturnValue(EVENT_TIME);
     const resyncObject = stub(`history-reconcile-resync-${crypto.randomUUID()}`);
     await runInDurableObject(resyncObject, async (instance, state) => {
+      await instance.applyProjection(RESYNC_PROJECTION);
       await startTimer(instance, "1", 60);
       clock.mockReturnValue(EVENT_TIME + 10_000);
       await startTimer(instance, "2", 60);
