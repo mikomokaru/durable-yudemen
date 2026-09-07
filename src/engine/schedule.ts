@@ -397,6 +397,47 @@ export function scheduleCandidates(
   occupied: ReadonlySet<number>,
   changeContext: ChangeContext | null,
 ): { readonly fresh: CookSchedule; readonly retained: CookSchedule | null } {
+  const { fresh, retained } = scheduleStages(
+    pending,
+    release,
+    members,
+    lifts,
+    presets,
+    params,
+    now,
+    occupied,
+    changeContext,
+  );
+  return { fresh: fresh.completed, retained: retained?.completed ?? null };
+}
+
+/**
+ * 一候補の経過——1 段目（生成 or 復元）・候補 K（`placeNow` が固定を外す場面で組んだ「1 段目の時刻を保ち釜だけ交換した
+ * 計画」・その場面が無ければ null）・完成形。性質 4.7′（判断 14）の検査が「K を実際に組んで合法性と総費用を比べる」ために
+ * 読む——完成形だけからは、1 段目の「今」が「今」を失った理由（K が違法か、K より総費用が真に低いか）が読めない。
+ */
+export interface CandidateStages {
+  readonly stage1: CookSchedule;
+  /** loop を終えた計画（固定を外した再生成を含む）。固定を外す場面が無ければ完成形そのもの。 */
+  readonly regenerated: CookSchedule;
+  /** 候補 K。固定を外す場面が無ければ null。違法な K もそのまま返す（検査が違法性を見る）。 */
+  readonly swap: CookSchedule | null;
+  /** 完成形——`regenerated` か、合法で総費用が真に低くない再生成に対して選ばれた `swap`。 */
+  readonly completed: CookSchedule;
+}
+
+/** `scheduleCandidates` の 2 候補を経過つきで返す。引数は同じ。 */
+export function scheduleStages(
+  pending: readonly PendingOrder[],
+  release: SlotRelease,
+  members: TableMembers,
+  lifts: LiftTable,
+  presets: readonly NoodlePreset[],
+  params: ScheduleParams,
+  now: EpochMillis,
+  occupied: ReadonlySet<number>,
+  changeContext: ChangeContext | null,
+): { readonly fresh: CandidateStages; readonly retained: CandidateStages | null } {
   const planning: Planning = {
     pending,
     targets: placeableTargets(pending, now, presets, params),
@@ -459,31 +500,30 @@ interface NowItem {
 }
 
 /**
- * placeNow — 「今」の品目に釜を配って計画を完成させる loop（startable-placement design Component 3′・AC 1.8 改訂）。
+ * placeNow — 「今」の品目に釜を配って計画を完成させる loop（startable-placement design Component 3′・AC 1.8 改訂・判断 14）。
  *
- * 保持するのは「今に選んだ品目とその時刻」であり、釜は変更不能にしない。
- *   nowSet = 1 段目の「今」の品目（`startAt ≤ now`・鍵）
- *   loop:
- *     配分   = pinNow(nowSet 全体を最終的な表示順に並べたもの)      — 反復ごとに全体を配り直す（既存の「今」も含めて）
- *     計画   = 1 段目（前の反復）の将来配置そのまま ＋ 配分         — 将来配置は動かさない
- *     計画   = revalidate(計画)                                      — 計画順に物理的なハード制約で検証し、不正な一片はその
- *                                                                      位置で卓を再生成（配分した「今」はその配置のまま残す）
- *     fresh  = 計画の「今」のうち nowSet に無い品目                   — 再生成で「今」になった品目
- *     fresh が空なら止まる。nowSet += fresh
- * loop で発見した順ではなく**最終的な表示順**（`startAt` → `compareArrival`）で配り直すのは、後着の品目が先に空き釜を
- * 固定すると、後から「今」になった先着の品目（表示の先頭）が boiled の釜に落ちて押せず、後続も隠れるためである（反例：
- * 同卓の先着 Short 60 秒・後着 Long 600 秒、釜 0 が boiled・釜 1 だけ空き——Long を釜 1 に固定すると、再生成で「今」に
- * なった Short が釜 0 に落ち `headsOf` が空。Short を釜 1・Long を釜 0 に配り直せば Short の提案が出る）。
+ * **保持するのは「今に選んだ品目とその時刻」であり、釜は変更不能にしない。** 1 段目の「今」（`startAt ≤ now`）を nowSet とし、
+ * 反復ごとに nowSet **全体**を最終的な表示順（`startAt` → `compareArrival`）で配り直し（`pinNow`）、将来配置は前の反復のまま
+ * 残して計画順に検証し、不正な一片はその位置で再生成する（`revalidate`・配分した「今」はその配置のまま残す）。再生成で
+ * 「今」になった品目（fresh）が在れば nowSet に足して繰り返す。loop で発見した順ではなく最終的な表示順で配り直すのは、後着の
+ * 品目が先に空き釜を固定すると、後から「今」になった先着の品目（表示の先頭）が boiled の釜に落ちて押せず、後続も隠れるため
+ * である（反例：同卓の先着 Short 60 秒・後着 Long 600 秒、釜 0 が boiled・釜 1 だけ空き——Long を釜 1 に固定すると、再生成で
+ * 「今」になった Short が釜 0 に落ち `headsOf` が空。Short を釜 1・Long を釜 0 に配り直せば Short の提案が出る）。
+ *
+ * **「今」の入れ替えは費用改善の判断（判断 14）。** 固定した「今」を残した再生成が計画順で成り立たない一片で `revalidate` は
+ * 固定を外して卓を丸ごと再生成する（その「今」は失われ得る）が、それを物理的な例外とは扱わない。その場面では候補 K——
+ * 1 段目の配置の時刻をすべて保ち、配分した釜だけを交換した計画（`swapNow`）——を組んで検証し、K が合法なら K と再生成を
+ * 終えた計画（「今」の入れ替えを含む）を同じ旧 Shown_Plan に対する総費用（`scoreSchedule`）で比べ、真に低い方を採る（同点は
+ * K）。K が違法なときだけ再生成に落ちる。1 段目の「今」が「今」を失うのは、K が違法か、K より総費用が真に低い計画が在るとき
+ * だけ（性質 4.7′）。1 段目への無条件のフォールバックは置かない（性質 4.8——場面 E では 1 段目の「今」の大盛が釜 1 に残る Timer
+ * で押せない）。
  *
  * **停止性**：継続する反復ごとに nowSet が必ず増える（fresh が空なら止まる）ので、反復回数は品目数で抑えられる。釜の固定に
- * 依らない（固定を外されて「今」でなくなった品目の鍵も nowSet に残す）。**合法性は計画順の検証で保つ**（性質 5.10 / 4.8・
- * `revalidate`）——1 段目への実行時のフォールバックは置かない（場面 E では 1 段目の「今」の大盛が釜 1 に残る Timer で押せない
- * ——合法性のために開始可能性を捨てる順序にしない）。「今」の品目が「今」を失うのは、その配置が完成した計画の中で物理的に
- * 成り立たないときだけ（`revalidate` の固定の解除）。
+ * 依らない（固定を外されて「今」でなくなった品目の鍵も nowSet に残す）。K は品目を足さず、比較は loop の外で一度だけ行う。
  *
  * 1 段目に「今」の品目が無ければ計画は 1 段目のまま（占有に依らない・性質 4.6）。生成候補 F と保持候補 R の両方が通る。
  */
-function placeNow(planning: Planning, stage1: CookSchedule): CookSchedule {
+function placeNow(planning: Planning, stage1: CookSchedule): CandidateStages {
   const { now } = planning;
   const orderByKey = new Map(planning.pending.map((order) => [itemKeyOf(order), order]));
   const nowKeysOf = (schedule: CookSchedule): readonly ItemKey[] =>
@@ -493,9 +533,12 @@ function placeNow(planning: Planning, stage1: CookSchedule): CookSchedule {
       ),
     );
   const nowKeys = new Set(nowKeysOf(stage1));
-  if (nowKeys.size === 0) return stage1;
+  if (nowKeys.size === 0) return { stage1, regenerated: stage1, swap: null, completed: stage1 };
 
   let plan = stage1;
+  // 1 段目の「今」への配分（最初の反復のもの）。候補 K はこれで釜を交換する。
+  let first: ReadonlyMap<ItemKey, Placement> | null = null;
+  let dropped = false;
   for (;;) {
     const byKey = new Map(
       plan.slices.flatMap((slice) =>
@@ -509,17 +552,93 @@ function placeNow(planning: Planning, stage1: CookSchedule): CookSchedule {
       .filter((item) => item.placement.startAt <= now)
       .sort(byDisplayOrder);
     const allocation = pinNow(nowItems, planning);
+    first ??= allocation;
     const allocated = plan.slices.map((slice) => ({
       tableKey: slice.tableKey,
       placements: slice.placements.map(
         (placement) => allocation.get(itemKeyOf(placement)) ?? placement,
       ),
     }));
-    plan = { slices: revalidate(planning, allocated, allocation, false).slices };
+    const revalidated = revalidate(planning, allocated, allocation, false);
+    plan = { slices: revalidated.slices };
+    dropped ||= revalidated.dropped;
     const fresh = nowKeysOf(plan).filter((key) => !nowKeys.has(key));
-    if (fresh.length === 0) return plan;
+    if (fresh.length === 0) break;
     for (const key of fresh) nowKeys.add(key);
   }
+  if (!dropped) return { stage1, regenerated: plan, swap: null, completed: plan };
+
+  const swap = swapNow(stage1, first!);
+  if (!isLegal(planning, swap.slices)) return { stage1, regenerated: plan, swap, completed: plan };
+  const { pending, members, lifts, params, seed } = planning;
+  const scoreContext = { members, lifts, change: seed?.changeContext ?? null };
+  const totalOf = (schedule: CookSchedule) =>
+    scoreSchedule(schedule.slices, pending, scoreContext, params).total;
+  const completed = totalOf(plan) < totalOf(swap) ? plan : swap;
+  return { stage1, regenerated: plan, swap, completed };
+}
+
+/**
+ * 候補 K——1 段目の配置の時刻をすべて保ち、配分した釜だけを交換した計画（判断 14）。
+ *
+ * 配分が「今」の品目を新しい釜（`taken`＝配分後にだけ在る釜）へ動かすと、その釜を使っていた 1 段目の将来配置は行き場を
+ * 失う。それらを、動いた「今」の品目が空けた釜（`freed`＝配分前にだけ在る釜）へ index 順に写す——釜の**交換**であり、時刻は
+ * 一つも動かさない（配分は「今」の全品目について排他的で本数を保つので `|taken| = |freed|`）。交換で同じ釜の時間帯が重なる
+ * （空けた釜を 1 段目の後続配置が上がった後に使っていた）など成り立たない K は違法として落ちる（`isLegal`）——K は合法か
+ * 違法かのどちらかで、再生成はしない。
+ */
+function swapNow(stage1: CookSchedule, allocation: ReadonlyMap<ItemKey, Placement>): CookSchedule {
+  const before = new Set<number>();
+  const after = new Set<number>();
+  for (const slice of stage1.slices) {
+    for (const placement of slice.placements) {
+      const moved = allocation.get(itemKeyOf(placement));
+      if (moved === undefined) continue;
+      for (const slotId of placement.slotIds) before.add(slotOf(slotId));
+      for (const slotId of moved.slotIds) after.add(slotOf(slotId));
+    }
+  }
+  const ascending = (slots: Iterable<number>) => [...slots].sort((slot, other) => slot - other);
+  const freed = ascending(before).filter((slot) => !after.has(slot));
+  const taken = ascending(after).filter((slot) => !before.has(slot));
+  const exchanged = new Map(taken.map((slot, index) => [slot, freed[index]!]));
+  return {
+    slices: stage1.slices.map((slice) => ({
+      tableKey: slice.tableKey,
+      placements: slice.placements.map((placement) => {
+        const moved = allocation.get(itemKeyOf(placement));
+        if (moved !== undefined) return moved;
+        if (!placement.slotIds.some((slotId) => exchanged.has(slotOf(slotId)))) return placement;
+        const slots = placement.slotIds.map(
+          (slotId) => exchanged.get(slotOf(slotId)) ?? slotOf(slotId),
+        );
+        return { ...placement, slotIds: slotIdsOf(slots) };
+      }),
+    })),
+  };
+}
+
+/**
+ * 完成した計画が計画順に物理的なハード制約（置ける品目に限る `isStale`・`feasibleRelease`・`keepsAnchor`・`withinLiftCap`）を
+ * 守るか。`revalidate` と同じ述語を、再生成も取り置きも無しに当てる（候補 K の検証・性質 4.8 の検査と同じ形）。
+ */
+function isLegal(planning: Planning, slices: readonly PlanSlice[]): boolean {
+  const { targets, members, presets, params } = planning;
+  let free = planning.release;
+  let ends = planning.lifts;
+  for (const slice of slices) {
+    const siblings = members.get(slice.tableKey) ?? null;
+    if (
+      isStale(slice, targets) ||
+      feasibleRelease(slice.placements, free, targets, presets) === null ||
+      !keepsAnchor(slice.placements, free, ends, siblings, targets, presets, params) ||
+      !withinLiftCap(ends, liftsOf(slice.placements), params)
+    )
+      return false;
+    free = advanceRelease(free, slice.placements);
+    ends = advanceLifts(ends, liftsOf(slice.placements));
+  }
+  return true;
 }
 
 /** 表示の順——`startAt` 昇順・同値は到着順（`compareArrival`・表示の `liftGroupsOf` と同じ比較）。 */
@@ -627,10 +746,10 @@ function onlyNow(release: SlotRelease, slots: readonly number[], now: EpochMilli
  *
  * 不正な一片は、その卓の置ける品目を生成器（`placeGroup`・文脈つき）で置き直す。一片の配分した「今」の配置（`fixed` に
  * 在るもの）は**その配置のまま**残し、残りの品目だけを、手前の一片・`ahead` の取り置き・その固定分で進めた表の上に置く（「今」の
- * 集合は縮まず、「今」の品目の時刻は動かない・AC 1.8 改訂）。例外は、固定分を残した再生成が計画順で成り立たないとき——固定分の
- * 上がりが手前の一片の上がりと同じ窓で上限 (f) を超える・合流した固定分の候補時刻が手前の表で変わって (d) が破れる——で、
- * そのときだけ固定を外して卓を丸ごと再生成する（その「今」は失われる。合法性が先）。再生成した一片の並びは生成器の並び
- * （固定分・合流分・batch の順）。
+ * 集合は縮まず、「今」の品目の時刻は動かない・AC 1.8 改訂）。固定分を残した再生成が計画順で成り立たないとき——固定分の
+ * 上がりが手前の一片の上がりと同じ窓で上限 (f) を超える・合流した固定分の候補時刻が手前の表で変わって (d) が破れる——は、
+ * 固定を外して卓を丸ごと再生成し、`dropped` で呼び手に知らせる。その「今」を失うかどうかは呼び手（`placeNow`）が候補 K との
+ * 総費用の比較で決める（判断 14——物理的な例外として扱わない）。再生成した一片の並びは生成器の並び（固定分・合流分・batch の順）。
  * 「最初の不正で止める」形（接頭辞・合成）は採らない——now が進むたびに前回の「今」が落ちてほぼ全再生成になり役に立たない
  * （判断 10・実測）。
  */
@@ -643,11 +762,14 @@ function revalidate(
   readonly slices: readonly PlanSlice[];
   readonly release: SlotRelease;
   readonly lifts: LiftTable;
+  /** 固定した「今」を残した再生成が成り立たず、固定を外して卓を再生成した一片が在ったか（`placeNow` が候補 K を組む合図）。 */
+  readonly dropped: boolean;
 } {
   const { targets, members, presets, params, seed } = planning;
   const out: PlanSlice[] = [];
   let free = planning.release;
   let ends = planning.lifts;
+  let dropped = false;
   const allocated = [...fixed.values()];
   const seen = new Set<ItemKey>();
   for (const slice of slices) {
@@ -696,9 +818,12 @@ function revalidate(
         );
       placements = regenerate(own);
       // 固定した「今」を残した再生成が計画順で成り立たない——固定分の上がりが手前の一片の上がりと同じ窓で上限を超える、
-      // 合流した固定分の候補時刻が手前の表で変わった——なら、固定を外して卓を丸ごと再生成する。「今」の品目は、その「今」の
-      // 配置が完成した計画の中で物理的に成り立たないときにだけ「今」を失う（合法性が先・startable-placement 性質 4.8）。
-      if (own.length > 0 && !legal(placements)) placements = regenerate([]);
+      // 合流した固定分の候補時刻が手前の表で変わった——なら、固定を外して卓を丸ごと再生成する（「今」の入れ替えを含む）。
+      // これは物理的な例外ではなく再生成の一候補で、呼び手（`placeNow`）が候補 K と総費用で比べて選ぶ（判断 14）。
+      if (own.length > 0 && !legal(placements)) {
+        placements = regenerate([]);
+        dropped = true;
+      }
       // 置ける品目が一つも無くなった卓は一片を成さない。
       if (placements.length === 0) continue;
     }
@@ -706,7 +831,7 @@ function revalidate(
     free = advanceRelease(free, placements);
     ends = advanceLifts(ends, liftsOf(placements));
   }
-  return { slices: out, release: free, lifts: ends };
+  return { slices: out, release: free, lifts: ends, dropped };
 }
 
 /**
@@ -729,7 +854,9 @@ function startedSiblingsOf(tableKey: string, seed: Seed): readonly EpochMillis[]
 }
 
 /**
- * 復元した一片の配置に、新しい仲間（`startedSiblingsOf`）の錨を付け直す（`retain` の検証の前）。
+ * 復元した一片の配置に、新しい仲間（`startedSiblingsOf`）の錨を付け直す（`retain` の検証の前・plan-stability 判断 9′：復元した
+ * 配置の `anchor` は、旧 Shown_Plan の品目のうち**今回 Timer になったもの**の実効 endTime にだけ付け直す。全走行中に付け直すと、
+ * 生成器が意図して付けなかった錨が付く）。
  *
  * `Placement.anchor` は「合流先の走行中の実効 endTime」という現在の Timer 集合に対する事実であり（AC 9.9）、前回の配置を
  * そのまま持つと二つの形で古びる。(1) 群の 1 本目（前回は未着手の配置）が始まった——残りは前回 `anchor: null`（または前回の

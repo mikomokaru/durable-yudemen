@@ -1,21 +1,24 @@
 // tests/core/startable-placement.property.test.ts — 「今」の配分の loop（baselineSchedule → 1 段目 → placeNow：配分 → 復元 →
-// 検証 → 不正だけ再生成 → 新たな「今」を含めて配り直す）の性質。
+// 検証 → 不正だけ再生成 → 新たな「今」を含めて配り直す → 固定を外す場面では候補 K と総費用で比べる）の性質。
 //
 // Feature: startable-placement
-// **Validates: Requirements 1.1, 1.4〜1.8（改訂）, 2.1, 4.1（改訂）, 4.6, 4.7（改訂）**
+// **Validates: Requirements 1.1, 1.4〜1.8（改訂）, 2.1, 4.1（改訂）, 4.6, 4.7（改訂）, 4.9**
 //
-// 1 段目は `occupied` を空にして呼ぶと得られる——今割り当てられる釜が母集団の全部になり、配分はいまの釜をそのまま採る
-// （(i)(b)）ので何も動かず、検証もすべて通る。完成した候補は場面の Timer から引いた占有（`occupiedSlotsOf`）で呼ぶ。
-// 生成候補 F と保持候補 R（`scheduleCandidates`）のそれぞれについて主張する——`baselineSchedule` が選ぶのはどちらかで、
-// 選択は総費用で決まるので、候補ごとに 1 段目と完成形を対応づける。生成器は `schedule.property` と同じ形（走行中・
-// boiled・卓・大盛・未知の麺種を振る）に、前回の提案の有無を足す。
+// 生成候補 F と保持候補 R のそれぞれについて主張する——`baselineSchedule` が選ぶのはどちらかで、選択は総費用で決まるので、
+// 候補ごとに経過（`scheduleStages`：1 段目・候補 K・再生成・完成形）を読む。4.6 だけは 1 段目を `occupied` を空にして呼ぶ形で
+// 得る（今割り当てられる釜が母集団の全部になり、配分はいまの釜をそのまま採る）。完成した候補は場面の Timer から引いた占有
+// （`occupiedSlotsOf`）で呼ぶ。生成器は `schedule.property` と同じ形（走行中・boiled・卓・大盛・未知の麺種を振る）に、前回の
+// 提案の有無を足す。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   baselineSchedule,
   initialRelease,
+  joinWindowMillis,
   scheduleCandidates,
+  scheduleStages,
+  type CandidateStages,
   type CookSchedule,
   type Placement,
   type SlotRelease,
@@ -48,7 +51,7 @@ import {
   timerOn,
   toPending,
 } from "./scheduleScenes";
-import { physicalViolationsOf, sceneFrom } from "./restoreScenes";
+import { physicalViolationsOf, sceneFrom, totalOf } from "./restoreScenes";
 
 interface Scene {
   readonly pending: readonly PendingOrder[];
@@ -116,6 +119,22 @@ function candidatesOf(scene: Scene, occupied: ReadonlySet<number>) {
     scene.params,
     NOW,
     occupied,
+    contextOf(scene),
+  );
+  return retained === null ? [fresh] : [fresh, retained];
+}
+
+/** 場面の 2 候補の経過（1 段目・候補 K・再生成・完成形）。R は前回が無ければ無い。 */
+function stagesOf(scene: Scene): readonly CandidateStages[] {
+  const { fresh, retained } = scheduleStages(
+    scene.pending,
+    scene.release,
+    scene.members,
+    scene.lifts,
+    DEFAULT_NOODLE_PRESETS,
+    scene.params,
+    NOW,
+    occupiedSlotsOf(scene.running),
     contextOf(scene),
   );
   return retained === null ? [fresh] : [fresh, retained];
@@ -242,56 +261,56 @@ describe("Feature: startable-placement — 「今」の配分の loop の性質"
     );
   });
 
-  // Feature: startable-placement, Property 4.7（改訂）— 「今」の集合と時刻の保持
+  // Feature: startable-placement, Property 4.7′（2026-09-07 改訂・判断 14 で限定）— 「今」の集合と時刻の保持
   // **Validates: Requirements 1.8, 4.7, 4.8**
   //
-  // 候補ごとに、完成形の `startAt ≤ now` の品目の集合は 1 段目の集合を**含み**（再生成で「今」になった品目が足される）、
-  // 1 段目の「今」の品目の時刻は動かず、すべての「今」の品目は互いに素な釜を持つ（`pool` の上の排他的な割当・釜は反復で
+  // 候補ごとに、完成形の `startAt ≤ now` の品目の集合は 1 段目の集合を**含む**（再生成で「今」になった品目が足される）——
+  // ただし判断 14 の入れ替えを除く：1 段目の「今」が完成形で「今」でないなら、engine は候補 K（1 段目の配置の時刻をすべて
+  // 保ち、配分した釜だけを交換した計画）を実際に組んでおり、K が物理的なハード制約（計画順・解放表 / `keepsAnchor` /
+  // `withinLiftCap`）を破るか、完成形の総費用（同じ旧 Shown_Plan に対する）が K より真に低い。K が合法なら完成形も合法。
+  // 完成後の他品目・釜を固定して時刻だけ戻す検査では判別できない（判断 14）ので、K そのものを見る。
+  // 「今」を保った品目の時刻は動かず、すべての「今」の品目は互いに素な釜を持つ（`pool` の上の排他的な割当・釜は反復で
   // 変わり得る）。配置される品目の集合も同じ。時刻は有限（取り置いた釜を取ることは無い）。
-  //
-  // **例外は合法性（4.8）だけ**：1 段目の「今」の品目が完成形で「今」でないなら、その品目を 1 段目の時刻に戻した配置（釜は完成形の
-  // まま）は完成した計画の中で物理的なハード制約（計画順・解放表 / `keepsAnchor` / `withinLiftCap`）を破る——固定した上がりが
-  // 手前の一片の上がりと同じ窓で上限を超える、または合流の候補時刻が手前の表で変わった——ときに限る（`revalidate` の固定の解除・
-  // 実測 3000 場面に 1 回）。
-  it("Property 4.7: 「今」の集合は 1 段目を含み（例外は物理的に成り立たない「今」だけ）、1 段目の「今」の時刻は動かず、「今」の品目どうしの釜は重ならない", () => {
+  it("Property 4.7′: 1 段目の「今」が「今」を失うのは K が違法か K より総費用が真に低いときだけ——「今」の時刻は動かず、「今」どうしの釜は重ならない", () => {
     fc.assert(
       fc.property(genScene, (scene) => {
-        const stages = candidatesOf(scene, new Set());
-        const completed = candidatesOf(scene, occupiedSlotsOf(scene.running));
-        expect(completed).toHaveLength(stages.length);
+        const context = contextOf(scene);
+        const checked = sceneOfScene(scene);
         const nowOf = (placements: ReadonlyMap<ItemKey, Placement>) =>
           [...placements.entries()]
             .filter(([, placement]) => placement.startAt <= NOW)
             .map(([key]) => key)
             .sort();
-        for (const [index, stage1] of stages.entries()) {
+        for (const { stage1, swap, completed } of stagesOf(scene)) {
           const before = byKey(stage1);
-          const after = byKey(completed[index]!);
+          const after = byKey(completed);
           expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
           const nowBefore = nowOf(before);
           const nowAfter = nowOf(after);
+          const lost = nowBefore.filter((key) => !nowAfter.includes(key));
           for (const key of nowBefore) {
-            if (nowAfter.includes(key)) {
+            if (nowAfter.includes(key))
               expect(after.get(key)!.startAt, key).toBe(before.get(key)!.startAt);
-              continue;
+          }
+          if (lost.length > 0) {
+            // 「今」を失った品目が在る——engine は候補 K を組んでいる。K は 1 段目の時刻・錨を保ち釜だけが違う。
+            expect(swap, lost.join(",")).not.toBeNull();
+            const swapped = byKey(swap!);
+            expect([...swapped.keys()].sort()).toEqual([...before.keys()].sort());
+            for (const [key, placement] of swapped) {
+              const original = before.get(key)!;
+              expect([placement.startAt, placement.serveAt, placement.anchor], key).toEqual([
+                original.startAt,
+                original.serveAt,
+                original.anchor,
+              ]);
             }
-            // 「今」を失った品目：1 段目の時刻に戻した配置（釜は完成形のまま）は、完成した計画の中で成り立たない。
-            const plan = completed[index]!;
-            const reverted: CookSchedule = {
-              slices: plan.slices.map((slice) => ({
-                tableKey: slice.tableKey,
-                placements: slice.placements.map((placement) =>
-                  itemKeyOf(placement) === key
-                    ? {
-                        ...placement,
-                        startAt: before.get(key)!.startAt,
-                        serveAt: before.get(key)!.serveAt,
-                      }
-                    : placement,
-                ),
-              })),
-            };
-            expect(physicalViolationsOf(sceneOfScene(scene), reverted), key).not.toEqual([]);
+            if (physicalViolationsOf(checked, swap!).length === 0) {
+              expect(totalOf(checked, completed, context)).toBeLessThan(
+                totalOf(checked, swap!, context),
+              );
+              expect(physicalViolationsOf(checked, completed)).toEqual([]);
+            }
           }
           for (const [key, placement] of after) {
             expect(Number.isFinite(placement.serveAt), key).toBe(true);
@@ -303,6 +322,70 @@ describe("Feature: startable-placement — 「今」の配分の loop の性質"
               claimed.add(slotOf(slotId));
             }
           }
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Feature: startable-placement, Property 4.9（判断 15）— 再生成した品目どうしのまとまり
+  // **Validates: Requirements 4.9; lift-group-planning 1.4, 3.3, 9.9, 9.10**
+  //
+  // loop は固定した「今」の品目に残りを揃えない（Short／Long の帰結）が、固定した品目を除いた集合には生成器のまとまりの規則が
+  // 従来どおり成り立つ。完成形の `startAt ≤ now` の配置はすべて最後の反復で固定されたもの（fresh が空で止まる）なので、
+  // 「固定した「今」を除いた集合」＝一片の `startAt > now` の配置。その集合について `schedule.property` の Property 1／16 と
+  // 同じ規則——各配置は自分の earliest（入力の解放表の自分の釜 ＋ 茹で時間）以上・走行中の仲間が無ければ錨は null で全員が
+  // 集合の最遅の earliest 以上・仲間が在れば合流分は仲間の錨を所属に持ち（錨より h_i を超えて手前に置かれない）、残りは
+  // 走行中の最遅以上・どれも走行中の最早より h_i を超えて手前に置かれない——を主張する。前提は一片が一つの batch に収まる
+  // こと：再生成の幅は後の一片の固定した「今」の釜を取り置いた残り（`slotCount − Σ span(後の一片の「今」)`）なので、一片の
+  // Σ span がそれを超える一片は見ない。上げ窓の上限（pack／split の成立）は固定分を含めて 4.8 が見る。
+  it("Property 4.9: 固定した「今」を除いた集合は、群の錨から後ろへしか動かず、合流分は仲間の錨を所属に持つ", () => {
+    fc.assert(
+      fc.property(genScene, (scene) => {
+        const { release, members, params, slotCount } = scene;
+        const spanOf = new Map(scene.pending.map((order) => [itemKeyOf(order), order.slotSpan]));
+        const earliestOf = (placement: Placement) =>
+          Math.max(...placement.slotIds.map((slotId) => release[slotOf(slotId)]!)) +
+          (placement.serveAt - placement.startAt);
+        for (const { completed } of stagesOf(scene)) {
+          completed.slices.forEach((slice, index) => {
+            const reserved = completed.slices
+              .slice(index + 1)
+              .flatMap((later) => later.placements)
+              .filter((placement) => placement.startAt <= NOW)
+              .reduce((sum, placement) => sum + placement.slotIds.length, 0);
+            const total = slice.placements.reduce(
+              (sum, placement) => sum + (spanOf.get(itemKeyOf(placement)) ?? 1),
+              0,
+            );
+            if (total > slotCount - reserved) return;
+            const rest = slice.placements.filter((placement) => placement.startAt > NOW);
+            if (rest.length === 0) return;
+            for (const placement of rest) {
+              expect(placement.serveAt).toBeGreaterThanOrEqual(earliestOf(placement));
+            }
+            const siblings = members.get(slice.tableKey);
+            if (siblings === undefined) {
+              const anchor = Math.max(...rest.map(earliestOf));
+              for (const placement of rest) {
+                expect(placement.anchor).toBeNull();
+                expect(placement.serveAt).toBeGreaterThanOrEqual(anchor);
+              }
+              return;
+            }
+            const earliestSibling = siblings[0];
+            const latestSibling = siblings[siblings.length - 1]!;
+            for (const placement of rest) {
+              const window = joinWindowMillis(placement.serveAt - placement.startAt, params);
+              expect(placement.serveAt).toBeGreaterThanOrEqual(earliestSibling - window);
+              if (placement.anchor !== null) {
+                expect(siblings).toContain(placement.anchor);
+                expect(placement.serveAt).toBeGreaterThanOrEqual(placement.anchor - window);
+              } else {
+                expect(placement.serveAt).toBeGreaterThanOrEqual(latestSibling);
+              }
+            }
+          });
         }
       }),
       { numRuns: 300 },

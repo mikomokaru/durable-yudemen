@@ -295,13 +295,17 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // 錨との一致そのもの（serveAt = anchor）は上げ窓が破りうるので主張しない——窓で動いても所属は変わらない
   // （判断 20）。容量を超える一片は batch に割れるので対象外（Property 14）。
   //
-  // **「今」の品目を含む一片の錨の一致は主張しない（startable-placement Component 3′・2026-09-07）。** 「今」の配分の loop は、
+  // **固定した「今」の品目を除いて主張する（startable-placement 判断 15・性質 4.9・2026-09-07）。** 「今」の配分の loop は、
   // 配分で釜が動いて不正になった一片を、配分した「今」の配置を残したまま残りを再生成する。残りの batch の錨は残りの
   // earliest（と走行中の錨）から取り直すので、固定した「今」の品目と同じ時刻には揃わない（design の反例：同卓の Long を
   // 「今」に固定し、Short を再生成すると Short は「今」になる）。それは意図した帰結（再生成で「今」になった品目・AC 1.8 改訂）
-  // で、「今」の品目を含まない一片には従来どおり錨の一致が成り立つ（生成器の出力のまま、または生成器で丸ごと再生成）。
-  // 各配置が自分の earliest 以上であることと、合流の所属の規則は「今」の品目を含む一片にも成り立つ。
-  it("Property 1 / 16: 容量に収まる一片は、群の錨から後ろへしか動かず、合流分は仲間の錨を所属に持つ", () => {
+  // で、固定した品目を除いた集合には従来どおり錨の一致が成り立つ。完成した計画の `startAt ≤ now` の配置はすべて最後の反復で
+  // 固定されたもの（fresh が空で止まる）ゆえ、除く集合は「一片の `startAt ≤ now` の配置」——一片ごとではなく配置ごとに除く
+  // （「今」を含む一片を丸ごと外す形は必要より広い）。群の錨はその残りの最遅の earliest。各配置が自分の earliest 以上であること
+  // と、合流の所属の規則は「今」の品目にも成り立つ。
+  // 前提は一片が一つの batch に収まること：再生成の幅は後の一片の固定した「今」の釜を取り置いた残り（釜数 − 後の一片の
+  // 「今」の Σ span）なので、一片の Σ span がそれを超えるものは見ない（容量を超える一片は batch に割れる・Property 14）。
+  it("Property 1 / 16: 容量に収まる一片は、群の錨から後ろへしか動かず、合流分は仲間の錨を所属に持つ（固定した「今」を除く）", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
         const schedule = baselineSchedule(
@@ -321,13 +325,19 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             order.slotSpan,
           ]),
         );
-        for (const slice of schedule.slices) {
+        for (const [index, slice] of schedule.slices.entries()) {
           const totalSpan = slice.placements.reduce(
             (sum, placement) =>
               sum + (spanOf.get(`${placement.externalOrderId}\u0000${placement.itemIndex}`) ?? 1),
             0,
           );
-          if (totalSpan > slotCount) continue;
+          // 後の一片の固定した「今」の釜は再生成に対して取り置かれる（幅から外れる）。
+          const reserved = schedule.slices
+            .slice(index + 1)
+            .flatMap((later) => later.placements)
+            .filter((placement) => placement.startAt <= NOW)
+            .reduce((sum, placement) => sum + placement.slotIds.length, 0);
+          if (totalSpan > slotCount - reserved) continue;
           // 各配置は自分の釜の解放時刻 + 茹で時間 以上（下限のクランプ無しで構成から従う）。
           const earliestOf = (placement: Placement) =>
             Math.max(...placement.slotIds.map((slotId) => release[Number(slotId)]!)) +
@@ -336,14 +346,17 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             expect(placement.serveAt).toBeGreaterThanOrEqual(earliestOf(placement));
           }
           const siblings = members.get(slice.tableKey);
-          const hasNow = slice.placements.some((placement) => placement.startAt <= NOW);
+          // 固定した「今」（`startAt ≤ now`）を除いた集合。
+          const rest = slice.placements.filter((placement) => placement.startAt > NOW);
           if (siblings === undefined) {
-            // 走行中の仲間が居なければ合流の所属は無く（AC 9.9）、「今」の品目を含まない一片では全員が群の錨
-            // （最遅の earliest）以上に上がる。
-            const anchor = Math.max(...slice.placements.map(earliestOf));
+            // 走行中の仲間が居なければ合流の所属は無く（AC 9.9）、固定した「今」を除いた全員が群の錨（その集合の最遅の
+            // earliest）以上に上がる。
+            const anchor = Math.max(...rest.map(earliestOf));
             for (const placement of slice.placements) {
               expect(placement.anchor).toBeNull();
-              if (!hasNow) expect(placement.serveAt).toBeGreaterThanOrEqual(anchor);
+            }
+            for (const placement of rest) {
+              expect(placement.serveAt).toBeGreaterThanOrEqual(anchor);
             }
           } else {
             const earliestSibling = siblings[0];

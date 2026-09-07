@@ -24,13 +24,20 @@ import { committedSchedule } from "../../src/engine/commit";
 import { recommend } from "../../src/engine/recommend";
 import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
-import { baselineSchedule, initialRelease, type AcceptedSlice } from "../../src/engine/schedule";
+import {
+  baselineSchedule,
+  initialRelease,
+  scheduleStages,
+  type AcceptedSlice,
+  type CookSchedule,
+} from "../../src/engine/schedule";
 import type { SettleParams } from "../../src/engine/settle";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
-import { occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
+import { DEFAULT_NOODLE_PRESETS, occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
+import { physicalViolationsOf, sceneFrom, totalOf } from "./restoreScenes";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
 import {
@@ -498,6 +505,160 @@ describe("Feature: startable-placement — 24 品の連続処理で、例外に�
       // 釜の再利用が二周目以降まで進んでいる（釜ごとに 24 / 6 ≧ 2 回以上の開始）。
       const starts = run.filter((transition) => transition.operation.startsWith("start "));
       expect(starts).toHaveLength(24);
+    });
+  }
+});
+
+// ── レビュー反例：「今」の入れ替えは費用改善の判断（判断 14・性質 4.7′）─────────────────────────────────
+
+describe("Feature: startable-placement — 固定した「今」を残した再生成が成り立たない場面は、候補 K と再生成を総費用で比べる（判断 14）", () => {
+  // 6 釜・釜 0 だけ boiled・arms 1・上げ間隔 5 秒（上限 arms + HELPER_ARMS = 3 本）。卓 T は 45 秒麺 N（Thin extraHard）と
+  // 75 秒麺 A（Medium extraHard）、別注文（卓なし）は 45 秒麺 C と大盛 45 秒麺 M（slotSpan 2）。
+  // 1 段目：T は A を釜 0（boiled・解放 now）に今・N を釜 1 に 30 秒後で 75 秒に揃え、C は釜 2 に今、M は釜 3+5 に今
+  // （45 秒の窓は C + M = 3 本で上限）。配分は A を空き釜 1 へ動かす（釜 0 は Timer で押せない）——N（釜 1・30 秒）と重なって
+  // T が不正になり、A を残した再生成は N を今（45 秒）へ繰り上げる。すると 45 秒の窓は N + C + M = 4 本で上限を超え、固定した
+  // M の一片が成り立たない。ここが判断 14 の場面——候補 K（1 段目の時刻を保ち釜だけ交換：A が釜 1・N は A が空けた釜 0 に
+  // 30 秒後・C と M は今）と、固定を外した再生成（N を今へ繰り上げ、M は上げ窓の競合で 5 秒後へ）を同じ総費用で比べる。
+  const kitchenParams = (weights: Partial<SettleParams>): SettleParams => ({
+    noodlePresets: DEFAULT_NOODLE_PRESETS,
+    ...schedulingDefaults(1),
+    arms: 1,
+    liftIntervalSeconds: 5,
+    ...weights,
+  });
+  const boiled: Timer = createTimer({
+    id: "boiled-0" as TimerId,
+    slotIds: nonEmpty(["0" as SlotId]),
+    noodleType: "Thin" as NoodleType,
+    firmness: "normal",
+    startTime: at(-80),
+    endTime: at(-20),
+    seq: 0,
+    boiledAt: at(-20),
+  });
+  const n = order("t", {
+    noodleType: "Thin",
+    firmness: "extraHard",
+    tableId: "T",
+    arrivalTime: at(-600),
+  });
+  const a = order("t", {
+    noodleType: "Medium",
+    firmness: "extraHard",
+    tableId: "T",
+    arrivalTime: at(-600),
+    itemIndex: 1,
+  });
+  const c = order("o", {
+    noodleType: "Thin",
+    firmness: "extraHard",
+    tableId: null,
+    arrivalTime: at(-1),
+  });
+  const m = order("o", {
+    noodleType: "Thin",
+    firmness: "extraHard",
+    tableId: null,
+    arrivalTime: at(-1),
+    itemIndex: 1,
+    slotSpan: 2,
+  });
+  const pending = [n, a, c, m];
+  const running = [boiled];
+
+  /** 生成候補 F の経過（1 段目・候補 K・再生成・完成形）と、同じ場面（前回なし）に対する総費用。 */
+  function stagesOf(params: SettleParams) {
+    const scene = sceneFrom(pending, running, 6, params, NOW);
+    const { fresh } = scheduleStages(
+      pending,
+      scene.release,
+      scene.members,
+      scene.lifts,
+      DEFAULT_NOODLE_PRESETS,
+      params,
+      NOW,
+      scene.occupied,
+      null,
+    );
+    return { scene, ...fresh, totalOf: (plan: CookSchedule) => totalOf(scene, plan, null) };
+  }
+
+  /** 計画を「品目 → [釜, 開始秒]」に（`placementsOf` は externalOrderId だけで引くので、同じ注文の 2 品目を区別する）。 */
+  function timesOf(plan: CookSchedule) {
+    return new Map(
+      plan.slices
+        .flatMap((slice) => slice.placements)
+        .map((placement) => [
+          `${placement.externalOrderId}#${placement.itemIndex}`,
+          [placement.slotIds.map(Number), (placement.startAt - NOW) / SECOND] as const,
+        ]),
+    );
+  }
+
+  const STAGE1 = [
+    ["t#0", [[1], 30]],
+    ["t#1", [[0], 0]],
+    ["o#0", [[2], 0]],
+    ["o#1", [[3, 5], 0]],
+  ] as const;
+  /** 候補 K：A が空き釜 1・N は A が空けた釜 0 に 30 秒後（時刻は 1 段目のまま）・C と M は今。 */
+  const SWAP = [
+    ["t#0", [[0], 30]],
+    ["t#1", [[1], 0]],
+    ["o#0", [[2], 0]],
+    ["o#1", [[3, 5], 0]],
+  ] as const;
+  /** 再生成：N を今へ繰り上げ（A と揃えない・判断 15）、M は 45 秒の窓の競合で 5 秒後へ。 */
+  const REGENERATED = [
+    ["t#1", [[2], 0]],
+    ["t#0", [[1], 0]],
+    ["o#0", [[3], 0]],
+    ["o#1", [[4, 5], 5]],
+  ] as const;
+
+  it("両候補は合法——K は 1 段目の時刻のまま釜だけ交換し、再生成は同卓の麺を今へ繰り上げて大盛を 5 秒後へ", () => {
+    const { scene, stage1, swap, regenerated } = stagesOf(kitchenParams({}));
+    expect([...timesOf(stage1)]).toEqual(STAGE1);
+    expect(swap).not.toBeNull();
+    expect([...timesOf(swap!)]).toEqual(SWAP);
+    expect([...timesOf(regenerated)]).toEqual(REGENERATED);
+    expect(physicalViolationsOf(scene, swap!)).toEqual([]);
+    expect(physicalViolationsOf(scene, regenerated)).toEqual([]);
+  });
+
+  it("業務費用が待ち時間だけ（同期の重み 0）なら再生成が 30 秒相当低く、費用ゆえに再生成が選ばれる（K 1457・再生成 1427）", () => {
+    const { swap, regenerated, completed, totalOf } = stagesOf(
+      kitchenParams({ orderSyncWeight: 0, tableSyncWeight: 0, affinityWeight: 0 }),
+    );
+    expect(totalOf(swap!)).toBe(1457);
+    expect(totalOf(regenerated)).toBe(1427);
+    expect(totalOf(regenerated)).toBeLessThan(totalOf(swap!));
+    expect(completed).toEqual(regenerated);
+    expect([...timesOf(completed)]).toEqual(REGENERATED);
+  });
+
+  it("既定の重み（卓同期 2）では A と N を 30 秒ずらす再生成の方が 30 秒相当高く、費用ゆえに K が選ばれる——N は 30 秒後のまま・M は今（K 1457・再生成 1487）", () => {
+    const { swap, regenerated, completed, totalOf } = stagesOf(kitchenParams({}));
+    expect(totalOf(swap!)).toBe(1457);
+    expect(totalOf(regenerated)).toBe(1487);
+    expect(totalOf(swap!)).toBeLessThan(totalOf(regenerated));
+    expect(completed).toEqual(swap);
+    expect([...timesOf(completed)]).toEqual(SWAP);
+    // 完成形の「今」（A・C・M）はすべて Timer の無い釜に在り、表示の先頭に A が出る。
+    const heads = headsOf(
+      visibleGroupsOf(liftGroupsOf(liftItemsOf(completed, DEFAULT_NOODLE_PRESETS), NOW)),
+      occupiedSlotsOf(running),
+      NOW,
+      1,
+    );
+    expect(heads).toEqual([itemKeyOf(a)]);
+  });
+
+  function liftItemsOf(plan: CookSchedule, presets: readonly NoodlePreset[]): readonly LiftItem[] {
+    const orderByKey = new Map(pending.map((each) => [itemKeyOf(each), each]));
+    return recommend(plan).map((recommendation) => {
+      const each = orderByKey.get(itemKeyOf(recommendation))!;
+      return { recommendation, order: each, boilSeconds: boilMillisOf(each, presets)! / 1000 };
     });
   }
 });

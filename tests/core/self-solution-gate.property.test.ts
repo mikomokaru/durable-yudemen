@@ -16,45 +16,17 @@ import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { ScheduleParams } from "../../src/engine/objective";
 import type { Firmness } from "../../src/domain/firmness";
-import {
-  DEFAULT_SLOT_OFFSETS,
-  SLOTS_PER_UNIT,
-  UNIT_COUNT_MAX,
-  UNIT_COUNT_MIN,
-  defaultUnitOrigins,
-} from "../../src/domain/store";
-import {
-  KNOWN_NOODLE_TYPES,
-  NOW,
-  UNKNOWN_NOODLE_TYPE,
-  genOrderSpec,
-  genParams,
-  genRunning,
-  type ItemSpec,
-  type OrderSpec,
-  type RunningSpec,
-} from "./scheduleScenes";
+import { DEFAULT_SLOT_OFFSETS, defaultUnitOrigins } from "../../src/domain/store";
+import { NOW, type ItemSpec, type OrderSpec, type RunningSpec } from "./scheduleScenes";
 import {
   candidatesOf,
   contextOf,
+  genRawScene,
   physicalViolationsOf,
   planOf,
   sceneOf,
   type RawScene,
 } from "./restoreScenes";
-
-const genRaw: fc.Arbitrary<RawScene> = fc
-  .integer({ min: UNIT_COUNT_MIN, max: UNIT_COUNT_MAX })
-  .chain((unitCount) =>
-    fc.record({
-      unitCount: fc.constant(unitCount),
-      params: genParams(unitCount),
-      running: fc.array(genRunning(unitCount * SLOTS_PER_UNIT), { maxLength: 5 }),
-      orders: fc.array(genOrderSpec([...KNOWN_NOODLE_TYPES, UNKNOWN_NOODLE_TYPE]), {
-        maxLength: 5,
-      }),
-    }),
-  );
 
 function paramsOf(unitCount: number, arms: number, liftIntervalSeconds: number): ScheduleParams {
   return {
@@ -121,7 +93,7 @@ describe("自前解と共通のハード制約（合成・ゲートと同じ述�
   // Feature: plan-stability, Property 5.10 / startable-placement, Property 4.8 — 自前解の合法性
   it("Property 5.10 / 4.8: 完成した F と R（前回なし・前回あり）は、計画順に isStale・解放表・keepsAnchor・withinLiftCap を守る", () => {
     fc.assert(
-      fc.property(genRaw, (raw) => {
+      fc.property(genRawScene, (raw) => {
         const scene = sceneOf(raw);
         const first = planOf(scene, null);
         expect(physicalViolationsOf(scene, first)).toEqual([]);

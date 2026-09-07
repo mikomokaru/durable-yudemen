@@ -5,6 +5,7 @@
 // 写しを置かない。述語（`isStale` / `cannotStart` / `feasibleRelease` / `keepsAnchor` / `withinLiftCap`）も src の公開関数を
 // 呼ぶ。`violationsOf` は完成した計画を計画順に、一片を置く前の表で検証する（ゲートと同じ位置・同じ表）。
 
+import * as fc from "fast-check";
 import {
   advanceRelease,
   baselineSchedule,
@@ -41,10 +42,23 @@ import type { PendingOrder } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
+  UNIT_COUNT_MAX,
+  UNIT_COUNT_MIN,
   occupiedSlotsOf,
   type NoodlePreset,
 } from "../../src/domain/store";
-import { NOW, timerOn, toPending, type OrderSpec, type RunningSpec } from "./scheduleScenes";
+import {
+  KNOWN_NOODLE_TYPES,
+  NOW,
+  UNKNOWN_NOODLE_TYPE,
+  genOrderSpec,
+  genParams,
+  genRunning,
+  timerOn,
+  toPending,
+  type OrderSpec,
+  type RunningSpec,
+} from "./scheduleScenes";
 
 // ────────────────────────────────────────────────────────────────────────────
 // 場面（素データを保持して反例を印字できる形）
@@ -56,6 +70,23 @@ export interface RawScene {
   readonly running: readonly RunningSpec[];
   readonly orders: readonly OrderSpec[];
 }
+
+/**
+ * 実占有の性質（5.6 / 5.10 / 5.11 / 4.8）が共有する場面の生成器。`schedule.property` と同じ形（走行中・boiled・卓・大盛・
+ * 未知の麺種を振る）で、素データを保つ（反例を印字できる）。
+ */
+export const genRawScene: fc.Arbitrary<RawScene> = fc
+  .integer({ min: UNIT_COUNT_MIN, max: UNIT_COUNT_MAX })
+  .chain((unitCount) =>
+    fc.record({
+      unitCount: fc.constant(unitCount),
+      params: genParams(unitCount),
+      running: fc.array(genRunning(unitCount * SLOTS_PER_UNIT), { maxLength: 5 }),
+      orders: fc.array(genOrderSpec([...KNOWN_NOODLE_TYPES, UNKNOWN_NOODLE_TYPE]), {
+        maxLength: 5,
+      }),
+    }),
+  );
 
 export interface Scene {
   readonly pending: readonly PendingOrder[];

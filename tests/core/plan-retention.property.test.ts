@@ -14,26 +14,19 @@
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { SLOTS_PER_UNIT, UNIT_COUNT_MAX, UNIT_COUNT_MIN } from "../../src/domain/store";
-import {
-  KNOWN_NOODLE_TYPES,
-  UNKNOWN_NOODLE_TYPE,
-  genOrderSpec,
-  genParams,
-  genRunning,
-} from "./scheduleScenes";
+import { KNOWN_NOODLE_TYPES, genOrderSpec } from "./scheduleScenes";
 import {
   candidatesOf,
   changeOf,
   contextOf,
   contextWith,
+  genRawScene,
   physicalViolationsOf,
   planOf,
   samePlan,
   sceneFrom,
   sceneOf,
   totalOf,
-  type RawScene,
   type Scene,
 } from "./restoreScenes";
 import type { CookSchedule } from "../../src/engine/schedule";
@@ -47,19 +40,6 @@ import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import { toPending } from "./scheduleScenes";
 import { nonEmpty } from "../nonEmpty";
-
-export const genRaw: fc.Arbitrary<RawScene> = fc
-  .integer({ min: UNIT_COUNT_MIN, max: UNIT_COUNT_MAX })
-  .chain((unitCount) =>
-    fc.record({
-      unitCount: fc.constant(unitCount),
-      params: genParams(unitCount),
-      running: fc.array(genRunning(unitCount * SLOTS_PER_UNIT), { maxLength: 5 }),
-      orders: fc.array(genOrderSpec([...KNOWN_NOODLE_TYPES, UNKNOWN_NOODLE_TYPE]), {
-        maxLength: 5,
-      }),
-    }),
-  );
 
 /** 前回 `previous` を Shown_Plan にした再計画が、同じ計画（変更費用 0）か総費用が真に下がる計画であること。返すのは再計画。 */
 function retains(scene: Scene, previous: CookSchedule): CookSchedule {
@@ -81,7 +61,7 @@ function retains(scene: Scene, previous: CookSchedule): CookSchedule {
 describe("Feature: plan-stability, Property 5.6 — 実占有・保持候補 R による自前解の保持", () => {
   it("2 回目は 1 回目と同じ計画（Change_Cost 0）か総費用が真に下がる計画で、F に劣らず、3 回目も 2 回目に対して同じ", () => {
     fc.assert(
-      fc.property(genRaw, (raw) => {
+      fc.property(genRawScene, (raw) => {
         const scene = sceneOf(raw);
         const first = planOf(scene, null);
         const second = retains(scene, first);
@@ -176,7 +156,7 @@ describe("Feature: plan-stability, Property 5.11 — 摂動の後も保持は劣
     const counts = { scenes: 0, retainedChosen: 0, changeTotal: 0, changeFree: 0 };
     fc.assert(
       fc.property(
-        genRaw,
+        genRawScene,
         fc.constantFrom<Perturbation>("elapse", "start", "arrive", "complete"),
         genOrderSpec(KNOWN_NOODLE_TYPES),
         (raw, kind, extra) => {
