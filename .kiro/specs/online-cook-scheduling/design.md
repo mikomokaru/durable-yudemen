@@ -198,7 +198,7 @@ export type SlotRelease = readonly EpochMillis[];
  *
  * 各 slot の最早解放時刻を、その slot を占める Timer の実効 `endTime`（`adjustedEndTime`）で
  * 初期化する。空き slot は now。**boiled は実効 `endTime` の時点で解放済みとして扱う**
- * （湯切りで麺が釜から上がるため釜は空く。Complete は UI 上の確認であって釜の占有ではない）。
+ * （湯切りで麺が釜から上がるため釜は空く。**解放予測では Complete を待たない**——Complete は UI 上の確認であって、釜が空く予測には含めない）。
  * boiled の実効 endTime は定義上過去なので、この式は当該 slot を「今すぐ空いている」と扱う。
  */
 export function initialRelease(running: readonly Timer[], now: EpochMillis, slotCount: number): SlotRelease;
@@ -207,7 +207,7 @@ export function initialRelease(running: readonly Timer[], now: EpochMillis, slot
 export function advanceRelease(release: SlotRelease, placements: readonly Placement[]): SlotRelease;
 ```
 
-> **改訂（`startable-placement` 判断 1・ADR-0012・2026-09-07）:** 「Complete は釜の占有ではない」は解放表（予測）の契約としてそのまま。**開始の可否は別の事実**——対象釜に Timer（running / boiled とも）が無いこと（Startable_Slot・`src/domain/store.ts` の `occupiedSlotsOf` の補集合・client の全釜 idle と同じ述語）——で、`committedSchedule` が `occupiedSlotsOf(running)` を一度作り、接頭辞の失効（`cannotStart`）と自前解の「今」置く配置の釜の配分（`pinNow`）にだけ渡す。将来配置（`startAt > now`）の釜の選択は占有を読まず、解放表の予測（boiled はそれまでに Complete される）に立つ。
+> **改訂（`startable-placement` 判断 1・ADR-0012・2026-09-07）:** 「解放予測では Complete を待たない」（旧「Complete は釜の占有ではない」）は解放表（予測）の契約としてそのまま。**開始の可否は別の事実**——対象釜に Timer（running / boiled とも）が無いこと（Startable_Slot・`src/domain/store.ts` の `occupiedSlotsOf` の補集合・client の全釜 idle と同じ述語）——で、`committedSchedule` が `occupiedSlotsOf(running)` を一度作り、接頭辞の失効（`cannotStart`）と自前解の「今」置く配置の釜の配分（`pinNow`）にだけ渡す。将来配置（`startAt > now`）の釜の選択は占有を読まず、解放表の予測（boiled はそれまでに Complete される）に立つ。
 
 ### `baselineSchedule` — 自前解の算出（要件4）
 

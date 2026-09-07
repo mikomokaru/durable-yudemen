@@ -189,13 +189,13 @@ baselineSchedule / committedSchedule:
 ```
 
 - **`restoreSchedule(shown, pending)`**（`src/engine/stability.ts` か `schedule.ts`）：Live_Orders に在る品目を初出順の一片に組む。`tableKeyOf` を公開して同じ鍵を使う。
-- **`retain`**：一片ごとに計画順で、置ける品目に限る `isStale`・`cannotStart`（保持の条件）・解放表・`keepsAnchor`・`withinLiftCap` を、採用済み接頭辞とそれまでの一片で進めた表に対して当てる。通れば表を進めて残す。落ちた一片はその卓の残り品目を `placeGroup`（文脈つき）で置き直す。前回に無い品目（新着）はその卓の再生成に含め、卓ごと新しいなら末尾に置く。復元した「今」の配置は `startable-placement` の配分（`pinNow`）に固定として渡す（既に Timer の無い釜に在ることを `cannotStart` が保証する）。
+- **`retain`**：一片ごとに計画順で、置ける品目に限る `isStale`・解放表（`feasibleRelease`）・`keepsAnchor`・`withinLiftCap` を、採用済み接頭辞とそれまでの一片で進めた表に対して当てる（`cannotStart` は当てない——判断 10・13。retime の後に残るのは boiled の釜で待つ配置だけで、開始可能性は復元後の割当補正 `placeNow` が守る）。通れば表を進めて残す。落ちた一片はその卓の残り品目を `placeGroup`（文脈つき）で置き直す。前回に無い品目（新着）はその卓の再生成に含め、卓ごと新しいなら末尾に置く。復元した「今」の配置は `startable-placement` の配分（`pinNow`）に「今」の品目として渡し、最終的な表示順で配り直す。
 - **retime**：`startAt < now` の復元配置は `startAt = now`・`serveAt = now + 茹で時間` に置き直してから検証する（完全復元 44 → 855 場面・実測）。
 - **比較**：`scoreSchedule(…, { members, lifts, change: { shown, … } })` の `total` を両候補で同じ旧 Shown_Plan に対して取り、`R ≤ F` なら R。
 - **verify**：完成候補の各一片を計画順に、ゲートの (c)(e)(f) と Requirement 7 の `isStale` で検証する性質（`self-solution-gate`）。構造から成り立つ（R は検証済みの復元 ＋ 生成器、F は生成器）ので実行時の分岐は置かない。生成器が違反を作り得る箇所（`startable-placement` の下限）は撤去する（同 spec の改訂）。
-- **共有する述語**：`cannotStart`・解放の feasibility・`isStale` は合成（`livePrefix`）・ゲート（`admit`）・復元（`retain`）が同じ関数を呼ぶ。適用先は Requirement 6 判断 13 のとおり分ける。
+- **共有する述語**：`isStale`（置ける品目）は合成・ゲート・復元が、`feasibleRelease` はゲート・復元・loop の `revalidate` が同じ関数を呼ぶ（合成の `livePrefix` は採用済み接頭辞に当てない——既知の制限）。`cannotStart` は合成の採用済み接頭辞だけ（Requirement 6 判断 13）。
 
-> **実装の追記（task 3′・ADR-0012・2026-09-07）:** `retain` は `cannotStart` を**当てない**（判断 10・13——retime の後に残るのは boiled の釜で待つ配置だけで、その釜は `placeNow` の配分が表示順に配り直す。上の「復元した「今」の配置は …`cannotStart` が保証する」は成り立たない）。復元した配置の錨は `reanchor` が「旧 Shown_Plan の品目のうち今回 Timer になったもの」（`startedSiblingsOf`）にだけ付け直す（判断 9′）。検証と再生成（`revalidate`）は `startable-placement` の loop（`placeNow`）と同じ関数で、対象が Shown_Plan か 1 段目かの違いだけ。`restoreSchedule` の名は採らず `retain` / `restoreSlices`（`schedule.ts` 内部）、`tableKeyOf` は `project.ts` の公開関数（`schedule.ts` が再公開）。R・F とも `placeNow` を通した完成候補で、`scheduleCandidates` / `scheduleStages`（公開・性質の検査が選ばれなかった側と候補 K を見る）が返す。
+> **実装の追記（task 3′・ADR-0012・2026-09-07）:**復元した配置の錨は `reanchor` が「旧 Shown_Plan の品目のうち今回 Timer になったもの」（`startedSiblingsOf`）にだけ付け直す（判断 9′）。検証と再生成（`revalidate`）は `startable-placement` の loop（`placeNow`）と同じ関数で、対象が Shown_Plan か 1 段目かの違いだけ。`restoreSchedule` の名は採らず `retain` / `restoreSlices`（`schedule.ts` 内部）、`tableKeyOf` は `project.ts` の公開関数（`schedule.ts` が再公開）。R・F とも `placeNow` を通した完成候補で、`scheduleCandidates` / `scheduleStages`（公開・性質の検査が選ばれなかった側と候補 K を見る）が返す。
 
 ## Error Handling
 
