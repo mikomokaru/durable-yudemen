@@ -1,25 +1,17 @@
 // tests/core/plan-stability-occupancy.example.test.ts — plan-stability 性質 5.6（同じ入力で続けて計画すると、同じ計画か総費用が
-// 真に下がる計画になる）を**実占有**（`occupiedSlotsOf(running)`）で走らせたときの反例を、具体的な場面として固定する。
+// 真に下がる計画になる）を**実占有**（`occupiedSlotsOf(running)`）で走らせたときの反例だった 4 場面を、具体的な場面として固定する。
 //
-// Feature: plan-stability, Property 5.6 / startable-placement（2 段の計画）
-// **Validates: Requirements plan-stability 3.1, 3.2, 5.6**
+// Feature: plan-stability, Property 5.6 / Requirement 6（保持候補 R）
+// **Validates: Requirements plan-stability 3.1, 3.2, 5.6, 6.1, 6.2**
 //
-// `schedule.property` の 5.6 は占有なし（1 段目）で見ている。実占有では、前回に忠実な候補（`Continuity.faithful`）が
-// `buildSchedule` による**再生成**であり、前回の 2 段目の出力を常には再現できない——ゆえに 3000 場面に 2〜4 回、同じ入力で
-// 総費用が悪化する計画に変わる（性質 5.6 の反例・fast-check で縮約した 4 場面）。機構は 3 つ。
-//   (a) **下限（floor）**：2 段目は 1 段目の `startAt` を下限に残す（startable-placement AC 1.8）。1 段目の窓が埋まっていて
-//       遅らせた品目は、2 段目で釜が配り直されて窓が空いても下限の時刻に留まる。次回の 1 段目は Shown_Plan の配置から
-//       出発するので同じ下限を持たず、自然な時刻を見つけて業務費用を改善するが、変更費用がそれを上回る（場面 D：
-//       31 秒の改善に 64 秒の変更費用。場面 A：139 秒の改善に 141 秒）。
-//   (b) **取り置き（reservation）**：2 段目は後の群の「今」の固定配置の釜を手前の群に対して取り置く。次回の 1 段目は一片の
-//       順に表を進めるので、その釜を手前の卓が先に取り、後の単独品が「今」を失う（場面 C：業務費用は同点のまま先頭の
-//       消失 2L を含む 76 秒の変更費用。場面 B：業務費用 40 秒悪化・変更費用 60 秒）。
-//   (c) 前回そのもの（変更費用 0・総費用 = 業務費用）は復元すれば常に候補にできる——再生成に頼らず `TimerState.shownPlan`
-//       から一片の列に戻し、合成（`livePrefix`）と同じハード制約の述語で現在の入力に対して検証し、新しく組んだ候補と
-//       総費用で比べて同点なら前回を採る（規則 B・`restoreScenes.ts` の試作）。4 場面すべてで規則 B は前回の計画を保つ。
-//
-// 望む振る舞い（同じ計画か総費用が真に下がる）は `it.fails` で赤に固定し、機構の観測値（費用の差）は通常の `it` に置く
-// ——修正が入れば前者が緑に、後者が赤になって観測を消す合図になる。
+// task 3 の 2 段目（前回に忠実な候補 `Continuity.faithful` による**再生成**）では、前回の 2 段目の出力を常には再現できず、3000 場面に
+// 2〜4 回、同じ入力で総費用が悪化する計画に変わった（fast-check で縮約した 4 場面）。機構は 2 つあった。
+//   (a) **下限（floor）**：2 段目が 1 段目の `startAt` を下限に残し、次回の 1 段目は同じ下限を持たずに自然な時刻を見つけて業務費用を
+//       改善するが、変更費用がそれを上回る（場面 D：31 秒の改善に 64 秒の変更費用。場面 A：139 秒の改善に 141 秒）。
+//   (b) **取り置き（reservation）**：2 段目が後の群の「今」の固定配置の釜を手前の群に対して取り置き、次回の 1 段目は一片の順に表を
+//       進めるので手前の卓が先に取り、後の単独品が「今」を失う（場面 C：先頭の消失 2L を含む 76 秒。場面 B：業務費用 40 秒悪化）。
+// 保持候補 R（Requirement 6・`retain`）は前回そのものを `TimerState.shownPlan` から一片の列に**復元**し、合成と同じ述語で検証して
+// 総費用で比べる（同点は前回）。4 場面すべてで R は前回の計画を保つ。
 
 import { describe, expect, it } from "vitest";
 import type { ScheduleParams } from "../../src/engine/objective";
@@ -27,13 +19,12 @@ import type { Firmness } from "../../src/domain/firmness";
 import { DEFAULT_SLOT_OFFSETS, defaultUnitOrigins } from "../../src/domain/store";
 import { NOW, type ItemSpec, type OrderSpec, type RunningSpec } from "./scheduleScenes";
 import {
-  RULE_B,
+  candidatesOf,
   changeOf,
   contextOf,
   planOf,
   samePlan,
   sceneOf,
-  select,
   totalOf,
   type RawScene,
 } from "./restoreScenes";
@@ -172,8 +163,8 @@ const SCENE_C: RawScene = {
 /**
  * 場面 D：18 釜・arms 4・L 16。下限の機構——1 段目は卓 t-1 の 3 品を 60 / 60 / 61 秒に上げ、窓 [45, 61) が埋まって卓 t-2 の
  * o-2#0 を 31 秒開始（76 秒提供）に遅らせた。2 段目は「今」の 3 品を占有された釜 0 から配り直し、t-1 は 60 / 61 / 61 秒に
- * なって窓に余りが出るが、o-2#0 は 1 段目の下限（31 秒）に留まる（`raiseToFloor`）。次回の 1 段目は Shown_Plan の t-1 から
- * 出発して o-2#0 を「今」（45 秒提供）に置ける——業務費用 31 秒の改善に、釜の変更・時刻の移動・順の逆転で 64 秒の変更費用。
+ * なって窓に余りが出るが、o-2#0 は 1 段目の下限（31 秒）に留まった。次回の 1 段目は Shown_Plan の t-1 から出発して
+ * o-2#0 を「今」（45 秒提供）に置ける——業務費用 31 秒の改善に、釜の変更・時刻の移動・順の逆転で 64 秒の変更費用。
  */
 const SCENE_D: RawScene = {
   unitCount: 3,
@@ -194,62 +185,35 @@ const SCENE_D: RawScene = {
   ],
 };
 
-interface Observed {
-  readonly name: string;
-  readonly raw: RawScene;
-  /** 業務費用の差（前回 − 今回・秒）。負は悪化。 */
-  readonly businessGain: number;
-  /** 今回の計画の変更費用（秒）。 */
-  readonly change: number;
-}
-
-const SCENES: readonly Observed[] = [
-  { name: "A（下限・12 釜）", raw: SCENE_A, businessGain: 139, change: 141 },
-  { name: "B（取り置き・業務費用も悪化）", raw: SCENE_B, businessGain: -40, change: 60 },
-  { name: "C（取り置き・業務費用は同点）", raw: SCENE_C, businessGain: 0, change: 76 },
-  { name: "D（下限・31 秒の繰り上げ）", raw: SCENE_D, businessGain: 31, change: 64 },
+const SCENES: readonly (readonly [string, RawScene])[] = [
+  ["A（下限・12 釜）", SCENE_A],
+  ["B（取り置き・業務費用も悪化）", SCENE_B],
+  ["C（取り置き・業務費用は同点）", SCENE_C],
+  ["D（下限・31 秒の繰り上げ）", SCENE_D],
 ];
 
-describe("Feature: plan-stability, Property 5.6 — 実占有での反例（同じ入力の再計画が総費用で悪化する）", () => {
-  for (const { name, raw, businessGain, change } of SCENES) {
-    // 望む振る舞い（`schedule.property` の 5.6 と同じ符号化を実占有で）。現状は赤。
-    it.fails(`${name}: 同じ入力で続けて計画すると、同じ計画（Change_Cost 0）か総費用が真に下がる計画になる`, () => {
+describe("Feature: plan-stability, Property 5.6 — 実占有でかつて反例だった 4 場面", () => {
+  for (const [name, raw] of SCENES) {
+    it(`${name}: 同じ入力で続けて計画すると同じ計画で、Change_Cost は 0（3 回目まで）`, () => {
       const scene = sceneOf(raw);
       const first = planOf(scene, null);
       const ctx = contextOf(scene, first);
       const second = planOf(scene, ctx);
-      if (changeOf(scene, second, ctx) === 0) expect(second).toEqual(first);
-      else expect(totalOf(scene, second, ctx)).toBeLessThan(totalOf(scene, first, ctx));
-    });
-
-    // 【修正前の観測・5.6 が実占有で成り立てば消す】機構の値。前回そのものは変更費用 0 で、今回はそれより総費用が高い。
-    it(`${name}: 観測——業務費用の差 ${businessGain} 秒・変更費用 ${change} 秒で、前回（変更費用 0）より総費用が高い`, () => {
-      const scene = sceneOf(raw);
-      const first = planOf(scene, null);
-      const ctx = contextOf(scene, first);
-      const second = planOf(scene, ctx);
-      expect(changeOf(scene, first, ctx)).toBe(0);
-      expect(totalOf(scene, first, null) - totalOf(scene, second, null)).toBe(businessGain);
-      expect(changeOf(scene, second, ctx)).toBe(change);
-      expect(totalOf(scene, second, ctx)).toBeGreaterThan(totalOf(scene, first, ctx));
-      // 3 回目は 2 回目に落ち着く（振動はしない）。
+      expect(second).toEqual(first);
+      expect(changeOf(scene, second, ctx)).toBe(0);
       const third = planOf(scene, contextOf(scene, second));
       expect(third).toEqual(second);
     });
 
-    // 規則 B（復元 → 検証 → 総費用で比較・同点は前回）：前回の計画は現在の入力に対して全一片が有効で、そのまま残る。
-    it(`${name}: 規則 B は前回の計画を復元して保つ（落ちる一片は無く、総費用は前回以下・変更費用 0）`, () => {
+    it(`${name}: 保持候補 R は前回の計画そのもの（変更費用 0）で、生成候補 F に総費用で劣らない（同点は前回）`, () => {
       const scene = sceneOf(raw);
       const first = planOf(scene, null);
       const ctx = contextOf(scene, first);
-      const selected = select(scene, ctx, RULE_B);
-      expect(selected.dropped).toEqual([]);
-      expect(selected.chosen).toBe("R");
-      expect(samePlan(selected.plan, first)).toBe(true);
-      expect(changeOf(scene, selected.plan, ctx)).toBe(0);
-      // 現行の候補（前回の文脈つきの再生成）と比べても前回が勝つ。
-      const regenerated = planOf(scene, ctx);
-      expect(selected.totalR).toBeLessThan(totalOf(scene, regenerated, ctx));
+      const { fresh, retained } = candidatesOf(scene, ctx);
+      expect(retained).not.toBeNull();
+      expect(samePlan(retained!, first)).toBe(true);
+      expect(changeOf(scene, retained!, ctx)).toBe(0);
+      expect(totalOf(scene, retained!, ctx)).toBeLessThanOrEqual(totalOf(scene, fresh, ctx));
     });
   }
 });
