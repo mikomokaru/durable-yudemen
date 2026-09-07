@@ -1,0 +1,75 @@
+# Requirements Document
+
+## Introduction
+
+走行中のスロットカードに、**茹で上がる順の番号**を出す。置き場所はカード左上の麺種バッジの prefix マーカー（いま走行中は点滅ドット、茹で上がりは ✓）で、走行中のドットを番号に置き換える。調理者が「次に上げるのはどれか」を釜の並びに依らず一目で追えるようにする（ユーザー要望・2026-09-07）。
+
+前提は `lift-group-display`（群・先頭・全釜 idle は店舗全体で判定）、`synchronized-boil-adjustment`（実効 endTime＝Boil_Sync の調整後）、`sync-set-batch-complete`（同じ実効 endTime の Sync_Set は一括で上がる）。
+
+### 観測事実（2026-09-07・main `Merge #37` 時点）
+
+1. スロットカードの左上は麺種バッジ（`SlotCard.tsx` `NoodleBadge`）で、prefix マーカーは `boiling`（点滅ドット）／`ready`（✓）／`last`（✓・残滓）／`none`。マーカーは「identity は色、状態はマーカー」の分担で、aria-label は `Boiling: ` / `Ready: ` / `Last: ` の接頭辞を付ける。
+2. 表示状態は `slotDisplay.ts` `assignedSlotDisplays(view, units, now, bySlot)` が担当スロットごとに導出する（running＝残り > 0・boiled＝残り ≤ 0・idle・unreceived）。担当外の Timer は `assignedTimers` で構造的に現れない。1 Timer は複数釜を駆動しうる（大盛）。
+3. wire の `TimerFact.endTime` は実効 endTime（Boil_Sync の調整込み）。同じ Sync_Set の Timer は同じ実効 endTime を持ち、一括完了の対象になる。
+4. 群・先頭・連鎖は店舗全体で判定する（`lift-group-display` AC 1.6 / 2.12）。担当範囲で絞るのは表示だけ。
+5. 残り時間は状態に持たず毎描画 `now` から導く（要件 12.2 の思想）。
+
+### 確定した設計判断（案・レビューで確定）
+
+1. **番号は「実効 endTime の昇順」の順位で、店舗全体で振る。** 担当ユニットの内側で振ると、別ユニットの釜が先に上がるのに 1 番と出る。先頭・群と同じく店舗全体で判定し、担当範囲は表示だけで絞る（観測事実 4 と同じ規律）。
+2. **同じ実効 endTime の Timer は同じ番号（Sync_Set は一括で上がる）。番号は密（dense）に振る**——1・1・2・3 であって 1・1・3・4 ではない。番号は「何番目に上げる回か」を表し、本数ではない。
+3. **対象は走行中（残り > 0）だけ。** 茹で上がり（boiled）は ✓ のまま（もう上がっている）。残滓は ✓ のまま。
+4. **番号はマーカーの置き換え**であり、新しい要素を足さない。走行中の点滅ドットを番号に替える（点滅は番号に引き継がない——番号が点滅すると読みにくい）。aria-label は `Boiling 2: Thin` の形。
+5. **複数釜を駆動する Timer は 1 本として数え、駆動する各釜のカードに同じ番号を出す。**
+6. **導出値であり保持しない。** 描画のたびに `view.timers` と `now` から導く純粋関数（`slotDisplay.ts` に置き、`SlotDisplay.running` に番号を載せる）。ローカルの未確定 Timer（provisional）も同じ規則で数える（best effort・確定で揃う）。
+7. 番号は 1 始まり。最大は走行中の本数。二桁は想定するが三桁は想定しない（釜は最大 24）。
+
+### スコープ外
+
+- 茹で上がり（boiled）や残滓への番号。
+- 音・ラジアル・左レールへの番号の表示。
+- 「次に上げる」の順番と、計画（`lift-group-planning`）の提案の順との関係付け（計画は開始の順、これは上がりの順）。
+
+## Glossary
+
+- **Lift_Order（上がり順）**: 走行中 Timer を実効 endTime の昇順に並べた密な順位（1 始まり・同じ実効 endTime は同じ順位）。店舗全体で一つ。
+- **Marker（マーカー）**: 麺種バッジの prefix 記号。identity（色）と分けて状態を示す。
+
+## Requirements
+
+### Requirement 1: 上がり順の導出
+
+1. THE client SHALL 走行中（残り > 0）の Timer 全件（担当外を含む店舗全体）を実効 endTime の昇順に並べ、密な順位 Lift_Order（1 始まり・同じ実効 endTime は同じ順位）を導く純粋関数を一つ持つ
+2. THE Lift_Order SHALL 描画のたびに `view.timers` と `now` から導き、状態にもワイヤにも永続にも持たない
+3. THE 複数釜を駆動する Timer SHALL 1 本として数える（駆動する各釜に同じ番号）
+4. THE 茹で上がり（残り ≤ 0）の Timer SHALL Lift_Order の対象にしない（番号を持たない）
+5. THE `SlotDisplay.running` SHALL その釜の Timer の Lift_Order を載せる
+
+### Requirement 2: 表示
+
+1. THE 走行中のスロットカード SHALL 麺種バッジのマーカーに Lift_Order の番号を出す（点滅ドットを置き換える。番号は点滅しない）
+2. THE 茹で上がりのカード SHALL ✓ のまま、残滓のバッジ SHALL ✓ のまま
+3. THE aria-label SHALL `Boiling {n}: {noodleType}` の形にする
+4. THE 番号 SHALL 麺色とは独立の記号として、バッジの文字色（濃色）で出す
+
+### Requirement 3: 検証可能な性質
+
+1. **順序**：番号 i のカードの実効 endTime ≤ 番号 j のカードの実効 endTime（i < j）
+2. **同時**：実効 endTime が等しい Timer は同じ番号
+3. **密**：出ている番号の集合は 1..k の連続（k は相異なる実効 endTime の数）
+4. **店舗全体**：担当ユニットを変えても、同じ Timer の番号は変わらない
+5. **複数釜**：同じ Timer を駆動する釜のカードは同じ番号
+6. **不変**：番号の導入で群・先頭・提案・音・残り時間の表示は変わらない
+
+### naming ゲート（`naming.md`）
+
+| 候補名 | 場所 | 表明する概念境界 |
+| --- | --- | --- |
+| `Lift_Order` / `liftOrderOf(timers, now, offset)`（仮） | 要件語彙 / `src/client/components/slotDisplay.ts` | 走行中 Timer の上がり順（密な順位・店舗全体・導出値） |
+| `SlotDisplay.running.liftOrder`（仮） | `slotDisplay.ts` | 釜のカードに出す番号 |
+
+### 未決（レビューで決める）
+
+1. 番号を店舗全体で振るか（推奨）担当ユニット内で振るか。
+2. 同じ実効 endTime を同じ番号にする（推奨）か、釜番号で断って連番にするか。
+3. 未確定（provisional）の Timer を数えるか（推奨：数える）。
