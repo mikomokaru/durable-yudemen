@@ -26,7 +26,8 @@
 
 1. **品目は事実として残り、状態は導出する。** 開始で消費しない。導出の順は (1) 自分を参照する生きた Timer が在る → `cooking`（**生きた Timer は走行中だけでなく、茹で上がって Complete を待つ boiled も含む**——時間が来ただけでは `done` にならない。茹で上がりと、厨房が完了を確定することは別）、(2) Timer が無く `completedAt` が在る → `done`、(3) どちらも無い → `unstarted`。状態の enum は保存しない（Timer の存在と二重にしない・ADR-0003 の理由をそのまま守る）。第 4 の状態は作らない。
 2. **参照は Timer 側だけ（`Timer.orderItem`）。** 生成時に一度書いて不変、Timer が消えれば関係も消える。品目 → Timer は「自分を指す生きた Timer」を引く導出で、状態に持たない（Order → Timer の参照は消し忘れの失敗形があるので採らない）。
-3. **操作と状態の対応。** 開始＝Timer を作る（品目は残り `cooking`）／茹で上がり＝Timer は boiled として残る（引き続き `cooking`）／完了・早め上げ＝Timer を除去し、参照していた品目に `completedAt = now`（`done`）／厨房 Cancel＝Timer を除去し、完了日時を書かない（`unstarted`）／一括完了＝対象 Timer を除去し、**対象 Timer が参照していた各品目**に `completedAt = now`。`completedAt` が品目に足す唯一の属性（永続 v13）。
+3. **操作と状態の対応。** 開始＝Timer を作る（品目は残り `cooking`）／茹で上がり＝Timer は boiled として残る（引き続き `cooking`）／完了・早め上げ＝Timer を除去し、参照していた品目に `completedAt = now`（`done`）／厨房 Cancel＝Timer を除去し、参照していた品目に **`interruptedAt = now`**（調理が中断された時刻・最後の値で上書き）を記録する。完了日時は書かないので状態は `unstarted`／一括完了＝対象 Timer を除去し、**対象 Timer が参照していた各品目**に `completedAt = now`。品目に足す属性は `completedAt` と `interruptedAt` の二つ（永続 v13）。
+3′. **`interruptedAt` は状態に効かない事実（ユーザー確定・2026-09-07）。** `unstarted` の条件は「生きた Timer なし ∧ `completedAt` なし」のまま。中断された品目も未調理として計画と左レールに戻り（期限内なら）、左レールはこの事実で「一度戻された品目」を色分けできる（表示は `lift-order-numbering` の design）。再び始めて完了すれば `done`（`completedAt` が優先）、再び中断されれば上書き。番号・計画の優先には使わない。参照先の無い Timer（アドホック・v12 由来）の Cancel は何も書かない。
 4. **早め上げは `complete` で送る（ユーザー確定 (a)）。** client は残り 60 秒未満の 1 タップで `complete` を、60 秒以上の 2 段タップで `cancel` を送る。しきいは UI の関心事のまま（engine は残り時間で判定しない）。engine は `complete` でだけ `completedAt` を書く。
 5. **調理の状態と期限（2 時間）は別の軸（レビュー P1）。** 期限切れは第 4 の状態ではなく、「未調理だが期限切れ」「調理済みで期限切れ」は普通に在る。読む集合は二つに分かれる——**計画・左レール・ラジアル**＝期限内 ∧ `unstarted`（`pendingOrders(items, timers, now)`）／**snapshot の品目集合**＝期限内 **または** 生きた Timer の参照先（`orderItemsToBroadcast`）。注文から 1 時間 59 分で 10 分茹での品目を開始し 2 時間 1 分に snapshot を送っても、Timer が残る間は品目を配信して卓・品名を引ける。期限判定を共有することと、全用途で同じ集合を読むことは別。
 6. **厨房 Cancel は状態を戻し、期限は戻さない（レビュー P2）。** Cancel 後の品目は `unstarted` に戻るが、期限外なら左レール・計画には戻らない。`arrivalTime` は更新しない（「注文から 2 時間」を「最後にやり直した時刻から 2 時間」に変えない）。
@@ -55,6 +56,7 @@
 - **pendingOrders（未調理）**: 保存された集合ではなく関数。期限内 ∧ `unstarted`。計画と左レールの入口。
 - **Timer**: 一回の調理の記録（既存の語彙のまま）。1..n の釜を占め、0..1 の Order_Item を指す。生きた Timer＝走行中または茹で上がり（Complete 前）。
 - **completedAt**: 品目に記録する完了の事実（厨房が確定した時刻）。
+- **interruptedAt**: 品目に記録する中断の事実（厨房 Cancel で調理が止められ未調理に戻った最後の時刻）。状態には効かず、表示の色分けにだけ使う。
 
 ## Requirements
 
@@ -63,9 +65,9 @@
 1. THE engine SHALL 開始（`StartOrderItem`）で品目を集合から消費しない（`consumeOrder` を撤去）
 2. THE domain SHALL `itemStatusOf(item, timers)` を一つの純粋関数で導く：自分を指す生きた Timer（running / boiled）が在れば `cooking`、無く `completedAt` が在れば `done`、どちらも無ければ `unstarted`
 3. THE `complete`（単一・一括） SHALL Timer を消し、対象 Timer が参照していた各品目に `completedAt`（遷移の `now`）を記録する。指す品目が無ければ何もしない
-4. THE `cancel` SHALL Timer を消すだけで品目に何も記録しない（品目は `unstarted` へ戻る。`arrivalTime` は更新しない）
+4. THE `cancel` SHALL Timer を消し、参照していた品目に `interruptedAt`（遷移の `now`・上書き）を記録する。`completedAt` は書かないので品目は `unstarted` へ戻る。`arrivalTime` は更新しない。参照先が無ければ何も記録しない
 5. THE 開始の照合 SHALL `pendingOrders(items, timers, now)` の品目だけを対象にし、`cooking` の品目への開始は `OrderItemCooking` で、それ以外（`done`・期限切れ・不在）は `OrderItemNotFound` で拒否する
-6. THE 永続スキーマ SHALL 版を 12 から 13 へ上げ、`pendingOrders` を `orderItems` に読み替え、`completedAt` の欠如を null に畳む
+6. THE 永続スキーマ SHALL 版を 12 から 13 へ上げ、`pendingOrders` を `orderItems` に読み替え、`completedAt` / `interruptedAt` の欠如を null に畳む
 7. THE 型名 SHALL `PendingOrder` を `OrderItem` に改める（状態のフィールドは `TimerState.orderItems`）。「未調理」は `pendingOrders` 関数だけが表す
 
 ### Requirement 2: POS の後着（取消なしの前提）
@@ -98,7 +100,7 @@
 
 ### Requirement 6: 移行（v12 → v13）
 
-1. THE 移行 SHALL `pendingOrders` を `orderItems` に読み替え、各品目の `completedAt` を null にする
+1. THE 移行 SHALL `pendingOrders` を `orderItems` に読み替え、各品目の `completedAt` / `interruptedAt` を null にする
 2. THE v12 由来で参照先の無い Timer SHALL そのまま動く（発火・完了・Cancel は従来どおり）。完了しても存在しない品目に `completedAt` は書かない。Cancel しても注文品目は戻らない（限界を明記する）
 3. THE v13 で新しく開始した注文 Timer SHALL 参照整合（性質 7.2）を満たす
 
@@ -106,7 +108,8 @@
 
 1. **状態の排他**：任意の品目は `unstarted` / `cooking` / `done` のちょうど一つ。boiled の Timer が指す品目は `cooking`
 2. **参照の整合（v13 以降）**：生きた Timer の `orderItem` が指す品目は集合に在り、`orderItemsToBroadcast` に含まれる（期限・後着を跨いで）
-3. **Cancel は状態を戻す**：`cancel` の後、その品目は `unstarted`。期限内なら左レールと計画に再び現れ、期限外なら現れない。`arrivalTime` は不変
+3. **Cancel は状態を戻す**：`cancel` の後、その品目は `unstarted` で `interruptedAt` を持つ。期限内なら左レールと計画に再び現れ、期限外なら現れない。`arrivalTime` は不変
+3′. **中断は状態に効かない**：`interruptedAt` の有無は `itemStatusOf` と `pendingOrders` の結果を変えない。再開始→完了で `done`、再中断で `interruptedAt` は上書き
 4. **早め上げは完了**：残り 60 秒未満の停止は `completedAt` を書き、品目は `done`
 5. **全置換の範囲**：後着は `unstarted` だけを置換し、`cooking` / `done` は注文情報の追随だけ。`done` は再送で `unstarted` に戻らない
 6. **読む側の一致**：計画対象・指紋・要求・対応・開始の照合・左レール・ラジアルが同じ `pendingOrders(items, timers, now)` を見る
@@ -122,6 +125,7 @@
 | `OrderItem`（旧 `PendingOrder`） | `src/domain/order.ts` | 生涯を通じて残る注文品目の事実 |
 | `TimerState.orderItems`（旧 `pendingOrders`） | `src/engine/state.ts` | 品目の集合（状態を問わない正本） |
 | `OrderItem.completedAt` | `src/domain/order.ts` | 完了の事実（厨房が確定した時刻） |
+| `OrderItem.interruptedAt` | `src/domain/order.ts` | 中断の事実（厨房 Cancel で未調理に戻った最後の時刻・状態に効かない・色分け用） |
 | `itemStatusOf(item, timers)` | `src/domain/order.ts` | 状態の導出の正本（unstarted / cooking / done） |
 | `pendingOrders(items, timers, now)` | `src/domain/order.ts` | 未調理＝期限 ∧ unstarted（計画と左レールの入口・`liveOrders` を内側に畳む） |
 | `orderItemsToBroadcast(items, timers, now)` | `src/domain/order.ts` | snapshot の品目集合＝期限内 ∨ 生きた Timer の参照先 |
@@ -131,7 +135,7 @@
 | `PlanRequest.pending` ＋ `running`（据え置き） | `src/engine/effect.ts` / `src/solver/request.ts` | solver の入力（導いた未調理の品目 ＋ 走行中の Timer 全件） |
 | 拒否事由 `OrderItemCooking` | `src/engine/start.ts` | 調理中の品目への開始 |
 
-`cookingOrders` は作らない（読み手が現れるまで）。`cancelledAt` は持たない（POS の取消は前提の外）。語彙は Timer 側 `running`・品目側 `cooking`。
+`cookingOrders` は作らない（読み手が現れるまで）。`cancelledAt` は持たない（POS の取消は前提の外。厨房の中断は `interruptedAt`）。語彙は Timer 側 `running`・品目側 `cooking`。
 
 ### 未決（design で決める）
 
