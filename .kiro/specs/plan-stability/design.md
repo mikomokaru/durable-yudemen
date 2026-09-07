@@ -172,9 +172,30 @@ effects = [Persist(toSnapshot(confirmed)), Alarm, Broadcast(snapshotMessage), (R
 - **前回に忠実な計画と候補を比べた計画の 2 本を組み、総費用（業務費用 ＋ 変更費用・`scoreSchedule`）が真に下がるときだけ後者を採る（`baselineSchedule`・`Continuity.faithful`）。** 列ごとの局所比較は後続の一片への影響（上げ窓の押し出しとその変更費用）を見ないので、局所では勝つが全体では劣る候補へ計画が動き得る（実測：w_table 4・arms 2・L 62 で、卓の一片は 370 秒改善するが後続の単独品が 83 秒遅れ、変更費用 444 秒を足すと前回より 218 秒悪い計画に変わった）。忠実な計画は列の候補を比べず、前回の配置を再現する分割が在ればそれ、無ければ pack（容量超過なら接頭辞の分割）を採る。同点は忠実な側。計画は 2 回組むが n ≤ 64 で問題にならない。**性質 5.6 の言い直し**：同じ入力で続けて計画すると、同じ計画（Change_Cost 0）か総費用が真に下がる計画になる（前回を残す候補が前回の無い計画に無かった配置を見つける場面があり、それは 5.7 そのもの。実測：arms 1・L 9・w_table 0 で錨に揃えていた 2 品を別の窓に分けて業務費用 23 秒改善・変更費用 6 秒）。計画が変わるのは総費用が真に下がるときだけで、忠実な計画は前回そのもの（変更費用 0）ゆえ、now を含む業務入力を固定すれば **業務費用そのものが厳密に下がる**。ゆえに有限回で落ち着く。
 - **(a) の Head は、まだ置いていない品目を Shown_Plan の配置で補った途中の計画から導く（`partialChangeCost`）。** 置いた分だけの計画で導くと、後の一片の群が連鎖から欠けて先頭が変わり、同じ計画を続けて置いても偽の 2L が付く。補った計画をそのまま `recommend` に通して群を得る（群の識別子の規則を再実装しない——レビュー指摘：二重管理すると片側の形式変更で表示は正常のまま局所比較の Head と変更費用が変わる。いま置いている卓の品目は末尾の一片に足すので、置いた品目と同じ錨・同じ提供時刻なら同じ群になる）。補いは Head にだけ使い、(b)(c)(d) の対応には入れない。
 
+> **改訂（Requirement 6〜7・`startable-placement` Component 3′・ADR-0012・2026-09-07）:** 上の「前回に忠実な計画と候補を比べた計画の 2 本」（`Continuity.faithful`）は **Component 7 の保持候補 R と生成候補 F の比較に置き換えた**（判断 12）——前回は生成器で再現せず Shown_Plan から復元する。生成器の前回の釜の第一候補・並びの同値・`restorePrevious` / `keepPrevious` / `keepHeads` の候補は残す（外すと 3000 場面中 42〜126 で劣る・実測）。**AC 3.1 の前回の釜の第一候補は「今」置く品目については `pinNow` の配分に吸収した**——Startable_Slot が足りる品目は空き釜の中で 前回の釜 → いまの釜 → `chooseSlots`、足りない品目は待つ釜の中で いまの釜 → 前回の釜 → index。Timer の在る前回の釜は「今」には採らない（`startable-placement` AC 2.1・釜の変更費用 L は払う）。将来配置（`startAt > now`）は生成器の `chooseSlots(..., preferred)` のまま（同 AC 2.2）。**性質 5.7 (i) の言い直し**：「前回の釜が表の外なら時刻は前回の無い計画に一致する」は faithful が担っていた主張で、撤去で構造の保証を失った（前回の釜が表の外なら R は何も復元できず F と同じ計画になり、列ごとの局所比較が全体で劣る候補へ動く場面を戻す候補が無い・300 場面に 1 回程度）。改めた主張は (i-a) 生成器（占有なし）：表の外の番号は読まれない——釜の数の 1 倍ずらしても 2 倍ずらしても同じ計画で、表の外の釜を使わず、対応する全品目について釜の変更費用 L を払う（AC 3.1・3.3）、(i-b) loop（実占有）：前回の釜が表の外なら R は F と同じ計画、(ii) 塞げばハード制約（実占有のまま）。前回の釜が実在すれば R が前回そのものを候補にするので総費用は前回以下（5.6）。
+
 ### Component 6: `RequestPlan.shownPlan`
 
 `RequestPlan` に `shownPlan: ShownPlan` を足し、外部ソルバが同じ費用で最適化できるようにする。指紋には畳まない（AC 4.5）。`src/solver` の自前解経路は `baselineSchedule` に同じ context を渡す。
+
+### Component 7: 保持候補 R（2026-09-07 改訂・Requirement 6〜7）
+
+```
+baselineSchedule / committedSchedule:
+  F = generate(pending, tables, changeContext)            // 現行の文脈つき生成 ＋ startable-placement の割当補正（Continuity.faithful は無い）
+  R = retain(shownPlan, pending, tables, now, occupied)   // 復元 → retime → 一片ごとに検証 → 不正はその位置で再生成
+  verify(F) / verify(R)                                    // 物理的なハード制約（構造から成り立つ。性質として検査）
+  return total(R | shown) ≤ total(F | shown) ? R : F
+```
+
+- **`restoreSchedule(shown, pending)`**（`src/engine/stability.ts` か `schedule.ts`）：Live_Orders に在る品目を初出順の一片に組む。`tableKeyOf` を公開して同じ鍵を使う。
+- **`retain`**：一片ごとに計画順で、置ける品目に限る `isStale`・解放表（`feasibleRelease`）・`keepsAnchor`・`withinLiftCap` を、採用済み接頭辞とそれまでの一片で進めた表に対して当てる（`cannotStart` は当てない——判断 10・13。retime の後に残るのは boiled の釜で待つ配置だけで、開始可能性は復元後の割当補正 `placeNow` が守る）。通れば表を進めて残す。落ちた一片はその卓の残り品目を `placeGroup`（文脈つき）で置き直す。前回に無い品目（新着）はその卓の再生成に含め、卓ごと新しいなら末尾に置く。復元した「今」の配置は `startable-placement` の配分（`pinNow`）に「今」の品目として渡し、最終的な表示順で配り直す。
+- **retime**：`startAt < now` の復元配置は `startAt = now`・`serveAt = now + 茹で時間` に置き直してから検証する（完全復元 44 → 855 場面・実測）。
+- **比較**：`scoreSchedule(…, { members, lifts, change: { shown, … } })` の `total` を両候補で同じ旧 Shown_Plan に対して取り、`R ≤ F` なら R。
+- **verify**：完成候補の各一片を計画順に、ゲートの (c)(e)(f) と Requirement 7 の `isStale` で検証する性質（`self-solution-gate`）。構造から成り立つ（R は検証済みの復元 ＋ 生成器、F は生成器）ので実行時の分岐は置かない。生成器が違反を作り得る箇所（`startable-placement` の下限）は撤去する（同 spec の改訂）。
+- **共有する述語**：`isStale`（置ける品目）は合成・ゲート・復元が、`feasibleRelease` はゲート・復元・loop の `revalidate` が同じ関数を呼ぶ（合成の `livePrefix` は採用済み接頭辞に当てない——既知の制限）。`cannotStart` は合成の採用済み接頭辞だけ（Requirement 6 判断 13）。
+
+> **実装の追記（task 3′・ADR-0012・2026-09-07）:**復元した配置の錨は `reanchor` が「旧 Shown_Plan の品目のうち今回 Timer になったもの」（`startedSiblingsOf`）にだけ付け直す（判断 9′）。検証と再生成（`revalidate`）は `startable-placement` の loop（`placeNow`）と同じ関数で、対象が Shown_Plan か 1 段目かの違いだけ。`restoreSchedule` の名は採らず `retain` / `restoreSlices`（`schedule.ts` 内部）、`tableKeyOf` は `project.ts` の公開関数（`schedule.ts` が再公開）。R・F とも `placeNow` を通した完成候補で、`scheduleCandidates` / `scheduleStages`（公開・性質の検査が選ばれなかった側と候補 K を見る）が返す。
 
 ## Error Handling
 

@@ -37,6 +37,7 @@ import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
+  occupiedSlotsOf,
   UNIT_COUNT_MAX,
   UNIT_COUNT_MIN,
 } from "../../src/domain/store";
@@ -98,6 +99,7 @@ const genAlarmScene: fc.Arbitrary<AlarmScene> = fc
         DEFAULT_NOODLE_PRESETS,
         seed.params,
         NOW,
+        occupiedSlotsOf(timers),
         null,
       ).slices;
       const planned: TimerState = {

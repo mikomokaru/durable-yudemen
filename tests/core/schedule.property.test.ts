@@ -25,8 +25,8 @@ import {
   joinWindowMillis,
   keepsAnchor,
   planTargets,
+  scheduleCandidates,
   type CookSchedule,
-  type PlanSlice,
   refersTo,
   type Placement,
   type SlotRelease,
@@ -51,6 +51,7 @@ import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
+  occupiedSlotsOf,
   UNIT_COUNT_MAX,
   UNIT_COUNT_MIN,
 } from "../../src/domain/store";
@@ -108,22 +109,6 @@ const genScene: fc.Arbitrary<Scene> = fc
     };
   });
 
-/** 一片ごとの配置を釜を除いた形（品目・開始・提供・錨）に写す。釜の対応づけを主張しない比較に使う。 */
-function timingsOf(slices: readonly PlanSlice[]) {
-  return slices.map((slice) => ({
-    tableKey: slice.tableKey,
-    placements: slice.placements.map(
-      ({ externalOrderId, itemIndex, startAt, serveAt, anchor }) => ({
-        externalOrderId,
-        itemIndex,
-        startAt,
-        serveAt,
-        anchor,
-      }),
-    ),
-  }));
-}
-
 describe("engine/schedule — baselineSchedule", () => {
   // Feature: online-cook-scheduling, Property: 1 — Baseline_Plan は常に feasible
   // **Validates: Requirements 4.2**
@@ -134,7 +119,7 @@ describe("engine/schedule — baselineSchedule", () => {
   // 他の品目の配置を壊さないことを、同じ述語が同時に検査する。
   it("Property 1: ハード制約 (a) 重複なし (b) 同時本数 ≤ slot 数 (c) 解放時刻より前に開始しない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -143,6 +128,7 @@ describe("engine/schedule — baselineSchedule", () => {
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const placements = allPlacements(schedule.slices);
@@ -187,6 +173,7 @@ describe("engine/schedule — baselineSchedule", () => {
             DEFAULT_NOODLE_PRESETS,
             scene.params,
             NOW,
+            occupiedSlotsOf(scene.running),
             null,
           );
           const permuted = baselineSchedule(
@@ -197,6 +184,7 @@ describe("engine/schedule — baselineSchedule", () => {
             DEFAULT_NOODLE_PRESETS,
             scene.params,
             NOW,
+            occupiedSlotsOf(scene.running),
             null,
           );
 
@@ -216,7 +204,7 @@ describe("engine/schedule — baselineSchedule", () => {
   // 麺種は既知のみで振る——茹で時間が引けない品目の除外が混ざると「64 件で切れた」ことが観測できない。
   it("Property 15: 計画対象は正準順序の先頭 64 件と厳密に一致する", () => {
     fc.assert(
-      fc.property(genLargeScene, ({ pending, release, members, lifts, params }) => {
+      fc.property(genLargeScene, ({ pending, release, members, lifts, running, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -225,6 +213,7 @@ describe("engine/schedule — baselineSchedule", () => {
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const placed = allPlacements(schedule.slices).map((placement) =>
@@ -305,9 +294,20 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // 仲間の中に持ち、錨より h_i を超えて手前には置かれず（AC 9.10 (b)）、残りは走行中の最遅以上に置かれる。
   // 錨との一致そのもの（serveAt = anchor）は上げ窓が破りうるので主張しない——窓で動いても所属は変わらない
   // （判断 20）。容量を超える一片は batch に割れるので対象外（Property 14）。
-  it("Property 1 / 16: 容量に収まる一片は、群の錨から後ろへしか動かず、合流分は仲間の錨を所属に持つ", () => {
+  //
+  // **固定した「今」の品目を除いて主張する（startable-placement 判断 15・性質 4.9・2026-09-07）。** 「今」の配分の loop は、
+  // 配分で釜が動いて不正になった一片を、配分した「今」の配置を残したまま残りを再生成する。残りの batch の錨は残りの
+  // earliest（と走行中の錨）から取り直すので、固定した「今」の品目と同じ時刻には揃わない（design の反例：同卓の Long を
+  // 「今」に固定し、Short を再生成すると Short は「今」になる）。それは意図した帰結（再生成で「今」になった品目・AC 1.8 改訂）
+  // で、固定した品目を除いた集合には従来どおり錨の一致が成り立つ。完成した計画の `startAt ≤ now` の配置はすべて最後の反復で
+  // 固定されたもの（fresh が空で止まる）ゆえ、除く集合は「一片の `startAt ≤ now` の配置」——一片ごとではなく配置ごとに除く
+  // （「今」を含む一片を丸ごと外す形は必要より広い）。群の錨はその残りの最遅の earliest。各配置が自分の earliest 以上であること
+  // と、合流の所属の規則は「今」の品目にも成り立つ。
+  // 前提は一片が一つの batch に収まること：再生成の幅は後の一片の固定した「今」の釜を取り置いた残り（釜数 − 後の一片の
+  // 「今」の Σ span）なので、一片の Σ span がそれを超えるものは見ない（容量を超える一片は batch に割れる・Property 14）。
+  it("Property 1 / 16: 容量に収まる一片は、群の錨から後ろへしか動かず、合流分は仲間の錨を所属に持つ（固定した「今」を除く）", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -316,6 +316,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const spanOf = new Map(
@@ -324,13 +325,19 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             order.slotSpan,
           ]),
         );
-        for (const slice of schedule.slices) {
+        for (const [index, slice] of schedule.slices.entries()) {
           const totalSpan = slice.placements.reduce(
             (sum, placement) =>
               sum + (spanOf.get(`${placement.externalOrderId}\u0000${placement.itemIndex}`) ?? 1),
             0,
           );
-          if (totalSpan > slotCount) continue;
+          // 後の一片の固定した「今」の釜は再生成に対して取り置かれる（幅から外れる）。
+          const reserved = schedule.slices
+            .slice(index + 1)
+            .flatMap((later) => later.placements)
+            .filter((placement) => placement.startAt <= NOW)
+            .reduce((sum, placement) => sum + placement.slotIds.length, 0);
+          if (totalSpan > slotCount - reserved) continue;
           // 各配置は自分の釜の解放時刻 + 茹で時間 以上（下限のクランプ無しで構成から従う）。
           const earliestOf = (placement: Placement) =>
             Math.max(...placement.slotIds.map((slotId) => release[Number(slotId)]!)) +
@@ -339,11 +346,16 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             expect(placement.serveAt).toBeGreaterThanOrEqual(earliestOf(placement));
           }
           const siblings = members.get(slice.tableKey);
+          // 固定した「今」（`startAt ≤ now`）を除いた集合。
+          const rest = slice.placements.filter((placement) => placement.startAt > NOW);
           if (siblings === undefined) {
-            // 走行中の仲間が居なければ合流の所属は無く（AC 9.9）、全員が群の錨（最遅の earliest）以上に上がる。
-            const anchor = Math.max(...slice.placements.map(earliestOf));
+            // 走行中の仲間が居なければ合流の所属は無く（AC 9.9）、固定した「今」を除いた全員が群の錨（その集合の最遅の
+            // earliest）以上に上がる。
+            const anchor = Math.max(...rest.map(earliestOf));
             for (const placement of slice.placements) {
               expect(placement.anchor).toBeNull();
+            }
+            for (const placement of rest) {
               expect(placement.serveAt).toBeGreaterThanOrEqual(anchor);
             }
           } else {
@@ -378,7 +390,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // 見る。1 品で上限を超える品目は配置されない（AC 9.12）。
   it("Property 7.8: 自前解の各配置を含む窓の負荷は arms + HELPER_ARMS を超えず、1 品で超える品目は置かれない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -387,6 +399,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const placements = allPlacements(schedule.slices);
@@ -422,7 +435,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // ——も真であること（AC 9.5・9.14。firstFit の最小性から従う）。
   it("Property 17: 自前解の一片は keepsAnchor と withinLiftCap を守る（錨は仲間に在り・pack は窓の分だけ延期し・押し出さず・上限内）", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -431,6 +444,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const targets = planTargets(pending, NOW);
@@ -462,7 +476,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   // **Validates: Requirements 4.1, 4.4, 4.5, 7.3**
   it("Property 3 / 14: 各配置は slotSpan 個の相異なる釜を持ち、同時刻の占有は釜数を超えない", () => {
     fc.assert(
-      fc.property(genScene, ({ pending, release, members, lifts, slotCount, params }) => {
+      fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
         const schedule = baselineSchedule(
           pending,
           release,
@@ -471,6 +485,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(running),
           null,
         );
         const spanOf = new Map(
@@ -491,23 +506,22 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
     );
   });
 
-  // Feature: plan-stability, Property 5.6 — 自前解の保持
-  // **Validates: Requirements 3.1, 3.2, 5.6**
+  // Feature: plan-stability, Property 5.6 — 自前解の保持（2026-09-07 改訂・実占有）
+  // **Validates: Requirements 3.1, 3.2, 5.6, 6.1, 6.2**
   //
-  // 同じ入力で続けて計画する——二度目は一度目の計画を Shown_Plan（`shownPlanOf`）として渡す——と、釜・まとまり・順・
-  // 時刻のすべてが保たれ、Change_Cost は 0。前回の釜は空いているのでそのまま採れ、前回のまとまりを保つ候補は
-  // 一度目と同じ配置を作り、局所比較は変更費用 0 の側を採る（design Component 5）。比較の時点は計画の now（NOW）、
-  // Timer 集合は同じ集合。計画の同一性は配置の値の一致で見る（`toEqual`）。
-  // Feature: plan-stability, Property 5.6 — 自前解の保持
-  // **Validates: Requirements 3.1, 3.2, 5.6**
+  // 前回の無い計画を Shown_Plan にして同じ入力で計画し直すと、**同じ計画（配置の値と一片の並びが一致）で Change_Cost 0**
+  // か、総費用（業務費用 ＋ 変更費用）が真に下がる計画になる。配置の一致と変更費用 0 は別々に検査する（変更費用 0 は
+  // 窓の内側の移動や遠い将来の移動を数えないので、一致から 0 は従うが 0 から一致は従わない）。後者が在るのは、前回を残す
+  // 候補（前回の配置の再現・まとまり・先頭）が前回の無い計画には無かった配置を見つけるためで（実測：arms 1・L 9・
+  // w_table 0 で、錨に揃えていた 2 品を別の窓に分けて業務費用 23 秒改善・変更費用 6 秒）、これは性質 5.7 の「利益が
+  // 上回れば変わる」そのもの。変わるのは総費用が真に下がるときだけで、前回そのものは保持候補 R（`retain`・変更費用 0）
+  // として常に候補に在るので、業務入力（now を含む）を固定すれば業務費用そのものが厳密に下がる。続けて計画し直すと
+  // 有限回で同じ計画に落ち着く——3 回目は 2 回目と同じか、更に下がる（業務費用でも見る）。
   //
-  // 前回の無い計画を Shown_Plan にして同じ入力で計画し直すと、**同じ計画（Change_Cost 0）か、総費用（業務費用 ＋
-  // 変更費用）が真に下がる計画**になる。後者が在るのは、前回を残す候補（前回の配置の再現・まとまり・先頭）が前回の無い
-  // 計画には無かった配置を見つけるためで（実測：arms 1・L 9・w_table 0 で、錨に揃えていた 2 品を別の窓に分けて業務費用
-  // 23 秒改善・変更費用 6 秒）、これは性質 5.7 の「利益が上回れば変わる」そのもの。変わるのは総費用が真に下がるとき
-  // だけで、前回そのものは変更費用 0 ゆえ、業務入力（now を含む）を固定すれば業務費用そのものが厳密に下がる。続けて
-  // 計画し直すと有限回で同じ計画に落ち着く——3 回目は 2 回目と同じか、更に下がる（業務費用でも見る）。
-  it("Property 5.6: 同じ入力で続けて計画すると、同じ計画（Change_Cost 0）か総費用が真に下がる計画になる", () => {
+  // **実占有（`occupiedSlotsOf(running)`）で見る（startable-placement task 3′.5）。** task 3 は 2 段目の下限と取り置きが
+  // 前回に忠実な候補の再生成で再現できず占有なしに退避していたが、R は前回を再計算せず復元するので、「今」の配分の loop を
+  // 通った計画もそのまま候補になる。
+  it("Property 5.6: 同じ入力で続けて計画すると、同じ計画（Change_Cost 0）か総費用が真に下がる計画になる（実占有）", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, running, params }) => {
         const plan = (changeContext: ChangeContext | null) =>
@@ -519,6 +533,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
             DEFAULT_NOODLE_PRESETS,
             params,
             NOW,
+            occupiedSlotsOf(running),
             changeContext,
           );
         const contextOf = (previous: CookSchedule): ChangeContext => ({
@@ -537,27 +552,18 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
         const secondContext = contextOf(second);
         const third = plan(secondContext);
 
-        const sameAsFirst =
-          changeCost(
-            { schedule: second, recommendations: recommend(second) },
-            firstContext,
-            params,
-          ) === 0;
+        const changeOf = (schedule: CookSchedule, changeContext: ChangeContext) =>
+          changeCost({ schedule, recommendations: recommend(schedule) }, changeContext, params);
         const businessOf = (schedule: CookSchedule) =>
           scoreSchedule(schedule.slices, pending, { members, lifts, change: null }, params).total;
-        if (sameAsFirst) expect(second).toEqual(first);
+        const same = (a: CookSchedule, b: CookSchedule) => JSON.stringify(a) === JSON.stringify(b);
+        // 配置が一致すれば変更費用は 0（別に検査）。一致しなければ総費用も業務費用も真に下がる。
+        if (same(second, first)) expect(changeOf(second, firstContext)).toBe(0);
         else {
           expect(totalOf(second, firstContext)).toBeLessThan(totalOf(first, firstContext));
           expect(businessOf(second)).toBeLessThan(businessOf(first));
         }
-
-        const sameAsSecond =
-          changeCost(
-            { schedule: third, recommendations: recommend(third) },
-            secondContext,
-            params,
-          ) === 0;
-        if (sameAsSecond) expect(third).toEqual(second);
+        if (same(third, second)) expect(changeOf(third, secondContext)).toBe(0);
         else {
           expect(totalOf(third, secondContext)).toBeLessThan(totalOf(second, secondContext));
           expect(businessOf(third)).toBeLessThan(businessOf(second));
@@ -578,29 +584,74 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
   //       arms 1 で、前回 +30 秒に置いた品目が正準順序で後ろの品目より先に釜を取る）。
   //   (ii) 前回の釜を遠い未来まで塞ぐ——ハード制約（重複なし・同時本数・解放時刻）を守る。塞がれた釜が空く時刻まで
   //       列が待たされる場面では前回の釜が候補に間に合う（採ってよい）ので、一致は主張しない。
-  it("Property 5.7: 前回の釜が存在しなければ時刻は前回の無い計画に一致し、塞がれていればハード制約を守る", () => {
+  //
+  // **(i) の「時刻は前回の無い計画に一致する」は、前回に忠実な候補（`Continuity.faithful`・総費用で 2 本を比べる）が
+  // 担っていた主張で、その撤去（plan-stability 判断 12）で構造の保証を失った（startable-placement task 3′.5・実測）。** 前回の
+  // 釜が表の外なら保持候補 R は何も復元できず（一片ごとに解放表で落ちてその位置で再生成され）生成候補 F と同じ計画に
+  // なるので、列ごとの局所比較で勝つ候補が全体で劣る場面（design Component 5 が faithful を足した理由そのもの）を戻す候補が
+  // 無い。実測（24 釜・arms 1・L 24・走行中 2 本が釜 0 で 66 / 102 秒に上がる表・卓 t-1 の Medium 大盛と Thin 2 品）：前回の無い
+  // 計画は Thin 1 本を 75 秒・残りを 126.001 秒に置き、前回の釜が表の外の文脈では Medium と Thin を 90 / 114 秒に置く候補が
+  // 列で勝つ——業務費用は 24 秒良く、変更費用（時刻の移動・順）が 48 秒悪く、総費用で 24 秒劣る（300 場面に 1 回程度）。前回の
+  // 釜が実在すれば R が前回そのものを候補にするので総費用は前回以下（性質 5.6）。ゆえに (i) は**前回の釜の第一候補が実在する
+  // 釜にだけ効く**ことそのものを主張する形に改める。
+  //   (i-a) 生成器（占有なし）：前回の釜を表の外へ写した文脈は、**どの表の外の番号へ写しても同じ計画**を出す（第一候補は
+  //         実在しない釜を一切読まない・決定性）。その計画は表の外の釜を使わず、対応する全品目について釜の変更費用 L を払う
+  //         （AC 3.1・3.3「採れなければ既存の規則へ落ち L を払う」）。ハード制約（重複なし）を守る。
+  //   (i-b) loop（実占有）：前回の釜が表の外なら保持候補 R は生成候補 F と同じ計画に落ちる（前回の釜が無ければ何も残せない・
+  //         復元側の「実在する釜にだけ効く」）。
+  // (ii) は実占有のまま（ハード制約は完成形に及ぶ）。
+  it("Property 5.7: 前回の釜が存在しなければ第一候補は効かず（どの表の外の番号でも同じ計画・釜の変更費用 L を払う・復元は生成候補に落ちる）、塞がれていればハード制約を守る", () => {
     fc.assert(
       fc.property(genScene, ({ pending, release, members, lifts, running, slotCount, params }) => {
-        const previous = baselineSchedule(
+        const plan = (occupied: ReadonlySet<number>, changeContext: ChangeContext | null) =>
+          baselineSchedule(
+            pending,
+            release,
+            members,
+            lifts,
+            DEFAULT_NOODLE_PRESETS,
+            params,
+            NOW,
+            occupied,
+            changeContext,
+          );
+        // 前回の釜を表の外の番号へ写す（釜の数の shift 倍だけずらす）。
+        const elsewhereOf = (previous: CookSchedule, shift: number): ChangeContext => ({
+          shown: shownPlanOf(previous, recommend(previous)).map((item) => ({
+            ...item,
+            slotIds: nonEmpty(
+              item.slotIds.map((slotId) => String(Number(slotId) + shift * slotCount) as SlotId),
+            ),
+          })),
+          running,
+          now: NOW,
           pending,
-          release,
-          members,
-          lifts,
-          DEFAULT_NOODLE_PRESETS,
-          params,
-          NOW,
-          null,
-        );
-        const shown = shownPlanOf(previous, recommend(previous));
+          presets: DEFAULT_NOODLE_PRESETS,
+        });
 
-        // (i) 前回の釜を表の外の番号へ写す（釜の数だけずらす）。
-        const elsewhere = shown.map((item) => ({
-          ...item,
-          slotIds: nonEmpty(
-            item.slotIds.map((slotId) => String(Number(slotId) + slotCount) as SlotId),
+        // (i-a) 生成器（占有なし）：表の外の番号は読まれない——どの番号へ写しても同じ計画で、表の外の釜を使わず、対応する
+        // 全品目について釜の変更費用 L を払う。
+        const stage1 = plan(new Set(), null);
+        const context1 = elsewhereOf(stage1, 1);
+        const withElsewhere = plan(new Set(), context1);
+        expect(plan(new Set(), elsewhereOf(stage1, 2))).toEqual(withElsewhere);
+        const placed = allPlacements(withElsewhere.slices);
+        expect(placed.every((p) => p.slotIds.every((slotId) => Number(slotId) < slotCount))).toBe(
+          true,
+        );
+        expect(
+          changeCost(
+            { schedule: withElsewhere, recommendations: recommend(withElsewhere) },
+            context1,
+            params,
           ),
-        }));
-        const withElsewhere = baselineSchedule(
+        ).toBeGreaterThanOrEqual(params.liftIntervalSeconds * placed.length);
+        expect(hasOverlapOnSameSlot(placed)).toBe(false);
+
+        // (i-b) loop：実占有の前回に対して、前回の釜が表の外なら保持候補 R は生成候補 F と同じ計画に落ち、選ばれた計画は
+        // ハード制約を守る。
+        const previous = plan(occupiedSlotsOf(running), null);
+        const { fresh, retained } = scheduleCandidates(
           pending,
           release,
           members,
@@ -608,10 +659,12 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
-          { shown: elsewhere, running, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
+          occupiedSlotsOf(running),
+          elsewhereOf(previous, 1),
         );
-        expect(timingsOf(withElsewhere.slices)).toEqual(timingsOf(previous.slices));
-        expect(hasOverlapOnSameSlot(allPlacements(withElsewhere.slices))).toBe(false);
+        if (retained !== null) expect(retained).toEqual(fresh);
+        expect(hasOverlapOnSameSlot(allPlacements(fresh.slices))).toBe(false);
+        const shown = shownPlanOf(previous, recommend(previous));
 
         // (ii) 前回の釜を遠い未来まで塞ぐ（卓を持たないので錨にも成員にもならない）。
         const blockers = [...new Set(shown.flatMap((item) => item.slotIds))].map((slotId, index) =>
@@ -635,6 +688,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           DEFAULT_NOODLE_PRESETS,
           params,
           NOW,
+          occupiedSlotsOf(later),
           { shown, running: later, now: NOW, pending, presets: DEFAULT_NOODLE_PRESETS },
         );
         const placements = allPlacements(withBlocked.slices);

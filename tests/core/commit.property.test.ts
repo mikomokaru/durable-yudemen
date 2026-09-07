@@ -20,7 +20,7 @@
 //
 // **開始済み Timer 集合は W1 から動かさない。** 採用済み計画が現在の Running_Timer に対して feasible で
 // あることは Acceptance_Gate の (c) が請け負う判定であり、committedSchedule が保証する事柄ではない
-// （合成は (a)(b) と過去開始しか見ない）。動かせば「入力が既に infeasible」な場面を作るだけで、
+// （合成は (a)(b) と開始できない配置——過去開始・押せない釜——しか見ない）。動かせば「入力が既に infeasible」な場面を作るだけで、
 // 合成の正しさは検査できない。
 //
 // 麺種は既知のみで振る。茹で時間が引けない品目は配置されないため採用済み一片の品目集合が当該
@@ -53,6 +53,7 @@ import type { PendingOrder } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
+  occupiedSlotsOf,
   UNIT_COUNT_MAX,
   UNIT_COUNT_MIN,
 } from "../../src/domain/store";
@@ -136,6 +137,7 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
         DEFAULT_NOODLE_PRESETS,
         plannedParams,
         NOW,
+        occupiedSlotsOf(running),
         null,
       ).slices;
 
@@ -195,12 +197,19 @@ function stale(
 /**
  * 生き残る接頭辞の長さ。**実装の述語を呼ばずに求める。**
  *
- * 陳腐化の位置は生成器が知っている（staleAt）。過去開始で切れる位置はテスト側の素朴な算術で出る。
- * 早いほうが接頭辞を断つ。
+ * 陳腐化の位置は生成器が知っている（staleAt）。開始できない配置——過去開始（`startAt < now`）と、開始時刻が来て
+ * いるのに釜に Timer（running / boiled とも）が載っている押せない釜（`startAt ≤ now`・startable-placement
+ * Requirement 3.4）——で切れる位置はテスト側の素朴な算術で出る。早いほうが接頭辞を断つ。
  */
 function prefixLength(scene: CommitScene): number {
+  const onTimer = (slotId: string) =>
+    scene.running.some((timer) => timer.slotIds.some((occupied) => occupied === slotId));
   const lapsed = scene.accepted.findIndex((slice) =>
-    slice.placements.some((placement) => placement.startAt < scene.now),
+    slice.placements.some(
+      (placement) =>
+        placement.startAt < scene.now ||
+        (placement.startAt <= scene.now && placement.slotIds.some(onTimer)),
+    ),
   );
   const bound = Math.min(scene.staleAt, lapsed === -1 ? scene.accepted.length : lapsed);
   // 錨の再検証（judgment 17 / 18）：採用済み一片は別のパラメータ（合流の窓 h_i が違う）で組まれているため、
@@ -329,6 +338,7 @@ describe("engine/commit — committedSchedule", () => {
           DEFAULT_NOODLE_PRESETS,
           scene.params,
           scene.now,
+          occupiedSlotsOf(scene.running),
           null,
         );
 

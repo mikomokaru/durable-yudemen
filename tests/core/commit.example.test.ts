@@ -311,3 +311,181 @@ describe("committedSchedule — 採用済み一片は現在の上げ窓の上限
     expect(serveSecondsOf(others(5), acceptedAt(200))).toEqual([200]);
   });
 });
+
+describe("committedSchedule — 開始を妨げる配置の失効 cannotStart（startable-placement 判断 8・Requirement 3.4 / 3.5）", () => {
+  // Feature: startable-placement
+  // **Validates: Requirements 3.4, 3.5**
+  //
+  // 6 釜。採用済み一片は品目 ONE を釜 3 に置く。自前解は解放時刻が同点なら index 最小の釜 0 を採るので、
+  // 一片が維持されれば釜 3、切られて尾部が置き直せば釜 0——釜の番号が「維持か置き直しか」を語る。
+  // 解放表は boiled の釜を `now` に空く予測で扱う（変えない）ので、feasibility だけなら一片は通る。
+  const ONE: PendingOrder = { ...WIDE, externalOrderId: "o-one", slotSpan: 1 };
+  /** 釜 3 に startSeconds から始める採用済み一片（合流の所属は無い）。 */
+  function acceptedOn3(startSeconds: number): AcceptedSlice {
+    return {
+      tableKey: "t-a",
+      placements: [
+        {
+          externalOrderId: ONE.externalOrderId,
+          itemIndex: 0,
+          slotIds: nonEmpty(["3" as SlotId]),
+          startAt: (NOW + startSeconds * SECOND) as EpochMillis,
+          serveAt: (NOW + (startSeconds + 60) * SECOND) as EpochMillis,
+          anchor: null,
+        },
+      ],
+    };
+  }
+  /** 釜 3 に載る卓なしの Timer。boiled なら endTime は過去で boiledAt を持つ（Complete 待ち）。 */
+  function timerOn3(boiled: boolean): Timer {
+    const endTime = (boiled ? NOW - 10 * SECOND : NOW + 30 * SECOND) as EpochMillis;
+    return createTimer({
+      id: "t-on-3" as TimerId,
+      slotIds: nonEmpty(["3" as SlotId]),
+      noodleType: "Thin" as NoodleType,
+      firmness: "normal",
+      startTime: (endTime - 60 * SECOND) as EpochMillis,
+      endTime,
+      seq: 30,
+      boiledAt: boiled ? endTime : null,
+    });
+  }
+  function placementOf(running: readonly Timer[], accepted: AcceptedSlice, now: EpochMillis) {
+    const schedule = committedSchedule([accepted], [ONE], running, now, PRESETS, PARAMS, null);
+    const placements = schedule.slices.flatMap((slice) => slice.placements);
+    expect(placements).toHaveLength(1);
+    return {
+      slot: placements[0]!.slotIds[0],
+      startSeconds: (placements[0]!.startAt - NOW) / SECOND,
+      kept: schedule.slices.length === 1 && schedule.slices[0] === accepted,
+    };
+  }
+
+  it("(a) startAt === now で boiled の釜に置かれた採用済み一片は接頭辞から落ち、尾部が置き直す", () => {
+    // 釜 3 は 10 秒前に上がった boiled（解放表では `now` に空く予測）。一片は「今」釜 3 に置く——押せない釜。
+    expect(placementOf([timerOn3(true)], acceptedOn3(0), NOW)).toEqual({
+      slot: "0",
+      startSeconds: 0,
+      kept: false,
+    });
+  });
+
+  it("(b) startAt === now で Timer の無い釜に置かれた採用済み一片は維持される", () => {
+    expect(placementOf([], acceptedOn3(0), NOW)).toEqual({
+      slot: "3",
+      startSeconds: 0,
+      kept: true,
+    });
+  });
+
+  it("(c) 過去に受領した将来配置は、時刻の到来で startAt === now になったとき釜がまだ boiled なら、その遷移で落ちる", () => {
+    // 30 秒後に釜 3 で始める一片。受領の時点（now）では開始時刻が先で、boiled の釜はそれまでに Complete される予測に
+    // 立って維持される（判断 2・Timer の有無を見ない）。
+    expect(placementOf([timerOn3(true)], acceptedOn3(30), NOW)).toEqual({
+      slot: "3",
+      startSeconds: 30,
+      kept: true,
+    });
+    // 30 秒後の遷移：開始時刻が来たのに釜 3 はまだ boiled——落ちて尾部が置き直す（自前解は今の解放表で釜 0 に今）。
+    const later = (NOW + 30 * SECOND) as EpochMillis;
+    expect(placementOf([timerOn3(true)], acceptedOn3(30), later)).toEqual({
+      slot: "0",
+      startSeconds: 30,
+      kept: false,
+    });
+    // 対照：同じ遷移で釜 3 が Complete されていれば維持される。
+    expect(placementOf([], acceptedOn3(30), later)).toEqual({
+      slot: "3",
+      startSeconds: 30,
+      kept: true,
+    });
+  });
+
+  it("(d) startAt < now（過去開始）は釜に Timer が無くても従来どおり落ちる", () => {
+    expect(placementOf([], acceptedOn3(-1), NOW)).toEqual({
+      slot: "0",
+      startSeconds: 0,
+      kept: false,
+    });
+  });
+
+  it("(e) 走行中の Timer でも同じ——startAt === now で釜に Timer が在れば落ちる。開始時刻が先なら見ない", () => {
+    // 走行中（30 秒後に上がる）の釜 3 に「今」置く一片は押せない。解放表では釜 3 は 30 秒後に空くので、尾部は釜 0 に今。
+    expect(placementOf([timerOn3(false)], acceptedOn3(0), NOW)).toEqual({
+      slot: "0",
+      startSeconds: 0,
+      kept: false,
+    });
+    // 30 秒後に釜 3 で始める一片は、走行中がちょうど 30 秒後に上がるので維持される（Timer の有無は見ない）。
+    expect(placementOf([timerOn3(false)], acceptedOn3(30), NOW)).toEqual({
+      slot: "3",
+      startSeconds: 30,
+      kept: true,
+    });
+  });
+});
+
+describe("committedSchedule — 採用済み一片は置ける品目に限って計画対象と比べる（plan-stability Requirement 7・task 3′.1）", () => {
+  // Feature: plan-stability
+  // **Validates: Requirements 7.3, 7.4, 7.5**
+  //
+  // 6 釜・走行中なし。卓 t-m に Thin の M と、プリセットに無い麺種 G。採用済み一片は M を釜 3 に今置く（自前解なら釜 0）。
+  const M: PendingOrder = { ...WIDE, externalOrderId: "o-m", slotSpan: 1, tableId: "t-m" };
+  const G: PendingOrder = { ...M, externalOrderId: "o-g", noodleType: "Ghost" };
+  const GHOST_PRESET: NoodlePreset = {
+    noodleType: "Ghost",
+    boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 },
+  };
+  const ACCEPTED_M: AcceptedSlice = {
+    tableKey: "t-m",
+    placements: [
+      {
+        externalOrderId: M.externalOrderId,
+        itemIndex: 0,
+        slotIds: nonEmpty(["3" as SlotId]),
+        startAt: NOW,
+        serveAt: (NOW + 60 * SECOND) as EpochMillis,
+        anchor: null,
+      },
+    ],
+  };
+
+  it("未知麺種 G を含む卓の採用済み一片は、置ける品目 M が一致すれば維持される", () => {
+    const schedule = committedSchedule([ACCEPTED_M], [M, G], [], NOW, PRESETS, PARAMS, null);
+    expect(schedule.slices).toEqual([ACCEPTED_M]);
+  });
+
+  it("設定変更で G が置けるようになると、その一片は欠落で落ち、自前解が M と G を置き直す（AC 7.5）", () => {
+    const presets = [...PRESETS, GHOST_PRESET];
+    const schedule = committedSchedule([ACCEPTED_M], [M, G], [], NOW, presets, PARAMS, null);
+    const placements = schedule.slices.flatMap((slice) => slice.placements);
+    expect(schedule.slices[0]).not.toBe(ACCEPTED_M);
+    expect(placements.map((placement) => placement.externalOrderId).sort()).toEqual(["o-g", "o-m"]);
+    // 置き直しの証拠：M は採用済みの釜 3 ではなく自前解の釜（G と揃えて釜 0・1 のどちらか）。
+    expect(
+      placements.find((placement) => placement.externalOrderId === "o-m")!.slotIds,
+    ).not.toEqual(["3"]);
+  });
+
+  it("単体で上限を超える span 5 も同じ——arms 2（上限 4）では集合に無く維持、arms 3（上限 5）では欠落で落ちる", () => {
+    const wide: PendingOrder = { ...M, externalOrderId: "o-wide", slotSpan: 5 };
+    expect(
+      committedSchedule([ACCEPTED_M], [M, wide], [], NOW, PRESETS, PARAMS, null).slices,
+    ).toEqual([ACCEPTED_M]);
+    const relaxed = committedSchedule(
+      [ACCEPTED_M],
+      [M, wide],
+      [],
+      NOW,
+      PRESETS,
+      { ...PARAMS, arms: 3 },
+      null,
+    );
+    const placements = relaxed.slices.flatMap((slice) => slice.placements);
+    expect(relaxed.slices[0]).not.toBe(ACCEPTED_M);
+    expect(placements.map((placement) => placement.externalOrderId).sort()).toEqual([
+      "o-m",
+      "o-wide",
+    ]);
+  });
+});

@@ -14,7 +14,7 @@ import { tableMembers } from "../../src/engine/project";
 import { createTimer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { PendingOrder } from "../../src/domain/order";
-import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import { DEFAULT_NOODLE_PRESETS, occupiedSlotsOf } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
 
@@ -56,6 +56,7 @@ describe("上限を超える合流の列は候補の窓の残り容量で切る"
       DEFAULT_NOODLE_PRESETS,
       PARAMS,
       now,
+      occupiedSlotsOf(running),
       null,
     );
     const serveSeconds = schedule.slices

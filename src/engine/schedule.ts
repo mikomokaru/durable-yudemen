@@ -9,7 +9,7 @@
 
 import type { EpochMillis, SlotId } from "./types";
 import type { Timer } from "./timer";
-import { adjustedEndTime, type TableMembers } from "./project";
+import { adjustedEndTime, tableKeyOf, type TableMembers } from "./project";
 import { scoreSchedule, type ScheduleParams } from "./objective";
 import {
   advanceLifts,
@@ -18,16 +18,31 @@ import {
   liftOverflow,
   liftsOf,
   loadWith,
+  withinLiftCap,
   type LiftTable,
 } from "./lift";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
-import { itemKeyOf, liveOrders, type ItemKey, type PendingOrder } from "../domain/order";
+import {
+  compareArrival,
+  itemKeyOf,
+  liveOrders,
+  type ItemKey,
+  type PendingOrder,
+} from "../domain/order";
 import { slotDistance, slotOf, type NoodlePreset } from "../domain/store";
 import { boilMillisOf, joinWindowMillis } from "./boil";
-import { partialChangeCost, shownHeadsOf, type ChangeContext, type ShownItem } from "./stability";
+import {
+  partialChangeCost,
+  shownHeadsOf,
+  type ChangeContext,
+  type ShownItem,
+  type ShownPlan,
+} from "./stability";
 
 // 茹で時間と合流の窓の導出は boil.ts に在る（変更費用が同じ導出を読むため）。読む側の入口はここのまま。
 export { boilMillisOf, joinWindowMillis } from "./boil";
+// Table_Group の識別子は project.ts に在る（成員表の鍵と同じ規則・変更費用と復元が同じ鍵を読むため）。入口は同じくここ。
+export { tableKeyOf } from "./project";
 
 /**
  * Placement — 1 品目の配置。engine 内部形。
@@ -200,8 +215,11 @@ export type SlotRelease = readonly EpochMillis[];
  * 空き slot は now。
  *
  * **boiled に分岐を書かない。** boiled（boiledAt 非 null）の実効 endTime は定義上過去なので、同じ式が
- * 当該 slot を「今すぐ空いている」と扱う。湯切りで麺が釜から上がるため釜は空いており、Complete は
+ * 当該 slot を「今すぐ空いている」と扱う。湯切りで麺が釜から上がるため釜は空いており、**解放予測では Complete を待たない**——Complete は
  * UI 上の確認であって釜の占有ではない——この事実が式ひとつで表せることが、扱いの正しさの証である。
+ * **開始の可否は別の事実である**——対象釜に Timer（running / boiled とも）が無いこと（domain の occupiedSlotsOf の
+ * 補集合・startable-placement 判断 1）。この表は予測だけを持ち、その事実は committedSchedule が別に作って接頭辞の失効
+ * （cannotStart）と「今」置く配置の釜の配分（pinNow）にだけ渡す。
  *
  * **下限は now に置く。** 過去の解放時刻は「今すぐ空いている」と同義だが、表を now から先の値に揃えると
  * 「過去に開始しない」という事実の置き場所が 1 箇所に定まる。解放表を受け取る baselineSchedule は now を
@@ -283,8 +301,8 @@ interface TableGroup {
  * baselineSchedule — 計画対象へ順序・slot・開始時刻を割り当てる決定的な貪欲法（要件4.1〜4.5）。
  *
  * 常に feasible（Requirement 3 のハード制約充足）。pending が空なら空の計画を返す。
- * 採点を呼ばない——採点は比較の時点（Acceptance_Gate）の関心事で、配置の関心事ではない。この関数は
- * 「配置を決める」だけである（lift-group-planning 判断 7）。
+ * 採点を呼ぶのは候補の選択（保持候補 R と生成候補 F の比較）だけで、配置そのものは採点を呼ばない——採点は比較の
+ * 時点の関心事で、配置の関心事ではない（lift-group-planning 判断 7）。
  *
  * **卓の成員表を引数に取る。** 同じ卓の走行中 Timer の提供時刻（project.ts の tableMembers）で、その最大が
  * 群の錨になる。解放表（「その釜がいつ空くか」）と同じ資格の第二の表（「その卓がいつ上がるか」）であり、
@@ -316,9 +334,23 @@ interface TableGroup {
  *
  * **変更費用の文脈（`changeContext`）を引数に取る（plan-stability Requirement 3・design Component 5）。** 前回配信対象
  * として確定した提案（Shown_Plan）が在れば、釜の選択はその釜を第一候補にし（AC 3.1）、batch の並びの同値は前回の
- * `startAt` 順で断ち、列の pack / split の局所比較に変更費用の差分を足して「前回のまとまりを保つ分割」を第 3 候補に
- * 置く（AC 3.2）。ハード制約（釜の排他・slotSpan・上げ窓・合流の契約）は候補の生成の前に効き、前回より優先する
+ * `startAt` 順で断ち、列の pack / split の局所比較に変更費用の差分を足して「前回の配置の再現・まとまり・先頭を保つ分割」を
+ * 候補に置く（AC 3.2）。ハード制約（釜の排他・slotSpan・上げ窓・合流の契約）は候補の生成の前に効き、前回より優先する
  * （AC 3.3）。null は比較の相手なし——前回を残す経路は一つも通らず、従来と同じ計画が出る。
+ *
+ * **保持候補 R と生成候補 F を組み、同じ旧 Shown_Plan に対する総費用で選ぶ（plan-stability Requirement 6・design
+ * Component 7・2026-09-07）。** F は文脈つきの生成器（`buildSchedule`）の出力に「今」の配分の loop（`placeNow`）を通した
+ * 完成候補。R は旧 Shown_Plan を**再計算せず復元**した計画（`retain`：Live_Orders に在る品目を初出順の一片に組み、過去開始の
+ * 「今」を now に置き直し、一片ごとに合成と同じ述語で検証して、不正な一片はその位置でその卓を再生成する）に同じ loop を
+ * 通した完成候補。両方を `scoreSchedule`（業務費用 ＋ 変更費用）で同じ旧 Shown_Plan に対して採点し、R ≤ F なら R（同点は
+ * 前回）。Shown_Plan が無ければ F だけ。生成器で前回を再現する候補（`Continuity.faithful`）は撤去した——固定・下限・
+ * 取り置きの規則を足しても将来の釜・分割・群まで一致する保証にならず、実占有で性質 5.6 が落ちた（判断 9〜12）。
+ *
+ * **占有（`occupied`）を引数に取る（startable-placement design Component 3′）。** 解放表は「将来いつ空く見込みか」の予測で、
+ * 茹で上がった釜（boiled・Complete 待ち）を `now` に空くと扱う。一方「今、開始操作できるか」は対象釜に Timer が無い事実
+ * （client の全釜 idle と同じ domain の述語 `occupiedSlotsOf`）で決まる。両者が食い違うと、「今」と提案した先頭が押せない
+ * 釜に置かれ、本当に始められる後続まで連鎖で隠れる（観測事実 8）。`occupied` を読むのは「今」の品目への配分（`pinNow`）
+ * だけで、将来配置（`startAt > now`）の釜の選択は占有を直接の条件にしない（性質 4.6・判断 10）。
  */
 export function baselineSchedule(
   pending: readonly PendingOrder[],
@@ -328,36 +360,36 @@ export function baselineSchedule(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
   now: EpochMillis,
+  occupied: ReadonlySet<number>,
   changeContext: ChangeContext | null,
 ): CookSchedule {
-  // 前回の提案が無ければ（比較の相手なし）、前回を残す経路は一つも通らない——同じ入力からは前回の無い計画と
-  // 同じ計画が出る。空の Shown_Plan も同じ扱い（changeCost が 0 を返す計画に、候補だけ増やす理由は無い）。
-  if (changeContext === null || changeContext.shown.length === 0)
-    return buildSchedule(pending, release, members, lifts, presets, params, now, null);
-  const shownByKey = new Map(changeContext.shown.map((item) => [itemKeyOf(item), item]));
-  // 旧 Shown_Plan の Head は比較の時点で決まり、計画の間は変わらない（一度だけ導く）。
-  const heads = shownHeadsOf(changeContext, params);
-  const seed = { changeContext, shownByKey, heads };
-  // 2 本組んで総費用（業務費用 ＋ 変更費用）で選ぶ。列ごとの局所比較は後続の一片への影響（窓の押し出しとその
-  // 変更費用）を見ないので、局所では勝つが全体では劣る候補へ計画が動き得る（実測：w_table 4・arms 2・L 62 で、
-  // 卓の一片は 370 秒改善するが後続の単独品が 83 秒遅れ、変更費用 444 秒を足すと前回より 218 秒悪い計画に変わった）。
-  // 前回に忠実な計画を常に候補に持ち、真に良いときだけ動く（同点は前回に忠実な側・AC 3.2・性質 5.6 / 5.7）。
-  const faithful = buildSchedule(pending, release, members, lifts, presets, params, now, {
-    ...seed,
-    faithful: true,
-  });
-  const compared = buildSchedule(pending, release, members, lifts, presets, params, now, {
-    ...seed,
-    faithful: false,
-  });
+  const { fresh, retained } = scheduleCandidates(
+    pending,
+    release,
+    members,
+    lifts,
+    presets,
+    params,
+    now,
+    occupied,
+    changeContext,
+  );
+  if (retained === null || changeContext === null) return fresh;
+  // 両候補を同じ旧 Shown_Plan（遷移前の状態が持つもの・AC 6.5）に対する総費用で比べる。同点は前回（R）。
   const scoreContext = { members, lifts, change: changeContext };
   const totalOf = (schedule: CookSchedule) =>
     scoreSchedule(schedule.slices, pending, scoreContext, params).total;
-  return totalOf(compared) < totalOf(faithful) ? compared : faithful;
+  return totalOf(retained) <= totalOf(fresh) ? retained : fresh;
 }
 
-/** 卓ごとの群を正準順序で置いて計画を組む（`baselineSchedule` の本体。`seed` は前回を残す文脈、null は前回なし）。 */
-function buildSchedule(
+/**
+ * scheduleCandidates — `baselineSchedule` が比べる 2 候補（生成候補 F と保持候補 R）。R は Shown_Plan が無ければ null。
+ *
+ * 公開するのは、性質の検査が**選ばれなかった側**も見るためである——完成した R と F の両方が物理的なハード制約を守ること
+ * （plan-stability 性質 5.10・startable-placement 性質 4.8）、選ばれた計画の総費用が F 単独より高くならないこと（性質 5.11）は、
+ * 選択の結果だけからは読めない。引数は `baselineSchedule` と同じ。
+ */
+export function scheduleCandidates(
   pending: readonly PendingOrder[],
   release: SlotRelease,
   members: TableMembers,
@@ -365,8 +397,599 @@ function buildSchedule(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
   now: EpochMillis,
-  seed: Omit<Continuity, "slices"> | null,
+  occupied: ReadonlySet<number>,
+  changeContext: ChangeContext | null,
+): { readonly fresh: CookSchedule; readonly retained: CookSchedule | null } {
+  const { fresh, retained } = scheduleStages(
+    pending,
+    release,
+    members,
+    lifts,
+    presets,
+    params,
+    now,
+    occupied,
+    changeContext,
+  );
+  return { fresh: fresh.completed, retained: retained?.completed ?? null };
+}
+
+/**
+ * 一候補の経過——1 段目（生成 or 復元）・候補 K（`placeNow` が固定を外す場面で組んだ「1 段目の時刻を保ち釜だけ交換した
+ * 計画」・その場面が無ければ null）・完成形。性質 4.7′（判断 14）の検査が「K を実際に組んで合法性と総費用を比べる」ために
+ * 読む——完成形だけからは、1 段目の「今」が「今」を失った理由（K が違法か、K より総費用が真に低いか）が読めない。
+ */
+export interface CandidateStages {
+  readonly stage1: CookSchedule;
+  /** loop を終えた計画（固定を外した再生成を含む）。固定を外す場面が無ければ完成形そのもの。 */
+  readonly regenerated: CookSchedule;
+  /** 候補 K。固定を外す場面が無ければ null。違法な K もそのまま返す（検査が違法性を見る）。 */
+  readonly swap: CookSchedule | null;
+  /** 完成形——`regenerated` か、合法で総費用が真に低くない再生成に対して選ばれた `swap`。 */
+  readonly completed: CookSchedule;
+}
+
+/** `scheduleCandidates` の 2 候補を経過つきで返す。引数は同じ。 */
+export function scheduleStages(
+  pending: readonly PendingOrder[],
+  release: SlotRelease,
+  members: TableMembers,
+  lifts: LiftTable,
+  presets: readonly NoodlePreset[],
+  params: ScheduleParams,
+  now: EpochMillis,
+  occupied: ReadonlySet<number>,
+  changeContext: ChangeContext | null,
+): { readonly fresh: CandidateStages; readonly retained: CandidateStages | null } {
+  const planning: Planning = {
+    pending,
+    targets: placeableTargets(pending, now, presets, params),
+    release,
+    lifts,
+    members,
+    occupied,
+    presets,
+    params,
+    now,
+    seed: seedOf(changeContext, params),
+  };
+  const fresh = placeNow(planning, buildSchedule(planning, pending, release, lifts));
+  if (planning.seed === null) return { fresh, retained: null };
+  return { fresh, retained: placeNow(planning, retain(planning)) };
+}
+
+/**
+ * Planning — 一度の計画が読む入力の束。`baselineSchedule` の引数と、そこから一度だけ導く置ける品目（`placeableTargets`・
+ * plan-stability Requirement 7）・前回を残す文脈の種（`seedOf`）。生成（`buildSchedule`）・復元（`retain`）・配分（`pinNow`）・
+ * 検証と再生成（`revalidate`）が同じ束を読む（位置引数の増殖を止める）。
+ */
+interface Planning {
+  readonly pending: readonly PendingOrder[];
+  /** 置ける品目（`isStale` と再生成が読む集合・定義は `placeableTargets` ただ一つ）。 */
+  readonly targets: readonly PendingOrder[];
+  /** 採用済み接頭辞で進めた解放表（合成の尾部）か、走行中から引いた表（全体の自前解）。 */
+  readonly release: SlotRelease;
+  readonly lifts: LiftTable;
+  readonly members: TableMembers;
+  /** Timer（running / boiled とも）の載る釜。配分と保持の条件だけが読む。 */
+  readonly occupied: ReadonlySet<number>;
+  readonly presets: readonly NoodlePreset[];
+  readonly params: ScheduleParams;
+  readonly now: EpochMillis;
+  /** 前回を残す文脈の種。null は比較の相手なし（保持候補 R も組まない）。 */
+  readonly seed: Seed | null;
+}
+
+/** 前回を残す文脈の種（列ごとの `slices` を除いた Continuity）。null は比較の相手なし。 */
+type Seed = Omit<Continuity, "slices">;
+
+/**
+ * 変更費用の文脈から前回を残す文脈の種を組む。前回の提案が無ければ（比較の相手なし）、前回を残す経路は一つも
+ * 通らない——同じ入力からは前回の無い計画と同じ計画が出る。空の Shown_Plan も同じ扱い（changeCost が 0 を返す
+ * 計画に、候補だけ増やす理由は無い）。
+ */
+function seedOf(changeContext: ChangeContext | null, params: ScheduleParams): Seed | null {
+  if (changeContext === null || changeContext.shown.length === 0) return null;
+  const shownByKey = new Map(changeContext.shown.map((item) => [itemKeyOf(item), item]));
+  // 旧 Shown_Plan の Head は比較の時点で決まり、計画の間は変わらない（一度だけ導く）。
+  const heads = shownHeadsOf(changeContext, params);
+  return { changeContext, shownByKey, heads };
+}
+
+/** 「今」の品目（`startAt ≤ now` の配置と、その品目）。配分の入力。 */
+interface NowItem {
+  readonly placement: Placement;
+  readonly order: PendingOrder;
+}
+
+/**
+ * placeNow — 「今」の品目に釜を配って計画を完成させる loop（startable-placement design Component 3′・AC 1.8 改訂・判断 14）。
+ *
+ * **保持するのは「今に選んだ品目とその時刻」であり、釜は変更不能にしない。** 反復ごとに「今」の集合**全体**を最終的な表示順
+ * （`startAt` → `compareArrival`）で配り直す。loop で発見した順に固定すると、後着の品目が先に空き釜を取り、後から「今」に
+ * なった先着の品目（表示の先頭）が boiled の釜に落ちて押せず後続も隠れる（反例：同卓の先着 Short 60 秒・後着 Long 600 秒・
+ * 釜 0 が boiled・釜 1 だけ空き）。表示の先頭に空き釜を渡すことが目的であり、内部の pool が尽きることを厨房の空き不足と
+ * 同一視しない。
+ *
+ * **「今」の入れ替えは費用改善の判断であって物理的な例外ではない（判断 14）。** 1 段目の「今」はまだ調理者に見せていない
+ * 内部候補で、守るのは示した提案の安定性（保持候補 R）と完成した計画の開始可能性である。固定した「今」を残した再生成が
+ * 計画順で成り立たない場面では、候補 K（1 段目の時刻をすべて保ち、配分した釜だけを交換した計画）を検証し、K が合法なら
+ * K と再生成を同じ旧 Shown_Plan に対する総費用で比べて真に低い方（同点は K）を採る。K が違法なときだけ再生成に落ちる。
+ * 1 段目への無条件のフォールバックは置かない（場面 E では 1 段目の「今」が押せない釜に在る・性質 4.8）。
+ *
+ * **停止性**：継続する反復ごとに「今」の集合が必ず増える（増えなければ止まる）ので、反復回数は品目数で抑えられる。釜の
+ * 固定に依らない。K は品目を足さず、比較は loop の外で一度だけ行う。1 段目に「今」が無ければ計画は 1 段目のまま（性質 4.6）。
+ */
+function placeNow(planning: Planning, stage1: CookSchedule): CandidateStages {
+  const { now } = planning;
+  const orderByKey = new Map(planning.pending.map((order) => [itemKeyOf(order), order]));
+  const nowKeysOf = (schedule: CookSchedule): readonly ItemKey[] =>
+    schedule.slices.flatMap((slice) =>
+      slice.placements.flatMap((placement) =>
+        placement.startAt <= now ? [itemKeyOf(placement)] : [],
+      ),
+    );
+  const nowKeys = new Set(nowKeysOf(stage1));
+  if (nowKeys.size === 0) return { stage1, regenerated: stage1, swap: null, completed: stage1 };
+
+  let plan = stage1;
+  // 1 段目の「今」への配分（最初の反復のもの）。候補 K はこれで釜を交換する。
+  let first: ReadonlyMap<ItemKey, Placement> | null = null;
+  let dropped = false;
+  for (;;) {
+    const byKey = new Map(
+      plan.slices.flatMap((slice) =>
+        slice.placements.map((placement) => [itemKeyOf(placement), placement] as const),
+      ),
+    );
+    // nowSet の品目は配分した配置のまま残る（`revalidate` の再生成は固定分を落とさない）ので必ず引ける。
+    const nowItems: NowItem[] = [...nowKeys]
+      .map((key) => ({ placement: byKey.get(key)!, order: orderByKey.get(key)! }))
+      // 固定を外されて「今」でなくなった品目（`revalidate`）は配らない（鍵は nowSet に残り、停止性はそのまま）。
+      .filter((item) => item.placement.startAt <= now)
+      .sort(byDisplayOrder);
+    const allocation = pinNow(nowItems, planning);
+    first ??= allocation;
+    const allocated = plan.slices.map((slice) => ({
+      tableKey: slice.tableKey,
+      placements: slice.placements.map(
+        (placement) => allocation.get(itemKeyOf(placement)) ?? placement,
+      ),
+    }));
+    const revalidated = revalidate(planning, allocated, allocation, false);
+    plan = { slices: revalidated.slices };
+    dropped ||= revalidated.dropped;
+    const fresh = nowKeysOf(plan).filter((key) => !nowKeys.has(key));
+    if (fresh.length === 0) break;
+    for (const key of fresh) nowKeys.add(key);
+  }
+  if (!dropped) return { stage1, regenerated: plan, swap: null, completed: plan };
+
+  const swap = swapNow(stage1, first!);
+  if (!isLegal(planning, swap.slices)) return { stage1, regenerated: plan, swap, completed: plan };
+  const { pending, members, lifts, params, seed } = planning;
+  const scoreContext = { members, lifts, change: seed?.changeContext ?? null };
+  const totalOf = (schedule: CookSchedule) =>
+    scoreSchedule(schedule.slices, pending, scoreContext, params).total;
+  const completed = totalOf(plan) < totalOf(swap) ? plan : swap;
+  return { stage1, regenerated: plan, swap, completed };
+}
+
+/**
+ * 候補 K——1 段目の配置の時刻をすべて保ち、配分した釜だけを交換した計画（判断 14）。
+ *
+ * 配分が「今」の品目を新しい釜（`taken`＝配分後にだけ在る釜）へ動かすと、その釜を使っていた 1 段目の将来配置は行き場を
+ * 失う。それらを、動いた「今」の品目が空けた釜（`freed`＝配分前にだけ在る釜）へ index 順に写す——釜の**交換**であり、時刻は
+ * 一つも動かさない（配分は「今」の全品目について排他的で本数を保つので `|taken| = |freed|`）。交換で同じ釜の時間帯が重なる
+ * （空けた釜を 1 段目の後続配置が上がった後に使っていた）など成り立たない K は違法として落ちる（`isLegal`）——K は合法か
+ * 違法かのどちらかで、再生成はしない。
+ */
+function swapNow(stage1: CookSchedule, allocation: ReadonlyMap<ItemKey, Placement>): CookSchedule {
+  const before = new Set<number>();
+  const after = new Set<number>();
+  for (const slice of stage1.slices) {
+    for (const placement of slice.placements) {
+      const moved = allocation.get(itemKeyOf(placement));
+      if (moved === undefined) continue;
+      for (const slotId of placement.slotIds) before.add(slotOf(slotId));
+      for (const slotId of moved.slotIds) after.add(slotOf(slotId));
+    }
+  }
+  const ascending = (slots: Iterable<number>) => [...slots].sort((slot, other) => slot - other);
+  const freed = ascending(before).filter((slot) => !after.has(slot));
+  const taken = ascending(after).filter((slot) => !before.has(slot));
+  const exchanged = new Map(taken.map((slot, index) => [slot, freed[index]!]));
+  return {
+    slices: stage1.slices.map((slice) => ({
+      tableKey: slice.tableKey,
+      placements: slice.placements.map((placement) => {
+        const moved = allocation.get(itemKeyOf(placement));
+        if (moved !== undefined) return moved;
+        if (!placement.slotIds.some((slotId) => exchanged.has(slotOf(slotId)))) return placement;
+        const slots = placement.slotIds.map(
+          (slotId) => exchanged.get(slotOf(slotId)) ?? slotOf(slotId),
+        );
+        return { ...placement, slotIds: slotIdsOf(slots) };
+      }),
+    })),
+  };
+}
+
+/**
+ * 完成した計画が計画順に物理的なハード制約（置ける品目に限る `isStale`・`feasibleRelease`・`keepsAnchor`・`withinLiftCap`）を
+ * 守るか。`revalidate` と同じ述語を、再生成も取り置きも無しに当てる（候補 K の検証・性質 4.8 の検査と同じ形）。
+ */
+function isLegal(planning: Planning, slices: readonly PlanSlice[]): boolean {
+  const { targets, members, presets, params } = planning;
+  let free = planning.release;
+  let ends = planning.lifts;
+  for (const slice of slices) {
+    const siblings = members.get(slice.tableKey) ?? null;
+    if (
+      isStale(slice, targets) ||
+      feasibleRelease(slice.placements, free, targets, presets) === null ||
+      !keepsAnchor(slice.placements, free, ends, siblings, targets, presets, params) ||
+      !withinLiftCap(ends, liftsOf(slice.placements), params)
+    )
+      return false;
+    free = advanceRelease(free, slice.placements);
+    ends = advanceLifts(ends, liftsOf(slice.placements));
+  }
+  return true;
+}
+
+/** 表示の順——`startAt` 昇順・同値は到着順（`compareArrival`・表示の `liftGroupsOf` と同じ比較）。 */
+function byDisplayOrder(a: NowItem, b: NowItem): number {
+  return a.placement.startAt - b.placement.startAt || compareArrival(a.order, b.order);
+}
+
+/**
+ * pinNow — 「今」の品目に、今割り当てられる釜を表示の順に配る（startable-placement AC 1.1〜1.7・2.1）。
+ *
+ * **入力は表示の順に並んだ「今」の品目**（`startAt` 昇順・同値は到着順）であって計画の一片の順ではない（観測事実 9：卓 X に
+ * −3 秒の 60 秒麺と −1 秒の 600 秒麺、卓 Y に −2 秒の 600 秒麺なら、計画順は X → Y だが「今」の表示順は Y → X）。先頭
+ * arms 本は表示の順で数えるので、配る順もそれに結ぶ（AC 1.5）。
+ *
+ * **配分の母集団 `pool`** は `release[s] ≤ now` の釜（入力の解放表＝採用済み接頭辞の予約を反映済み。予約された釜は Timer が
+ * 無くても今割り当てられる釜ではない・判断 9 (a)）。そのうち `occupied` に無い釜が今割り当てられる釜 `assignable`、在る釜が
+ * 待つ釜（boiled）。「今」の配置は互いに素で全部 `pool` に載っている（検証済みの計画の「今」は解放時刻 `now` の釜に在り、
+ * 同じ釜に「今」を二つ置けない）ので `|pool| ≥ Σ slotSpan`——**配分は「今」の全品目（待つ品目も含む）について `pool` の上の
+ * 排他的な割当**として行い、取った釜は `claimed` に入れて以後どの品目も採らない。
+ *
+ * **規則（品目を表示順に見て slotSpan 本を `pool ∖ claimed` から）。**
+ *   (i) 未claim の `assignable` が slotSpan 本以上あれば `assignable` だけから——(a) 前回の釜（Shown_Plan の `slotIds`）が
+ *       全部在ればそれ（AC 1.7・先の品目を押しのけない範囲で保つ）、(b) いまの釜（1 段目・前の反復・復元した配置）が全部
+ *       在ればそれ、(c) `chooseSlots`（釜距離 → index の既存規則。`assignable ∖ claimed` だけを `now` にした表で引く）。
+ *   (ii) 足りなければ待つ品目として、未claim の待つ釜だけから——(a) いまの釜、(b) 前回の釜、(c) index 昇順。
+ *        `assignable` の残りは後の品目に残す（半端に取って空き釜を潰さない・AC 1.4 の待ちは空き釜不足のときだけ）。
+ *   (iii) それも足りなければ `pool ∖ claimed` から index 昇順で混ぜて取る（本数の勘定から必ず足りる。全釜 idle でない
+ *         ので待つ品目になる）。いまの釜が先の品目に取られた品目の退避先。
+ * 前回の釜が Timer の在る釜なら (i) では採れない——押せない釜を前回の釜として守らない（AC 2.1・釜の変更費用 L は払う）。
+ * 保持候補 R の復元した「今」も同じ規則を通る（いまの釜＝前回の釜なので、先の品目が要さない限りそのまま残る）。
+ *
+ * 返すのは品目ごとの配置（釜だけを配り直したもの・`startAt` / `serveAt` / `anchor` は入力のまま）。
+ */
+function pinNow(nowItems: readonly NowItem[], planning: Planning): ReadonlyMap<ItemKey, Placement> {
+  const { release, occupied, now, params, seed } = planning;
+  const pool = release.flatMap((at, slot) => (at <= now ? [slot] : []));
+  const assignable = pool.filter((slot) => !occupied.has(slot));
+  const waiting = pool.filter((slot) => occupied.has(slot));
+  const claimed = new Set<number>();
+  const unclaimed = (slots: readonly number[]) => slots.filter((slot) => !claimed.has(slot));
+
+  const placements = new Map<ItemKey, Placement>();
+  for (const { placement, order } of nowItems) {
+    const key = itemKeyOf(order);
+    const span = placement.slotIds.length;
+    const current = placement.slotIds.map(slotOf);
+    const shown = seed?.shownByKey.get(key);
+    const remembered = shown === undefined ? null : [...new Set(shown.slotIds.map(slotOf))];
+    const startable = unclaimed(assignable);
+    const boiled = unclaimed(waiting);
+    let chosen: readonly number[];
+    if (startable.length >= span) {
+      chosen =
+        within(remembered, span, startable) ??
+        within(current, span, startable) ??
+        chooseSlots(span, onlyNow(release, startable, now), params);
+    } else if (boiled.length >= span) {
+      chosen =
+        within(current, span, boiled) ?? within(remembered, span, boiled) ?? boiled.slice(0, span);
+    } else {
+      chosen = unclaimed(pool).slice(0, span);
+    }
+    const slots = [...chosen].sort((slot, other) => slot - other);
+    for (const slot of slots) claimed.add(slot);
+    placements.set(key, { ...placement, slotIds: slotIdsOf(slots) });
+  }
+  return placements;
+}
+
+/** 候補の釜の組が count 本の相異なる釜で、すべて allowed に在ればその組（配分の (a)(b)）。そうでなければ null。 */
+function within(
+  candidate: readonly number[] | null,
+  count: number,
+  allowed: readonly number[],
+): readonly number[] | null {
+  if (candidate === null || candidate.length !== count) return null;
+  if (new Set(candidate).size !== count) return null;
+  return candidate.every((slot) => allowed.includes(slot)) ? candidate : null;
+}
+
+/** `slots` だけを `now` に、他をすべて後回し（無限大）にした解放表——`chooseSlots` の候補をその釜に限る。 */
+function onlyNow(release: SlotRelease, slots: readonly number[], now: EpochMillis): SlotRelease {
+  return release.map((_unused, slot) =>
+    slots.includes(slot) ? now : (Number.POSITIVE_INFINITY as EpochMillis),
+  );
+}
+
+/**
+ * revalidate — 一片の列を計画順に検証し、不正な一片は**その位置で**その卓を再生成する（plan-stability Requirement 6 判断 10・
+ * startable-placement Component 3′）。復元（`retain`）と「今」の配分の loop（`placeNow`）が同じ関数を呼ぶ——対象が Shown_Plan か
+ * 1 段目かの違いだけ。
+ *
+ * 一片ごとに、採用済み接頭辞（入力の表）と手前の一片で進めた表に、**まだ来ていない一片の配分した「今」の釜**（`fixed` の
+ * うち手前に無いもの・`ahead`）を取り置いた表で検証する（上がりは載せない——本文の注記）。配分は互いに素で `pool` に載る
+ * （構造）ので、再生成が配分した釜を取ることは無い。述語は合成（`livePrefix`）・
+ * ゲート（`prune`）と同じ公開関数——置ける品目に限る `isStale`（Requirement 7）・解放表の feasibility（`feasibleRelease`）・
+ * `keepsAnchor`・`withinLiftCap`。`retaining` のときは検証の前に復元した配置の錨を現在の走行中に対して付け直す（`reanchor`）。
+ *
+ * **保持の条件 `cannotStart`（判断 10・13）は復元には当てない（実装で判明・2026-09-07）。** 過去開始は retime（判断 9）で
+ * 消え、残るのは「`startAt ≤ now` で釜に Timer」＝空き不足で boiled の釜の Complete を待つ配置（AC 1.4・合法）だけである。
+ * それを落とせば、待つ配置を含む卓が同じ入力でも毎回再生成され、前回を再現できず性質 5.6 が実占有で落ちる（実測：6 釜・
+ * arms 1・L 5・総費用 3993 → 4014）。待つ配置の釜は `placeNow` の配分が表示順に配り直す（空き釜が出ていれば Startable_Slot へ
+ * 動き、無ければ待つ）ので、復元で落とす理由が無い。`cannotStart` は採用済み接頭辞（`livePrefix`・再配分されない）の条件に
+ * 留まる。
+ *
+ * 不正な一片は、その卓の置ける品目を生成器（`placeGroup`・文脈つき）で置き直す。一片の配分した「今」の配置（`fixed` に
+ * 在るもの）は**その配置のまま**残し、残りの品目だけを、手前の一片・`ahead` の取り置き・その固定分で進めた表の上に置く（「今」の
+ * 集合は縮まず、「今」の品目の時刻は動かない・AC 1.8 改訂）。固定分を残した再生成が計画順で成り立たないとき——固定分の
+ * 上がりが手前の一片の上がりと同じ窓で上限 (f) を超える・合流した固定分の候補時刻が手前の表で変わって (d) が破れる——は、
+ * 固定を外して卓を丸ごと再生成し、`dropped` で呼び手に知らせる。その「今」を失うかどうかは呼び手（`placeNow`）が候補 K との
+ * 総費用の比較で決める（判断 14——物理的な例外として扱わない）。再生成した一片の並びは生成器の並び（固定分・合流分・batch の順）。
+ * 「最初の不正で止める」形（接頭辞・合成）は採らない——now が進むたびに前回の「今」が落ちてほぼ全再生成になり役に立たない
+ * （判断 10・実測）。
+ */
+function revalidate(
+  planning: Planning,
+  slices: readonly PlanSlice[],
+  fixed: ReadonlyMap<ItemKey, Placement>,
+  retaining: boolean,
+): {
+  readonly slices: readonly PlanSlice[];
+  readonly release: SlotRelease;
+  readonly lifts: LiftTable;
+  /** 固定した「今」を残した再生成が成り立たず、固定を外して卓を再生成した一片が在ったか（`placeNow` が候補 K を組む合図）。 */
+  readonly dropped: boolean;
+} {
+  const { targets, members, presets, params, seed } = planning;
+  const out: PlanSlice[] = [];
+  let free = planning.release;
+  let ends = planning.lifts;
+  let dropped = false;
+  const allocated = [...fixed.values()];
+  const seen = new Set<ItemKey>();
+  for (const slice of slices) {
+    for (const placement of slice.placements) seen.add(itemKeyOf(placement));
+    const ahead = allocated.filter((placement) => !seen.has(itemKeyOf(placement)));
+    // 後の一片の配分した「今」の釜は取り置く（解放を無限大に）——上がった後に使う配置も許さない。計画順の解放表は
+    // 「その釜は次にいつ空くか」しか語れず、手前の一片がその釜を（今の配置が上がった後に）使えば、後の一片の「今」は
+    // 計画順の検証（ゲート・合成と同じ）で解放時刻より前の開始になる。**上がりは載せない**——載せて手前の一片の pack が
+    // その窓で延期されると、計画順の検証には延期の理由（後の一片の上がり）が見えず `keepsAnchor` (d) を破る（実測：18 釜・
+    // arms 1・L 8 で、後の卓なし品目の 60 秒の上がりを見た卓 t-2 の合流分が 52.55 秒から 61 秒へ動いた）。窓の上限 (f) は
+    // 後の一片の側で検証し、成り立たなければその「今」を固定から外す（下）。
+    const freeAhead = reserve(
+      free,
+      ahead.flatMap((placement) => placement.slotIds.map(slotOf)),
+    );
+    const siblings = members.get(slice.tableKey) ?? null;
+    // 復元した一片は、Shown_Plan の品目から始まった走行中（新しい仲間）に対して錨を付け直してから検証する（`reanchor`）。
+    const started = retaining && seed !== null ? startedSiblingsOf(slice.tableKey, seed) : [];
+    const restored =
+      started.length > 0
+        ? reanchor(slice.placements, freeAhead, started, targets, presets, params)
+        : slice.placements;
+    // 物理的なハード制約（計画順・手前の一片で進めた表・後の「今」の釜は取り置き）。`isStale` は一片の品目集合の検査。
+    const legal = (placements: readonly Placement[]) =>
+      feasibleRelease(placements, freeAhead, targets, presets) !== null &&
+      keepsAnchor(placements, freeAhead, ends, siblings, targets, presets, params) &&
+      withinLiftCap(ends, liftsOf(placements), params);
+    let placements = restored;
+    if (isStale(slice, targets) || !legal(restored)) {
+      const own = slice.placements.filter((placement) => fixed.has(itemKeyOf(placement)));
+      const group: TableGroup = {
+        tableKey: slice.tableKey,
+        items: targets.filter((order) => tableKeyOf(order) === slice.tableKey),
+      };
+      const continuity: Continuity | null = seed === null ? null : { ...seed, slices: out };
+      const regenerate = (kept: readonly Placement[]) =>
+        placeGroup(
+          group,
+          advanceRelease(freeAhead, kept),
+          advanceLifts(ends, liftsOf(kept)),
+          siblings,
+          presets,
+          params,
+          continuity,
+          kept,
+        );
+      placements = regenerate(own);
+      // 固定した「今」を残した再生成が計画順で成り立たない——固定分の上がりが手前の一片の上がりと同じ窓で上限を超える、
+      // 合流した固定分の候補時刻が手前の表で変わった——なら、固定を外して卓を丸ごと再生成する（「今」の入れ替えを含む）。
+      // これは物理的な例外ではなく再生成の一候補で、呼び手（`placeNow`）が候補 K と総費用で比べて選ぶ（判断 14）。
+      if (own.length > 0 && !legal(placements)) {
+        placements = regenerate([]);
+        dropped = true;
+      }
+      // 置ける品目が一つも無くなった卓は一片を成さない。
+      if (placements.length === 0) continue;
+    }
+    out.push({ tableKey: slice.tableKey, placements });
+    free = advanceRelease(free, placements);
+    ends = advanceLifts(ends, liftsOf(placements));
+  }
+  return { slices: out, release: free, lifts: ends, dropped };
+}
+
+/**
+ * 卓の走行中の仲間のうち、旧 Shown_Plan の品目から始まったもの（新しい仲間）の実効 endTime（昇順）。
+ *
+ * 前回の計画が組まれた時点には無く、その後の遷移（開始）で現れた錨である。Shown_Plan は前回の Timer 集合を持たないが、
+ * 走行中の `orderItem` の鍵が Shown_Plan に在れば、その Timer は前回は未着手の配置だった——それが始まったことは事実から
+ * 読める。前回から在った仲間はここに入らない（前回の配置の `anchor` はそれらに対して既に決めた事実で、null も判断である）。
+ */
+function startedSiblingsOf(tableKey: string, seed: Seed): readonly EpochMillis[] {
+  return seed.changeContext.running
+    .filter(
+      (timer) =>
+        timer.orderItem !== null &&
+        timer.orderItem.tableId === tableKey &&
+        seed.shownByKey.has(itemKeyOf(timer.orderItem)),
+    )
+    .map((timer) => adjustedEndTime(timer))
+    .sort((a, b) => a - b);
+}
+
+/**
+ * 復元した一片の配置に、新しい仲間（`startedSiblingsOf`）の錨を付け直す（`retain` の検証の前・plan-stability 判断 9′：復元した
+ * 配置の `anchor` は、旧 Shown_Plan の品目のうち**今回 Timer になったもの**の実効 endTime にだけ付け直す。全走行中に付け直すと、
+ * 生成器が意図して付けなかった錨が付く）。
+ *
+ * `Placement.anchor` は「合流先の走行中の実効 endTime」という現在の Timer 集合に対する事実であり（AC 9.9）、前回の配置を
+ * そのまま持つと二つの形で古びる。(1) 群の 1 本目（前回は未着手の配置）が始まった——残りは前回 `anchor: null`（または前回の
+ * 仲間への錨）のままだが、いまは始まった 1 本目の上がりに合流した配置そのものである（時刻も釜も同じ）。null のまま残せば
+ * `keepsAnchor` は通る（押し出しではない）が、群は Group_Started にならず連鎖が止まり、後の卓の提案が隠れる（lift-group-display
+ * 判断 19）。(2) 錨の Timer が Complete で消えた——`keepsAnchor` (a) が落として再生成に回る（ここでは触らない）。
+ *
+ * (1) を生成器と同じ規則で埋める：`anchor` を持たない配置を開始時刻の順に見て、その品目の釜がこの一片の手前の配置で進めた
+ * 表で空く最早の時刻 ＋ 茹で時間（earliest）から、**新しい仲間だけ**を相手に `joinTarget` を引き、合流先が在って配置の提供
+ * 時刻がその候補以上（窓で後ろへ動いた合流分を含む）ならその錨を付ける。前回から在った仲間を相手にしないのは、前回の
+ * 配置の null がそれらに対する判断（合流できなかった・batch に回した）であり、実際の釜から引いた earliest で引き直せば生成器
+ * が合流させなかった配置にまで錨が付くためである（実測：同じ入力の再計画で、走行中 0 / 176 秒の卓の Thin を 284 秒に置いた
+ * 前回の配置に錨 176 が付き、`keepsAnchor` は通るが前回と一致しない計画になって性質 5.6 が 1 万場面に 1 回落ちた）。
+ * 同じ入力（新しい仲間なし）の再計画では何も付け直さず、前回そのものが復元される。錨を持つ配置はそのまま。
+ */
+function reanchor(
+  placements: readonly Placement[],
+  release: SlotRelease,
+  siblings: readonly EpochMillis[],
+  targets: readonly PendingOrder[],
+  presets: readonly NoodlePreset[],
+  params: ScheduleParams,
+): readonly Placement[] {
+  const order = [...placements].sort(
+    (a, b) => a.startAt - b.startAt || slotOf(a.slotIds[0]) - slotOf(b.slotIds[0]),
+  );
+  const anchored = new Map<Placement, EpochMillis>();
+  let free = release;
+  for (const placement of order) {
+    if (placement.anchor === null) {
+      const { boilMillis } = resolveBoil(placement, targets, presets);
+      if (boilMillis !== null) {
+        const frees = placement.slotIds.map((slotId) => free[slotOf(slotId)]);
+        if (frees.every((at) => at !== undefined)) {
+          const earliest = Math.max(...(frees as number[])) + boilMillis;
+          const target = joinTarget(earliest, siblings, boilMillis, params);
+          if (target !== null && placement.serveAt >= target.serveAt) {
+            anchored.set(placement, target.anchor);
+          }
+        }
+      }
+    }
+    free = advanceRelease(free, [placement]);
+  }
+  if (anchored.size === 0) return placements;
+  return placements.map((placement) => {
+    const anchor = anchored.get(placement);
+    return anchor === undefined ? placement : { ...placement, anchor };
+  });
+}
+
+/**
+ * retain — 旧 Shown_Plan を復元して保持候補 R の 1 段目にする（plan-stability Requirement 6 判断 9・10・AC 6.2・design
+ * Component 7）。
+ *
+ * 復元（`restoreSlices`）：`shownPlan` の品目のうち置ける品目（Live_Orders の計画対象・Requirement 7）に在るものを初出順の一片
+ * （現在の品目の `tableKeyOf`・卓なしは単独キー）に組み、`slotIds` / `startAt` / `serveAt` / `anchor` をそのまま持つ。群は
+ * `recommend` が付け直す（`mates` は読まない）。過去開始の「今」（`startAt < now`）は **now に置き直してから**（retime：
+ * `startAt = now`・`serveAt = now + 茹で時間`）検証する（完全復元 44 → 855 場面・実測）。
+ *
+ * 検証と再生成は `revalidate`（錨の付け直しを足す・保持の条件 `cannotStart` は当てない——同所の注記）。前回に無い品目（新着）は
+ * その卓の一片が `isStale` で落ちる
+ * ので再生成に含まれ、卓ごと新しい（前回に一片が無い）品目は末尾に生成器で置く。復元した「今」の配置は `placeNow` の配分に
+ * そのまま渡る（いまの釜＝前回の釜として (i)(b) で残る）。
+ */
+function retain(planning: Planning): CookSchedule {
+  const { targets, now, presets } = planning;
+  // `seed` は呼び手が非 null を確かめている（Shown_Plan が無ければ R は組まない）。
+  const shown = planning.seed!.changeContext.shown;
+  const restored = restoreSlices(shown, targets, now, presets);
+  const { slices, release, lifts } = revalidate(planning, restored, new Map(), true);
+  // 前回に一片が無かった卓の品目を末尾に置く。計画対象（正本）から組んで群の順（卓の最早到着）を従来どおりにし、64 件の
+  // 制限を跨がない（`planTargets` の出力の部分集合）。
+  const restoredTables = new Set(restored.map((slice) => slice.tableKey));
+  const rest = planTargets(planning.pending, now).filter(
+    (order) => !restoredTables.has(tableKeyOf(order)),
+  );
+  const tail = buildSchedule(planning, rest, release, lifts, slices);
+  return { slices: [...slices, ...tail.slices] };
+}
+
+/**
+ * Shown_Plan を一片の列に組む（`retain` の復元）。一片の順は Shown_Plan での初出順（`shownPlanOf` は計画順に平坦化するので
+ * 計画順が残る）。置ける品目に無い品目（開始済み・キャンセル・期限切れ・置けない）は落とす——落ちた卓は `isStale` で
+ * 再生成に回る。過去開始（`startAt < now`）は now に置き直す（retime）——提供時刻は現在の茹で時間で、錨は保つ。
+ */
+function restoreSlices(
+  shown: ShownPlan,
+  targets: readonly PendingOrder[],
+  now: EpochMillis,
+  presets: readonly NoodlePreset[],
+): readonly PlanSlice[] {
+  const byKey = new Map(targets.map((order) => [itemKeyOf(order), order]));
+  const slices = new Map<string, Placement[]>();
+  const seen = new Set<ItemKey>();
+  for (const item of shown) {
+    const key = itemKeyOf(item);
+    const order = byKey.get(key);
+    if (order === undefined || seen.has(key)) continue;
+    seen.add(key);
+    const lapsed = item.startAt < now;
+    // 置ける品目は茹で時間が必ず引ける。
+    const boilMillis = boilMillisOf(order, presets)!;
+    const placement: Placement = {
+      externalOrderId: item.externalOrderId,
+      itemIndex: item.itemIndex,
+      slotIds: item.slotIds,
+      startAt: lapsed ? now : item.startAt,
+      serveAt: lapsed ? ((now + boilMillis) as EpochMillis) : item.serveAt,
+      anchor: item.anchor,
+    };
+    const tableKey = tableKeyOf(order);
+    const slice = slices.get(tableKey);
+    if (slice === undefined) slices.set(tableKey, [placement]);
+    else slice.push(placement);
+  }
+  return [...slices].map(([tableKey, placements]) => ({ tableKey, placements }));
+}
+
+/**
+ * 卓ごとの群を正準順序で置いて計画を組む（生成器。生成候補 F の 1 段目と、復元で前回に一片が無かった卓の尾部）。
+ * `pending` は置く対象（`Planning.pending` の部分集合でもよい）、`release` / `lifts` は置き始める表、`before` は手前に
+ * 置いた一片（列の局所比較が読む「列の外」）。`seed` は前回を残す文脈、null は前回なし。
+ *
+ * 群は正本の計画対象から組む（群の順＝卓の最早到着は置けない品目も数える・従来どおり）。置くのは群の中の置ける品目
+ * だけ（`placeGroup` が `isPlaceable` で絞る＝`placeableTargets` と同じ一箇所の定義）——合成・ゲート・復元が `isStale`
+ * で比べる集合と、自前解の一片の品目集合はこれで一致する（plan-stability Requirement 7.4）。
+ */
+function buildSchedule(
+  planning: Planning,
+  pending: readonly PendingOrder[],
+  release: SlotRelease,
+  lifts: LiftTable,
+  before: readonly PlanSlice[] = [],
 ): CookSchedule {
+  const { members, presets, params, now, seed } = planning;
   const slices: PlanSlice[] = [];
   let free = release;
   let ends = lifts;
@@ -375,8 +998,9 @@ function buildSchedule(
     // NUL 始まりで非空の tableId と一致しないため、表に当たらない（条件を書かない・ADR-0003）。
     const siblings = members.get(group.tableKey) ?? null;
     // 手前の一片は、列の候補配置を仮に置いた計画の「列の外」を成す（この群を置く間は増えない）。
-    const continuity: Continuity | null = seed === null ? null : { ...seed, slices };
-    const placements = placeGroup(group, free, ends, siblings, presets, params, continuity);
+    const continuity: Continuity | null =
+      seed === null ? null : { ...seed, slices: [...before, ...slices] };
+    const placements = placeGroup(group, free, ends, siblings, presets, params, continuity, []);
     // 1 品目も置けなかったグループは PlanSlice を成さない（空の一片は採用/棄却の対象にならない）。
     if (placements.length === 0) continue;
     slices.push({ tableKey: group.tableKey, placements });
@@ -414,6 +1038,40 @@ export function planTargets(
 }
 
 /**
+ * 置ける品目——計画対象（`planTargets`）のうち、茹で時間が引け（プリセットに在る麺種）、品目単体で上げ窓の上限
+ * （slotSpan ≤ arms + HELPER_ARMS・`liftCap`）に収まるもの（plan-stability Requirement 7・2026-09-07）。
+ *
+ * **計画対象を決めた後に絞る（AC 7.1）。** 期限と 64 件の制限は正本（`planTargets`）の関心事で、そこで切った後に
+ * 置けるかで絞る。除外した分の繰り上げはしない——65 件目は入らない（絞ってから切れば、プリセットの差し替えが
+ * 計画対象の範囲を動かし、指紋と要求が指す範囲（`planTargets`）と食い違う）。
+ *
+ * **現在の空き不足や上げ窓の混雑は除外理由にしない（AC 7.2）。** それらは「置けない品目」ではなく「待つ品目」で、
+ * 待つ配置（boiled の釜の Complete を待つ・startable-placement AC 1.4）は合法である。
+ *
+ * **定義はここ一箇所（AC 7.4）。** 自前解（`placeGroup` が群の中で置く品目・同じ `isPlaceable`）・合成（`livePrefix`・
+ * 尾部の残り）・ゲート（`prune`）・復元（retain）が同じ集合を `isStale` に渡す。正本の計画対象のまま比べると、自前解は
+ * 置けない品目を置かないので未知麺種を含む卓の一片（自前解・外部解とも）が常に「欠落」で落ちる（3000 場面中 1319 一片・
+ * 実測）。自前解の**群の順**（卓の最早到着）は正本の計画対象で決めたまま——置けない品目が卓の先着でも群の順は変えない
+ * （集合の定義ではなく並びの規則で、Requirement 7 の外。`schedule.example` の性質 5.6 の回帰がその並びに立つ）。
+ * 指紋（`digestInput`）と要求（`RequestPlan.pending`）は正本の計画対象のまま——「何が計画対象か」と「そのうち何が
+ * 置けるか」は別の問いで、要求は置けない品目もプリセットと共に外部へ運ぶ（外部は同じ規則で絞る）。
+ */
+export function placeableTargets(
+  pending: readonly PendingOrder[],
+  now: EpochMillis,
+  presets: readonly NoodlePreset[],
+  params: ScheduleParams,
+): readonly PendingOrder[] {
+  const cap = liftCap(params);
+  return planTargets(pending, now).filter((order) => isPlaceable(order, presets, cap));
+}
+
+/** 置ける品目か——茹で時間が引け（プリセットに在る麺種）、品目単体で上げ窓の上限 `cap`（`liftCap`）に収まる。 */
+function isPlaceable(order: PendingOrder, presets: readonly NoodlePreset[], cap: number): boolean {
+  return boilMillisOf(order, presets) !== null && order.slotSpan <= cap;
+}
+
+/**
  * isStale — 採用済みの一片が現在の計画対象と食い違っているか（design の陳腐化A・陳腐化B）。
  *
  * 2 つの判定は一つの集合比較に畳める。
@@ -422,16 +1080,19 @@ export function planTargets(
  * ⟺ **一片の品目集合が、計画対象のうち同じ Table_Group の品目集合と一致する。** 片方向で足りないのは
  * (a) が「一片 ⊆ 計画対象」、(b) が「計画対象 ⊆ 一片」を言っているためで、両方向＝一致である。
  *
- * `commit.ts`（確定計画の合成）と `admit.ts`（Acceptance_Gate の段 1）が同じ述語を用いる。判定を二箇所に
- * 書けば、採用の基準と維持の基準が黙ってずれる。置き場所をここにするのは、PlanSlice・計画対象・Table_Group
- * 識別子のいずれもこのモジュールが定めているためである（tableKeyOf を公開せずに済む）。
+ * `commit.ts`（確定計画の合成）と `admit.ts`（Acceptance_Gate の段 1）と復元（retain）が同じ述語を用いる。判定を
+ * 二箇所に書けば、採用の基準と維持の基準が黙ってずれる。置き場所をここにするのは、PlanSlice・計画対象の
+ * いずれもこのモジュールが定めているためである（Table_Group の識別子 `tableKeyOf` は project.ts・入口はここ）。
  *
  * **`startAt < now`（過去開始）はここに含めない。** それは「人が推奨時刻に開始しなかった」という時間の事実で、
- * 計画対象との食い違いではない。合成側（commit.ts）の関心事として分ける。Acceptance_Gate の側では
+ * 計画対象との食い違いではない。保持の条件（`cannotStart`）として分ける。Acceptance_Gate の側では
  * ハード制約 (c) が独立に落とす——解放表の下限が now ゆえ、過去に始まる配置は feasibility を満たさない。
  *
- * targets は計画対象（planTargets の出力）を渡す。全 Pending_Order を渡して内部で切り直すと、一片ごとに
- * 同じ整列を繰り返すうえ、呼び出し側が既に持っている範囲と別の範囲を指す余地が生まれる。
+ * **targets は置ける品目（`placeableTargets` の出力）を渡す（plan-stability Requirement 7・2026-09-07）。** 正本の
+ * 計画対象（`planTargets`）を渡すと、自前解が置かない品目（茹で時間の引けない麺種・単体で上限を超える span）を含む卓の
+ * 一片は常に「欠落」で落ちる。置ける品目の欠落と、対象外（置けない・計画対象外）の品目の混入は引き続き落とす
+ * （AC 7.3）——本数の一致と「計画対象 ⊆ 一片」の走査がそのまま両方を言う。全 Pending_Order を渡して内部で切り直すと、
+ * 一片ごとに同じ整列を繰り返すうえ、呼び出し側が既に持っている範囲と別の範囲を指す余地が生まれる。
  */
 export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boolean {
   // 品目を持たない一片は採用/棄却の単位になり得ない（baselineSchedule も空の一片を作らない）。
@@ -448,6 +1109,102 @@ export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boo
     const placement = slice.placements.find((candidate) => refersTo(candidate, order));
     return placement === undefined || !occupiesSlotSpan(placement, order);
   });
+}
+
+/**
+ * cannotStart — 開始できない配置を含む一片か（startable-placement 判断 8・Requirement 3.4 / 3.5）。二つの事実の
+ * どちらかで立つ。
+ *   - **過去開始**（`startAt < now`）——人が推奨時刻に開始しなかった事実。その前提の上に積んだ後方も意味を失う。
+ *   - **押せない釜**（`startAt ≤ now` かつ釜のどれかに Timer が残っている）——開始時刻が来ているのに、その釜は
+ *     Complete 待ち（boiled）か走行中で、現場は押せない事実。解放表は boiled の釜を `now` に空く予測で扱うので
+ *     feasibility は通るが、そのまま維持すれば「今」の先頭が押せない品目のまま固定され、尾部が空き釜に置いた
+ *     品目も連鎖で隠れる（観測事実 10）。過去に受領した将来計画が時刻の到来で「今」になり、その釜がまだ boiled
+ *     なら同じ規則で落ちる（3.5）。開始時刻がまだ先の配置は見ない——boiled の釜はそれまでに Complete される
+ *     予測に立つ（判断 2）。
+ *
+ * **これは採用済み一片を保持する条件であって、生成した計画全体の成立の条件ではない（plan-stability Requirement 6
+ * 判断 13）。** 合成（`livePrefix`）は採用済み接頭辞（再配分されない）に当て、落ちた分を自前解が置き直す。生成した計画には
+ * 一律に当てない——空き釜不足で boiled の釜の Complete を待つ配置（startable-placement AC 1.4）は合法で、自前解はそれを
+ * 意図して置く。復元（`retain`）にも当てない——過去開始は retime で消え、待つ配置の釜は「今」の配分（`placeNow`）が配り直す
+ * （`revalidate` の注記）。ゲート（admit）の feasibility もこの述語を読まない（判断 5）。述語の実装は一つ、適用先は別。
+ *
+ * 一片の中の 1 本でも該当すれば全体を陳腐化と見る。同一 Table_Group の配置は提供時刻を揃えるために
+ * 互いの開始時刻を前提にしているので、1 本だけを落として残りを維持すれば、その一片が主張していた
+ * 同時提供はもう成り立たない。`occupied` は Timer（running / boiled とも）の載る釜（domain の `occupiedSlotsOf`）。
+ */
+export function cannotStart(
+  slice: PlanSlice,
+  now: EpochMillis,
+  occupied: ReadonlySet<number>,
+): boolean {
+  return slice.placements.some(
+    (placement) =>
+      placement.startAt < now ||
+      (placement.startAt <= now &&
+        placement.slotIds.some((slotId) => occupied.has(slotOf(slotId)))),
+  );
+}
+
+/**
+ * feasibleRelease — 一片の配置が解放表の上に置けるか。置けるなら当該一片の占有で進めた解放表を、置けないなら null。
+ *
+ * 検査するのは Requirement 3 のハード制約 (a)(b)(c) と、**配置が物理的に成立していること**である。ゲート（admit の
+ * 段 1 (c)）と復元（retain・plan-stability 判断 10 の「解放表の feasibility」）が同じ関数を呼ぶ。合成（`livePrefix`）は
+ * 採用済み接頭辞にこれを当てない——接頭辞は採用時にこの検査を通っており、その後の変化は `isStale` / `cannotStart` /
+ * `keepsAnchor` / `withinLiftCap` が見る（採用済み一片の契約は従来のまま）。
+ *
+ * - (a) 同一 slot の時間帯を重複させない — 解放表が請け負う。配置を開始時刻の昇順に見て、その釜の解放時刻
+ *   より前に始まる配置を落とす。一片の内側でも同じ釜を順に使う配置はあり得る（釜の数を超える大人数の卓は
+ *   分割して置かれる）ため、一片の中でも表を進めながら見る。
+ * - (b) 各時点の同時走行本数 ≤ slot 数 — (a) から従う。各配置は自分の釜の時間帯を排他に占めるので、
+ *   ある瞬間に走れる本数は表の長さ＝釜の数を超えられない。独立の検査を置かない（同じ事実を二度書かない）。
+ * - (c) 開始済み Timer の割当と実効 endTime を変えない — `initialRelease` が請け負う。表の初期値が開始済み
+ *   Timer の実効 endTime であり、下限が now ゆえ過去に始まる配置もここで落ちる。
+ *
+ * **(d) slotSpan を検査する。** 配置の釜は当該品目の slotSpan 個で、かつ相異なること。本数だけを見ると
+ * `["3","3"]` が本数 2 を満たしながら 1 釜しか占めず、advanceRelease が重複を吸収するので解放表にも現れない。
+ * 本数で容量を数える設計（lift-group-planning AC 4.5）が開けた穴を、同じ場所で閉じる。述語は occupiesSlotSpan
+ * ただ一つ（相異なるかは釜番号で比べる。`["0","00"]` は 1 釜）。isStale も同じ述語を読むので (a)(b) で既に落ちて
+ * いるが、feasibility の側にも書くのは「解放表に置ける配置か」がここの主張だから。
+ *
+ * **serveAt = startAt ＋ 当該品目の茹で時間 を検査する。** 外部計画は startAt と serveAt の両方を主張してくるが、
+ * 両者を結ぶのは品目の茹で時間ただ一つである。検査しないと「10 秒で茹で上がる」と主張する計画が作れ、Wait_Time も
+ * 解放表もその嘘に従う——目的関数値はいくらでも小さくでき、改善判定と段 2 が無条件に通る。外部を信用しない設計の
+ * 要は、外部が申告した値のうち検証できるものをすべて検証することにある。`targets` に無い品目（置けない品目を含む）を
+ * 指す配置もここで落ちる。
+ *
+ * 走行中の錨 (e)（`keepsAnchor`）と上げ窓の上限 (f)（`withinLiftCap`）は別の公開述語で、呼び手が同じ位置（一片を置く前の
+ * 表）で当てる。
+ */
+export function feasibleRelease(
+  placements: readonly Placement[],
+  release: SlotRelease,
+  targets: readonly PendingOrder[],
+  presets: readonly NoodlePreset[],
+): SlotRelease | null {
+  // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
+  const ordered = [...placements].sort(
+    (placement, other) =>
+      placement.startAt - other.startAt || slotOf(placement.slotIds[0]) - slotOf(other.slotIds[0]),
+  );
+
+  let free = release;
+  for (const placement of ordered) {
+    const order = targets.find((candidate) => refersTo(placement, candidate));
+    if (order === undefined) return null;
+    const boilMillis = boilMillisOf(order, presets);
+    if (boilMillis === null) return null;
+    if (placement.serveAt - placement.startAt !== boilMillis) return null;
+    if (!occupiesSlotSpan(placement, order)) return null;
+    for (const slotId of placement.slotIds) {
+      const at = free[slotOf(slotId)];
+      // 表の外を指す slot は存在しない釜であり、置き場所ではない。
+      if (at === undefined) return null;
+      if (placement.startAt < at) return null;
+    }
+    free = advanceRelease(free, [placement]);
+  }
+  return free;
 }
 
 /**
@@ -719,29 +1476,15 @@ function tableGroups(targets: readonly PendingOrder[]): readonly TableGroup[] {
 }
 
 /**
- * Table_Group の識別子。tableId を持たない品目は「その品目だけの単独グループ」へ写す。
- *
- * 単独キーの区切りに NUL を使う。tableId は任意の非空文字列を採れるため、単独キーが本物の卓 id と
- * 衝突すれば、卓に紐づかない品目が黙って一つの卓へ束ねられる（objective.ts の品目鍵と同じ規律）。
- */
-function tableKeyOf(order: PendingOrder): string {
-  return order.tableId ?? `\u0000${order.externalOrderId}\u0000${order.itemIndex}`;
-}
-
-/**
  * Continuity — 自前解が前回の提案を残すための文脈（plan-stability Requirement 3・design Component 5）。
  *
  * `changeContext` は変更費用の比較の文脈（旧 Shown_Plan・遷移後の Timer・比較の時点の now・pending・presets）、
  * `shownByKey` はその Shown_Plan を品目の鍵で引く表（釜の第一候補・並びの同値・前回のまとまり）、`heads` はその
  * Head、`slices` はこの計画で手前に置いた一片（列の候補配置を仮に置いた計画の「列の外」）。null は比較の相手なし。
+ * 生成器で前回を再現する旗（かつての `faithful`）は無い——前回そのものは復元（`retain`）が候補にする（Requirement 6 判断 12）。
  */
 interface Continuity {
   readonly changeContext: ChangeContext;
-  /**
-   * 前回に忠実な計画を組む（`baselineSchedule` の 2 本目）。列の候補を比べず、前回の配置を再現する分割が在ればそれを、
-   * 無ければ pack（容量超過なら接頭辞の分割）を採る。
-   */
-  readonly faithful: boolean;
   readonly shownByKey: ReadonlyMap<ItemKey, ShownItem>;
   /** 旧 Shown_Plan の Head（比較の時点の now・遷移後の Timer 集合で導く）。「前回の先頭を今の窓に残す」候補が読む。 */
   readonly heads: ReadonlySet<ItemKey>;
@@ -768,14 +1511,14 @@ function after(
 /**
  * 1 つの Table_Group を配置する。
  *
- * **茹で時間が引けない品目は配置しない。** 未知の noodleType は Order_Ingress では弾かれる
+ * **茹で時間が引けない品目は配置しない（絞るのは `placeableTargets`）。** 未知の noodleType は Order_Ingress では弾かれる
  * （toPendingOrders が presets と突き合わせる）が、永続した待ち行列が設定の差し替えを跨いだ後には
  * 起こり得る——プリセットから消えた麺種の品目が残る経路が実在する。そのとき既定の茹で時間を当てれば
  * 「その秒数で茹でれば良い」という嘘の計画ができる。ゆえに置かない。品目は待ち行列に残って表示され、
  * 推奨だけが付かない（計画対象を超えた品目と同じ扱い）。
  *
- * **1 品で上げ窓の上限（arms + HELPER_ARMS）を超える品目も配置しない（AC 9.12）。** いつまで待っても入る窓が
- * 無く（`firstFit` は null）、茹で時間が引けない品目と同じ扱いに落とす。ラジアルからは始められる。
+ * **1 品で上げ窓の上限（arms + HELPER_ARMS）を超える品目も配置しない（AC 9.12・同じく `placeableTargets`）。** いつまで
+ * 待っても入る窓が無く（`firstFit` は null）、茹で時間が引けない品目と同じ扱いに落とす。ラジアルからは始められる。
  *
  * **釜容量を超える品目は同時に置けない。** 容量は本数ではなく slotSpan の合計で数える（大盛は 2 釜）。
  * 大人数の卓が容量を超えることは表現可能ゆえ、正準順序のまま容量に収まる分ずつ batch に分けて順に置く
@@ -792,6 +1535,14 @@ function after(
  *
  * **上げ表を群の内側でも進める（判断 20）。** 合流分・batch の順に置き、置いた上がりで表を進めてから次を置く。
  * 卓の成員の提供時刻（走行中の仲間＋この群で先に置いた配置）も同じ順で積み、局所費用の卓の遅れに読ませる。
+ *
+ * **固定した配置（`fixed`・再生成で残す「今」の配置・startable-placement Component 3′）。** 群の品目のうち `fixed` に在る
+ * ものは**その配置のまま**出力に加え（`assignSlots` を通さない・表は呼び手がその占有で進めてある）、その `serveAt` を局所
+ * 費用の卓の成員 `members` にだけ足す。**卓の成員表（走行中の錨）には足さない**——固定配置は未開始の計画であって走行中の
+ * 事実ではなく、足せば実在しない Timer に合流でき、`keepsAnchor` (a) が現実の Timer に対して失敗する（レビュー実走：走行中
+ * なしで同卓の「600 秒麺を今・60 秒麺を 540 秒後」に固定配置を成員として足すと、後者に `anchor: 600` が付く）。残りの
+ * 品目は従来どおり置く（下限・取り置き・列の幅の補正は無い——前回そのものは復元が候補にするので、生成器が前回を再現する
+ * 必要は無い）。返す並びは固定分・合流分・batch の順。
  */
 function placeGroup(
   group: TableGroup,
@@ -801,35 +1552,50 @@ function placeGroup(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
   continuity: Continuity | null,
+  fixed: readonly Placement[],
 ): readonly Placement[] {
   // 残りの batch の錨は走行中の最遅（表の値は昇順ゆえ末尾）。合流の判定は個々の走行中の提供時刻で行う。
   const runningAnchor = siblings === null ? null : siblings[siblings.length - 1]!;
+  // 置ける品目だけを置く（絞る規則は `isPlaceable` ただ一つ＝`placeableTargets` と同じ定義）。置ける品目は茹で時間が
+  // 必ず引けるので、`toBoiling` の null の除外は型の関門にすぎない。
   const cap = liftCap(params);
   const boilings = group.items
+    .filter((order) => isPlaceable(order, presets, cap))
     .map((order) => toBoiling(order, presets))
-    .filter((boiling): boiling is Boiling => boiling !== null && boiling.order.slotSpan <= cap);
-  // 同時に置ける幅＝釜の数。解放表の長さが「置ける場所」の全体を語る（表の外に釜は無い）。
-  const capacity = release.length;
-  if (capacity === 0) return [];
+    .filter((boiling): boiling is Boiling => boiling !== null);
+  // 同時に置ける幅＝置ける釜の数。解放表の長さが「置ける場所」の全体を語る（表の外に釜は無い）。再生成で後の一片の「今」に
+  // 取り置かれた釜（解放が無限大・`revalidate`）は数えない——数えれば batch が置ける釜より広くなり、無限大の釜を取って配置の
+  // 時刻が無限大になる（上げ表の走査が止まらない）。
+  const capacity = release.filter((at) => Number.isFinite(at)).length;
+  const fixedByKey = new Map(fixed.map((placement) => [itemKeyOf(placement), placement]));
+  const own = boilings.flatMap((boiling) => fixedByKey.get(itemKeyOf(boiling.order)) ?? []);
+  if (capacity === 0) return own;
 
-  const placements: Placement[] = [];
+  const placements: Placement[] = [...own];
   let free = release;
   let ends = lifts;
-  // 卓の成員の提供時刻。走行中の仲間から始め、置いた配置を足す（局所費用の卓の遅れ・AC 9.8）。
-  let members: readonly EpochMillis[] = siblings ?? [];
-  const collect = (placed: readonly Placement[]) => {
-    placements.push(...placed);
-    free = advanceRelease(free, placed);
-    ends = advanceLifts(ends, liftsOf(placed));
-    members = [...members, ...placed.map((placement) => placement.serveAt)];
+  // 卓の成員の提供時刻。走行中の仲間と固定分から始め、置いた配置を足す（局所費用の卓の遅れ・AC 9.8）。
+  let members: readonly EpochMillis[] = [
+    ...(siblings ?? []),
+    ...own.map((placement) => placement.serveAt),
+  ];
+  const collect = (added: readonly Placement[]) => {
+    placements.push(...added);
+    free = advanceRelease(free, added);
+    ends = advanceLifts(ends, liftsOf(added));
+    members = [...members, ...added.map((placement) => placement.serveAt)];
   };
-  // 列の局所比較が読む文脈。この群で先に置いた配置は列を置くたびに増える。
+  // 列の局所比較が読む文脈。この群で先に置いた配置（固定分を含む）は列を置くたびに増える。
   const column = (): ColumnContinuity | null =>
     continuity === null
       ? null
       : { ...continuity, tableKey: group.tableKey, placed: [...placements] };
 
-  let remaining = boilings;
+  // 残りの品目。取り置きで置ける釜が品目の span に足りない品目は置けない（構造上は起こらない——後の一片の「今」は手前の
+  // 一片が使わない釜にしか無い。起きれば一片が欠けて性質 5.10 の `isStale` が検出する）。
+  let remaining = boilings.filter(
+    (boiling) => !fixedByKey.has(itemKeyOf(boiling.order)) && boiling.order.slotSpan <= capacity,
+  );
   if (siblings !== null) {
     // 合流分は品目ごとに「間に合う最早の走行中」を候補にし、候補ごとの列を上げ窓に当てて置く。
     // **合流の判定は置いた後の解放表で繰り返す。** 合流分の釜は判定の間は取り置き（joinable）、置いてはじめて
@@ -1173,10 +1939,12 @@ function placeWithLifts(
     // 内と外に割れる（実測：3 品の卓・上限 4・Σ span 5 で、前回 pack した 2 品のうち後ろの 1 品が接頭辞から外れ、
     // 業務費用が同点のまま前回と違う分割になる）。前回のまとまりを保つ分割をここでも候補にし、局所費用で選ぶ。
     if (continuity === null) return cut;
-    const restored = restorePrevious(column, t0, lifts, members, params, continuity);
-    if (continuity.faithful) return restored ?? cut;
     return cheapest(
-      [restored, keepPrevious(column, t0, lifts, members, params, continuity), cut],
+      [
+        restorePrevious(column, t0, lifts, members, params, continuity),
+        keepPrevious(column, t0, lifts, members, params, continuity),
+        cut,
+      ],
       column,
       lifts,
       members,
@@ -1186,9 +1954,6 @@ function placeWithLifts(
   }
   // S ≤ arms + HELPER_ARMS なので firstFit は必ず時刻を返す（null は span が上限を超えるときだけ）。
   const pack = placeAt(column, firstFit(lifts, t0, total, params)!);
-  // 前回に忠実な計画は候補を比べない——前回の配置を再現する分割が在ればそれ、無ければ pack。
-  if (continuity !== null && continuity.faithful)
-    return restorePrevious(column, t0, lifts, members, params, continuity) ?? pack;
   // 候補は優先順（同点はこの順で先の側）：前回の配置を再現する分割・前回のまとまりを保つ分割・前回の先頭を今の窓に
   // 残す分割・pack・split。前回の提案が無ければ前者 3 つは無い。
   const keeping =
@@ -1434,23 +2199,23 @@ function longestPrefixWithin(column: readonly Assigned[], limit: number): readon
 
 /** 列の全員を同じ提供時刻に置く。開始時刻は茹で時間の逆算（serveAt ≥ 候補 ≥ earliest ゆえ釜の解放を下回らない）。 */
 function placeAt(column: readonly Assigned[], serveAt: EpochMillis): readonly Placement[] {
-  return column.map(({ boiling, slots, anchor }) => {
-    // slotId はスロット番号の文字列表現（domain の slotOf = Number(slotId) の逆・要件12.5）。
-    // 非空は構成から従う（slotSpan ≥ 1・domain の SLOT_SPAN_MIN）ので先頭と残りに分けて型へ載せる。
-    const [head, ...tail] = slots;
-    const slotIds: NonEmptyArray<SlotId> = [
-      String(head!) as SlotId,
-      ...tail.map((slot) => String(slot) as SlotId),
-    ];
-    return {
-      externalOrderId: boiling.order.externalOrderId,
-      itemIndex: boiling.order.itemIndex,
-      slotIds,
-      startAt: (serveAt - boiling.boilMillis) as EpochMillis,
-      serveAt,
-      anchor,
-    };
-  });
+  return column.map(({ boiling, slots, anchor }) => ({
+    externalOrderId: boiling.order.externalOrderId,
+    itemIndex: boiling.order.itemIndex,
+    slotIds: slotIdsOf(slots),
+    startAt: (serveAt - boiling.boilMillis) as EpochMillis,
+    serveAt,
+    anchor,
+  }));
+}
+
+/**
+ * 釜番号の列を配置の slotIds へ写す。slotId はスロット番号の文字列表現（domain の slotOf = Number(slotId) の逆・
+ * 要件12.5）。非空は構成から従う（slotSpan ≥ 1・domain の SLOT_SPAN_MIN）ので先頭と残りに分けて型へ載せる。
+ */
+function slotIdsOf(slots: readonly number[]): NonEmptyArray<SlotId> {
+  const [head, ...tail] = slots;
+  return [String(head!) as SlotId, ...tail.map((slot) => String(slot) as SlotId)];
 }
 
 /**

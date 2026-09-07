@@ -432,3 +432,38 @@ describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 
     });
   });
 });
+
+describe("receivePlan — 未知麺種を含む卓の外部計画が採用できる（plan-stability Requirement 7・startable-placement task 3′.1）", () => {
+  // Feature: plan-stability
+  // **Validates: Requirements 7.4, 7.5**
+  /** 卓 t-b に B と並ぶ、プリセットに無い麺種の品目（設定の差し替えを跨いで残った）。 */
+  const GHOST: PendingOrder = { ...SHORT, externalOrderId: "o-ghost", noodleType: "Ghost" };
+  const WITH_GHOST: TimerState = { ...STATE, pendingOrders: [LONG, SHORT, GHOST] };
+  const GHOST_PRESET: NoodlePreset = {
+    noodleType: "Ghost",
+    boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 },
+  };
+
+  it("卓 t-b に置けない品目が在っても、置ける品目 B を正しく置く一片は採用され、状態が進む", () => {
+    const outcome = receive(WITH_GHOST, IMPROVING);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state.acceptedSlices).toEqual([IMPROVING.slices[0]!]);
+    expect(outcome.effects[0]?.type).toBe("Persist");
+  });
+
+  it("Ghost がプリセットに加わると同じ一片は置ける品目の欠落で落ち、状態も Effect も動かない（AC 7.5）", () => {
+    const params: SettleParams = { ...PARAMS, noodlePresets: [...PRESETS, GHOST_PRESET] };
+    const outcome = receivePlan(
+      WITH_GHOST,
+      { type: "PlanArrived", plan: IMPROVING, now: NOW },
+      params,
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state).toBe(WITH_GHOST);
+    expect(outcome.effects).toEqual([]);
+  });
+});

@@ -19,7 +19,7 @@ import {
 } from "../../src/client/components/liftGroups";
 import type { CookRecommendation } from "../../src/domain/messages";
 import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
-import { defaultUnitOrigins, type NoodlePreset } from "../../src/domain/store";
+import { defaultUnitOrigins, occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
 
@@ -521,5 +521,55 @@ describe("Feature: pending-order-expiry — 寿命を跨いだ品目は釜の提
       );
     expect(alive(expiringLong.arrivalTime + ORDER_LIFETIME_MS - 1)).toBe(true);
     expect(alive(expiringLong.arrivalTime + ORDER_LIFETIME_MS)).toBe(false);
+  });
+});
+
+// ── startable-placement: 占有の述語は domain の occupiedSlotsOf と同じ事実（design Component 1・5） ─────────
+//
+// client の `occupiedSlots(view)` は domain の `occupiedSlotsOf(view.timers)` を呼ぶ薄い包みになった。置き換えで
+// 釜の提案（全釜 idle）と釜の組（pairSlots）が見る占有が変わっていないことを、running / boiled / 複数釜 / 担当外を
+// 混ぜた Timer で固定する——提案が消える釜・組めない釜の集合が、そのまま `occupiedSlotsOf` の集合に一致する。
+
+describe("Feature: startable-placement — client の占有は domain の occupiedSlotsOf と同じ集合を読む（結果不変）", () => {
+  /** running（釜 1）・boiled（釜 3）・2 釜の running（釜 4・5）。釜 0・2 が空き。 */
+  const TIMERS: readonly ClientTimer[] = [
+    timer({ id: "running", slotIds: nonEmpty(["1"]), endTime: T0 + 60 * SECOND }),
+    timer({ id: "boiled", slotIds: nonEmpty(["3"]), endTime: T0 - SECOND }),
+    timer({ id: "wide", slotIds: nonEmpty(["4", "5"]), endTime: T0 + 30 * SECOND }),
+  ];
+
+  it("domain の述語が返す集合は running / boiled / 複数釜を問わず Timer の載る釜そのもの", () => {
+    expect([...occupiedSlotsOf(TIMERS)].sort()).toEqual([1, 3, 4, 5]);
+    expect(occupiedSlotsOf([]).size).toBe(0);
+  });
+
+  it("釜の提案：Timer の載る釜を指す推奨はどれも出ず、載らない釜の推奨だけが出る——落ちる釜の集合が occupiedSlotsOf に一致する", () => {
+    const six = Array.from({ length: 6 }, (_, slot) =>
+      order({ externalOrderId: `s${slot}`, tableId: null, arrivalTime: T0 - 60 * SECOND + slot }),
+    );
+    // 6 品を 6 釜に「今」で 1 品 1 群に置く（卓なし）。先頭の群だけが見えるので、連鎖に依らず全釜を見るために
+    // 群を一つ（g1）に束ねる。
+    const plan = six.map((each, slot) =>
+      recommendation(each.externalOrderId, [String(slot)], T0, "g1"),
+    );
+    const current = view({ pendingOrders: six, recommendations: plan, timers: TIMERS, arms: 6 });
+    const bySlot = suggestionsAt(current, T0);
+    const shownSlots = [...bySlot.keys()].sort();
+    const occupied = occupiedSlotsOf(current.timers);
+    expect(shownSlots).toEqual([0, 1, 2, 3, 4, 5].filter((slot) => !occupied.has(slot)));
+    expect(shownSlots).toEqual([0, 2]);
+  });
+
+  it("釜の組：起点の釜が組めない（null）のは occupiedSlotsOf の釜ちょうどで、組に入る釜はその補集合だけ", () => {
+    const current = view({ timers: TIMERS });
+    const occupied = occupiedSlotsOf(current.timers);
+    for (let slot = 0; slot < 6; slot++) {
+      expect(pairSlots(slot, 1, current) === null, `釜 ${slot}`).toBe(occupied.has(slot));
+    }
+    // 釜 0 から 2 本組むと、隣接の釜 1（横 10）は占有ゆえ飛ばして釜 2（縦 10）が組まれる。
+    expect(pairSlots(0, 2, current)).toEqual(["0", "2"]);
+    for (const slotId of pairSlots(0, 2, current) ?? []) {
+      expect(occupied.has(Number(slotId))).toBe(false);
+    }
   });
 });

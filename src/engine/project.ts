@@ -74,3 +74,24 @@ export function tableMembers(running: readonly Timer[]): TableMembers {
   }
   return sorted;
 }
+
+/**
+ * Table_Group の識別子。tableId を持たない品目は「その品目だけの単独グループ」へ写す。
+ *
+ * 単独キーの区切りに NUL を使う。tableId は任意の非空文字列を採れるため、単独キーが本物の卓 id と
+ * 衝突すれば、卓に紐づかない品目が黙って一つの卓へ束ねられる（objective.ts の品目鍵と同じ規律）。
+ * 上の成員表の鍵（tableId）と同じ文字列規則で照合するので、卓なしの単独キーは表に当たらない。
+ *
+ * **ここに置く（plan-stability design Component 7・startable-placement task 3′.2）。** 計画（schedule.ts）が一片の鍵に、
+ * 変更費用（stability.ts）が旧 Shown_Plan を一片に組み直すときに、復元（retain）が Shown_Plan を一片の列に戻すときに、
+ * 同じ鍵を読む。schedule.ts は stability.ts を読む（変更費用の差分）ので、stability.ts が schedule.ts を値で読めば
+ * 循環になる——茹で時間の導出を boil.ts に置いたのと同じ理由で、鍵の規則は両者が読める成員表の隣に置く。
+ * 読む側の入口は schedule.ts の再公開でもよい。
+ */
+export function tableKeyOf(order: {
+  readonly externalOrderId: string;
+  readonly itemIndex: number;
+  readonly tableId: string | null;
+}): string {
+  return order.tableId ?? `\u0000${order.externalOrderId}\u0000${order.itemIndex}`;
+}

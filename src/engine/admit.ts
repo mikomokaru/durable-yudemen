@@ -15,25 +15,20 @@
 // どちらも比較基準は Baseline_Plan ではない——基準を自前解に取れば、採用済みのより良い計画を後着の
 // 劣る計画が上書きできてしまう（AC 6.2(d) が Committed_Plan 基準を要求する理由そのもの）。
 
-import { SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../domain/store";
+import { SLOTS_PER_UNIT, type NoodlePreset } from "../domain/store";
 import { liveOrders, type PendingOrder } from "../domain/order";
 import { committedSchedule } from "./commit";
-import { advanceLifts, initialLifts, liftsOf, withinLiftCap, type LiftTable } from "./lift";
+import { advanceLifts, initialLifts, liftsOf, withinLiftCap } from "./lift";
 import { scoreSchedule, type ScheduleParams, type ScoreContext } from "./objective";
 import { tableMembers } from "./project";
 import {
-  advanceRelease,
+  feasibleRelease,
   initialRelease,
-  boilMillisOf,
   isStale,
   keepsAnchor,
-  occupiesSlotSpan,
-  planTargets,
-  refersTo,
+  placeableTargets,
   type AcceptedSlice,
   type CookSchedule,
-  type Placement,
-  type SlotRelease,
 } from "./schedule";
 import type { ShownPlan } from "./stability";
 import type { Timer } from "./timer";
@@ -62,7 +57,7 @@ import type { EpochMillis } from "./types";
  * **design の署名からの変更点。** design は `(arrived, committed, pending, running, now, params)` だが、
  * `presets` を足す。理由は 2 つあり、いずれも「茹で時間を引く必要がある」に帰着する。
  * (1) 段 2 が `committedSchedule` を走らせ、それが尾部の再実行に茹で時間を要する（タスク 9.1 / 11.1 の判断）。
- * (2) 段 1 の (c) が「serveAt = startAt ＋ 茹で時間」を検査する（下記 `feasibleRelease` の注記）。
+ * (2) 段 1 の (c) が「serveAt = startAt ＋ 茹で時間」を検査する（schedule.ts の `feasibleRelease` の注記）。
  *
  * **旧 Shown_Plan（`shown`）を受け、Business_Cost + Change_Cost で採点する（plan-stability AC 4.1・判断 6）。** 3 回の採点
  * すべてに同じ文脈を渡す——旧 Shown_Plan は遷移前の状態が持つもの（`receivePlan` の `state.shownPlan`・AC 1.7）、Timer
@@ -138,7 +133,10 @@ function prune(
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly AcceptedSlice[] {
-  const targets = planTargets(pending, now);
+  // 計画対象は**置ける品目**（`placeableTargets`・plan-stability Requirement 7）——合成（`livePrefix`）と復元が `isStale` に
+  // 渡すのと同じ集合。正本のまま比べると、自前解が置かない品目（未知麺種・上限を超える span）を含む卓の外部計画が
+  // 常に「欠落」で落ちる。置けない品目を置いた一片は「対象外の混入」として引き続き落ちる（AC 7.3）。
+  const targets = placeableTargets(pending, now, presets, params);
   const { members } = scoreContext;
   // 対応部分和は tableKey で引く。**index では引けない**——外部計画の一片の並びは現行 Committed_Plan の
   // 並びと無関係であり、同じ index の一片は別の Table_Group を指しうる（別物どうしの部分和を比べても
@@ -164,17 +162,25 @@ function prune(
     if (claimed.has(slice.tableKey)) break;
     // (a)(b)。述語は schedule.ts の isStale ただ一つ。
     if (isStale(slice, targets)) break;
-    // (c)・(e)・(f)。進めた解放表が返れば feasible。走行中の錨は卓の成員表から引く（無ければ null）。
+    // (e) 始めたまとまりを崩さない。走行中の仲間が在る卓で、合流分の錨の主張が現在の仲間に無い・錨より手前に
+    // 散らす・集合として合流できていない・窓以外の理由で延期した計画と、その錨に合流できた品目を候補時刻からの
+    // `firstFit` より後ろへ押し出した計画は feasible と認めない（判断 16 / 17・AC 9.10・ADR-0007）。目的関数は最遅参照
+    // ゆえ「合流できない 1 本のために全員を遅らせる」配置を真に良いと採点し、ソフトでは外部解に消される。述語は
+    // schedule.ts の keepsAnchor ただ一つ（確定計画の合成・自前解の性質検査と共用）で、一片を置く前の解放表と上げ表を
+    // 受けて pack の単位で検証する——錨の主張だけでは合流分と認めない（主張を信じれば、押し出した配置に仲間の endTime
+    // を書くだけで (e) を素通りする）。仲間が無い卓（siblings null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の
+    // 有無に関わらず述語が見る。
     const siblings = members.get(slice.tableKey) ?? null;
-    const advanced = feasibleRelease(
-      slice.placements,
-      release,
-      lifts,
-      targets,
-      presets,
-      siblings,
-      params,
-    );
+    if (!keepsAnchor(slice.placements, release, lifts, siblings, targets, presets, params)) break;
+    // (f) 上げ窓の上限。走行中の上がりと計画順に見た手前の一片の上がりで埋めた表に当該一片の配置を載せたとき、
+    // 各配置を**含む**窓の負荷が arms + HELPER_ARMS を超えれば feasible と認めない（lift-group-planning AC 9.5・判断 20・
+    // ADR-0009）。含まない窓——走行中だけで既に超えている窓——は見ない（AC 9.4・9.14）。arms の超過は採点
+    // （Lift_Overflow）に委ねる。1 品で上限を超える品目（大盛 span 2 が arms 1 + 2 = 3 に入るのは可・span 4 は不可）は
+    // 置ける品目に無いので (a)(b) で既に落ちている（AC 9.12）。述語は lift.ts の withinLiftCap ただ一つ（合成と共用）。
+    if (!withinLiftCap(lifts, liftsOf(slice.placements), params)) break;
+    // (c)（と (a)(b)(d)・茹で時間の一致）。進めた解放表が返れば feasible。述語は schedule.ts の feasibleRelease ただ一つ
+    // （復元と共用）。
+    const advanced = feasibleRelease(slice.placements, release, targets, presets);
     if (advanced === null) break;
     // (d)。**同値は棄却する**（無駄な Persist / Broadcast を生まないため・AC 6.2(d)）。
     // 対応する一片が現行 Committed_Plan に無いときも棄却する——比べる基準が無い一片は「真に良い」と
@@ -190,83 +196,4 @@ function prune(
     lifts = advanceLifts(lifts, liftsOf(slice.placements));
   }
   return prefix;
-}
-
-/**
- * 一片がハード制約を満たすか。満たすなら当該一片の占有で進めた解放表を、破るなら null を返す。
- *
- * 検査するのは Requirement 3 のハード制約 (a)(b)(c) と、**配置が物理的に成立していること**である。
- *
- * - (a) 同一 slot の時間帯を重複させない — 解放表が請け負う。配置を開始時刻の昇順に見て、その釜の解放時刻
- *   より前に始まる配置を落とす。一片の内側でも同じ釜を順に使う配置はあり得る（釜の数を超える大人数の卓は
- *   分割して置かれる）ため、一片の中でも表を進めながら見る。
- * - (b) 各時点の同時走行本数 ≤ slot 数 — (a) から従う。各配置は自分の釜の時間帯を排他に占めるので、
- *   ある瞬間に走れる本数は表の長さ＝釜の数を超えられない。独立の検査を置かない（同じ事実を二度書かない）。
- * - (c) 開始済み Timer の割当と実効 endTime を変えない — `initialRelease` が請け負う。表の初期値が開始済み
- *   Timer の実効 endTime であり、下限が now ゆえ過去に始まる配置もここで落ちる。
- *
- * **(d) slotSpan を検査する。** 配置の釜は当該品目の slotSpan 個で、かつ相異なること。本数だけを見ると
- * `["3","3"]` が本数 2 を満たしながら 1 釜しか占めず、advanceRelease が重複を吸収するので解放表にも現れない。
- * 本数で容量を数える設計（lift-group-planning AC 4.5）が開けた穴を、同じ場所で閉じる。述語は schedule.ts の
- * occupiesSlotSpan ただ一つ（相異なるかは釜番号で比べる。`["0","00"]` は 1 釜）。isStale も同じ述語を
- * 読むので (a)(b) で既に落ちているが、feasibility の側にも書くのは「解放表に置ける配置か」がここの主張だから。
- *
- * **(e) 始めたまとまりを崩さない。** 走行中の仲間が在る卓で、合流分の錨の主張が現在の仲間に無い・錨より手前に
- * 散らす・集合として合流できていない・窓以外の理由で延期した計画と、その錨に合流できた品目を候補時刻からの
- * `firstFit` より後ろへ押し出した計画は feasible と認めない（判断 16 / 17・AC 9.10・ADR-0007）。目的関数は最遅参照
- * ゆえ「合流できない 1 本のために全員を遅らせる」配置を真に良いと採点し、ソフトでは外部解に消される。述語は
- * schedule.ts の keepsAnchor ただ一つ（確定計画の合成・自前解の性質検査と共用）で、一片を置く前の解放表と上げ表を
- * 受けて pack の単位で検証する——錨の主張だけでは合流分と認めない（主張を信じれば、押し出した配置に仲間の endTime
- * を書くだけで (e) を素通りする）。
- *
- * **(f) 上げ窓の上限。** 走行中の上がりと計画順に見た手前の一片の上がりで埋めた表に当該一片の配置を載せたとき、
- * 各配置を**含む**窓の負荷が arms + HELPER_ARMS を超えれば feasible と認めない（lift-group-planning AC 9.5・判断 20・
- * ADR-0009）。含まない窓——走行中だけで既に超えている窓——は見ない（AC 9.4・9.14）。arms の超過は採点（Lift_Overflow）
- * に委ねる。1 品で上限を超える品目（大盛 span 2 が arms 1 + 2 = 3 に入るのは可・span 4 は不可）も同じ経路で落ちる
- * （AC 9.12）。述語は lift.ts の withinLiftCap ただ一つ（合成と共用）。
- *
- * **serveAt = startAt ＋ 当該品目の茹で時間 を検査する（design の (a)(b)(c) への追加）。** 外部計画は
- * startAt と serveAt の両方を主張してくるが、両者を結ぶのは品目の茹で時間ただ一つである。検査しないと
- * 「10 秒で茹で上がる」と主張する計画が作れ、Wait_Time も解放表もその嘘に従う——目的関数値はいくらでも
- * 小さくでき、改善判定 (d) と段 2 が無条件に通る。外部を信用しない設計の要は、外部が申告した値のうち
- * 検証できるものをすべて検証することにある。茹で時間が引けない麺種（設定の差し替えを跨いだ待ち行列に
- * 残り得る）もここで落ちる。
- */
-function feasibleRelease(
-  placements: readonly Placement[],
-  release: SlotRelease,
-  lifts: LiftTable,
-  targets: readonly PendingOrder[],
-  presets: readonly NoodlePreset[],
-  siblings: readonly EpochMillis[] | null,
-  params: ScheduleParams,
-): SlotRelease | null {
-  // (e)。一片を置く前の解放表と上げ表で判定する（単位ごとに進めた表は述語の内側で作る）。合成（commit.ts）と同じ述語。
-  // 仲間が無い卓（siblings null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
-  if (!keepsAnchor(placements, release, lifts, siblings, targets, presets, params)) return null;
-  // (f)。一片の上がりを載せたとき、各配置を含む窓が上限以下か。合成（commit.ts）と同じ述語・同じ位置。
-  if (!withinLiftCap(lifts, liftsOf(placements), params)) return null;
-  // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
-  const ordered = [...placements].sort(
-    (placement, other) =>
-      placement.startAt - other.startAt || slotOf(placement.slotIds[0]) - slotOf(other.slotIds[0]),
-  );
-
-  let free = release;
-  for (const placement of ordered) {
-    const order = targets.find((candidate) => refersTo(placement, candidate));
-    if (order === undefined) return null;
-    const boilMillis = boilMillisOf(order, presets);
-    if (boilMillis === null) return null;
-    if (placement.serveAt - placement.startAt !== boilMillis) return null;
-    if (!occupiesSlotSpan(placement, order)) return null;
-    for (const slotId of placement.slotIds) {
-      const at = free[slotOf(slotId)];
-      // 表の外を指す slot は存在しない釜であり、置き場所ではない。
-      if (at === undefined) return null;
-      if (placement.startAt < at) return null;
-    }
-    free = advanceRelease(free, [placement]);
-  }
-  return free;
 }

@@ -136,6 +136,8 @@
 7. THE Cook_Scheduling SHALL 外部計画の受領（採用・棄却のいずれの結果でも）自体を新たな `RequestPlan` の契機にしない（要求の連鎖・ループを作らない）
 
 > **改訂（`pending-order-expiry` 判断 5・AC 2.3 / 2.6・ADR-0011・2026-09-06）:** `RequestPlan` が運ぶ計画対象と Input_Fingerprint の導出元は、`planTargets(pending, now)` が Live_Orders から組んだ計画対象になった（Requirement 11.2 の改訂）。`digestInput(pending, running, params, now)` の第 4 引数 `now` は計画対象を絞るためだけに受け、**`now` そのものは畳まない**（畳めば指紋が毎回変わり AC 5.6 の抑制が一度も働かない）。品目が期限を過ぎれば計画対象が変わって指紋も変わるが、抑制条件（直前要求時の指紋と一致・または計画対象が空）は変えない——期限切れは状態の変化ではないので遷移を起こさず、要求は外部要求を許す次の確定変化（no-op でない遷移）で生きている計画対象が 1 件以上残っていればそこで出る。全件が期限切れなら空の待ち行列と同じく要求しない。受領時の陳腐化A（Requirement 6.2(a)）は受領時刻の Live_Orders から組んだ計画対象に対して行うので、期限切れの品目を指す一片は既存の `isStale` で落ちる。
+
+> **改訂（`plan-stability` Requirement 7・2026-09-07・範囲を限定して承認）:** 陳腐化A・B（`isStale`）が比べる「卓の計画対象」は **置ける品目**の集合になった——期限（Live_Orders）と 64 件の制限で計画対象を決めた後に、茹で時間が引けること（プリセットに在る麺種）と品目単体の容量条件（`slotSpan ≤ arms + HELPER_ARMS`）で絞る。除外した分の繰り上げはしない。現在の空き不足や上げ窓の混雑は除外理由にしない（それらは「待つ品目」）。置ける品目の欠落と対象外の品目の混入は引き続き棄却する。自前解・復元・合成・外部ゲートは同じ対象集合を使う（定義は一箇所）。理由：自前解は置けない品目を置かないので、正本のまま比べると未知麺種を含む卓の外部計画が常に落ちていた。回帰：未知麺種を含む卓の外部計画が採用できること、設定変更でその麺種が再び置けるようになると対象集合が広がり以前の一片が欠落で落ちること。
 8. THE Cook_Scheduling SHALL Effect 列の不変条件（`Persist` を先頭に持つ）を維持し、`RequestPlan` を `Persist` 成功後にのみ実行する
 
 ### Requirement 6: 受け入れゲート（Acceptance_Gate）
@@ -166,6 +168,8 @@
 4. THE Cook_Scheduling SHALL 同一の四つ組に対する再計算を冪等にする（2 回適用した結果は 1 回適用した結果と一致する）
 5. THE Cook_Scheduling SHALL 採用済み計画を時間経過のみでは失効させず、次の状態変化を処理する `decide` 内で再評価し、陳腐化しない Plan_Unit を維持し、陳腐化した Plan_Unit を Baseline_Plan の対応部分で置き換え、その合成を新しい Committed_Plan とする（有効期間は次の状態変化まで。時刻起動の失効判定を設けない）
 6. IF 再評価の結果が直前の確定結果から変化しない、THEN THE Cook_Scheduling SHALL 永続層への書き込みと broadcast のいずれも行わない
+
+> **改訂（`startable-placement` 判断 8・Requirement 3.4〜3.5・ADR-0012・2026-09-07）:** AC 7.5 の合成が採用済み接頭辞を落とす条件は、`isStale`（対象集合は置ける品目——Requirement 5 の 2026-09-07 の改訂）・`keepsAnchor`・`withinLiftCap` に加え、「過去開始」（`startAt < now`）を広げた **`cannotStart`**——過去開始 ∨ 開始を妨げる配置（`startAt ≤ now` かつ `slotIds` のどれかに Timer（running / boiled）が残っている）——になった。boiled の釜は解放表では `now` に空く予測ゆえ feasibility は通るが、そのまま維持すれば「今」の先頭が押せない品目に固定され、尾部が空き釜に置いた品目も連鎖で隠れる。過去に受領した将来計画が時刻の到来で「今」になり、その釜がまだ boiled なら次の遷移の合成で同じ規則で落ちる（遷移なしの時刻経過だけでは置き直さない——「時刻起動の失効判定を設けない」はそのまま）。`cannotStart` は採用済み接頭辞を**保持する**条件であって、生成した計画全体や復元した一片には当てない（空き釜不足で boiled の Complete を待つ配置は合法・`plan-stability` 判断 13）。**`livePrefix` は解放表の feasibility（`feasibleRelease`）を採用済み接頭辞に当てない**——採用時にゲートで通った後は**再検査しない**。これは記録する事実であって安全性の保証ではない。**既知の制限**（実走確認・2026-09-07）：採用済みの釜 0・30〜90 秒の配置に対し、同じ釜で 0〜60 秒の Timer が始まっても、重なる配置を維持する。既存の挙動であり、`startable-placement` は実装の修正を広げない（`feasibleRelease` を当てるのはゲート・復元・loop の `revalidate`）。Acceptance_Gate（AC 6.2 (c)）は変えない——Timer の在る釜に「今」置く外部計画は feasible のまま採り得て、次の合成で落ちる。
 
 ### Requirement 8: 推奨提示と人の最終決定
 

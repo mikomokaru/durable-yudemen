@@ -198,7 +198,7 @@ export type SlotRelease = readonly EpochMillis[];
  *
  * 各 slot の最早解放時刻を、その slot を占める Timer の実効 `endTime`（`adjustedEndTime`）で
  * 初期化する。空き slot は now。**boiled は実効 `endTime` の時点で解放済みとして扱う**
- * （湯切りで麺が釜から上がるため釜は空く。Complete は UI 上の確認であって釜の占有ではない）。
+ * （湯切りで麺が釜から上がるため釜は空く。**解放予測では Complete を待たない**——Complete は UI 上の確認であって、釜が空く予測には含めない）。
  * boiled の実効 endTime は定義上過去なので、この式は当該 slot を「今すぐ空いている」と扱う。
  */
 export function initialRelease(running: readonly Timer[], now: EpochMillis, slotCount: number): SlotRelease;
@@ -206,6 +206,8 @@ export function initialRelease(running: readonly Timer[], now: EpochMillis, slot
 /** 確定した配置列で解放表を進める（合成の尾部再実行に用いる）。 */
 export function advanceRelease(release: SlotRelease, placements: readonly Placement[]): SlotRelease;
 ```
+
+> **改訂（`startable-placement` 判断 1・ADR-0012・2026-09-07）:** 「解放予測では Complete を待たない」（旧「Complete は釜の占有ではない」）は解放表（予測）の契約としてそのまま。**開始の可否は別の事実**——対象釜に Timer（running / boiled とも）が無いこと（Startable_Slot・`src/domain/store.ts` の `occupiedSlotsOf` の補集合・client の全釜 idle と同じ述語）——で、`committedSchedule` が `occupiedSlotsOf(running)` を一度作り、接頭辞の失効（`cannotStart`）と自前解の「今」置く配置の釜の配分（`pinNow`）にだけ渡す。将来配置（`startAt > now`）の釜の選択は占有を読まず、解放表の予測（boiled はそれまでに Complete される）に立つ。
 
 ### `baselineSchedule` — 自前解の算出（要件4）
 
@@ -374,6 +376,8 @@ export function committedSchedule(
 
 計算量は `baselineSchedule` を 1 回追加で走らせるだけ（定数倍）。
 
+> **改訂（`startable-placement` Component 2・`plan-stability` Requirement 7・ADR-0012・2026-09-07）:** 手順 1 の陳腐化は「(a)(b) の `isStale`（対象集合は置ける品目 `placeableTargets`——requirements Requirement 5 の 2026-09-07 の改訂）と過去開始」から **`cannotStart`（過去開始 `startAt < now` ∨ 開始を妨げる配置 `startAt ≤ now` かつ釜に Timer）** に広がった（`lift-group-planning` で足した `keepsAnchor` / `withinLiftCap` はそのまま）。判定は一片単位・計画順に最初の不正で切る形は変えない。`livePrefix` は解放表の feasibility（`feasibleRelease`）を採用済み接頭辞に当てない（採用時にゲートで通った事実の上に立つ）。手順 3 の `baselineSchedule` は `occupied`（`occupiedSlotsOf(running)`）も受け、尾部の「今」置く配置は Startable_Slot を先に採る。
+
 ### `recommend` — 開始推奨の導出（要件8）
 
 ```ts
@@ -496,6 +500,8 @@ Boil_Sync は「client 変更不要」だったが、**本機能は client 変�
 **推奨開始時刻の到来で自動開始しない**（AC 8.2）。client は `startAt` を表示するだけで、時刻到来を契機に何も起こさない。過ぎた `startAt` は、client が**計画の間隔を保ったまま錨を現在時刻へ繰り上げて**表示する（`lapsed-suggestion-timing`）。サーバ側は変わらない——時刻起動の失効判定を持たず（AC 7.5）、次の状態変化で `hasLapsedStart` が陳腐化として置き換える。client の繰り上げは受け取った `startAt` を書き換えず、表示のたびの導出である。**（2026-09-05 改訂）** `lift-group-display` が錨の繰り上げ（`planAnchor` / `suggestionTiming`）ごと撤去した。client はもはや `startAt` を語として描かず（同 spec AC 2.5・6.4——提案の可視の語は空か `now` のみ）、到来までは Prep_Lead（`PREP_LEAD_MS`・60 秒前）から薄く、到来で群の先頭（Group_Head）だけが濃く `now` と描く（同 spec 判断 3・4・17）。過ぎた `startAt` は繰り上げず、先頭が `now` のまま押されるのを待つ。時刻到来で自動開始しない（AC 8.2）ことと、サーバ側が時刻起動の失効判定を持たず `hasLapsedStart` が次の状態変化で置き換えること（AC 7.5）は変わらない。
 
 > **boiled と推奨が同一 slot に重なりうる。** `initialRelease` は boiled を解放済みとして扱う（釜は湯切りで空く）ため、明示完了（`Complete`）されていない茹で上がりが表示されている釜へ推奨が付くことがある。物理的には正しい（釜は空いている）。表示の重なりは既存の重畳の関心事であり、`degraded-slot-superimposition` の扱いに倣う——本機能で新しい重畳規則を作らない。
+
+> **改訂（`startable-placement` Requirement 1・ADR-0012・2026-09-07）:** 上の重なりは、自前解の「今」置く配置（`startAt ≤ now`）では**空き釜が足りる限り起こらない**——釜は `pinNow` が Timer の無い釜（Startable_Slot）を boiled の釜より先に配る。boiled の釜に「今」の推奨が付くのは Startable_Slot が足りない待ち（空き釜不足）のときだけで、そのときは client の全釜 idle が提案を出さない（`lift-group-display` AC 2.7）。将来配置（`startAt > now`）は従来どおり boiled の釜に置かれうる（それまでに Complete される予測）。上の `hasLapsedStart` は `cannotStart`（過去開始 ∨ 開始を妨げる配置）になった。
 
 Pending_Order は導出値を持たない生の事実なので、client 側の状態は `snapshot` の写しに留まる（残り時間と同じく、表示のための導出はレンダリング時に行う）。
 

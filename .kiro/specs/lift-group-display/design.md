@@ -181,6 +181,8 @@ for item in shown:
 - `head` は常に `now`（濃・押せる）。`member` は薄く、`startAt` が過ぎても濃くならない（AC 2.3）。「押せる」と「濃い」は `head` にだけ在る。判断 5「薄くても押せる」は判断 21 で撤回——薄いものを早く始めたければラジアル。
 - 上限は「濃いもの」にだけ置く（店舗全体で arms 本・AC 2.4 / 2.11）。表示する数には上限を置かない。同じ釜に 2 件以上並ぶのは、先頭の残りが放置されて後の群の Prep_Lead が来たときなど。カードの `actionRow` は折り返して Start を右下に留める（#26 の構造）。
 
+> **改訂（`startable-placement` Component 1・5・ADR-0012・2026-09-07）:** `occupied` を集める `occupiedSlots(view)` の本体は domain の共有述語 **`occupiedSlotsOf(view.timers)`**（`src/domain/store.ts`・入力は `{ slotIds }` を持つ列で engine の `Timer` も wire の `TimerFact` も満たす）になり、engine の確定計画の合成（開始を妨げる接頭辞の失効 `cannotStart`）と自前解の「今」置く配置の釜の配分（`pinNow`）が**同じ関数**で同じ事実を読む——「計画は置けると言い、現場は押せない」食い違いを式の共有で閉じる。`slotSuggestions` / `pairSlots` / `headsOf` / `displayableItemsOf` の呼び手は不変。群の連鎖（`visibleGroupsOf`）・Head・全釜 idle の規則は変えない（後続群を無条件に出す変更は採らない——engine が先頭群の「今」を Startable_Slot へ置くので、空き釜が足りる限り先頭群が押せる）。
+
 #### `pairSlots`
 
 ```
