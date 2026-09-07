@@ -110,19 +110,22 @@ Component 3 の「2 段目 = 固定を載せて残りを下限つきで組み直
 
 ```
 stage1 = generate(…)                                   // 文脈つきの候補比較（faithful は無い）
-pinned = pinNow(stage1, …)                             // 表示順・pool 上の排他的な割当
+nowSet = stage1 の「今」の品目（鍵と時刻）              // 保持するのは「今に選んだ品目とその時刻」。釜は保持しない
 loop:
-  plan = restore(stage1 の将来配置) + pinned            // 将来配置は 1 段目のまま
-  plan = validateAndRegenerate(plan, tables)           // 計画順に、固定と手前の一片で進めた表に対して物理的なハード制約で検証。不正な一片はその位置で卓を再生成
-  fresh = plan の「今」のうち pinned に無い品目          // 再生成で「今」になった品目
+  allocation = pinNow(nowSet, 表示順, pool)             // nowSet 全体を最終的な表示順で配り直す（既存の「今」も含めて）
+  plan = restore(stage1 の将来配置) + allocation        // 将来配置は 1 段目のまま
+  plan = validateAndRegenerate(plan, tables)           // 計画順に、配分と手前の一片で進めた表に対して物理的なハード制約で検証。不正な一片はその位置で卓を再生成
+  fresh = plan の「今」のうち nowSet に無い品目          // 再生成で「今」になった品目
   if fresh が空: break
-  pinned += allocate(fresh, 残りの pool)                // 表示順で配分し固定
+  nowSet += fresh                                       // 次の反復で全体を配り直す
+verify(plan)
 ```
 
-- 検証と再生成は `plan-stability` Component 7 の `retain` と同じ関数（対象が Shown_Plan か 1 段目かの違いだけ）。
-- 固定した品目は `pinNow` の配分のとおり互いに素で `pool` に載る（構造）。再生成は固定した釜を含む進めた表の上で行うので、固定と衝突しない。
-- 終了：固定した品目は増えるだけで有限。
-- 完成した候補は `verify`（物理的なハード制約）を性質として検査する。1 段目への実行時のフォールバックは置かない。
+- **保持するのは「今に選んだ品目とその時刻」であり、釜は変更不能にしない（レビュー指摘）。** 反復ごとに `nowSet` 全体を**最終的な表示順**（`startAt` → `compareArrival`）で配り直す。loop で発見した順を優先すると、後着の品目が先に空き釜を固定し、後から「今」になった先着の品目（表示の先頭）が boiled の釜に落ちて押せず、後続も隠れる（反例：同卓の先着 Short 60 秒・後着 Long 600 秒、釜 0 が boiled・釜 1 だけ空き・他 4 釜は 1000 秒後——Long を釜 1 に固定すると再生成で「今」になった Short が釜 0 に落ち `headsOf` が空。Short を釜 1・Long を釜 0 に配り直せば Short の提案が出る）。内部の `pool` が尽きたことを厨房の空き不足と同一視しない。
+- 検証と再生成は `plan-stability` Component 7 の `retain` と同じ関数（対象が Shown_Plan か 1 段目かの違いだけ）。配分は互いに素で `pool` に載る（構造）。再生成は配分した釜を含む進めた表の上で行うので配分と衝突しない。
+- **停止性**：継続する反復ごとに `nowSet` が必ず増える（`fresh` が空なら止まる）ので、反復回数は品目数で抑えられる。釜の固定に依らない。
+- **合法性は別に検証する**：完成した候補は `verify`（物理的なハード制約）を性質として検査する。1 段目への実行時のフォールバックは置かない。
+- 性質 4.1 の保証対象は「最終的な `nowSet` の表示順で最初の品目」（1 段目の先頭とは限らない）。
 
 ### Component 4: 呼び手（`commit.ts` / `settle.ts` / `plan.ts` / `admit.ts` / `src/solver`）
 

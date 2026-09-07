@@ -33,7 +33,7 @@
   - [ ] 3′.2 共有の述語：`cannotStart`（保持の条件）と解放の feasibility を合成・ゲート・復元で一つに。`tableKeyOf` の公開（または `restoreSchedule`）
   - [ ] 3′.3 `retain`（復元 → retime → 一片ごとに検証 → 不正はその位置で再生成）と `baselineSchedule` / `committedSchedule` の R 経路。R と F を同じ旧 Shown_Plan の総費用で比べ R ≤ F なら R。`Continuity.faithful` の撤去
   - [ ] 3′.4 2 段目を「復元 → 検証 → 不正だけ再生成 → 新たな『今』を配分して固定」の loop に改め、`reserve`（後群の取り置き）・`fixedSpan`・`raiseToFloor` を撤去
-  - [ ] 3′.5 テスト：`schedule.property` の 5.6 / 5.7 (i) を実占有（`occupiedSlotsOf(running)`）に戻し、配置の一致と Change_Cost = 0 を別々に検査（3 回目まで）。`plan-stability-occupancy.example` の 4 場面と `self-solution-gate.probe` の場面 E から `it.fails` を外す。`self-solution-gate` を性質に（完成した R・F が (c)(e)(f) と `isStale` を満たす）。`zz-restore.probe` は `retain` の実装に置き換える。摂動あり（2 秒経過・先頭開始・新着・Complete）で選ばれた計画の総費用が F 単独より高くならない・提案変更量の集計。task 3 の例（8 品・24 品・反例 3 件）と 4.7′ / 4.8
+  - [ ] 3′.5 テスト：`schedule.property` の 5.6 / 5.7 (i) を実占有（`occupiedSlotsOf(running)`）に戻し、配置の一致と Change_Cost = 0 を別々に検査（3 回目まで）。`plan-stability-occupancy.example` の 4 場面と `self-solution-gate.probe` の場面 E から `it.fails` を外す。`self-solution-gate` を性質に（完成した R・F が (c)(e)(f) と `isStale` を満たす）。**レビュー反例（同卓の先着 Short 60 秒・後着 Long 600 秒・釜 0 boiled・釜 1 だけ空き・他 4 釜は 1000 秒後：loop の再配分後に Short が釜 1「今」で先頭に出る。loop 発見順の固定では Short が釜 0 に落ちて提案が空）を固定 Example に**。`zz-restore.probe` は `retain` の実装に置き換える。摂動あり（2 秒経過・先頭開始・新着・Complete）で選ばれた計画の総費用が F 単独より高くならない・提案変更量の集計。task 3 の例（8 品・24 品・反例 3 件）と 4.7′ / 4.8
   - [ ] 3′.6 チェックポイントとコミット
   - _Requirements: plan-stability 6.1〜6.5, 7.1〜7.5, 5.6, 5.10, 5.11; startable-placement 1.8（改訂）, 4.7〜4.8_
 
