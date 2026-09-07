@@ -4,7 +4,7 @@
 
 走行中のスロットカードに、**茹で上がる順の番号**を出す。置き場所はカード左上の麺種バッジの prefix マーカー（いま走行中は点滅ドット、茹で上がりは ✓）で、走行中のドットを番号に置き換える。調理者が「次に上げるのはどれか」を釜の並びに依らず一目で追えるようにする（ユーザー要望・2026-09-07）。
 
-前提は `lift-group-display`（群・先頭・全釜 idle は店舗全体で判定）、`synchronized-boil-adjustment`（実効 endTime＝Boil_Sync の調整後）、`sync-set-batch-complete`（同じ実効 endTime の Sync_Set は一括で上がる）。
+**前提に `order-lifecycle`（2026-09-07）を置く**：品目は生涯を通じて残り、`TimerFact.orderItem` が Timer → 品目の参照を運ぶ。本 spec の判断 2′（wire に `externalOrderId` を足す）はそちらに吸収し、番号・卓・品名は参照で引く。前提は `lift-group-display`（群・先頭・全釜 idle は店舗全体で判定）、`synchronized-boil-adjustment`（実効 endTime＝Boil_Sync の調整後）、`sync-set-batch-complete`（同じ実効 endTime の Sync_Set は一括で上がる）。
 
 ### 観測事実（2026-09-07・main `Merge #37` 時点）
 
