@@ -186,8 +186,9 @@ export function isSameOrderItems(left: readonly OrderItem[], right: readonly Ord
 
 /**
  * 1 品目の同一性。全フィールドを突き合わせる（起点の引き継ぎは呼び出し前に済んでいる）。厨房の事実
- * （`completedAt` / `interruptedAt`）も含める——complete / cancel は Timer 集合も動かすので Timer の比較で
- * 変化は見えるが、v12 由来の参照先を後着が補った後の記録は品目だけが変わる。
+ * （`completedAt` / `interruptedAt`）も含める——complete / cancel は Timer 集合も動かすので Timer の比較でも
+ * 変化は見えるが、品目の同一性は品目の全フィールドで閉じて判定する（Timer の変化に頼らない）。注文属性だけの
+ * 後着（名称・盛り・占有数）も確定変化になる。
  */
 function isSameOrderItem(left: OrderItem, right: OrderItem | undefined): boolean {
   return (

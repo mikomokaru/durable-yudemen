@@ -417,6 +417,70 @@ describe("Feature: order-lifecycle — 左レールは未調理（pendingOrders�
     ]);
   });
 
+  describe("通信断（degraded）ではレールを列挙しない（order-lifecycle 判断 18・レビュー P2）", () => {
+    // 未調理は「自分を指す生きた Timer が無い品目」の導出なので、通信断中にローカルで Timer だけを消す完了は品目に
+    // completedAt を書けず、調理済みの品目が未調理として戻って見える（実測：レール [] → ["A"]）。ラジアルと同じく
+    // degraded では列挙せず、再接続の snapshot で復帰する。サーバ未確定の completedAt を client では書かない。
+    const cookingLive: ClientView = {
+      ...viewWith([COOKING, UNSTARTED], []),
+      timers: [timerFor(COOKING, NOW + 30_000)],
+    };
+    const offline = decideView(cookingLive, { kind: "Connectivity", status: "down" });
+
+    it("通信断中はレールが空（未調理が在っても列挙しない）", () => {
+      expect(orderQueueEntries(cookingLive, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+        "o-u#0",
+      ]);
+      expect(orderQueueEntries(offline, [0], NOW)).toEqual([]);
+    });
+
+    it("通信断中の通常完了（boiled の LocalComplete）で、調理済みの品目が未調理として戻らない", () => {
+      const boiledOffline = decideView(
+        { ...cookingLive, timers: [timerFor(COOKING, NOW - 30_000)] },
+        { kind: "Connectivity", status: "down" },
+      );
+      const completed = decideView(boiledOffline, {
+        kind: "LocalComplete",
+        timerId: timerFor(COOKING, NOW - 30_000).id,
+        now: NOW,
+      });
+      expect(completed.timers).toEqual([]);
+      expect(orderQueueEntries(completed, [0], NOW)).toEqual([]);
+    });
+
+    it("通信断中の早め上げ（走行中の LocalCancel）でも戻らない", () => {
+      const lifted = decideView(offline, {
+        kind: "LocalCancel",
+        timerId: timerFor(COOKING, NOW + 30_000).id,
+        now: NOW,
+      });
+      expect(lifted.timers).toEqual([]);
+      expect(orderQueueEntries(lifted, [0], NOW)).toEqual([]);
+    });
+
+    it("再接続の snapshot で復帰する：サーバが完了を確定した品目は出ず、未調理だけが戻る", () => {
+      const lifted = decideView(offline, {
+        kind: "LocalCancel",
+        timerId: timerFor(COOKING, NOW + 30_000).id,
+        now: NOW,
+      });
+      const reconnected = decideView(decideView(lifted, { kind: "Connectivity", status: "up" }), {
+        kind: "Server",
+        message: {
+          type: "snapshot",
+          serverTime: NOW,
+          timers: [],
+          orderItems: [{ ...COOKING, completedAt: NOW }, UNSTARTED],
+          recommendations: [],
+        },
+        receivedAt: NOW,
+      });
+      expect(orderQueueEntries(reconnected, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+        "o-u#0",
+      ]);
+    });
+  });
+
   it("調理中・調理済みの品目を指す推奨は提案として成立しない（待ち行列に無い推奨と同じ経路）", () => {
     const recommendations = [
       recommendation("o-c", 0, ["0"], NOW),

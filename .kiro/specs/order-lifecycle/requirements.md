@@ -41,6 +41,7 @@
 14. **v12 の走行中 Timer は限定された移行例外（レビュー P1・適用は操作時にも参照先が無い場合だけ）。** 旧実装は開始時に品目を消しているので、v12 → v13 の移行（`pendingOrders` → `orderItems`・`completedAt` 欠如 → null）をしても、既に始まっている Timer の参照先は存在せず、Timer には品名・到着時刻が無いので復元できない。推測で品目を作らず、限界を明示する——旧版由来で参照先の無い Timer はそのまま動かす／カードの参照が解決できなければ注文なし相当の表示／完了・Cancel は従来どおり Timer を除去し、存在しない品目に完了日時は書かない／この旧 Timer を Cancel しても注文品目は戻らない／v13 で新しく開始した注文 Timer について参照整合を保証する。
 15. **残滓（`lastResults`）は変えない。** 将来 `done` の品目から導出に置き換えられるが、本 spec の範囲外。
 16. **保持量（レビュー 6）。** 通常どおり調理・完了した品目も正本に残るので、永続は以前より増える。2 時間で配信対象から外しても永続は減らない。整理（折りたたんだ期限切れ一覧からの一括削除）は別の機能として意味を持ち、そのとき生きた Timer の参照先は削除対象から外す。wire の `done` を別配列に分けても全件送る限り配信量は減らない（未決 1）。
+18. **通信断（degraded）では左レールを列挙しない（レビュー P2・2026-09-08）。** 未調理は「自分を指す生きた Timer が無い品目」の導出なので、通信断中にローカルで Timer だけを消す完了（boiled の LocalComplete・早め上げの LocalCancel）は品目に `completedAt` を書けず、調理済みの品目が未調理として左レールへ戻って見える（実測：[] → ["A"]・重複調理につながる表示）。サーバ未確定の `completedAt` を client で書くのは避け、ラジアル（`lift-group-display` AC 2.13）と同じく degraded では左レールも列挙せず、再接続の snapshot で復帰する。
 17. **`lift-order-numbering` はこの上に載る表示。** 番号の単位「同じ実効 endTime かつ同じ注文」は `TimerFact.orderItem.externalOrderId` で切る。卓・品名も参照で引く。
 
 ### スコープ外
@@ -94,6 +95,7 @@
 4. THE `TimerFact` SHALL `orderItem: { externalOrderId, itemIndex } | null` を運ぶ（`toWireTimer` が `Timer.orderItem` から写す。decode は形を検証）
 5. THE client の左レール SHALL `pendingOrders(orderItems, timers, correctedNow)` だけを出す（導出）。ラジアルも同じ集合
 6. THE 釜のカード SHALL `orderItemOf(timer, orderItems)` で品目を引く。無ければ注文なし（アドホック・旧版由来）と同じ表示
+7. WHILE client が degraded（通信断）のとき、THE 左レール SHALL 品目を列挙しない（ラジアルと同じ）。再接続の snapshot で復帰する。client は `completedAt` を書かない
 
 ### Requirement 5: client の操作
 
@@ -120,6 +122,7 @@
 9. **移行**：v12 の永続は `orderItems` に読み替えられ、参照先の無い Timer は動き続け、完了・Cancel で消える。操作時に参照先が無ければ `completedAt` / `interruptedAt` は書かれない
 9′. **移行後の再送**：参照先の無い v12 由来の Timer が残る中で POS がその品目を再送すると、品目は `cooking` として加わり、その後の Complete は `completedAt` を、Cancel は `interruptedAt` を通常どおり記録する
 10. **不変**：Timer の集合・Boil_Sync・Alarm・一括完了・残滓は変わらない
+11. **通信断の表示**：注文参照のある Timer について、通信断中の通常完了（LocalComplete）・早め上げ（LocalCancel）の後も左レールに品目が戻らず、再接続の snapshot でサーバが確定した完了は出ず未調理だけが戻る
 
 ### naming ゲート（`naming.md`）
 

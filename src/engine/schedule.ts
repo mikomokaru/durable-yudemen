@@ -23,6 +23,7 @@ import {
 } from "./lift";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
 import {
+  refersTo,
   compareArrival,
   itemKeyOf,
   liveOrders,
@@ -1427,17 +1428,8 @@ export function occupiesSlotSpan(placement: Placement, order: OrderItem): boolea
   return new Set(placement.slotIds.map(slotOf)).size === placement.slotIds.length;
 }
 
-/**
- * 配置が当該 Pending_Order を指しているか。品目の同一性は (externalOrderId, itemIndex) の組で決まる。
- *
- * 公開するのは、確定計画の合成（commit.ts）が「接頭辞が既に置いた品目を計画対象から除く」ために同じ
- * 同一性を要するためである。組の突き合わせを二箇所に書けば、品目を指す規則が二つになる。
- */
-export function refersTo(placement: Placement, order: OrderItem): boolean {
-  return (
-    placement.externalOrderId === order.externalOrderId && placement.itemIndex === order.itemIndex
-  );
-}
+/** 配置が品目を指すか。品目の照合は domain の `refersTo` ただ一つ（同じ概念は一箇所）。 */
+export { refersTo } from "../domain/order";
 
 /** 正準順序の比較。arrivalTime → externalOrderId → itemIndex。 */
 function byCanonicalOrder(order: OrderItem, other: OrderItem): number {

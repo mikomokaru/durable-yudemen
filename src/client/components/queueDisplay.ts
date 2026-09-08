@@ -23,7 +23,7 @@ import type { CookRecommendation } from "../../domain/messages";
 import { compareArrival, itemKeyOf, pendingOrders, type OrderItem } from "../../domain/order";
 import type { NoodlePreset } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
-import type { ClientView } from "../connection";
+import { mode, type ClientView } from "../connection";
 import { correctedNow } from "../clock";
 import { assignedBySlots } from "../assignment";
 
@@ -143,6 +143,11 @@ export function orderQueueEntries(
   now: number,
 ): readonly QueueEntry[] {
   const corrected = correctedNow(view.offset, now);
+  // degraded では列挙しない（ラジアルと同じ扱い・order-lifecycle 判断 18）。未調理は「自分を指す生きた Timer が無い品目」
+  // の導出で、通信断中にローカルで Timer だけを消す完了（LocalComplete / 早め上げの LocalCancel）は品目に
+  // completedAt を書けないため、調理済みの品目が未調理として戻って見える（重複調理につながる表示）。サーバ未確定の
+  // completedAt を client で書く代わりに、再接続の snapshot で復帰する。
+  if (mode(view) !== "live") return [];
   // 担当範囲内の推奨を品目の鍵で引けるよう束ねる。表示は品目単位の事象である。
   const suggested = new Map<string, QueueSuggestion>();
   for (const recommendation of assignedBySlots(view.recommendations, units)) {
