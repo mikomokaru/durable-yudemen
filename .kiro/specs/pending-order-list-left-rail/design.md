@@ -402,6 +402,8 @@ props の 3 要素は現行 `OrderQueue` と同一で、`entries` の型だけ�
 
 **コントラスト**（要件 7.6）: 背景は `bg-panel2`（`#2a261d`）。`text-muted`（`#9a9382`）とのコントラスト比は約 4.95:1、麺種パレット（`oklch` の明度 0.74〜0.86 の pastel）は約 6.5:1 以上で、いずれも 4.5:1 を上回る。提案ボタンの背景 `bg-panel`（`#211e17`）上の `text-muted` は約 5.5:1。
 
+> **改訂（`lift-order-numbering` Component 4・2026-09-08）:** 一度戻された品目——厨房 Cancel で中断されて未調理へ戻った品目（`order.interruptedAt !== null`・`order-lifecycle` が導入）——を行で見分けられるようにする。名称（`displayName(order)`）の span の先頭に `<span role="img" aria-label="Returned" className="mr-1 text-muted">↩</span>` を置き、名称の span に `opacity-60` を足す。**並び（到着順）と語（名称・茹で加減・卓番・待ち時間）は変えない**——足すのは記号と淡さだけである。当初の字面から 2 点変えた：(a) aria の語は「（戻された）」でなく英語 `Returned`——`offline-degradation.static` (f) と本 spec の静的検査 S15 が client / レールの文字列・JSX テキストの日本語を禁じる（判断 7 の茹で加減ラベルのみ例外）；(b) 淡さは `text-muted` でなく `opacity-60`——S6 / S12 がレール唯一のインライン style を `style={{ color: noodleColor(` に固定しており、class の `text-muted` はインライン色に負ける。麺種色を保ったまま透かす形は「識別は色・状態は記号」の規律に沿い、スロットカードの残滓（`fadedTint`）と同じ扱いである。実描画テストは `order-rail.example` の 2 件（中断済みの行だけが ↩ / `Returned` と `opacity-60`・並びと語は不変）。
+
 ### `Suggested_Start`（`OrderRow` 内の `button`・独立した名を持たない）
 
 実在する重複がないため、行から切り出さない（先回りの抽象を作らない）。骨格は Architecture「ボタン内部の幅の内訳」の導出どおり、横並びをやめて 3 行に積む。

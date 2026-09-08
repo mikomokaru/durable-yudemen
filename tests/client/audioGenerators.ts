@@ -243,6 +243,8 @@ const genRunningDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
   orderItem: fc.constant(null),
   remainingMs: fc.integer({ min: 1, max: 1_800_000 }),
   unconfirmed: fc.boolean(),
+  // 上がり順の番号（lift-order-numbering）。音の判定は読まない——性質 3.6（番号の導入で音は変わらない）の入力として振る。
+  liftOrder: fc.integer({ min: 1, max: 24 }),
 });
 
 const genIdleDisplay: fc.Arbitrary<SlotDisplay> = fc.record({

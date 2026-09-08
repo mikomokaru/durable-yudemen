@@ -497,7 +497,14 @@ describe("帯は未調理の品目だけ——調理中・調理済みは orderI
     const rail = screen.getByRole("region", { name: "Waiting orders" });
     const railNames = within(rail)
       .getAllByRole("listitem")
-      .map((item) => item.querySelector("span")?.textContent ?? "");
+      // 戻された品目（INTERRUPTED）の行は名の前に記号 ↩（role="img"・lift-order-numbering Component 4）を持つ。
+      // 記号は名の一部ではないので、テキストノードだけを名として読む。
+      .map((item) =>
+        [...(item.querySelector("span")?.childNodes ?? [])]
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent ?? "")
+          .join(""),
+      );
     const dialog = openRadial(0);
     const columnNames = rows(dialog).map((row) => row.querySelector("span")?.textContent ?? "");
     expect(columnNames).toEqual(["Salt L", "Back", "ネギ丼"]);

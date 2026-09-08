@@ -233,3 +233,65 @@ describe("提案なし・卓番なし・全件描画・茹で加減の語（R5�
     );
   });
 });
+
+// lift-order-numbering design Component 4：一度戻された品目（`interruptedAt !== null`）は行の先頭に記号 ↩ と
+// 支援技術向けの `Returned` を持ち、名称は淡い。並びと語は変えない（到着順の元の位置に同じ語で並ぶ）。
+describe("戻された品目の色分け（lift-order-numbering Component 4）", () => {
+  it("interruptedAt を持つ行だけが ↩（Returned）を持ち、名称が淡い。持たない行は従来どおり", () => {
+    const entries = [
+      queueEntry({ order: pendingOrder({ externalOrderId: "o-0", noodleType: "Thin" }) }),
+      queueEntry({
+        order: pendingOrder({
+          externalOrderId: "o-1",
+          noodleType: "Thick",
+          interruptedAt: T - 30_000,
+        }),
+      }),
+      queueEntry({ order: pendingOrder({ externalOrderId: "o-2", noodleType: "Flat" }) }),
+    ];
+    render(railElement(entries));
+
+    const rows = screen.getAllByRole("listitem");
+    expect(
+      rows.map((row) => within(row).queryAllByRole("img", { name: "Returned" }).length),
+    ).toEqual([0, 1, 0]);
+    expect(rows.map((row) => (row.textContent ?? "").startsWith("↩"))).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    // 淡さは名称の span（行の最初の子・麺種色のインライン style を持つ要素）に付く。麺種色そのものは差し替えない。
+    const names = rows.map((row) => row.firstElementChild as HTMLElement);
+    expect(names.map((name) => name.classList.contains("opacity-60"))).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    // 麺種色のインライン style が残ることは静的検査（S12）が固定する。happy-dom は oklch を CSSStyleDeclaration に載せない
+    // ので、ここでは値を問わない。
+  });
+
+  it("並びと語は変わらない——戻された行も到着順の位置に、麺種・茹で加減・卓・待ち時間の同じ語で並ぶ", () => {
+    const returned = queueEntry({
+      order: pendingOrder({
+        externalOrderId: "o-1",
+        noodleType: "Thick",
+        interruptedAt: T - 30_000,
+      }),
+      waitingMs: 83_000,
+    });
+    const plain = queueEntry({
+      order: pendingOrder({ externalOrderId: "o-0", noodleType: "Thin" }),
+    });
+    render(railElement([plain, returned]));
+
+    const rows = screen.getAllByRole("listitem");
+    expect(rows.map(noodleTypesIn)).toEqual([["Thin"], ["Thick"]]);
+    const text = rows[1]?.textContent ?? "";
+    expect(text).toContain("Thick");
+    expect(text).toContain(FIRMNESS_LABEL.normal);
+    expect(text).toContain("Table 12");
+    expect(text).toContain("01:23");
+    expect(headingCount()).toBe(2);
+  });
+});

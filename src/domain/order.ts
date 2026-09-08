@@ -122,8 +122,8 @@ export function compareArrival(a: OrderItem, b: OrderItem): number {
   );
 }
 
-/** 文字列の全順序（並びを決定的にするための第 2 の鍵）。 */
-function compareText(a: string, b: string): number {
+/** 文字列の全順序（符号単位順・並びを決定的にするための第 2 の鍵）。上がり順（lift-order.ts）も同じ断ち方を使う。 */
+export function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 

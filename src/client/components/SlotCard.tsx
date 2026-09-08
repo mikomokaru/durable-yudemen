@@ -11,6 +11,7 @@
 import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from "react";
 import { remainingParts } from "../format";
 import { cn } from "../cn";
+import { displayName } from "./queueDisplay";
 import type { TimerFact } from "../../domain/timer";
 import type { SlotDisplay } from "./slotDisplay";
 import type { GroupItem, SlotSuggestion } from "./liftGroups";
@@ -229,37 +230,42 @@ function ProgressRing({
  */
 /**
  * バッジ prefix のマーカー。相ごとに状態を 1 記号で示す（identity は色、状態はこのマーカー）。
- * - boiling: 走行中＝点滅する live ドット（monochrome・絵文字非依存）。
- * - ready  : 茹で上がり（上がり待ち）＝✓。
+ * - order  : 走行中＝上がり順の番号（Lift_Order・1 始まり・店舗全体で密）。点滅ドットを置き換え、番号は点滅しない
+ *            （lift-order-numbering 判断 4）。番号は麺色とは独立の記号として、バッジの文字色（濃色）で出す（AC 2.4）。
+ * - ready  : 茹で上がり（上がり待ち）＝✓（番号は持たない・判断 3）。
  * - last   : idle の直前結果（過去・best-effort）＝✓。
  * - none   : マーカーなし。
  */
-type BadgeMarker = "none" | "boiling" | "ready" | "last";
+type BadgeMarker = "none" | "ready" | "last" | { readonly kind: "order"; readonly n: number };
+
+/** バッジの aria-label の接頭辞。走行中は `Boiling {n}: `（AC 2.3）。 */
+function ariaPrefixOf(marker: BadgeMarker): string {
+  if (marker === "last") return "Last: ";
+  if (marker === "ready") return "Ready: ";
+  if (marker === "none") return "";
+  return `Boiling ${marker.n}: `;
+}
 
 function NoodleBadge({
-  noodleType,
+  label,
   tint,
   faded = false,
   marker = "none",
   className,
 }: {
-  readonly noodleType: string;
+  /**
+   * バッジの語。走行中・茹で上がりは品目の名（`displayName` ＋ 卓）、参照先が無ければ麺種、残滓は麺種
+   * （lift-order-numbering design Component 3）。組むのは呼び出し側で、ここは受け取った文字列を置くだけ。
+   */
+  readonly label: string;
   readonly tint: string;
   readonly faded?: boolean;
   readonly marker?: BadgeMarker;
   readonly className?: string;
 }) {
-  const ariaPrefix =
-    marker === "last"
-      ? "Last: "
-      : marker === "ready"
-        ? "Ready: "
-        : marker === "boiling"
-          ? "Boiling: "
-          : "";
   return (
     <span
-      aria-label={`${ariaPrefix}${noodleType}`}
+      aria-label={`${ariaPrefixOf(marker)}${label}`}
       className={cn(
         // 常にカード幅いっぱい（親コラム幅の 100%）。狭カード(iPhone)で max-width により縦長化するのを避ける。
         // relative z-[7]: 茹で加減の 2×2 オーバーレイ（暗幕 z-4 / グリッド z-5）より前面に出し、選択中もバッジを見せる。
@@ -271,19 +277,18 @@ function NoodleBadge({
       // 残滓（faded）は色相だけ残して彩度を落とす（稼働中のピルと遠目に見分けるため・fadedTint）。
       style={{ backgroundColor: faded ? fadedTint(tint) : tint, color: "#15120c" }}
     >
-      {/* 走行中は点滅ドット（bg-current = 濃色文字色）、上がり/前回結果は ✓。いずれも色＝種類とは独立の状態記号。 */}
-      {marker === "boiling" && (
-        <span
-          aria-hidden="true"
-          className="mr-[0.4em] inline-block h-[0.5em] w-[0.5em] animate-pulse rounded-full bg-current align-middle"
-        />
+      {/* 走行中は上がり順の番号（濃色の文字色・点滅しない）、上がり/前回結果は ✓。いずれも色＝種類とは独立の状態記号。 */}
+      {typeof marker === "object" && (
+        <span aria-hidden="true" className="mr-[0.35em] tabular-nums">
+          {marker.n}
+        </span>
       )}
       {(marker === "ready" || marker === "last") && (
         <span aria-hidden="true" className="mr-[0.35em]">
           ✓
         </span>
       )}
-      {noodleType}
+      {label}
     </span>
   );
 }
@@ -343,7 +348,7 @@ export function SlotCard({
           // 直前の調理結果（残滓）も同じバッジ方針で。過去の best-effort 情報ゆえ faded で淡く示す。
           <div className="absolute top-[clamp(0.625rem,1.6vh,1.125rem)] right-[clamp(0.4375rem,0.9vw,0.625rem)] left-[clamp(0.4375rem,0.9vw,0.625rem)]">
             <NoodleBadge
-              noodleType={lastResultNoodle}
+              label={lastResultNoodle}
               tint={noodleColor(lastResultNoodle)}
               faded
               marker="last"
@@ -425,6 +430,15 @@ export function SlotCard({
   const isBoiled = display.kind === "boiled";
   // 麺のキャラクター色。時間・ボタンをこの 1 色へ揃える（色＝麺の identity）。
   const tint = noodleColor(display.timer.noodleType);
+  // バッジの語。品目を引けたら品名（レール・提案と同じ displayName）に卓を添え（提案の語 `Table {n}` と揃える）、
+  // 参照先が無ければ（アドホック・v12 由来）従来どおり麺種だけ——参照先の無い Timer を扱う経路は一つ（order-lifecycle
+  // 判断 13）。卓の有無で語の形を変えず、無ければ出さない。
+  const badgeLabel =
+    display.orderItem === null
+      ? display.timer.noodleType
+      : display.orderItem.tableId === null
+        ? displayName(display.orderItem)
+        : `${displayName(display.orderItem)} · Table ${display.orderItem.tableId}`;
   // 状態は背景色で示す（ダーク維持の控えめな差）。boiled / boiling 遠 / boiling 近 を分ける。
   const stateBg = isBoiled
     ? STATE_BG.boiled
@@ -497,8 +511,8 @@ export function SlotCard({
       }
       className={cn(cardBase, isBoiled && "animate-boiled")}
     >
-      {/* 左上：麺種バッジ（色＝identity）→ 直下に大きな残り時間。状態は背景/枠/リングが担う。
-          running は麺色の秒読み（MM:SS）。boiled は超過秒を「↑Ns」で danger 色表示（早く上げろ）。
+      {/* 左上：麺種バッジ（色＝identity・語は品名と卓・マーカーは上がり順の番号か ✓）→ 直下に大きな残り時間。
+          状態は背景/枠/リングが担う。running は麺色の秒読み（MM:SS）。boiled は超過秒を「↑Ns」で danger 色表示（早く上げろ）。
           ↑ と s はコロンと同じ扱い（小さく・付帯記号色）。 */}
       <div
         className={cn(
@@ -510,9 +524,9 @@ export function SlotCard({
         )}
       >
         <NoodleBadge
-          noodleType={display.timer.noodleType}
+          label={badgeLabel}
           tint={tint}
-          marker={isBoiled ? "ready" : "boiling"}
+          marker={isBoiled ? "ready" : { kind: "order", n: display.liftOrder }}
           className={
             firmnessMenuOpen ? "@max-[240px]:w-auto @max-[240px]:min-w-0 @max-[240px]:flex-1" : ""
           }
@@ -554,7 +568,7 @@ export function SlotCard({
         </p>
       </div>
 
-      {/* 状態ラベルは持たない：identity は左上バッジ、状態はバッジの prefix マーカー（✓/ドット）と背景/枠/リングが担う。 */}
+      {/* 状態ラベルは持たない：identity は左上バッジ、状態はバッジの prefix マーカー（番号/✓）と背景/枠/リングが担う。 */}
 
       {/* 操作スタック：右下に固定。茹で加減メニュー展開中（running）は隠す（衝突回避）。 */}
       {(isBoiled || !firmnessMenuOpen) && (

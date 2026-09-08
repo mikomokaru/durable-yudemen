@@ -334,6 +334,7 @@ describe("走行中カードの停止ボタン——残り < 60 秒は complete�
       orderItem: null,
       remainingMs,
       unconfirmed: false,
+      liftOrder: 1,
     };
   }
 
@@ -386,5 +387,98 @@ describe("走行中カードの停止ボタン——残り < 60 秒は complete�
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onCancel).toHaveBeenCalledWith(TIMER.id);
     expect(onComplete).not.toHaveBeenCalled();
+  });
+});
+
+// lift-order-numbering（判断 2〜5・Requirement 2）：走行中のバッジのマーカーは上がり順の番号（点滅しない）、語は品名と卓、
+// 参照先が無ければ麺種だけ。boiled は ✓ のまま。aria-label は `Boiling {n}: {語}` / `Ready: {語}`。
+describe("走行中・茹で上がりのバッジ——番号のマーカーと品名・卓の語（lift-order-numbering R2.1〜2.4）", () => {
+  const TIMER: TimerFact = {
+    id: "t-badge",
+    slotIds: nonEmpty(["0"]),
+    noodleType: "Thin",
+    firmness: "hard",
+    startTime: T0 - 60_000,
+    endTime: T0 + 120_000,
+    orderItem: { externalOrderId: "o-badge", itemIndex: 0 },
+  };
+  const ITEM: OrderItem = item("o-badge").order;
+
+  function running(liftOrder: number, orderItem: OrderItem | null): SlotDisplay {
+    return {
+      kind: "running",
+      slot: 0,
+      timer: TIMER,
+      orderItem,
+      remainingMs: 120_000,
+      unconfirmed: false,
+      liftOrder,
+    };
+  }
+
+  function boiled(orderItem: OrderItem | null): SlotDisplay {
+    return {
+      kind: "boiled",
+      slot: 0,
+      timer: { ...TIMER, endTime: T0 - 1_000 },
+      orderItem,
+      overdueMs: 1_000,
+    };
+  }
+
+  /** 左上のバッジ（aria-label が `Boiling` / `Ready` で始まる要素）。 */
+  function badge(): HTMLElement {
+    return screen.getByLabelText(/^(Boiling \d+|Ready): /) as HTMLElement;
+  }
+
+  it("走行中：マーカーは番号（aria-hidden の文字）、aria-label は `Boiling 2: 品名 麺量 · Table 卓`、語は displayName と同じ", () => {
+    render(cardElement(running(2, ITEM)));
+
+    const shown = badge();
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 2: プレ塩 中盛 · Table 12");
+    // 番号は記号として先頭に置き（aria-hidden）、語がそれに続く。
+    const marker = shown.querySelector("[aria-hidden]");
+    expect(marker?.textContent).toBe("2");
+    expect(shown.textContent).toBe("2プレ塩 中盛 · Table 12");
+  });
+
+  it("走行中：番号は点滅しない（バッジの内側に animate-pulse が無い）", () => {
+    render(cardElement(running(7, ITEM)));
+
+    const shown = badge();
+    expect(shown.className).not.toContain("animate-pulse");
+    expect(shown.querySelector(".animate-pulse")).toBeNull();
+    // 番号は麺色とは独立の記号——バッジの文字色（濃色）で出す（親の color を継ぐ・自分の色を持たない）。
+    expect((shown.querySelector("[aria-hidden]") as HTMLElement).style.color).toBe("");
+  });
+
+  it("走行中：卓を持たない品目は品名だけ（Table の語を出さない）", () => {
+    render(cardElement(running(1, { ...ITEM, tableId: null })));
+
+    expect(badge().getAttribute("aria-label")).toBe("Boiling 1: プレ塩 中盛");
+    expect(badge().textContent).not.toContain("Table");
+  });
+
+  it("走行中：参照先が無ければ（アドホック・v12 由来）語は麺種だけで、番号は出る", () => {
+    render(cardElement(running(3, null)));
+
+    expect(badge().getAttribute("aria-label")).toBe("Boiling 3: Thin");
+    expect(badge().textContent).toBe("3Thin");
+  });
+
+  it("茹で上がり：マーカーは ✓ のまま（番号は無い）、語は品名と卓", () => {
+    render(cardElement(boiled(ITEM)));
+
+    const shown = badge();
+    expect(shown.getAttribute("aria-label")).toBe("Ready: プレ塩 中盛 · Table 12");
+    expect(shown.querySelector("[aria-hidden]")?.textContent).toBe("✓");
+    expect(shown.textContent).toBe("✓プレ塩 中盛 · Table 12");
+  });
+
+  it("茹で上がり：参照先が無ければ ✓ と麺種だけ（従来どおり）", () => {
+    render(cardElement(boiled(null)));
+
+    expect(badge().getAttribute("aria-label")).toBe("Ready: Thin");
+    expect(badge().textContent).toBe("✓Thin");
   });
 });
