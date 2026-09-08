@@ -135,6 +135,13 @@ export interface ClientView {
   readonly lastResults: ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>;
   /** 到達性の事実。Mode の導出元（要件3.1）。 */
   readonly connectivity: Connectivity;
+  /**
+   * 通信復旧の後、まだサーバの snapshot / Reconcile で再整合していない（order-lifecycle 判断 18）。
+   * pong だけで connectivity は up になるが、その時点の view は「古い品目集合 ＋ ローカルで消した Timer 集合」で、
+   * 未調理の導出（自分を指す生きた Timer が無い品目）に調理済みが混ざる。再整合（reconcileServerConfirmed）で false。
+   * down で true。起動時は false（最初の snapshot までは connectivity が down で列挙されず、古い品目集合も無い）。
+   */
+  readonly awaitingResync: boolean;
   /** down 時のみ意味を持つ分類結果。既定 "offline"（要件15.7 / 15.12）。Connectivity(二値)・Mode(導出) とは独立の別軸。 */
   readonly unreachableReason: UnreachableReason;
   /** 同期フェーズ。 */
@@ -205,6 +212,7 @@ export const EMPTY_VIEW: ClientView = {
   processedIds: new Set<string>(),
   lastResults: new Map<string, { readonly noodleType: string; readonly at: number }>(),
   connectivity: "down",
+  awaitingResync: false,
   unreachableReason: "offline",
   sync: "connecting",
   error: null,
@@ -269,6 +277,7 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
       // 構造（一方向の流れ）で担保する（要件15.12）。down のときは変えない（次の Classify が上書きするまで直前値を保つ）。
       return {
         ...view,
+        awaitingResync: event.status === "down" ? true : view.awaitingResync,
         connectivity: event.status,
         unreachableReason: event.status === "up" ? "offline" : view.unreachableReason,
       };
@@ -661,6 +670,7 @@ export function reconcileServerConfirmed(
 
   return {
     ...view,
+    awaitingResync: false,
     // (e) 最後に 1 回だけ占有を解決する。(a)〜(d) の順序と入力を変えないのは、刈り取り (d) を**解決前**の保持 id
     //     集合で行う必要があるためである——落とした server Timer の id が processedIds から抜けると、その Timer が
     //     次の snapshot で（local 側が消えた後に決定 B で）在席を取り戻したとき、endTime が過去ゆえ dueLocalTimers が

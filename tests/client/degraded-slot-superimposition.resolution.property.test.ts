@@ -174,6 +174,7 @@ function genScene(
               processedIds: new Set(processed),
               lastResults: drawn.lastResults,
               connectivity: drawn.connectivity,
+              awaitingResync: false,
               unreachableReason: "offline",
               sync: drawn.sync,
               error: null,

@@ -292,6 +292,7 @@ export const genClientView: fc.Arbitrary<ClientView> = fc
         orderItems: genPendingOrders,
         recommendations: genRecommendations,
         connectivity: genConnectivity,
+        awaitingResync: fc.boolean(),
         unreachableReason: genUnreachableReason,
         sync: genSyncPhase,
         error: genError,
@@ -689,6 +690,7 @@ function liftViewOf(
   return {
     ...EMPTY_VIEW,
     connectivity: "up",
+    awaitingResync: false,
     sync: "synced",
     unitCount,
     unitOrigins: defaultUnitOrigins(unitCount),

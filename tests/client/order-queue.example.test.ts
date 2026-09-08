@@ -448,9 +448,9 @@ describe("Feature: order-lifecycle — 左レールは未調理（pendingOrders�
       expect(orderQueueEntries(completed, [0], NOW)).toEqual([]);
     });
 
-    it("通信断中の早め上げ（走行中の LocalCancel）でも戻らない", () => {
+    it("通信断中の早め上げ（走行中への complete → LocalComplete）でも戻らない", () => {
       const lifted = decideView(offline, {
-        kind: "LocalCancel",
+        kind: "LocalComplete",
         timerId: timerFor(COOKING, NOW + 30_000).id,
         now: NOW,
       });
@@ -458,13 +458,30 @@ describe("Feature: order-lifecycle — 左レールは未調理（pendingOrders�
       expect(orderQueueEntries(lifted, [0], NOW)).toEqual([]);
     });
 
-    it("再接続の snapshot で復帰する：サーバが完了を確定した品目は出ず、未調理だけが戻る", () => {
-      const lifted = decideView(offline, {
+    it("通信断中の中断（LocalCancel）でも通信断の間は戻らない（未調理へ戻すのはサーバの snapshot）", () => {
+      const interrupted = decideView(offline, {
         kind: "LocalCancel",
         timerId: timerFor(COOKING, NOW + 30_000).id,
         now: NOW,
       });
-      const reconnected = decideView(decideView(lifted, { kind: "Connectivity", status: "up" }), {
+      expect(interrupted.timers).toEqual([]);
+      expect(orderQueueEntries(interrupted, [0], NOW)).toEqual([]);
+    });
+
+    it("段階ごとの検査：down → ローカル完了 → pong/up → snapshot。up だけでは復帰せず、snapshot の再整合で復帰する", () => {
+      const lifted = decideView(offline, {
+        kind: "LocalComplete",
+        timerId: timerFor(COOKING, NOW + 30_000).id,
+        now: NOW,
+      });
+      expect(orderQueueEntries(lifted, [0], NOW)).toEqual([]);
+      // pong だけで connectivity は up になる。view はまだ「古い品目集合 ＋ ローカルで消した Timer 集合」——
+      // ここで導けば A が未調理として戻る（レビュー実走：レール [A]・snapshot 受信数 0）。再整合までは列挙しない。
+      const pong = decideView(lifted, { kind: "Connectivity", status: "up" });
+      expect(pong.connectivity).toBe("up");
+      expect(pong.awaitingResync).toBe(true);
+      expect(orderQueueEntries(pong, [0], NOW)).toEqual([]);
+      const reconciled = decideView(pong, {
         kind: "Server",
         message: {
           type: "snapshot",
@@ -475,7 +492,30 @@ describe("Feature: order-lifecycle — 左レールは未調理（pendingOrders�
         },
         receivedAt: NOW,
       });
-      expect(orderQueueEntries(reconnected, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+      expect(reconciled.awaitingResync).toBe(false);
+      expect(orderQueueEntries(reconciled, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+        "o-u#0",
+      ]);
+    });
+
+    it("Reconcile でも再整合する（snapshot と同じ規律）", () => {
+      const pong = decideView(
+        decideView(offline, {
+          kind: "LocalComplete",
+          timerId: timerFor(COOKING, NOW + 30_000).id,
+          now: NOW,
+        }),
+        { kind: "Connectivity", status: "up" },
+      );
+      const reconciled = decideView(pong, {
+        kind: "Reconcile",
+        timers: [],
+        orderItems: [{ ...COOKING, completedAt: NOW }, UNSTARTED],
+        recommendations: [],
+        receivedAt: NOW,
+      });
+      expect(reconciled.awaitingResync).toBe(false);
+      expect(orderQueueEntries(reconciled, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
         "o-u#0",
       ]);
     });

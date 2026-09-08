@@ -188,6 +188,7 @@ function genViewWith(
         ]),
       ),
       connectivity: record.connectivity,
+      awaitingResync: false,
       unreachableReason: "offline",
       sync: record.sync,
       error: null,

@@ -222,6 +222,7 @@ const genScenario: fc.Arbitrary<DisplayScenario> = fc
             processedIds: new Set<string>(),
             lastResults: new Map<string, { readonly noodleType: string; readonly at: number }>(),
             connectivity: "down",
+            awaitingResync: false,
             unreachableReason: "offline",
             sync,
             error: null,

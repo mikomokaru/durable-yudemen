@@ -174,6 +174,7 @@ const genView: fc.Arbitrary<ClientView> = genTimerFacts(SERVER_ID_POOL).chain((s
           processedIds: new Set(r.processed),
           lastResults: r.lastResults,
           connectivity: r.connectivity,
+          awaitingResync: false,
           unreachableReason: "offline",
           sync: r.sync,
           error: r.error,
