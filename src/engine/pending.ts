@@ -93,6 +93,10 @@ export function truncateOrderItems(items: readonly OrderItem[]): readonly OrderI
  *   4. 集合に無かった品目は `completedAt: null, interruptedAt: null` で加わる（AC 2.4）。v12 由来で参照先の無い Timer が
  *      残る中で POS がその品目を再送すれば、状態は `itemStatusOf` が cooking と導く——実際の入力で参照先が補われる。
  *   5. 結果が現在の集合と同一なら、現在の集合（同じ配列インスタンス）を返す（冪等）。
+ *   6. 組み上がった集合に**件数の上限を当てる**（`truncateOrderItems`・order-item-truncation AC 2.1）。
+ *      ここが件数を増やしうる唯一の経路なので、出口で上限を効かせれば上限を超えた集合は構造的に存在しない。
+ *      上限以下の通常の到着では `truncateOrderItems` が `next` をそのまま返すので、戻り値も参照同値の判定も
+ *      従来と完全に同じである。
  *
  * 「同一」は全フィールドの一致で判定する。規則 2 が既存の arrivalTime を引き継いだ後だから、これは
  * 「受理時刻を除く内容の一致」と同義になる——除外を判定側に書かずに済む。
@@ -140,7 +144,12 @@ export function upsertOrder(
     next.splice(last + 1, 0, ...fresh);
   }
 
-  return isSameOrderItems(items, next) ? items : next;
+  // **truncate してから同一性を判定する**（逆にしない・order-item-truncation Component 2）。
+  // 「新しく来た品目が全体の中で最も古く、そのまま落ちる」場合、next は items と違うが bounded は
+  // items と内容が一致する。先に判定すれば内容の同じ別インスタンスを返し、settle が空振りの
+  // Persist / Broadcast を出す。後に判定すれば元の参照へ畳める。
+  const bounded = truncateOrderItems(next);
+  return isSameOrderItems(items, bounded) ? items : bounded;
 }
 
 /**

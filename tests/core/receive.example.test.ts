@@ -13,6 +13,8 @@ import type { Effect } from "../../src/engine/effect";
 import type { EpochMillis } from "../../src/engine/types";
 import type { OrderItem } from "../../src/domain/order";
 import { settleParams } from "../settleParams";
+import { ORDER_ITEM_LIMIT } from "../../src/engine/pending";
+import { uniqueOrderItems } from "./generators";
 
 const PARAMS = settleParams({ arms: 2, toleranceRatio: 0.1 });
 const NOW = 1_700_000_000_000 as EpochMillis;
@@ -99,6 +101,35 @@ describe("engine/receive — 受領を 1 つの遷移へ畳む", () => {
     expect(outcome.ok && outcome.state.orderItems).toBe(before.orderItems);
     // それでも材料は進む。進めなければ同じ注文が再送のたびに翻訳をやり直される。
     expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({ [TERMINAL]: SEQ_2 });
+    expect(outcome.ok && persists(outcome.effects)).toHaveLength(1);
+  });
+
+  it("届いた品目が上限で即座に忘れられても、受領は成立し判定材料は進む（order-item-truncation AC 3.3）", () => {
+    // 満杯の集合。届く品目はそのどれよりも古いので、upsert の直後に truncate が落とす。
+    const base = uniqueOrderItems(ORDER_ITEM_LIMIT);
+    const full = base.map((each, index) => ({
+      externalOrderId: each.externalOrderId,
+      itemIndex: each.itemIndex,
+      noodleType: "Thin",
+      firmness: "normal" as const,
+      tableId: null,
+      arrivalTime: ARRIVAL + index,
+      slotSpan: 1,
+      itemName: null,
+      sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
+    }));
+    const before = stateWith(full, SEQ_1);
+    const late: OrderItem = { ...item(0, "o-late"), arrivalTime: 1 };
+
+    const outcome = decide(before, event(received(SEQ_2, [late], "o-late")), PARAMS);
+
+    // 集合は同一インスタンスのまま（届いた品目がそのまま落ちたので内容も変わらない）。
+    expect(outcome.ok && outcome.state.orderItems).toBe(before.orderItems);
+    // それでも受領は成立する——材料が進まなければ、同じ注文が再送のたびに翻訳をやり直される。
+    expect(outcome.ok && outcome.state.lastSequenceByTerminal).toEqual({ [TERMINAL]: SEQ_2 });
+    // 材料だけが進む受領は確定変化である（settle.ts の isSameLastSequence）。
     expect(outcome.ok && persists(outcome.effects)).toHaveLength(1);
   });
 

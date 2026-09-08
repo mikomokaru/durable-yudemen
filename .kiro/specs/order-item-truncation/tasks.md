@@ -24,10 +24,13 @@
       計測用のコードはいずれも記録後に削除した（常設のベンチは置かない）
   - _Requirements: 1.1〜1.6, 5.1〜5.7_
 
-- [ ] 2. engine：`upsertOrder` の出口
-  - [ ] 2.1 `src/engine/pending.ts`：末尾を `const bounded = truncateOrderItems(next); return isSameOrderItems(items, bounded) ? items : bounded;` にする。**truncate してから同一性を判定する**（逆にしない）。`removeOrder` / `arrivalsOf` / `withOrderAttributes` / `earliestArrival` / `lastIndexOfOrder` / `isSameOrderItems` は変えない
-  - [ ] 2.2 `tests/core/pending.example`：**新しく来た品目が全体で最も古くそのまま落ち、結果が元の集合と一致するとき、`upsertOrder` は元の参照を返す**（判定順の回帰。逆順なら内容の同じ新しい配列を返して空振りの `Persist` / `Broadcast` を呼ぶ）。上限以下の通常の到着で戻り値も参照同値の判定も従来どおりであること
-  - [ ] 2.3 `tests/core/receive.example`：**新規品目が即座に忘れられて `orderItems` が同値でも、`RecordsReceived` は受理として成立する**——`lastSequenceByTerminal` は進み、`settle` の `isSameLastSequence` が差分を立てて `Persist` が出る（`settle.ts:198`）。判定材料だけが進む受領が実在する既存の構造（`settle.ts:179` の注記）が、忘却の下でも壊れないことを固定する
+- [x] 2. engine：`upsertOrder` の出口
+  - [x] 2.1 `src/engine/pending.ts`：末尾を `const bounded = truncateOrderItems(next); return isSameOrderItems(items, bounded) ? items : bounded;` にする。**truncate してから同一性を判定する**（逆にしない）。`removeOrder` / `arrivalsOf` / `withOrderAttributes` / `earliestArrival` / `lastIndexOfOrder` / `isSameOrderItems` は変えない
+    - 実測（2026-09-08）：末尾を `const bounded = truncateOrderItems(next); return isSameOrderItems(items, bounded) ? items : bounded;` にし、`upsertOrder` の doc に規則 6 として「組み上がった集合に件数の上限を当てる／ここが件数を増やしうる唯一の経路／上限以下の到着では戻り値も参照同値の判定も従来と完全に同じ」を書いた。`removeOrder` 以下の補助関数は無変更
+  - [x] 2.2 `tests/core/pending.example`：**新しく来た品目が全体で最も古くそのまま落ち、結果が元の集合と一致するとき、`upsertOrder` は元の参照を返す**（判定順の回帰。逆順なら内容の同じ新しい配列を返して空振りの `Persist` / `Broadcast` を呼ぶ）。上限以下の通常の到着で戻り値も参照同値の判定も従来どおりであること
+    - 実測（2026-09-08）：`tests/core/pending.example.test.ts` に 2 件（満杯へ新しい注文が届くと最も古い分だけ落ちて件数は上限のまま・**届いた品目がそのまま忘れられるなら元の集合インスタンスを返す**）。後者が判定順の回帰で、逆順（同一性 → truncate）だと内容の同じ別インスタンスが返る。**実装前に両方が赤**であることを確認した
+  - [x] 2.3 `tests/core/receive.example`：**新規品目が即座に忘れられて `orderItems` が同値でも、`RecordsReceived` は受理として成立する**——`lastSequenceByTerminal` は進み、`settle` の `isSameLastSequence` が差分を立てて `Persist` が出る（`settle.ts:198`）。判定材料だけが進む受領が実在する既存の構造（`settle.ts:179` の注記）が、忘却の下でも壊れないことを固定する
+    - 実測（2026-09-08）：`tests/core/receive.example.test.ts` に 1 件。満杯の集合へ、そのどれよりも古い `arrivalTime` の別注文が届く場面——`orderItems` は**同一インスタンスのまま**（届いた品目がそのまま落ちた）だが、`lastSequenceByTerminal` は `SEQ_2` へ進み、`Persist` が 1 件立つ。既存の「翻訳結果 0 件かつ既存なし」（AC 6.12）と同じ形の主張であり、忘却がその経路を壊さないことを示す。実装前に赤であることを確認した
   - _Requirements: 2.1, 2.3, 3.3, 4.4_
 
 - [ ] 3. engine：`migrate`

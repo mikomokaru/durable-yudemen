@@ -9,11 +9,17 @@
 // 前提（POS の取消は発生しない）を理由に受理を黙って変えないことも、ここで回帰として固定する（AC 2.6）。
 
 import { describe, expect, it } from "vitest";
-import { isSameOrderItems, removeOrder, upsertOrder } from "../../src/engine/pending";
+import {
+  isSameOrderItems,
+  ORDER_ITEM_LIMIT,
+  removeOrder,
+  upsertOrder,
+} from "../../src/engine/pending";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import { itemStatusOf, type OrderItem } from "../../src/domain/order";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { nonEmpty } from "../nonEmpty";
+import { uniqueOrderItems } from "./generators";
 
 /** 注文の受理時刻（Wait_Time の起点）。modification はこれより 5 分後に届く。 */
 const ARRIVED_AT = 1_000_000;
@@ -207,5 +213,49 @@ describe("isSameOrderItems — 全フィールドの一致（厨房の事実を�
     expect(isSameOrderItems(base, [{ ...base[0]!, itemName: "x" }])).toBe(false);
     expect(isSameOrderItems(base, [{ ...base[0]!, slotSpan: 2 }])).toBe(false);
     expect(isSameOrderItems(base, [])).toBe(false);
+  });
+});
+
+describe("upsertOrder — 上限で忘れる（order-item-truncation Requirement 2）", () => {
+  /** 満杯の集合。生成器の起点をずらして「到着より新しい」側に揃える。 */
+  function fullSet(): readonly OrderItem[] {
+    const base = uniqueOrderItems(ORDER_ITEM_LIMIT);
+    return Array.from({ length: ORDER_ITEM_LIMIT }, (_unused, index) => ({
+      externalOrderId: base[index]!.externalOrderId,
+      itemIndex: base[index]!.itemIndex,
+      noodleType: "thin",
+      firmness: "normal" as const,
+      tableId: null,
+      arrivalTime: base[index]!.arrivalTime + 10_000_000,
+      slotSpan: 1,
+      itemName: null,
+      sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
+    }));
+  }
+
+  it("満杯に新しい注文が届くと、最も古い分だけが落ちて件数は上限のまま", () => {
+    const items = fullSet();
+    const arriving: OrderItem = { ...item(0, "thin", 99_000_000), externalOrderId: "o-new" };
+
+    const next = upsertOrder(items, [], nonEmpty([arriving]));
+
+    expect(next.length).toBe(ORDER_ITEM_LIMIT);
+    // 届いた品目は最も新しいので残り、最も古い 1 件が落ちる。
+    expect(next.at(-1)).toEqual(arriving);
+    expect(next[0]).toEqual(items[1]);
+  });
+
+  it("届いた品目がそのまま忘れられるなら、元の集合インスタンスを返す（truncate してから同一性を判定する）", () => {
+    const items = fullSet();
+    // 集合のどれよりも古い到着。upsert で末尾に付いた直後、truncate に真っ先に落とされる。
+    const arriving: OrderItem = { ...item(0, "thin", 1), externalOrderId: "o-late" };
+
+    const next = upsertOrder(items, [], nonEmpty([arriving]));
+
+    // 判定順が逆（同一性 → truncate）だと、内容の同じ**別インスタンス**が返り、
+    // settle が空振りの Persist / Broadcast を出す。参照同値がその回帰である。
+    expect(next).toBe(items);
   });
 });
