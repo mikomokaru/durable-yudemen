@@ -121,8 +121,9 @@ export function truncateOrderItems(items: readonly OrderItem[]): readonly OrderI
 
 `truncateOrderItems` は入力だけで決まる純粋関数なので、性質で覆い、境界を Example で固定する。
 
-- **`tests/core/pending.property`**（追加）：性質 1〜7（有界・冪等・部分集合・並び保存・恒等・最も古い k 件・鍵が一意な入力での決定性）。鍵が一意な `OrderItem` 配列の生成器を `tests/core/generators.ts` に足す。
-- **`tests/core/pending.example`**（追加）：ちょうど上限・上限 +1・大量超過・空・`arrivalTime` 同値を `externalOrderId` で断つ場面・落ちた品目が `cooking` である場面・「新しく来た品目がそのまま落ちて元の参照に畳まれる」場面（Component 2 の順序が効く回帰）。
+- **`tests/core/truncate-order-items.property`**（新規）：性質 1〜7（有界・冪等・部分集合・並び保存・恒等・最も古い k 件・鍵が一意な入力での決定性）と、**すべての呼び出しで入力が変わっていないこと**（AC 1.2）。鍵が一意な `OrderItem` 配列の生成器を `tests/core/generators.ts` に足す。`pending.property`（`upsertOrder` の冪等と後着）と分けるのは、対象が別の変換だからである。
+- **`tests/core/truncate-order-items.example`**（新規）：ちょうど上限・上限 +1・大量超過・空・`arrivalTime` 同値を `externalOrderId` で断つ場面・集合の並びが到着順でない場面・落ちた品目が `cooking` である場面。
+- **`tests/core/pending.example`**（追記）：「新しく来た品目がそのまま落ちて元の参照に畳まれる」場面（Component 2 の判定順が効く回帰）。ここは `upsertOrder` の振る舞いなので既存のファイルに置く。
 - **`tests/core/order-item-bound.property`**（新規）：性質 8（件数の非増加・閉包性）。`upsertOrder` / `migrate` の出力は上限以下、`complete` / `cancel` / `fromSnapshot` / `toSnapshot` は同数、`removeOrder` は以下、`EMPTY_STATE` は 0 を、**変換ごとに独立して**検査する。`pending.property` と分けるのは、対象が `pending.ts` に閉じず `migrate` / `snapshot` / `complete` / `cancel` に跨るためで、「どの変換が件数をどう動かすか」の一覧をここ一箇所で読めるようにする。
 - **`tests/core/migrate.example` / `migrate.property`**（追加）：上限超過の v13 が上限を当てて復元されること、鍵の重複が `MigrationFailed` になること、形の不正が従来どおり失敗すること。
 - **`tests/core/continuous-input.example`（と同形の新しい harness）**：性質 9（状態の有界性）。到着・開始・完了・キャンセル・後着・外部計画の受領・hydration を任意の系列で与えて `orderItems.length ≤ ORDER_ITEM_LIMIT` を保つ。

@@ -7,12 +7,21 @@
 - [x] 1. engine：`truncateOrderItems` と `ORDER_ITEM_LIMIT`
   - [x] 1.1 `src/engine/pending.ts`：`ORDER_ITEM_LIMIT = 4096` と `truncateOrderItems(items)`。上限以下なら入力と同じ参照で即座に返す。超えるなら入力の**複製**を `compareArrival` で整列して先頭 `length − ORDER_ITEM_LIMIT` 件の鍵（`itemKeyOf`）を集め、元の並びを走査して除く。`compareArrival` を `../domain/order` の import に足す（新規ファイルも新しい import 方向も作らない）
     - 実測（2026-09-08）：`src/engine/pending.ts` に `ORDER_ITEM_LIMIT = 4096` と `truncateOrderItems(items)`。`items.length <= ORDER_ITEM_LIMIT` で入力の参照をそのまま返し、超過時のみ `[...items].sort(compareArrival).slice(0, items.length - ORDER_ITEM_LIMIT)` の鍵を `Set<ItemKey>` に集めて `items.filter` で除く（選定と並びを 2 段に分ける）。import に加えたのは `compareArrival` の 1 つだけで、`pending.ts` の import 方向は変わらない（`../domain/order` / `../domain/timer` / `./timer`）
-  - [x] 1.2 `tests/core/pending.property`：性質 1〜7（有界・冪等・部分集合・並び保存・恒等〈同じ参照〉・落ちるのは `compareArrival` で最も古い k 件・**鍵が一意な入力に対する**決定性〈入力順を変えても落ちる集合は同じ〉）。鍵が一意な `OrderItem` 配列の生成器を `tests/core/generators.ts` に足す
+  - [x] 1.2 `tests/core/truncate-order-items.property`（新規）：性質 1〜7（有界・冪等・部分集合・並び保存・恒等〈同じ参照〉・落ちるのは `compareArrival` で最も古い k 件・**鍵が一意な入力に対する**決定性〈入力順を変えても落ちる集合は同じ〉）と、**すべての呼び出しで入力が変わっていないこと**（AC 1.2）。鍵が一意な `OrderItem` 配列の生成器を `tests/core/generators.ts` に足す
     - 実測（2026-09-08）：`tests/core/truncate-order-items.property.test.ts` に 7 件。生成器は `generators.ts` の `genUniqueOrderItems({minLength, maxLength})` / `uniqueOrderItems(length, tieRun)` / `shuffleBySeed(items, seed)`——素データは長さ・同着の連・置換の 3 つだけで、品目は添字から決定的に組む（`arrivalTime` は `floor(i / tieRun)`、`externalOrderId` は 0 詰めの `floor(i / 3)`、`itemIndex` は `i % 3`）。これで**鍵が一意**かつ**`compareArrival` の全順序が添字の順に一致**するので、落ちる集合を添字で主張できる。入力は 2 帯に分けた——上限以下（即時脱出）と上限超過（整列して落とす）で通る道が違うため。超過帯は `ORDER_ITEM_LIMIT + 1`〜`+8`（定常状態の k は一つの到着の品目数に留まるので、そこが実際に踏まれる範囲）で `numRuns: 40`。3 回再実行はいずれも 7 / 7
-  - [x] 1.3 `tests/core/pending.example`：ちょうど上限・上限 +1・大量超過・空・`arrivalTime` 同値を `externalOrderId` で断つ場面・落ちた品目が `cooking`（生きた Timer の参照先）である場面
+  - [x] 1.3 `tests/core/truncate-order-items.example`（新規）：ちょうど上限・上限 +1・大量超過・空・`arrivalTime` 同値を `externalOrderId` で断つ場面・落ちた品目が `cooking`（生きた Timer の参照先）である場面
     - 実測（2026-09-08）：`tests/core/truncate-order-items.example.test.ts` に 7 件（空は同じ参照・ちょうど上限は同じ参照・上限 +1 は先頭 1 件だけ落ちる・3 倍の大量超過でも上限ちょうど・全件同着は `externalOrderId` で断つ・**集合の並びが到着順でなくても**（最も古い品目を末尾に置いても）落ちるのは古い側で残りの並びは入力のまま・**生きた Timer の参照先でも落ちる**——`orderItemOf(timer, kept)` が null になり既存の「参照先なし」経路へ落ちる）
   - [x] 1.4 **チェックポイント（実測）**：`truncateOrderItems` の費用を測る。**満杯（4096 件）の状態に単一店舗で 1000 Record を投入**し、1 回あたりの費用と総時間を記録する。design Component 1 の「即時脱出が効くのは上限に達するまで」を実測で裏づけ、受理の応答時間に対して無視できることを確かめる。**基準は「1 到着あたり p95 < 1 ms」**——下回れば現状（全整列）のまま進む。上回る場合は自動で作り替えず、**実測値（p50 / p95 / 最大 / 総時間）を添えてユーザーに諮るチェックポイントとする**（選択肢：k 件の部分選択〈`O(n)`〉へ替える／上限を下げる／そのまま受け入れる）。部分選択へ替えても「落ちる集合が入力順に依らない」ことは性質 7 が守る
-    - 実測（2026-09-08・workerd / `pnpm vitest` の `|workers|` pool）：満杯 4096 件に 1 Record = 3 品目を 1000 回投入。**1 回あたり p50 = 0.36 ms / p95 = 0.40 ms / max = 0.44 ms**、`truncateOrderItems` の総時間は 約 350 ms。`arrivalTime` がばらける場合・4 件ずつ同着・**全件同着（すべての比較が第 2 の鍵の文字列比較へ落ちる最悪）**の 3 条件で差は誤差（最悪でも p95 = 0.44 ms）。**基準 p95 < 1 ms を満たすので全整列のまま進む**（部分選択へは替えない）。注記：workerd の `performance.now()` は 1 ms 粒度なので、25 回ずつのブロックで測って 1 回あたりへ割った。計測用のテストは記録後に削除した（常設のベンチは置かない）
+    - 実測（2026-09-08・**再計測**）：満杯 4096 件に 1 Record = 3 品目を 1000 回投入。**単発の分布**は Node v26.7.0（`process.hrtime.bigint()`・ナノ秒分解能）で 1 回ずつ測った——
+      | 条件 | p50 | p95 | p99 | max | 合計 |
+      | --- | --- | --- | --- | --- | --- |
+      | `arrivalTime` ばらけ | 0.359 ms | **0.418 ms** | 0.479 ms | 0.756 ms | 361 ms |
+      | 同着 4 件ずつ | 0.343 ms | **0.393 ms** | 0.426 ms | 0.645 ms | 347 ms |
+      | 全件同着（最悪・全比較が第 2 の鍵の文字列比較へ落ちる） | 0.352 ms | **0.397 ms** | 0.432 ms | 0.570 ms | 354 ms |
+
+      **基準 p95 < 1 ms を満たすので全整列のまま進む**（部分選択へは替えない）。
+      **測り方の注記（レビュー反映）：** 当初は workerd（`|workers|` pool）で 25 回ずつのブロックを測って割ったが、それは「25 回平均の分布」であって単一到着の p95 / max ではなく、基準を立証できていなかった。workerd の `performance.now()` は 1 ms 粒度なので単発分布が取れないため、単発は上表のとおり Node の高分解能時計で測り直した。**runtime が違う点は、workerd 側の総時間（1000 回で 350 / 347 / 363 ms）が Node の合計（361 / 347 / 354 ms）と誤差の範囲で一致することで裏づける**——同じ V8 上の純粋な CPU 仕事であり、両者の総量が合う以上、単発分布も同等とみなす。
+      計測用のコードはいずれも記録後に削除した（常設のベンチは置かない）
   - _Requirements: 1.1〜1.6, 5.1〜5.7_
 
 - [ ] 2. engine：`upsertOrder` の出口

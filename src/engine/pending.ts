@@ -1,4 +1,5 @@
-// engine/pending.ts — Order_Item 集合の 2 つの変換（到着の upsert・注文単位の除去）と集合の同一性。
+// engine/pending.ts — Order_Item 集合の 3 つの変換（到着の upsert・注文単位の除去・上限による truncation）と
+// 集合の同一性、および件数の上限（ORDER_ITEM_LIMIT）。
 // cloudflare:workers にも storage にも触れない純粋モジュール。
 //
 // 到着の意味論は **upsert ひとつ**で足りる。同一 External_Order_Id の再送は冪等（AC 1.3）であり、
@@ -10,9 +11,10 @@
 // 「生きた Timer を持つ品目は置換の結果から除く」規則は撤去した。前者は品目を事実として残すモデルと相容れず、後者は
 // A を調理中に同じ注文 {A, B} が再送されるだけで正本が {B} に置き換わり、A の参照先が消える（判断 8）。
 //
-// 2 つの関数はいずれも「変わらないなら入力の配列インスタンスをそのまま返す」。settle の確定結果の
-// 同一性判定が空振りの Persist / Broadcast を落とす前段として、ここで no-op を構造的に見えるように
-// しておく（呼び出し側が差分を再計算しなくても === で分かる）。
+// 3 つの変換はいずれも「変わらないなら**引数として受け取った配列インスタンスそのもの**を返す」——`upsertOrder` は
+// 結果が現在の集合と同一なら `items`、`removeOrder` は除く対象が無ければ `items`、`truncateOrderItems` は
+// 上限以下なら `items`。settle の確定結果の同一性判定が空振りの Persist / Broadcast を落とす前段として、
+// ここで no-op を構造的に見えるようにしておく（呼び出し側が差分を再計算しなくても === で分かる）。
 
 import {
   compareArrival,

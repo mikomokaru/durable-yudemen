@@ -36,6 +36,24 @@ const genOverLimit = genUniqueOrderItems({
 const keysOf = (items: readonly OrderItem[]): ReadonlySet<ItemKey> =>
   new Set(items.map((item) => itemKeyOf(item)));
 
+/**
+ * SUT を呼び、**入力が一切変わっていないこと**を毎回検査してから結果を返す（AC 1.2）。
+ *
+ * 期待値を「呼び出し**後**の `items`」から組んではならない——実装が入力を in-place で整列しても、
+ * 期待値も同じ順に並び替わって一致してしまう（実際、`[...items].sort` を `items.sort` にした変異体は
+ * この関門を入れる前の 7 件をすべて通過した）。ゆえに呼び出し前に要素の参照列を控え、
+ * 呼び出し後に長さ・各位置の**参照の同一性**を突き合わせる。
+ */
+function truncateGuarded(items: readonly OrderItem[]): readonly OrderItem[] {
+  const before = [...items];
+  const result = truncateOrderItems(items);
+  expect(items.length).toBe(before.length);
+  items.forEach((item, index) => {
+    expect(item).toBe(before[index]);
+  });
+  return result;
+}
+
 /** 上限超過の帯は 1 件が 4KiB 超の配列ゆえ runs を絞る（k の範囲は 8 通りしかない）。 */
 const OVER = { numRuns: 40 };
 
@@ -43,7 +61,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
   it("5.1 有界：どの入力でも結果は ORDER_ITEM_LIMIT 以下", () => {
     fc.assert(
       fc.property(fc.oneof(genUnderLimit, genOverLimit), (items) => {
-        expect(truncateOrderItems(items).length).toBeLessThanOrEqual(ORDER_ITEM_LIMIT);
+        expect(truncateGuarded(items).length).toBeLessThanOrEqual(ORDER_ITEM_LIMIT);
       }),
       OVER,
     );
@@ -52,8 +70,8 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
   it("5.2 冪等：二度当てても一度と同じ", () => {
     fc.assert(
       fc.property(genOverLimit, (items) => {
-        const once = truncateOrderItems(items);
-        expect(truncateOrderItems(once)).toBe(once);
+        const once = truncateGuarded(items);
+        expect(truncateGuarded(once)).toBe(once);
       }),
       OVER,
     );
@@ -62,7 +80,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
   it("5.3 部分集合：要素の内容を変えず、入力に在るものだけを返す", () => {
     fc.assert(
       fc.property(genOverLimit, (items) => {
-        const kept = truncateOrderItems(items);
+        const kept = truncateGuarded(items);
         const source = new Map(items.map((item) => [itemKeyOf(item), item] as const));
         for (const item of kept) expect(source.get(itemKeyOf(item))).toBe(item);
         expect(new Set(kept.map((item) => itemKeyOf(item))).size).toBe(kept.length);
@@ -74,9 +92,11 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
   it("5.4 並び保存：生き残った品目の相対順序は入力のまま", () => {
     fc.assert(
       fc.property(genOverLimit, (items) => {
-        const kept = truncateOrderItems(items);
+        // 期待値は呼び出し**前**の並びから組む（呼び出し後の items から組めば in-place 整列を見逃す）。
+        const before = [...items];
+        const kept = truncateGuarded(items);
         const keys = keysOf(kept);
-        expect(kept).toEqual(items.filter((item) => keys.has(itemKeyOf(item))));
+        expect(kept).toEqual(before.filter((item) => keys.has(itemKeyOf(item))));
       }),
       OVER,
     );
@@ -85,7 +105,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
   it("5.5 恒等：上限以下なら入力と同じ参照", () => {
     fc.assert(
       fc.property(genUnderLimit, (items) => {
-        expect(truncateOrderItems(items)).toBe(items);
+        expect(truncateGuarded(items)).toBe(items);
       }),
       OVER,
     );
@@ -94,10 +114,11 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
   it("5.6 落ちるのは最も古い k 件：落ちた品目はいずれも残った品目のすべてより真に古い", () => {
     fc.assert(
       fc.property(genOverLimit, (items) => {
-        const kept = truncateOrderItems(items);
+        const before = [...items];
+        const kept = truncateGuarded(items);
         const keys = keysOf(kept);
-        const dropped = items.filter((item) => !keys.has(itemKeyOf(item)));
-        expect(dropped.length).toBe(items.length - ORDER_ITEM_LIMIT);
+        const dropped = before.filter((item) => !keys.has(itemKeyOf(item)));
+        expect(dropped.length).toBe(before.length - ORDER_ITEM_LIMIT);
         for (const gone of dropped) {
           for (const stay of kept) expect(compareArrival(gone, stay)).toBeLessThan(0);
         }
@@ -109,8 +130,8 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
   it("5.7 決定性：入力の並びを変えても落ちる集合は同じ（鍵が一意な入力に対して）", () => {
     fc.assert(
       fc.property(genOverLimit, fc.integer({ min: 0, max: 0x7fff_ffff }), (items, seed) => {
-        const kept = keysOf(truncateOrderItems(items));
-        const reordered = keysOf(truncateOrderItems(shuffleBySeed(items, seed)));
+        const kept = keysOf(truncateGuarded(items));
+        const reordered = keysOf(truncateGuarded(shuffleBySeed(items, seed)));
         expect([...reordered].sort()).toEqual([...kept].sort());
       }),
       OVER,
