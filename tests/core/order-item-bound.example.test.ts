@@ -22,11 +22,12 @@ import { decide } from "../../src/engine/decide";
 import { migrate } from "../../src/engine/migrate";
 import { fromSnapshot, toSnapshot } from "../../src/engine/snapshot";
 import { ORDER_ITEM_LIMIT } from "../../src/engine/pending";
+import { isStale, planTargets, tableKeyOf } from "../../src/engine/schedule";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Event } from "../../src/engine/event";
 import type { CookSchedule } from "../../src/engine/schedule";
 import type { EpochMillis, SlotId, TimerId } from "../../src/engine/types";
-import type { OrderItem } from "../../src/domain/order";
+import { pendingOrders, type OrderItem } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_UNIT_COUNT,
@@ -69,31 +70,42 @@ function arrival(index: number, arrivalTime: number): OrderItem {
   };
 }
 
-/** いま Timer に塞がれていない釜のうち最小のもの。無ければ null（開始を試みない）。 */
-function freeSlot(state: TimerState): SlotId | null {
+/** いま Timer に塞がれていない釜（番号の小さい順）。 */
+function freeSlots(state: TimerState): readonly SlotId[] {
   const occupied = occupiedSlotsOf(state.timers);
+  const free: SlotId[] = [];
   for (let slot = 0; slot < SLOT_COUNT; slot++) {
-    if (!occupied.has(slot)) return String(slot) as SlotId;
+    if (!occupied.has(slot)) free.push(String(slot) as SlotId);
   }
-  return null;
+  return free;
 }
 
-/** 品目 1 件を空き釜へ今から置く外部計画（形として妥当な CookSchedule）。 */
-function planFor(item: OrderItem, slotId: SlotId, now: EpochMillis): CookSchedule {
+/**
+ * 一つの卓の**計画対象の全件**を空き釜へ今から置く外部計画。
+ *
+ * **卓の全件でなければならない**——`isStale` は「一片の配置集合＝その卓の計画対象」を要求するので、
+ * 1 件だけを置く一片は同じ卓に他の対象が在れば必ず失効する（採否を語る前に土俵に乗らない）。
+ * 対象は `planTargets`（到着順の先頭 `PLAN_TARGET_LIMIT` 件）から採り、卓の括りは `tableKeyOf` に従う
+ * ——「計画対象とは何か」「卓の鍵とは何か」を、ここで書き直さずに engine の正本から引く。
+ */
+function planForTable(
+  members: readonly OrderItem[],
+  tableKey: string,
+  slots: readonly SlotId[],
+  now: EpochMillis,
+): CookSchedule {
   return {
     slices: [
       {
-        tableKey: item.tableId ?? item.externalOrderId,
-        placements: [
-          {
-            externalOrderId: item.externalOrderId,
-            itemIndex: item.itemIndex,
-            slotIds: nonEmpty([slotId]),
-            startAt: now,
-            serveAt: (now + 60_000) as EpochMillis,
-            anchor: null,
-          },
-        ],
+        tableKey,
+        placements: members.map((item, index) => ({
+          externalOrderId: item.externalOrderId,
+          itemIndex: item.itemIndex,
+          slotIds: nonEmpty([slots[index]!]),
+          startAt: now,
+          serveAt: (now + 60_000) as EpochMillis,
+          anchor: null,
+        })),
       },
     ],
   };
@@ -105,6 +117,7 @@ describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
     let state: TimerState = EMPTY_STATE;
     let timerSeq = 0;
     let issued = 0;
+    let nonStalePlans = 0;
 
     /** 上限の検査点はここ一つ。`decide` と hydration の**直後**に必ず通る。 */
     function expectBounded(next: TimerState, whence: string) {
@@ -150,9 +163,10 @@ describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
 
       // 2. ときどき開始する。**空き釜と未調理の品目が在るときだけ**——無い状態で送れば正当に拒否され、
       //    それは本テストの主張（上限）とは別の話である。対象は最も新しい品目（忘却で消えない側）。
-      const slot = freeSlot(state);
-      const startable = state.orderItems.at(-1);
-      if (round % 7 === 0 && slot !== null && startable !== undefined) {
+      const slot = freeSlots(state)[0];
+      // 「未調理」は `pendingOrders`（期限内 ∧ unstarted）が正本。ここで書き直さない。
+      const startable = pendingOrders(state.orderItems, state.timers, now).at(-1);
+      if (round % 7 === 0 && slot !== undefined && startable !== undefined) {
         step({
           type: "StartOrderItem",
           slotIds: [slot],
@@ -184,22 +198,27 @@ describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
         step({ type: "OrderCancelled", externalOrderId: existing.externalOrderId, now });
       }
 
-      // 5. 外部計画の受領（Requirement 5.9 の「外部計画の受領」）。**計画対象は到着順の先頭
-      //    PLAN_TARGET_LIMIT 件**なので、最も新しい品目を指す計画は必ず失効する（isStale）——
-      //    採用されうる計画にするには、先頭側の未調理の品目を指さなければならない。
-      const planSlot = freeSlot(state);
-      const planTarget = state.orderItems.find(
-        (item) =>
-          item.completedAt === null &&
-          !state.timers.some(
-            (timer) =>
-              timer.orderItem !== null &&
-              timer.orderItem.externalOrderId === item.externalOrderId &&
-              timer.orderItem.itemIndex === item.itemIndex,
-          ),
-      );
-      if (round % 3 === 0 && planSlot !== null && planTarget !== undefined) {
-        step({ type: "PlanArrived", plan: planFor(planTarget, planSlot, now), now });
+      // 5. 外部計画の受領（Requirement 5.9 の「外部計画の受領」）。engine の正本から組む——
+      //    計画対象は `planTargets`、卓の括りは `tableKeyOf`、一片はその卓の**全件**（非 stale の条件）。
+      const targets = planTargets(pendingOrders(state.orderItems, state.timers, now), now);
+      const planTable = targets[0] === undefined ? null : tableKeyOf(targets[0]);
+      const members =
+        planTable === null ? [] : targets.filter((item) => tableKeyOf(item) === planTable);
+      const planSlots = freeSlots(state);
+      if (
+        round % 3 === 0 &&
+        planTable !== null &&
+        members.length > 0 &&
+        planSlots.length >= members.length
+      ) {
+        const plan = planForTable(members, planTable, planSlots, now);
+        // **届ける計画が非 stale であることを検証してから送る。** stale な計画は採否を語る前に土俵から
+        // 落ちるので、それを送っていては「受領の遷移を踏んだ」以上のことを主張できない。
+        expect(isStale(plan.slices[0]!, targets), "届ける一片が stale では検査にならない").toBe(
+          false,
+        );
+        nonStalePlans++;
+        step({ type: "PlanArrived", plan, now });
       }
 
       // 6. ときどき hydration を挟む。
@@ -212,10 +231,7 @@ describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
     }
     // 十分に投入したので、終状態は上限に張り付いている（上限の経路を実際に踏んだ証拠）。
     expect(state.orderItems.length).toBe(ORDER_ITEM_LIMIT);
-    // **採用（Acceptance_Gate の通過）はこの場面では起きない**（実測 0 件）。1 placement の計画は
-    // 64 件の計画対象に対する自前解に総費用で勝てないためで、それは正しい振る舞いである。採用そのものは
-    // `admit.example` / `decide-quadruple.property` が守る。採用は `acceptedSlices` を差し替えるだけで
-    // `orderItems` には触れない（`plan.ts` の `moved`）ので、本テストが主張する件数の有界性には関与しない。
-    // ここで `PlanArrived` を踏むのは、受領という遷移そのものが上限を壊さないことを見るためである。
+    // 非 stale な一片を実際に届けたこと（stale で素通りしていないことの証拠）。
+    expect(nonStalePlans).toBeGreaterThan(0);
   });
 });
