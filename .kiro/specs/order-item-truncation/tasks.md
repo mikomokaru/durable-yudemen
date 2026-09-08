@@ -46,9 +46,11 @@
     - 実測（2026-09-08）：重複の 2 件をいずれも**最も古い側**に置いた入力で固定した（上限を当てれば片方あるいは両方が落ちて一意になりうる形）。**一意性を上限の後ろに移した変異体**を当てると、27 件のうちこの 1 件だけが落ちる——順序そのものを検査できていることの確認
   - _Requirements: 2.2, 4.1, 4.2, 4.5_
 
-- [ ] 4. 閉包性と有界性
-  - [ ] 4.1 `tests/core/order-item-bound.property`（新規）：性質 8（件数の非増加）。`upsertOrder` / `migrate` の出力は `ORDER_ITEM_LIMIT` 以下、`complete` / `cancel` / `fromSnapshot` / `toSnapshot` は入力と同数、`removeOrder` は入力以下、`EMPTY_STATE` は 0——**変換ごとに独立して**検査する。`pending.property` と分けるのは、対象が `pending.ts` に閉じず跨るためで、「どの変換が件数をどう動かすか」の一覧をここ一箇所で読めるようにする
-  - [ ] 4.2 `tests/core/continuous-input.example` と同形の harness：性質 9（状態の有界性）。到着・開始・完了・キャンセル・後着・外部計画の受領・hydration を任意の系列で与えて `orderItems.length ≤ ORDER_ITEM_LIMIT` を保つ。**性質 8 は現在の変換の列挙であって網羅ではない**（design の既知の限界）ので、これが二重の網になる
+- [x] 4. 閉包性と有界性
+  - [x] 4.1 `tests/core/order-item-bound.property`（新規）：性質 8（件数の非増加）。`upsertOrder` / `migrate` の出力は `ORDER_ITEM_LIMIT` 以下、`complete` / `cancel` / `fromSnapshot` / `toSnapshot` は入力と同数、`removeOrder` は入力以下、`EMPTY_STATE` は 0——**変換ごとに独立して**検査する。`pending.property` と分けるのは、対象が `pending.ts` に閉じず跨るためで、「どの変換が件数をどう動かすか」の一覧をここ一箇所で読めるようにする
+    - 実測（2026-09-08）：`tests/core/order-item-bound.property.test.ts` に 8 件。(a)(b) `upsertOrder` と `migrate` の出力が上限以下、(c) `removeOrder` は入力以下・`completeTimer` / `cancelTimer` / `toSnapshot` / `fromSnapshot` は同数・`truncateOrderItems` は入力以下かつ上限以下、(d) `EMPTY_STATE` は 0 件。**両帯（上限より小さい集合と上限ちょうど〜+4 の集合）を各 run で必ず検査する** `forBothBands` を置いた——`fc.oneof` で 1 つ選ぶ形にすると帯が抽選任せになり、「上限をまたいで成り立つ」が確率的にしか裏づけられない（同じ穴を migrate.property の重複 property で踏んだ）。帯の主張自体も `expect(small.length).toBeLessThan(...)` / `expect(large.length).toBeGreaterThanOrEqual(...)` で自己検証させている。`numRuns: 25`。変異体で確認：`upsertOrder` の truncate を外すと (a)(b) が落ちる
+  - [x] 4.2 `tests/core/continuous-input.example` と同形の harness：性質 9（状態の有界性）。到着・開始・完了・キャンセル・後着・外部計画の受領・hydration を任意の系列で与えて `orderItems.length ≤ ORDER_ITEM_LIMIT` を保つ。**性質 8 は現在の変換の列挙であって網羅ではない**（design の既知の限界）ので、これが二重の網になる
+    - 実測（2026-09-08）：`tests/core/order-item-bound.example.test.ts` に 1 件。`decide` という公開の口だけを通し、到着（毎回）・`StartOrderItem`・`Complete`・`Cancel`・後着・`OrderCancelled`・hydration（`toSnapshot` → `migrate` → `fromSnapshot`）を混ぜて `ORDER_ITEM_LIMIT * 2 + 50` 件ぶん投入し、**各遷移のあとに毎回**上限以下を検査する。終状態が上限ちょうど（4096）であることも主張して、上限の経路を実際に踏んだ証拠にした。**到着は 1 遷移に 64 件ずつまとめる**——1 品ずつだと遷移が 8000 回を超え、1 遷移 25〜40 ms（実測）なので数分に伸びる。検査したいのは遷移の細かさではなく「何度通しても件数が上限を超えない」ことである。所要 8.0 秒。変異体で確認：`upsertOrder` の truncate を外すと `expected 4156 to be less than or equal to 4096` で落ちる
   - _Requirements: 2.4, 5.8, 5.9_
 
 - [ ] 5. 忘れることの帰結（新しいコードは無い・既存の経路に落ちることの固定）

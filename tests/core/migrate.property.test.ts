@@ -1,9 +1,8 @@
 // tests/core/migrate.property.test.ts — migrate と永続境界の Property。
-//   yude-men-timer Property 13: version 不整合・移行失敗で元データ不変。
-//   pos-order-ingress Property 12: 移行は既存の挙動を保つ（v7 → v8 の欠如の埋め方）。
-//   synchronized-boil-adjustment: 現行 snapshot 往復で符号付き Adjustment を保存。
-//   order-lifecycle Requirement 6.1 / 性質 7.9: v12 → v13 は品目を落とさず往復は同一。
-//   order-item-truncation Requirement 4: 鍵が一意な上限超過は成功して上限以下・鍵の重複は移行失敗。
+//
+// **どの spec のどの面を守るかは、各 describe の見出しが正本である。** ここに一覧を写さないのは、
+// 版が上がるたびに面が増える場所であり、写しは必ず古くなるからである（実際、v9 → v12 の 3 面が
+// 抜けたまま「3 つの Property」と名乗っていた）。ファイル全体に共通する前提だけをここに書く。
 //
 // **品目集合を組む生成器は鍵一意（`fc.uniqueArray(..., { selector: itemKeyOf })`）である。** 重複鍵は
 // `MigrationFailed` になる契約（order-item-truncation AC 4.5）なので、移行の成功を要求する面に重複を
