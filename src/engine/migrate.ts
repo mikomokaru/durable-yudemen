@@ -9,6 +9,7 @@ import { isNonNegativeInteger, toDeclaredName } from "../domain/predicate";
 import { CURRENT_SCHEMA_VERSION } from "../engine/types";
 import type { EpochMillis, SlotId, NoodleType, TimerId } from "../engine/types";
 import { EMPTY_STATE } from "./state";
+import { truncateOrderItems } from "./pending";
 import { createTimer } from "./timer";
 import type { Ordered, Timer } from "./timer";
 import type { ShellFailure } from "./rejection";
@@ -17,7 +18,7 @@ import { toSnapshot } from "./snapshot";
 import type { AcceptedSlice, Placement } from "./schedule";
 import type { InputDigest } from "./digest";
 import type { ShownItem, ShownPlan } from "./stability";
-import type { OrderItem } from "../domain/order";
+import { itemKeyOf, type OrderItem } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness, type Firmness } from "../domain/firmness";
@@ -90,7 +91,10 @@ export function migrate(raw: unknown): MigrationOutcome {
       version: CURRENT_SCHEMA_VERSION,
       timers,
       nextSeq,
-      orderItems,
+      // 上限を当てるのはここ（order-item-truncation AC 2.2 / 4.2）。検証（解釈できるか・reviveOrderItems）と
+      // 上限（どれだけ保つか）は別の問いなので、同じ関数に混ぜない。**件数の超過それ自体は移行失敗にしない**
+      // ——超過は移行が直せる欠陥である。一意性を通過した値にだけ当たることが順序として効く。
+      orderItems: truncateOrderItems(orderItems),
       acceptedSlices,
       // 指紋は「直前に要求した時点の値」でしかなく、失えば次の状態変化で 1 回余分に要求が出るだけ。
       // 壊れた値を移行失敗にする代償（店舗が起動しない）に見合わないため null へ畳む。
@@ -178,6 +182,10 @@ function reviveLastSequenceByTerminal(value: unknown): Readonly<Record<string, s
 /**
  * Order_Item 集合として解釈する（v7 で追加・v13 で `orderItems` に読み替え）。
  * - 欠如 / null（v6 以前は待ち行列を持たない）→ 空集合。POS 連携前の稼働店に注文品目は存在しない。
+ * 順序が効く（order-item-truncation Requirement 4）。**(1) 全要素の形を復元 → (2) 復元後の全件について鍵の
+ * 一意性を検査 → (3) 重複なら部分受理せず移行失敗**。上限（`truncateOrderItems`）は一意性を通過した値にだけ、
+ * 呼び出し側が当てる。逆順にすれば「上限が重複の片割れを偶然消して、不正値がそのまま状態へ入る」経路が開く。
+ *
  * - 配列 → 全要素を検証して写す。**一件でも形を満たさなければ全体を移行失敗**（null）。
  *   reviveTimers と同じ規律であり、domain の toOrderItems が部分受理を許さないのと同じ理由——
  *   不正要素を落とせば「注文の一部だけが待ち行列に在る」嘘が生まれ、現場が欠品に気づけない。**v13 でも個別に
@@ -194,6 +202,12 @@ function reviveOrderItems(value: unknown): readonly OrderItem[] | null {
     if (item === null) return null;
     items.push(item);
   }
+  // 鍵の一意性（order-item-truncation AC 4.5）。engine が作る集合に重複は生じない——`upsertOrder` は
+  // `itemKeyOf` を鍵に upsert し、一つの到着の中の重複は `arrivalsOf` の Map が畳む——ので、これは
+  // 壊れた永続値を弾く関門である。**個別に捨てない**：重複した品目を落とせば、`completedAt` を持つ側が
+  // 消えて「完了済みの品目が POS の再送で未調理として復活する」既知の害（order-lifecycle レビュー P2）に触れる。
+  const keys = new Set(items.map((item) => itemKeyOf(item)));
+  if (keys.size !== items.length) return null;
   return items;
 }
 

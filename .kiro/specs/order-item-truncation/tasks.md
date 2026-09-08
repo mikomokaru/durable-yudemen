@@ -33,11 +33,15 @@
     - 実測（2026-09-08）：`tests/core/receive.example.test.ts` に 1 件。満杯の集合へ、そのどれよりも古い `arrivalTime` の別注文が届く場面——`orderItems` は**同一インスタンスのまま**（届いた品目がそのまま落ちた）だが、`lastSequenceByTerminal` は `SEQ_2` へ進み、`Persist` が 1 件立つ。既存の「翻訳結果 0 件かつ既存なし」（AC 6.12）と同じ形の主張であり、忘却がその経路を壊さないことを示す。実装前に赤であることを確認した
   - _Requirements: 2.1, 2.3, 3.3, 4.4_
 
-- [ ] 3. engine：`migrate`
-  - [ ] 3.1 `src/engine/migrate.ts`：`reviveOrderItems` に**鍵の一意性の検査**を足す（要素をすべて写した後に `itemKeyOf` の集合の大きさを比べ、重複が在れば `null` ＝ `MigrationFailed`）。個別に捨てない
-  - [ ] 3.2 `src/engine/migrate.ts`：`snapshot` を組む場所で `orderItems: truncateOrderItems(orderItems)`。検証（解釈できるか）と上限（どれだけ保つか）を同じ関数に混ぜない。`./pending` の import を足す（`pending.ts` の import は `../domain/order` / `../domain/timer` / `./timer` だけなので循環しない）
-  - [ ] 3.3 `tests/core/migrate.example` / `migrate.property`：上限超過の v13 が**成功して**上限を当てた集合で復元されること（件数の超過は移行失敗の事由ではない）、鍵の重複が `MigrationFailed` になること、形の不正が従来どおり失敗すること
-  - [ ] 3.4 `tests/core/migrate.example`：**「上限超過 **かつ** 鍵の重複あり」の永続値は、truncate が重複の片割れを落としうる場合でも先に `MigrationFailed` になる**（検証が上限より前にあることの回帰。順序が逆なら、重複が偶然落ちた入力だけ通って壊れた値が状態へ入る）
+- [x] 3. engine：`migrate`
+  - [x] 3.1 `src/engine/migrate.ts`：`reviveOrderItems` に**鍵の一意性の検査**を足す（要素をすべて写した後に `itemKeyOf` の集合の大きさを比べ、重複が在れば `null` ＝ `MigrationFailed`）。個別に捨てない
+    - 実測（2026-09-08）：**順序をユーザー確定のとおりに置いた**——(1) 全要素の形を復元 → (2) 復元後の全件に`itemKeyOf` の集合の大きさで一意性を検査 → (3) 重複なら部分受理せず `null` → (4) 通過した値にだけ呼び出し側が上限を当てる。`reviveOrderItems` の doc にこの順序と「逆順にすれば上限が重複の片割れを偶然消して不正値が状態へ入る」を書いた
+  - [x] 3.2 `src/engine/migrate.ts`：`snapshot` を組む場所で `orderItems: truncateOrderItems(orderItems)`。検証（解釈できるか）と上限（どれだけ保つか）を同じ関数に混ぜない。`./pending` の import を足す（`pending.ts` の import は `../domain/order` / `../domain/timer` / `./timer` だけなので循環しない）
+    - 実測（2026-09-08）：`snapshot` の構築で `orderItems: truncateOrderItems(orderItems)`。`./pending` の import を足しても循環しないことを `pnpm typecheck` で確認。`itemKeyOf` を `../domain/order` のimport に加えた（型だけの import が値の import になる）
+  - [x] 3.3 `tests/core/migrate.example` / `migrate.property`：上限超過の v13 が**成功して**上限を当てた集合で復元されること（件数の超過は移行失敗の事由ではない）、鍵の重複が `MigrationFailed` になること、形の不正が従来どおり失敗すること
+    - 実測（2026-09-08）：`tests/core/migrate.example.test.ts` に 4 件（上限 +5 の v13 は**成功**して上限ちょうどで復元され最も古い 5 件が落ちる・鍵の重複は `MigrationFailed`・**上限超過かつ重複あり**も `MigrationFailed`・形の不正は従来どおり失敗）。前 3 件は実装前に赤、4 件目は既存の規律で最初から緑
+  - [x] 3.4 `tests/core/migrate.example`：**「上限超過 **かつ** 鍵の重複あり」の永続値は、truncate が重複の片割れを落としうる場合でも先に `MigrationFailed` になる**（検証が上限より前にあることの回帰。順序が逆なら、重複が偶然落ちた入力だけ通って壊れた値が状態へ入る）
+    - 実測（2026-09-08）：重複の 2 件をいずれも**最も古い側**に置いた入力で固定した（上限を当てれば片方あるいは両方が落ちて一意になりうる形）。**一意性を上限の後ろに移した変異体**を当てると、27 件のうちこの 1 件だけが落ちる——順序そのものを検査できていることの確認
   - _Requirements: 2.2, 4.1, 4.2, 4.5_
 
 - [ ] 4. 閉包性と有界性
