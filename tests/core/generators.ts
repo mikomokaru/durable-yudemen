@@ -14,6 +14,7 @@ import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/
 import type { Firmness } from "../../src/domain/firmness";
 import type { Timer } from "../../src/engine/timer";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
+import type { OrderItem } from "../../src/domain/order";
 import { nonEmpty } from "../nonEmpty";
 
 /** 一件の Timer を組み立てるための素データ（id・seq はビルド時に決定的に付与する）。 */
@@ -104,3 +105,61 @@ export const genStateAndNow: fc.Arbitrary<{ state: TimerState; now: EpochMillis 
 export const genNow: fc.Arbitrary<EpochMillis> = fc
   .integer({ min: 0, max: 5_000_000 })
   .map((n) => n as EpochMillis);
+
+/**
+ * 鍵が一意な `OrderItem` 列（`truncateOrderItems` の事前条件・order-item-truncation AC 1.6）。
+ *
+ * 素データは 3 つだけ——長さ・同着の連（`tieRun`）・並びの置換（`seed`）。品目そのものは添字から
+ * 決定的に組む：`arrivalTime` は `floor(i / tieRun)`、`externalOrderId` は 0 詰めの `floor(i / 3)`、
+ * `itemIndex` は `i % 3`。これで
+ *
+ *   1. 鍵（externalOrderId + itemIndex）は一意、
+ *   2. `compareArrival` の全順序は**添字の順に一致する**（同着の連の中は第 2・第 3 の鍵で断たれ、
+ *      0 詰めゆえ符号単位順が数値順に一致する）、
+ *   3. `tieRun > 1` の場面が必ず混ざるので、第 1 の鍵だけでは断てない入力を毎回踏む、
+ *
+ * が同時に成り立つ。「i 番目が i 番目に古い」と言い切れるので、落ちる集合を添字で主張できる。
+ * 入力の並びは `seed` で置換する——**落ちる集合が入力順に依らない**（性質 5.7）を検査するには、
+ * 生成器が並びを揺らしていなければならない。
+ */
+export function genUniqueOrderItems(range: {
+  readonly minLength: number;
+  readonly maxLength: number;
+}): fc.Arbitrary<readonly OrderItem[]> {
+  return fc
+    .record({
+      length: fc.integer({ min: range.minLength, max: range.maxLength }),
+      tieRun: fc.integer({ min: 1, max: 4 }),
+      seed: fc.integer({ min: 0, max: 0x7fff_ffff }),
+    })
+    .map(({ length, tieRun, seed }) => shuffleBySeed(uniqueOrderItems(length, tieRun), seed));
+}
+
+/** 添字から決定的に組んだ品目列（添字の順 ＝ compareArrival の順）。 */
+export function uniqueOrderItems(length: number, tieRun = 1): readonly OrderItem[] {
+  return Array.from({ length }, (_unused, index) => ({
+    externalOrderId: `o-${String(Math.floor(index / 3)).padStart(6, "0")}`,
+    itemIndex: index % 3,
+    noodleType: "thin",
+    firmness: "normal" as Firmness,
+    tableId: null,
+    arrivalTime: Math.floor(index / tieRun) * 1000,
+    slotSpan: 1,
+    itemName: null,
+    sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
+  }));
+}
+
+/** 決定的な置換（線形合同法）。テストの入力の並びを揺らすためだけに使う。 */
+export function shuffleBySeed<T>(items: readonly T[], seed: number): readonly T[] {
+  const shuffled = [...items];
+  let state = seed + 1;
+  for (let index = shuffled.length - 1; index > 0; index--) {
+    state = (state * 1_103_515_245 + 12_345) % 2_147_483_648;
+    const pick = state % (index + 1);
+    [shuffled[index], shuffled[pick]] = [shuffled[pick]!, shuffled[index]!];
+  }
+  return shuffled;
+}

@@ -14,9 +14,61 @@
 // 同一性判定が空振りの Persist / Broadcast を落とす前段として、ここで no-op を構造的に見えるように
 // しておく（呼び出し側が差分を再計算しなくても === で分かる）。
 
-import { itemKeyOf, itemStatusOf, type ItemKey, type OrderItem } from "../domain/order";
+import {
+  compareArrival,
+  itemKeyOf,
+  itemStatusOf,
+  type ItemKey,
+  type OrderItem,
+} from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { Timer } from "./timer";
+
+/**
+ * Order_Item_Limit — 正本（`TimerState.orderItems`）が持てる品目の件数の上限（order-item-truncation AC 1.5）。
+ *
+ * 4096。永続の値の上限（SQLite バックエンドで key + value 合わせて 2 MB）に対し、代表的な品目 279 バイトで
+ * 1.09 MB、長めの商品名（400 バイト）でも 1.56 MB に収まる最大の 2 冪である。`MAX_TIMERS`（100）と同じ立場の
+ * 定数で、店舗設定・ワイヤ・環境変数のいずれからも読まない。
+ *
+ * **件数はバイト数の厳密な上界ではない。** `itemName` / `sizeName` / `externalOrderId` は長さを検証しない
+ * （`toDeclaredName` は「空でない文字列か」だけを見る）ので、1 件あたりのバイト数に上限は無い。ここが与えるのは
+ * 「代表的な入力で桁が変わらない」ことであって、`put` が必ず通る保証ではない（ADR-0014）。
+ */
+export const ORDER_ITEM_LIMIT = 4096;
+
+/**
+ * Truncation — 上限を超えた分を、`compareArrival` の古い順に落とす（order-item-truncation Requirement 1）。
+ *
+ * **`now` も Timer も設定も受けない。** 期限（`isLive`・読む側の述語）が `now` から導く関心であるのに対し、
+ * 保持は正本そのものの性質である。同じ「古いものを外す」でも軸が違うので、入力を分けることで混ざらないようにする。
+ *
+ * 何も守らない——`cooking`（生きた Timer の参照先）も落ちうる（判断 3）。守る述語を一つ入れれば「上限を超えて
+ * いるのに落とせない」場面が生まれ、上限が上限でなくなる。落ちた参照先は既に在る「参照先なし」の経路
+ * （`orderItemOf` が null）へ落ちるだけで、新しい経路も新しい拒否事由も要らない。
+ *
+ * 手順は 2 段。**選定にだけ全順序を使い、残る品目の相対順序は入力のまま**（判断 5）——並べ替えれば内容の同じ
+ * 再送が差分に見えて空振りの `Persist` / `Broadcast` を呼ぶ（`upsertOrder` が位置を保つのと同じ理由）。
+ *
+ * `compareArrival` が全順序になるのは**鍵が一意なとき**に限る（AC 1.6）。それが本関数の事前条件であり、
+ * engine 側では成立している（`upsertOrder` は `itemKeyOf` を鍵に upsert し、一つの到着の中の重複は
+ * `arrivalsOf` の Map が畳む）。破れうるのは永続からの復元だけなので、関門は `migrate` に置く。
+ *
+ * 上限以下なら**入力と同じ配列を返す**（`liveOrders` と同じ理由・参照同値で空振りの差分を作らない）。
+ * ただし**この即時脱出が効くのは上限に達するまでの間だけである**——満杯になった後は新規品目を含む
+ * あらゆる到着が上限を超えさせるので、到着のたびに整列を払う。
+ */
+export function truncateOrderItems(items: readonly OrderItem[]): readonly OrderItem[] {
+  if (items.length <= ORDER_ITEM_LIMIT) return items;
+  // 整列は入力の複製に対して行う（入力を変えない）。落とす対象は鍵の集合として持つ。
+  const dropped = new Set<ItemKey>(
+    [...items]
+      .sort(compareArrival)
+      .slice(0, items.length - ORDER_ITEM_LIMIT)
+      .map((item) => itemKeyOf(item)),
+  );
+  return items.filter((item) => !dropped.has(itemKeyOf(item)));
+}
 
 /**
  * 到着の upsert（AC 1.2 / 1.3 / 1.8・order-lifecycle Requirement 2）。
