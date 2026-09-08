@@ -23,11 +23,12 @@ import {
 } from "./lift";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
 import {
+  refersTo,
   compareArrival,
   itemKeyOf,
   liveOrders,
   type ItemKey,
-  type PendingOrder,
+  type OrderItem,
 } from "../domain/order";
 import { slotDistance, slotOf, type NoodlePreset } from "../domain/store";
 import { boilMillisOf, joinWindowMillis } from "./boil";
@@ -47,7 +48,7 @@ export { tableKeyOf } from "./project";
 /**
  * Placement — 1 品目の配置。engine 内部形。
  *
- * 品目は (externalOrderId, itemIndex) で指す（PendingOrder を丸ごと抱えない。麺種・卓・到着時刻は
+ * 品目は (externalOrderId, itemIndex) で指す（OrderItem を丸ごと抱えない。麺種・卓・到着時刻は
  * Pending_Order 集合が正本であり、計画が写しを持てば二つの真実になる）。
  * serveAt は startAt ＋ 茹で時間の導出の中間値だが、目的関数の同時提供項がこの値の差だけを見るため
  * 計画の一片として持つ（呼び出し側が茹で時間表を引き直さずに採点できる）。
@@ -113,12 +114,12 @@ export interface AcceptedSlice extends PlanSlice {}
  *
  * **1 箇所でも不正なら全体を null へ落とす。** 部分採用は「届いた計画の一部だけを信じる」ことであり、
  * 部分和も接頭辞の順序も外部が組んだ全体の中でしか意味を持たない。AC 10.3 が全体棄却を定めているのは
- * そのためで、形は domain の `toPendingOrders` と同じ規律である——設定は不正要素を畳んで営業を続けるが、
+ * そのためで、形は domain の `toOrderItems` と同じ規律である——設定は不正要素を畳んで営業を続けるが、
  * 外部からの到着は全体で受けるか全体で捨てるかのどちらかしかない。
  *
  * **ここが SlotId / EpochMillis のブランドと slotIds の非空を確立する唯一の経路である。** engine の受け口
  * （`receivePlan`）は検証済みの `CookSchedule` ただ一つを受け、生値を知らない（plan.ts 冒頭の規律）。境界で
- * 検証して engine には検証済みの型だけを渡す既存の形（`toPendingOrders`・`parseClientMessage`）にそのまま乗る。
+ * 検証して engine には検証済みの型だけを渡す既存の形（`toOrderItems`・`parseClientMessage`）にそのまま乗る。
  *
  * **置き場所は `CookSchedule` の定義と同じここである。** 検証は「この型を名乗れる値とは何か」の宣言であり、
  * 型と離せば両者は黙ってずれる（`isNonEmpty` が `NonEmptyArray` と同居しているのと同じ判断）。
@@ -170,7 +171,7 @@ function toPlanSlice(value: unknown): PlanSlice | null {
 function toPlacement(value: unknown): Placement | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
-  // 品目を指す組の妥当性は domain/order.ts の PendingOrder と同じ（非空 id と 0 以上の整数連番）。
+  // 品目を指す組の妥当性は domain/order.ts の OrderItem と同じ（非空 id と 0 以上の整数連番）。
   if (typeof candidate.externalOrderId !== "string" || candidate.externalOrderId.length === 0)
     return null;
   if (!isInteger(candidate.itemIndex) || candidate.itemIndex < 0) return null;
@@ -282,11 +283,11 @@ export const PLAN_TARGET_LIMIT = 64;
 /**
  * 茹で時間を解決した計画対象。配置の計算に要る一切がここに揃う。
  *
- * boilMillis は startAt と serveAt を結ぶ唯一の値である。PendingOrder はこれを持たない
+ * boilMillis は startAt と serveAt を結ぶ唯一の値である。OrderItem はこれを持たない
  * （noodleType × firmness からの導出値ゆえ・domain/order.ts）ので、配置の直前に一度だけ解決する。
  */
 interface Boiling {
-  readonly order: PendingOrder;
+  readonly order: OrderItem;
   /** 茹で時間（ミリ秒）。serveAt = startAt + boilMillis。 */
   readonly boilMillis: number;
 }
@@ -294,7 +295,7 @@ interface Boiling {
 /** Table_Group ＝ 提供時刻を揃える単位。tableId を持たない品目はその品目だけの単独グループになる。 */
 interface TableGroup {
   readonly tableKey: string;
-  readonly items: readonly PendingOrder[];
+  readonly items: readonly OrderItem[];
 }
 
 /**
@@ -324,12 +325,12 @@ interface TableGroup {
  * 群を跨いで進める——先に置いた卓の上がりが後の卓の置き場所を動かす（窓は店舗全体で数える・AC 9.3）。
  *
  * **麺プリセットを引数に取る（design の署名からの追加）。** serveAt = startAt + 茹で時間 だが、茹で時間は
- * PendingOrder にも ScheduleParams にも無い。採点は serveAt が済んだ後の話ゆえ茹で時間を要さず、
+ * OrderItem にも ScheduleParams にも無い。採点は serveAt が済んだ後の話ゆえ茹で時間を要さず、
  * 要るのは計画の算出側だけである。ゆえに ScheduleParams へ混ぜず独立した引数で受ける。
  * **関数（(noodleType, firmness) => number）ではなく値（NoodlePreset の列）を採る。** 理由は 2 つ。
  * (1) この関数は決定的であることを要件が求める（AC 4.3）。引き当てを閉じた関数で受けると、任意の計算が
  * 署名から見えない形で入り込み、決定性が署名から読めなくなる。値は不活性で、整列も比較もできる。
- * (2) toPendingOrders（domain/order.ts）が同じ判断のために同じ型を受けている前例がある。
+ * (2) toOrderItems（domain/order.ts）が同じ判断のために同じ型を受けている前例がある。
  * StoreConfig 全体は渡さない——重み・許容幅・レイアウト以外の設定まで engine が引き連れることになる。
  *
  * **変更費用の文脈（`changeContext`）を引数に取る（plan-stability Requirement 3・design Component 5）。** 前回配信対象
@@ -353,7 +354,7 @@ interface TableGroup {
  * だけで、将来配置（`startAt > now`）の釜の選択は占有を直接の条件にしない（性質 4.6・判断 10）。
  */
 export function baselineSchedule(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   release: SlotRelease,
   members: TableMembers,
   lifts: LiftTable,
@@ -390,7 +391,7 @@ export function baselineSchedule(
  * 選択の結果だけからは読めない。引数は `baselineSchedule` と同じ。
  */
 export function scheduleCandidates(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   release: SlotRelease,
   members: TableMembers,
   lifts: LiftTable,
@@ -431,7 +432,7 @@ export interface CandidateStages {
 
 /** `scheduleCandidates` の 2 候補を経過つきで返す。引数は同じ。 */
 export function scheduleStages(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   release: SlotRelease,
   members: TableMembers,
   lifts: LiftTable,
@@ -464,9 +465,9 @@ export function scheduleStages(
  * 検証と再生成（`revalidate`）が同じ束を読む（位置引数の増殖を止める）。
  */
 interface Planning {
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   /** 置ける品目（`isStale` と再生成が読む集合・定義は `placeableTargets` ただ一つ）。 */
-  readonly targets: readonly PendingOrder[];
+  readonly targets: readonly OrderItem[];
   /** 採用済み接頭辞で進めた解放表（合成の尾部）か、走行中から引いた表（全体の自前解）。 */
   readonly release: SlotRelease;
   readonly lifts: LiftTable;
@@ -499,7 +500,7 @@ function seedOf(changeContext: ChangeContext | null, params: ScheduleParams): Se
 /** 「今」の品目（`startAt ≤ now` の配置と、その品目）。配分の入力。 */
 interface NowItem {
   readonly placement: Placement;
-  readonly order: PendingOrder;
+  readonly order: OrderItem;
 }
 
 /**
@@ -873,7 +874,7 @@ function reanchor(
   placements: readonly Placement[],
   release: SlotRelease,
   siblings: readonly EpochMillis[],
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): readonly Placement[] {
@@ -942,7 +943,7 @@ function retain(planning: Planning): CookSchedule {
  */
 function restoreSlices(
   shown: ShownPlan,
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
   now: EpochMillis,
   presets: readonly NoodlePreset[],
 ): readonly PlanSlice[] {
@@ -984,7 +985,7 @@ function restoreSlices(
  */
 function buildSchedule(
   planning: Planning,
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   release: SlotRelease,
   lifts: LiftTable,
   before: readonly PlanSlice[] = [],
@@ -1030,10 +1031,7 @@ function buildSchedule(
  * 確定計画の合成（commit.ts）が同じ範囲を指すために要る共有の語彙である。範囲の定義が二箇所にあれば、
  * 上限 64 件の境界で計画と判定が食い違う。
  */
-export function planTargets(
-  pending: readonly PendingOrder[],
-  now: EpochMillis,
-): readonly PendingOrder[] {
+export function planTargets(pending: readonly OrderItem[], now: EpochMillis): readonly OrderItem[] {
   return [...liveOrders(pending, now)].sort(byCanonicalOrder).slice(0, PLAN_TARGET_LIMIT);
 }
 
@@ -1057,17 +1055,17 @@ export function planTargets(
  * 置けるか」は別の問いで、要求は置けない品目もプリセットと共に外部へ運ぶ（外部は同じ規則で絞る）。
  */
 export function placeableTargets(
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   now: EpochMillis,
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
-): readonly PendingOrder[] {
+): readonly OrderItem[] {
   const cap = liftCap(params);
   return planTargets(pending, now).filter((order) => isPlaceable(order, presets, cap));
 }
 
 /** 置ける品目か——茹で時間が引け（プリセットに在る麺種）、品目単体で上げ窓の上限 `cap`（`liftCap`）に収まる。 */
-function isPlaceable(order: PendingOrder, presets: readonly NoodlePreset[], cap: number): boolean {
+function isPlaceable(order: OrderItem, presets: readonly NoodlePreset[], cap: number): boolean {
   return boilMillisOf(order, presets) !== null && order.slotSpan <= cap;
 }
 
@@ -1094,7 +1092,7 @@ function isPlaceable(order: PendingOrder, presets: readonly NoodlePreset[], cap:
  * （AC 7.3）——本数の一致と「計画対象 ⊆ 一片」の走査がそのまま両方を言う。全 Pending_Order を渡して内部で切り直すと、
  * 一片ごとに同じ整列を繰り返すうえ、呼び出し側が既に持っている範囲と別の範囲を指す余地が生まれる。
  */
-export function isStale(slice: PlanSlice, targets: readonly PendingOrder[]): boolean {
+export function isStale(slice: PlanSlice, targets: readonly OrderItem[]): boolean {
   // 品目を持たない一片は採用/棄却の単位になり得ない（baselineSchedule も空の一片を作らない）。
   if (slice.placements.length === 0) return true;
 
@@ -1179,7 +1177,7 @@ export function cannotStart(
 export function feasibleRelease(
   placements: readonly Placement[],
   release: SlotRelease,
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
   presets: readonly NoodlePreset[],
 ): SlotRelease | null {
   // 開始時刻の昇順で見る。同時刻は代表 slot の番号で断つ（判定を配置の並び順に依存させない）。
@@ -1258,7 +1256,7 @@ export function keepsAnchor(
   release: SlotRelease,
   lifts: LiftTable,
   siblings: readonly EpochMillis[] | null,
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
   presets: readonly NoodlePreset[],
   params: ScheduleParams,
 ): boolean {
@@ -1302,7 +1300,7 @@ interface Resolved {
 /** 配置の品目を計画対象から引いて茹で時間を解決する。 */
 function resolveBoil(
   placement: Placement,
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
   presets: readonly NoodlePreset[],
 ): Resolved {
   const order = targets.find((candidate) => refersTo(placement, candidate));
@@ -1425,25 +1423,16 @@ function isPushedOut(
  * 引く側は両方を釜 0 に写すので、1 釜しか空いていない釜に 2 釜の品目が置ける穴になる。
  * Acceptance_Gate（admit.ts）と確定計画の合成（commit.ts・isStale 経由）が同じ述語を読む。
  */
-export function occupiesSlotSpan(placement: Placement, order: PendingOrder): boolean {
+export function occupiesSlotSpan(placement: Placement, order: OrderItem): boolean {
   if (placement.slotIds.length !== order.slotSpan) return false;
   return new Set(placement.slotIds.map(slotOf)).size === placement.slotIds.length;
 }
 
-/**
- * 配置が当該 Pending_Order を指しているか。品目の同一性は (externalOrderId, itemIndex) の組で決まる。
- *
- * 公開するのは、確定計画の合成（commit.ts）が「接頭辞が既に置いた品目を計画対象から除く」ために同じ
- * 同一性を要するためである。組の突き合わせを二箇所に書けば、品目を指す規則が二つになる。
- */
-export function refersTo(placement: Placement, order: PendingOrder): boolean {
-  return (
-    placement.externalOrderId === order.externalOrderId && placement.itemIndex === order.itemIndex
-  );
-}
+/** 配置が品目を指すか。品目の照合は domain の `refersTo` ただ一つ（同じ概念は一箇所）。 */
+export { refersTo } from "../domain/order";
 
 /** 正準順序の比較。arrivalTime → externalOrderId → itemIndex。 */
-function byCanonicalOrder(order: PendingOrder, other: PendingOrder): number {
+function byCanonicalOrder(order: OrderItem, other: OrderItem): number {
   if (order.arrivalTime !== other.arrivalTime) return order.arrivalTime - other.arrivalTime;
   if (order.externalOrderId !== other.externalOrderId)
     return order.externalOrderId < other.externalOrderId ? -1 : 1;
@@ -1457,8 +1446,8 @@ function byCanonicalOrder(order: PendingOrder, other: PendingOrder): number {
  * 残りは次の再計算で先頭が減ったときに同じ Table_Group へ合流する。ソフト制約の評価も対象品目の間だけで
  * 閉じる——これは scoreSchedule が PlanSlice の内側だけを見ることから自動的に従う。
  */
-function tableGroups(targets: readonly PendingOrder[]): readonly TableGroup[] {
-  const grouped = new Map<string, PendingOrder[]>();
+function tableGroups(targets: readonly OrderItem[]): readonly TableGroup[] {
+  const grouped = new Map<string, OrderItem[]>();
   for (const order of targets) {
     const key = tableKeyOf(order);
     const items = grouped.get(key);
@@ -1512,7 +1501,7 @@ function after(
  * 1 つの Table_Group を配置する。
  *
  * **茹で時間が引けない品目は配置しない（絞るのは `placeableTargets`）。** 未知の noodleType は Order_Ingress では弾かれる
- * （toPendingOrders が presets と突き合わせる）が、永続した待ち行列が設定の差し替えを跨いだ後には
+ * （toOrderItems が presets と突き合わせる）が、永続した待ち行列が設定の差し替えを跨いだ後には
  * 起こり得る——プリセットから消えた麺種の品目が残る経路が実在する。そのとき既定の茹で時間を当てれば
  * 「その秒数で茹でれば良い」という嘘の計画ができる。ゆえに置かない。品目は待ち行列に残って表示され、
  * 推奨だけが付かない（計画対象を超えた品目と同じ扱い）。
@@ -1779,7 +1768,7 @@ function placeJoined(
 }
 
 /** 茹で時間を解決する。プリセットに無い麺種は解決できない（null）。 */
-function toBoiling(order: PendingOrder, presets: readonly NoodlePreset[]): Boiling | null {
+function toBoiling(order: OrderItem, presets: readonly NoodlePreset[]): Boiling | null {
   const boilMillis = boilMillisOf(order, presets);
   return boilMillis === null ? null : { order, boilMillis };
 }

@@ -24,20 +24,25 @@ type VariantKeys<K extends Effect["type"]> = keyof Extract<Effect, { readonly ty
 type ObservationOnlyKeys = "storeId" | "timerId" | "operationKind" | "eventTime" | "Record_Seq";
 type SequenceKeys = "Record_Seq" | "seq" | "nextSeq";
 type ModelShapeAssertions = [
+  // order-lifecycle（タスク 2）が Timer → 品目の参照 orderItem を共有契約に足した（釜側が品目を引く唯一の参照）。
   Assert<
-    Equal<keyof TimerFact, "id" | "slotIds" | "noodleType" | "firmness" | "startTime" | "endTime">
+    Equal<
+      keyof TimerFact,
+      "id" | "slotIds" | "noodleType" | "firmness" | "startTime" | "endTime" | "orderItem"
+    >
   >,
   Assert<Equal<keyof Timer, keyof TimerFact | "seq" | "boiledAt" | "adjustment" | "orderItem">>,
   // 調理順スケジューリング（online-cook-scheduling タスク 5.1）が 3 フィールドを足した。この主張の眼目は
   // 「Operation History が Timer モデルへフィールドを足さないこと」であり、他 spec による正当な拡張は追随させる。
   // POS オーダー取り込み（pos-order-ingress タスク 10）が重複排除の判定材料を 1 つ足した。
   // plan-stability（タスク 2）が前回配信対象として確定した提案（shownPlan・履歴の事実）を 1 つ足した。
+  // order-lifecycle（タスク 2）が pendingOrders を orderItems に改めた（品目は開始で消費されず、状態は導出する）。
   Assert<
     Equal<
       keyof TimerState,
       | "timers"
       | "nextSeq"
-      | "pendingOrders"
+      | "orderItems"
       | "acceptedSlices"
       | "requestedDigest"
       | "lastSequenceByTerminal"
@@ -50,13 +55,14 @@ type ModelShapeAssertions = [
   // 「判定材料だけ進んで注文が無い」欠落が生じるため、同じスナップショットに乗る。
   // v12（plan-stability タスク 2）が shownPlan を永続へ載せた——確定計画と同じ put で確定するので、確定した推奨と
   // Shown_Plan は常に一致する。
+  // v13（order-lifecycle タスク 2）が pendingOrders を orderItems に読み替えた（completedAt / interruptedAt 付き）。
   Assert<
     Equal<
       keyof StoreSnapshot,
       | "version"
       | "timers"
       | "nextSeq"
-      | "pendingOrders"
+      | "orderItems"
       | "acceptedSlices"
       | "requestedDigest"
       | "lastSequenceByTerminal"
@@ -158,7 +164,7 @@ describe("Operation History の Timer モデル規律", () => {
           "acceptedSlices": [],
           "lastSequenceByTerminal": {},
           "nextSeq": 42,
-          "pendingOrders": [],
+          "orderItems": [],
           "requestedDigest": null,
           "shownPlan": [],
           "timers": [
@@ -178,7 +184,7 @@ describe("Operation History の Timer モデル規律", () => {
               "startTime": 1700000000000,
             },
           ],
-          "version": 12,
+          "version": 13,
         },
         "type": "Persist",
       }
@@ -217,6 +223,40 @@ describe("Operation History の Timer モデル規律", () => {
     expect(JSON.parse(line as string)).not.toEqual(
       expect.objectContaining({ nextSeq: expect.anything() }),
     );
+  });
+
+  // order-lifecycle（タスク 3）：TimerFact に足された品目への参照 orderItem を、Operation History の読み手は無視する。
+  // 参照の有無で Record が変わらず、Record にも console 行にも orderItem / tableId が現れない（形の拡張だけ・design Component 3）。
+  it("TimerFact.orderItem を Operation Record と console 行へ出さず、参照の有無で Record が変わらない", () => {
+    const withReference = createTimer({
+      id: "timer-1" as TimerId,
+      slotIds: nonEmpty(["slot-1" as SlotId, "slot-2" as SlotId]),
+      noodleType: "Thin" as NoodleType,
+      firmness: "normal",
+      startTime: 1_700_000_000_000 as EpochMillis,
+      endTime: 1_700_000_060_000 as EpochMillis,
+      seq: 41,
+      orderItem: { externalOrderId: "order-1", itemIndex: 2, tableId: "table-7" },
+    });
+    const observation: OperationObservation = {
+      ...startObservation(),
+      after: { ...EMPTY_STATE, timers: [withReference], nextSeq: 42 },
+    };
+    const records = recordsFromCommittedDiff(observation);
+    expect(records).toEqual(recordsFromCommittedDiff(startObservation()));
+    expect(records[0]).not.toHaveProperty("orderItem");
+    expect(records[0]).not.toHaveProperty("tableId");
+
+    const calls: unknown[][] = [];
+    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      calls.push(args);
+    });
+    tryWriteOperationLines(true, observation);
+    const line = calls[0]?.[0];
+    expect(typeof line).toBe("string");
+    expect(line).not.toContain("orderItem");
+    expect(line).not.toContain("order-1");
+    expect(line).not.toContain("table-7");
   });
 
   it("Operation History の record／console 経路は採番フィールドを参照しない", () => {

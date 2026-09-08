@@ -20,12 +20,12 @@
 // （TIMER_ID_POOL / SLOT_ID_POOL / EXTERNAL_ORDER_ID_POOL）から引いて **id の衝突と再出現を誘発する**
 // ——Reconcile の全置換・processedIds の刈り取り・snapshot 復活という性質は、衝突が起きなければ一度も
 // 踏まれない。こちらは逆に、復号が見る形の面を広く踏むため域を広く取る。一つに畳めば引数でプールを
-// 切り替える分岐が生まれ、どちらの義務なのか読めなくなる（domain/wire.ts が toPendingOrder を流用しない
+// 切り替える分岐が生まれ、どちらの義務なのか読めなくなる（domain/wire.ts が toArrivedItem を流用しない
 // のと同じ判断）。
 
 import * as fc from "fast-check";
 import type { ClientMessage, CookRecommendation, ServerMessage } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { NonEmptyArray, TimerFact } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import {
@@ -55,9 +55,17 @@ const genTimerFact: fc.Arbitrary<TimerFact> = fc.record({
   firmness: genFirmness,
   startTime: genEpoch,
   endTime: genEpoch,
+  // Timer → 品目の参照（order-lifecycle）。null（アドホック）と参照の双方を往復させる。
+  orderItem: fc.oneof(
+    fc.constant(null),
+    fc.record({
+      externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
+      itemIndex: fc.integer({ min: 0, max: 8 }),
+    }),
+  ),
 });
 
-const genPendingOrder: fc.Arbitrary<PendingOrder> = fc.record({
+const genOrderItem: fc.Arbitrary<OrderItem> = fc.record({
   externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
   itemIndex: fc.integer({ min: 0, max: 8 }),
   noodleType: fc.constantFrom(...NOODLE_POOL),
@@ -68,6 +76,9 @@ const genPendingOrder: fc.Arbitrary<PendingOrder> = fc.record({
   // POS 申告の商品名。null と非空文字列の双方を分布する（要件 6.5）。
   itemName: fc.option(fc.string({ minLength: 1, maxLength: 8 }), { nil: null }),
   sizeName: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
+  // 厨房の事実（order-lifecycle）。null と時刻の双方を往復させる。
+  completedAt: fc.option(genEpoch, { nil: null }),
+  interruptedAt: fc.option(genEpoch, { nil: null }),
 });
 
 const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({
@@ -114,7 +125,7 @@ export const genValidServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
     type: fc.constant("snapshot" as const),
     serverTime: genEpoch,
     timers: fc.array(genTimerFact, { maxLength: 4 }),
-    pendingOrders: fc.array(genPendingOrder, { maxLength: 4 }),
+    orderItems: fc.array(genOrderItem, { maxLength: 4 }),
     recommendations: fc.array(genRecommendation, { maxLength: 4 }),
   }),
   fc

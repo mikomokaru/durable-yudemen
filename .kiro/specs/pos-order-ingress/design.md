@@ -355,6 +355,8 @@ for each received（到着順）:
 
 **翻訳は shell 側に残る。** 麺の仕様の解釈には `StoreConfig` が要り、engine は `StoreConfig` を知らない既存の規律を保つ。shell が `toNoodleSpec` を通して `ReceivedOrder` を組み、engine は翻訳済みの事実だけを見る。
 
+> **改訂（`order-lifecycle` Requirement 2・ADR-0013・2026-09-08）:** 上の畳み方のうち「`items` 非空 → `upsertOrder` で置換」「`items` 空 かつ既存 → `removeOrder` で除去」は、`upsertOrder(items, timers, arrival)` / `removeOrder(items, timers, externalOrderId)` の意味の変更を受ける——両方とも **Timer 集合を受け**（到着に無い品目が unstarted か cooking かは `itemStatusOf(item, timers)` でしか判定できない）、同じ鍵の品目には注文属性だけを当て、到着に無い品目は `unstarted` だけを除く。`removeOrder`（0 件）も未調理だけを除き、`cooking` / `done` は残す。受領の骨格（重複判定・単一 `Persist`・翻訳は shell）は変わらない。
+
 ### 7-b. Record から Pending_Order への写像
 
 属性の出所を 1 箇所に定める。
@@ -372,6 +374,8 @@ for each received（到着順）:
 ゆえに品目単位で扱い、翻訳できた品目のみを写す。ただし対応表に無い麺種（`menuItems` にはあるが `noodlePresets` に無い `noodleType`）は取り込みの段で弾いて数える。`boilSeconds` を引けない品目を待ち行列へ入れれば、計画にも表示にも現れない項目が正本に溜まるためである。
 
 **解釈が 2 段に分かれる点を明示する。** Unique_Key の導出・Poison の判定・店舗別の分配は Worker（店舗設定を要しない）、麺の仕様への翻訳は宛先 DO（`noodlePresets` と対応表を要する）。純粋関数はいずれも `src/ingress/` に置き、実行の場所だけが分かれる。
+
+> **改訂（`order-lifecycle` 判断 10・ADR-0013・2026-09-08）:** `toPendingOrders` は `toOrderItems`、写す先の型は `OrderItem`（旧 `PendingOrder`）。7-b の表の出所は変わらず、厨房の事実（`completedAt` / `interruptedAt`）は到着が持たない——POS は厨房の完了も中断も知らないので、新しい品目は null で生まれ、既存の品目の値は `upsertOrder` が保つ。
 
 ### 8. 冪等（重複排除）
 

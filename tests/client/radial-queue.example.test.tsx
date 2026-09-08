@@ -25,7 +25,7 @@ import {
   type ClientView,
   type TimerConnection,
 } from "../../src/client/connection";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import { defaultUnitOrigins, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
@@ -44,7 +44,7 @@ const PRESETS: NonEmptyArray<NoodlePreset> = [
   { noodleType: "Short", boilSeconds: { extraHard: 330, hard: 330, normal: 330, soft: 330 } },
 ];
 
-function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): PendingOrder {
+function order(overrides: Partial<OrderItem> & { externalOrderId: string }): OrderItem {
   return {
     itemIndex: 0,
     noodleType: "Long",
@@ -54,6 +54,8 @@ function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): 
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
@@ -65,6 +67,7 @@ function timer(overrides: Partial<ClientTimer> & { id: string }): ClientTimer {
     firmness: "normal",
     startTime: T0 - 30 * SECOND,
     endTime: T0 + 480 * SECOND,
+    orderItem: null,
     origin: "server",
     ...overrides,
   };
@@ -77,6 +80,8 @@ const B = order({
   slotSpan: 2,
   itemName: "Salt",
   sizeName: "L",
+  completedAt: null,
+  interruptedAt: null,
   arrivalTime: T0 - 90 * SECOND,
 });
 /** 1 釜の品目。2 番目に到着。商品名が無いので麺種の名で呼ばれる。 */
@@ -98,7 +103,7 @@ const OPEN: ClientView = {
   unitCount: 1,
   unitOrigins: defaultUnitOrigins(1),
   noodlePresets: PRESETS,
-  pendingOrders: [C, A, B],
+  orderItems: [C, A, B],
 };
 
 /** 釜 1〜3 が走行中の台。釜 0 の隣接（横 10・縦 10・斜め 14）がすべて埋まり、残る釜 4・5 は許容 14 の外。 */
@@ -412,7 +417,7 @@ describe("時計が寿命を跨ぐと、開いたままの帯とレールから�
   const OFFSET = 1_000;
   /** 補正後現在時刻が T0 + 1 秒 + 1 ms になった瞬間にちょうど寿命を迎える A。 */
   const EXPIRING_A = { ...A, arrivalTime: T0 + OFFSET + 1 - ORDER_LIFETIME_MS };
-  const AGING: ClientView = { ...OPEN, offset: OFFSET, pendingOrders: [C, EXPIRING_A, B] };
+  const AGING: ClientView = { ...OPEN, offset: OFFSET, orderItems: [C, EXPIRING_A, B] };
 
   /** レールの行の語。 */
   function railNames(): readonly string[] {
@@ -453,5 +458,68 @@ describe("時計が寿命を跨ぐと、開いたままの帯とレールから�
     expect(connection.startOrderItem).not.toHaveBeenCalled();
     // 花びら（アドホック開始）は残る。
     for (const preset of PRESETS) expect(petal(dialog, preset)).toBeDefined();
+  });
+});
+
+// order-lifecycle（AC 4.5・性質 7.6）：帯もレールも同じ未調理（pendingOrders）を読む。snapshot の orderItems に載る
+// 調理中（生きた Timer の参照先）・調理済み（completedAt）の品目は、帯にもレールにも現れない。中断済みは戻る。
+describe("帯は未調理の品目だけ——調理中・調理済みは orderItems に在っても出ず、中断済みは戻る（order-lifecycle AC 4.5）", () => {
+  /** 調理済み（Complete 済み）の品目。期限内なので snapshot には載る。 */
+  const DONE = order({
+    externalOrderId: "d",
+    noodleType: "Mid",
+    itemName: "Done",
+    completedAt: T0 - 5 * SECOND,
+    arrivalTime: T0 - 120 * SECOND,
+  });
+  /** 一度 Cancel で戻された品目（interruptedAt・状態には効かない）。 */
+  const INTERRUPTED = order({
+    externalOrderId: "e",
+    noodleType: "Short",
+    itemName: "Back",
+    interruptedAt: T0 - 5 * SECOND,
+    arrivalTime: T0 - 45 * SECOND,
+  });
+  /** A を指す走行中の Timer（釜 5・起点の釜 0 は空いたまま）。 */
+  const COOKING_A = timer({
+    id: "cook-a",
+    slotIds: nonEmpty(["5"]),
+    orderItem: { externalOrderId: A.externalOrderId, itemIndex: A.itemIndex },
+  });
+  const MIXED: ClientView = {
+    ...OPEN,
+    orderItems: [C, DONE, A, INTERRUPTED, B],
+    timers: [COOKING_A],
+  };
+
+  it("釜 0 から開くと B → E → C（A は調理中・D は調理済みで出ない）。レールも同じ 3 品", () => {
+    renderBoard(MIXED);
+    const rail = screen.getByRole("region", { name: "Waiting orders" });
+    const railNames = within(rail)
+      .getAllByRole("listitem")
+      .map((item) => item.querySelector("span")?.textContent ?? "");
+    const dialog = openRadial(0);
+    const columnNames = rows(dialog).map((row) => row.querySelector("span")?.textContent ?? "");
+    expect(columnNames).toEqual(["Salt L", "Back", "ネギ丼"]);
+    expect(columnNames).toEqual(railNames);
+  });
+
+  it("A を指す Timer が snapshot から消えれば（厨房 Cancel）、開いたままの帯に A が戻る", () => {
+    const { replace } = renderBoard(MIXED);
+    const dialog = openRadial(0);
+    expect(rows(dialog).map((row) => row.querySelector("span")?.textContent)).not.toContain("Mid");
+
+    replace({
+      ...MIXED,
+      timers: [],
+      orderItems: [C, DONE, { ...A, interruptedAt: T0 }, INTERRUPTED, B],
+    });
+
+    expect(rows(dialog).map((row) => row.querySelector("span")?.textContent)).toEqual([
+      "Salt L",
+      "Mid",
+      "Back",
+      "ネギ丼",
+    ]);
   });
 });

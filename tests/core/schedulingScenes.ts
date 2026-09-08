@@ -18,7 +18,7 @@ import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import {
@@ -58,7 +58,7 @@ export interface ScheduledScene {
  * 到着 1 件を組む。externalOrderId を外から与えるのは、既存の注文への再送・変更（upsert の置換）と
  * 初回到着の双方を場面に含めるためである。
  */
-function toArrival(spec: OrderSpec, externalOrderId: string): NonEmptyArray<PendingOrder> {
+function toArrival(spec: OrderSpec, externalOrderId: string): NonEmptyArray<OrderItem> {
   return nonEmpty(
     spec.items.map((item, itemIndex) => ({
       externalOrderId,
@@ -71,6 +71,8 @@ function toArrival(spec: OrderSpec, externalOrderId: string): NonEmptyArray<Pend
       slotSpan: 1,
       itemName: null,
       sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
     })),
   );
 }
@@ -194,12 +196,12 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
       ...EMPTY_STATE,
       timers,
       nextSeq: timers.length,
-      pendingOrders: pending,
+      orderItems: pending,
       acceptedSlices: plan.slices,
     };
     return genEventFor(timers, plan, now).map((event) => ({
       state,
-      bare: { ...state, pendingOrders: [], acceptedSlices: [] },
+      bare: { ...state, orderItems: [], acceptedSlices: [] },
       event,
       params,
       now,

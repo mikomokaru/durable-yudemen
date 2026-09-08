@@ -10,7 +10,7 @@
 // ビューは EMPTY_VIEW を基点に差分を上書きして組む。公開型にフィールドが増えたとき、生成器は既定値で
 // 追随して壊れず、意味のある次元だけを明示的に上書きする形が残る。
 //
-// ワイヤ型（TimerFact / ServerMessage / PendingOrder / CookRecommendation）は src/domain/ の既存定義を
+// ワイヤ型（TimerFact / ServerMessage / OrderItem / CookRecommendation）は src/domain/ の既存定義を
 // そのまま用いる（要件12.2: ワイヤ形式は不変）。core（src/engine/）には一切依存しない。
 //
 // 入力空間の方針（design.md「生成器の前提」・要件13.3）— 次を構造的にサンプリングできること:
@@ -29,7 +29,7 @@ import {
   type CookRecommendation,
   type ServerMessage,
 } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { TimerFact, NonEmptyArray } from "../../src/domain/timer";
 import type { Firmness } from "../../src/domain/firmness";
 import { EMPTY_VIEW } from "../../src/client/connection";
@@ -171,7 +171,7 @@ const genUnitCount: fc.Arbitrary<number> = fc.integer({ min: 1, max: 4 });
 // ── 待ち行列 / 推奨（サーバだけが確定させる事実。ビューは写しを持つ） ──────────────────────────────
 
 /** 未着手オーダー 1 件。id プールが小さいため、推奨と同じ品目を指す組が密に生じる。 */
-const genPendingOrder: fc.Arbitrary<PendingOrder> = fc.record({
+const genPendingOrder: fc.Arbitrary<OrderItem> = fc.record({
   externalOrderId: fc.constantFrom(...EXTERNAL_ORDER_ID_POOL),
   itemIndex: fc.integer({ min: 0, max: 2 }),
   noodleType: fc.constantFrom(...NOODLE_POOL),
@@ -182,10 +182,13 @@ const genPendingOrder: fc.Arbitrary<PendingOrder> = fc.record({
   // POS 申告の商品名。null と非空文字列の双方を分布する（要件 6.5）。
   itemName: fc.option(fc.string({ minLength: 1, maxLength: 8 }), { nil: null }),
   sizeName: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
+  // 厨房の事実（order-lifecycle）。null と時刻の双方を分布する——client の表示は状態を導出で読む。
+  completedAt: fc.option(genReceivedAt, { nil: null }),
+  interruptedAt: fc.option(genReceivedAt, { nil: null }),
 });
 
 /** 未着手オーダーの全量（空・複数の双方）。(externalOrderId, itemIndex) の組で一意化する。 */
-const genPendingOrders: fc.Arbitrary<readonly PendingOrder[]> = fc.uniqueArray(genPendingOrder, {
+const genPendingOrders: fc.Arbitrary<readonly OrderItem[]> = fc.uniqueArray(genPendingOrder, {
   selector: (order) => `${order.externalOrderId}#${order.itemIndex}`,
   maxLength: 4,
 });
@@ -208,7 +211,19 @@ const genRecommendations: fc.Arbitrary<readonly CookRecommendation[]> = fc.array
 
 // ── Timer / View 生成器 ────────────────────────────────────────────────────────────────────────
 
-/** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。 */
+/**
+ * Timer → 品目の参照（order-lifecycle）。null（アドホック）と参照の双方を分布し、参照の鍵は品目のプールと同じ域から
+ * 引く——ビューの品目を指す参照（調理中）と指さない参照（v12 由来・参照先なし）の双方を踏む。
+ */
+const genOrderItemRef: fc.Arbitrary<ClientTimer["orderItem"]> = fc.oneof(
+  fc.constant(null),
+  fc.record({
+    externalOrderId: fc.constantFrom(...EXTERNAL_ORDER_ID_POOL),
+    itemIndex: fc.integer({ min: 0, max: 2 }),
+  }),
+);
+
+/** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。参照は null / 有り。 */
 export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
   slotIds: genSlotIds,
@@ -216,6 +231,7 @@ export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
+  orderItem: genOrderItemRef,
   origin: genTimerOrigin,
 });
 
@@ -261,7 +277,7 @@ const genLastResults: fc.Arbitrary<ClientView["lastResults"]> = fc.oneof(
  * timers は 0〜プール件数の ClientTimer（id をビュー内で一意化・server/local 混在）で、空ビュー・provisional
  * のみ・server のみ・両混在を境界として含む（要件13.3）。offset は負/0/正、processedIds は空/timers と一致/
  * 無関係、lastResults は空/占有スロット上/空きスロット上、connectivity は up/down、unreachableReason は 3 値、
- * pendingOrders / recommendations は空/複数、unitCount / noodlePresets はサーバ権威の写しとして 2 種以上を踏む。
+ * orderItems / recommendations は空/複数、unitCount / noodlePresets はサーバ権威の写しとして 2 種以上を踏む。
  * レイアウト（unitOrigins / slotOffsets）と許容距離は既定に固定する（振らせても畳み込みの主張は強まらない）が、
  * unitOrigins だけは生成した unitCount と整合させる（config の生成器と同じ規律・要素数が unitCount に依存する）。
  */
@@ -273,9 +289,10 @@ export const genClientView: fc.Arbitrary<ClientView> = fc
         offset: genOffset,
         processedIds: genProcessedIds(timers.map((t) => t.id)),
         lastResults: genLastResults,
-        pendingOrders: genPendingOrders,
+        orderItems: genPendingOrders,
         recommendations: genRecommendations,
         connectivity: genConnectivity,
+        awaitingResync: fc.boolean(),
         unreachableReason: genUnreachableReason,
         sync: genSyncPhase,
         error: genError,
@@ -320,6 +337,7 @@ const genWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
+  orderItem: fc.constant(null),
 });
 
 /** TimerFact 集合（id 一意・全置換 snapshot / Reconcile の入力）。空集合も含む。 */
@@ -337,7 +355,7 @@ export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
     type: fc.constant("snapshot" as const),
     serverTime: genReceivedAt,
     timers: genWireTimers,
-    pendingOrders: genPendingOrders,
+    orderItems: genPendingOrders,
     recommendations: genRecommendations,
   }),
   // 計画の重み・許容幅（秒）は client の畳み込みが読まない（採点はサーバ側の計算・ビューへ写されない）。
@@ -430,7 +448,7 @@ export function genEvent(view: ClientView): fc.Arbitrary<ClientEvent> {
     fc.record({
       kind: fc.constant("Reconcile" as const),
       timers: genWireTimers,
-      pendingOrders: genPendingOrders,
+      orderItems: genPendingOrders,
       recommendations: genRecommendations,
       receivedAt: genReceivedAt,
     }),
@@ -573,7 +591,7 @@ function liftViewOf(
   unitCount: number,
   { batches, mates, orphan, retired, arms }: LiftSceneSpec,
 ): ClientView {
-  const pendingOrders: PendingOrder[] = [];
+  const orderItems: OrderItem[] = [];
   const recommendations: CookRecommendation[] = [];
   const timers: ClientTimer[] = [];
   batches.forEach((batch, batchIndex) => {
@@ -581,7 +599,7 @@ function liftViewOf(
     const anchor = anchorOf(batch);
     batch.items.forEach((item, itemIndex) => {
       const externalOrderId = `o-${batchIndex}`;
-      pendingOrders.push({
+      orderItems.push({
         externalOrderId,
         itemIndex,
         noodleType: item.noodleType,
@@ -591,6 +609,8 @@ function liftViewOf(
         slotSpan: item.slotIds.length,
         itemName: null,
         sizeName: null,
+        completedAt: null,
+        interruptedAt: null,
       });
       recommendations.push({
         externalOrderId,
@@ -610,12 +630,13 @@ function liftViewOf(
         firmness: "normal",
         startTime: anchor - batch.anchor.boilSeconds * 1000,
         endTime: anchor,
+        orderItem: null,
         origin: "server",
       });
     }
   });
   if (retired) {
-    pendingOrders.push({
+    orderItems.push({
       externalOrderId: "o-retired",
       itemIndex: 0,
       noodleType: "Retired",
@@ -625,6 +646,8 @@ function liftViewOf(
       slotSpan: 1,
       itemName: null,
       sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
     });
     recommendations.push({
       externalOrderId: "o-retired",
@@ -660,17 +683,19 @@ function liftViewOf(
       firmness: "normal",
       startTime: endTime - mate.boilSeconds * 1000,
       endTime,
+      orderItem: null,
       origin: "server",
     });
   });
   return {
     ...EMPTY_VIEW,
     connectivity: "up",
+    awaitingResync: false,
     sync: "synced",
     unitCount,
     unitOrigins: defaultUnitOrigins(unitCount),
     noodlePresets: DEFAULT_NOODLE_PRESETS,
-    pendingOrders,
+    orderItems,
     recommendations,
     timers,
     arms,

@@ -4,6 +4,7 @@
 // clock.ts の remainingMs に now を渡して描画のたびに算出する（要件10.1 の思想をクライアントへ延長）。
 
 import type { TimerFact } from "../../domain/timer";
+import { orderItemOf, type OrderItem } from "../../domain/order";
 import type { ClientTimer, ClientView } from "../connection";
 import { correctedNow, remainingMs } from "../clock";
 import { assignedTimers, slotsOfUnits } from "../assignment";
@@ -17,6 +18,9 @@ import type { SlotSuggestion } from "./liftGroups";
  *               unconfirmed は最早走行 Timer の origin === "local"（Provisional_Timer）からの導出値（要件6.4）。
  * - boiled    : 担当スロットの Timer が茹で上がった（remaining ≤ 0）が、まだ明示完了されていない。
  *               ユーザーが消し込むべき状態。Complete 操作の対象として timer を保持する。
+ * running / boiled は `orderItem`（Timer が指す注文品目・`orderItemOf(timer, view.orderItems)` の結果）を持つ。
+ * null は注文なし（アドホック開始・v12 由来で参照先の無い Timer）で、参照先の無い Timer を扱う経路は一つ
+ * （order-lifecycle AC 4.6・判断 13）。何を出すか（番号・卓・品名・中断の色分け）は lift-order-numbering。
  * - idle      : 同期済みだが担当スロットに Timer が無い。開始操作と次の提案を提示できる（直前結果の表示は UI 層）。
  * - unreceived: 未同期で当該スロットの endTime を未受信。「残り時間未受信」表示（要件5.5）。
  */
@@ -25,6 +29,7 @@ export type SlotDisplay =
       readonly kind: "running";
       readonly slot: number;
       readonly timer: TimerFact;
+      readonly orderItem: OrderItem | null;
       readonly remainingMs: number;
       readonly unconfirmed: boolean;
     }
@@ -32,6 +37,7 @@ export type SlotDisplay =
       readonly kind: "boiled";
       readonly slot: number;
       readonly timer: TimerFact;
+      readonly orderItem: OrderItem | null;
       readonly overdueMs: number;
     }
   | {
@@ -97,6 +103,7 @@ export function assignedSlotDisplays(
         kind: "running",
         slot,
         timer: earliest,
+        orderItem: orderItemOf(earliest, view.orderItems),
         remainingMs: remaining,
         unconfirmed: earliest.origin === "local",
       };
@@ -106,7 +113,13 @@ export function assignedSlotDisplays(
       // overdueMs（≥ 0・クランプなし）も載せる：boiled は超過時間をマイナス表示する（早く上げろ、の意思表示）。
       const earliest = bucket.reduce((a, b) => (b.endTime < a.endTime ? b : a));
       const overdueMs = Math.max(0, correctedNow(view.offset, now) - earliest.endTime);
-      return { kind: "boiled", slot, timer: earliest, overdueMs };
+      return {
+        kind: "boiled",
+        slot,
+        timer: earliest,
+        orderItem: orderItemOf(earliest, view.orderItems),
+        overdueMs,
+      };
     }
     if (view.sync === "synced") {
       // 同期済みで Timer が無い＝アイドル。開始操作と提案を提示する（直前結果の表示は UI 層が担う）。

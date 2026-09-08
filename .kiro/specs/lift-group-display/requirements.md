@@ -224,6 +224,8 @@ _出所: 判断 10・12・18, 観測事実 4・6・7・8_
 
 _出所: 判断 11・12・13・16_
 
+> **改訂（`order-lifecycle` 判断 9・ADR-0013・2026-09-08）:** AC 1 / 3 の「`TimerFact.orderItem` は撤去する」は `order-lifecycle` が改めた——`TimerFact` は `orderItem: { externalOrderId, itemIndex } | null`（鍵だけ・`tableId` 無し）を運び、読み手は釜のカードである（判断 20 の `anchor` は据え置き）。AC 5 のレールは並びも内容も同じだが、読む集合は `pendingOrders(view.orderItems, view.timers, corrected)`（期限内 ∧ 未調理）になった。AC 8「走行中カードの見え方を変更しない」は本 spec の範囲としてそのままで、参照で品目を出す表示は `lift-order-numbering` が定める。
+
 ### Requirement 6: 検証可能な性質
 
 **User Story:** As a 保守者, I want 群の導出と出現の規則を性質として固定したい。

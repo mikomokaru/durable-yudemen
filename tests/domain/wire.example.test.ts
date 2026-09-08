@@ -149,7 +149,7 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
     type: "snapshot",
     serverTime: 1,
     timers: [],
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
   } as const;
 
@@ -323,5 +323,122 @@ describe("Feature: verified-wire-contract — ServerMessage は正規化条件�
     expect(
       toServerMessage(JSON.stringify({ ...withoutLift, liftIntervalSeconds: "45" })),
     ).toBeNull();
+  });
+});
+
+// order-lifecycle（Component 3）：snapshot は `orderItems`（期限内 ∨ 生きた Timer の参照先）を運び、TimerFact は
+// 品目への参照 `orderItem` を運ぶ。どちらも形の違いは snapshot ごと落とす（部分的に通さない・要件 2.7 と同じ粒度）。
+describe("Feature: order-lifecycle — snapshot の orderItems と TimerFact.orderItem の関門（AC 4.2 / 4.4・性質 7.7）", () => {
+  const ITEM = {
+    externalOrderId: "o-1",
+    itemIndex: 0,
+    noodleType: "Thin",
+    firmness: "normal",
+    tableId: "12",
+    arrivalTime: 1,
+    slotSpan: 1,
+    itemName: null,
+    sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
+  } as const;
+  const TIMER = {
+    id: "T",
+    slotIds: ["0"],
+    noodleType: "Thin",
+    firmness: "normal",
+    startTime: 0,
+    endTime: 1,
+    orderItem: null,
+  } as const;
+  const base = {
+    type: "snapshot",
+    serverTime: 1,
+    timers: [],
+    orderItems: [],
+    recommendations: [],
+  } as const;
+
+  function decode(message: unknown) {
+    const decoded = toServerMessage(JSON.stringify(message));
+    return decoded?.type === "snapshot" ? decoded : null;
+  }
+
+  it("orderItems は completedAt / interruptedAt が null でも時刻でも往復する（unstarted / done / 中断済みが同じ形で載る）", () => {
+    const items = [
+      ITEM,
+      { ...ITEM, itemIndex: 1, completedAt: 5 },
+      { ...ITEM, itemIndex: 2, interruptedAt: 0 },
+      { ...ITEM, itemIndex: 3, completedAt: 7, interruptedAt: 3 },
+    ];
+    expect(decode({ ...base, orderItems: items })?.orderItems).toEqual(items);
+  });
+
+  it("旧名 pendingOrders で品目を運ぶ snapshot は落ちる（orderItems の欠如は形の違い・AC 4.2）", () => {
+    const { orderItems: _dropped, ...withoutItems } = base;
+    expect(decode({ ...withoutItems, pendingOrders: [ITEM] })).toBeNull();
+    expect(decode({ ...withoutItems, orderItems: [] })).not.toBeNull();
+  });
+
+  it("completedAt / interruptedAt の欠如・型違い・負・非整数は snapshot ごと落とす", () => {
+    for (const broken of [
+      { completedAt: undefined },
+      { interruptedAt: undefined },
+      { completedAt: "5" },
+      { interruptedAt: -1 },
+      { completedAt: 1.5 },
+      { interruptedAt: true },
+    ]) {
+      expect(
+        decode({ ...base, orderItems: [ITEM, { ...ITEM, itemIndex: 1, ...broken }] }),
+      ).toBeNull();
+    }
+  });
+
+  it("TimerFact.orderItem は null と参照の双方で往復し、参照は鍵だけを運ぶ（余剰の tableId は落ちる）", () => {
+    const ref = { externalOrderId: "o-1", itemIndex: 0 };
+    const decoded = decode({
+      ...base,
+      timers: [TIMER, { ...TIMER, id: "U", orderItem: ref }],
+    });
+    expect(decoded?.timers).toEqual([TIMER, { ...TIMER, id: "U", orderItem: ref }]);
+    // engine の Timer.orderItem は開始時点の卓を持つが、wire の参照は鍵だけ（design Data Models）。
+    const withTable = decode({
+      ...base,
+      timers: [{ ...TIMER, orderItem: { ...ref, tableId: "12" } }],
+    });
+    expect(withTable?.timers[0]?.orderItem).toEqual(ref);
+  });
+
+  it("orderItem の欠如は落ちる（サーバは常に書く——アドホック・v12 由来でも null を書く）", () => {
+    const { orderItem: _dropped, ...withoutRef } = TIMER;
+    expect(decode({ ...base, timers: [withoutRef] })).toBeNull();
+  });
+
+  it("orderItem の不正（非オブジェクト・空の externalOrderId・負 / 非整数 / 文字列の itemIndex・鍵の欠如）は snapshot ごと落とす", () => {
+    for (const broken of [
+      "o-1",
+      0,
+      [],
+      { externalOrderId: "", itemIndex: 0 },
+      { externalOrderId: "o-1", itemIndex: -1 },
+      { externalOrderId: "o-1", itemIndex: 0.5 },
+      { externalOrderId: "o-1", itemIndex: "0" },
+      { externalOrderId: "o-1" },
+      { itemIndex: 0 },
+    ]) {
+      expect(
+        decode({ ...base, timers: [TIMER, { ...TIMER, id: "U", orderItem: broken }] }),
+      ).toBeNull();
+    }
+  });
+
+  it("調理中の品目とそれを指す Timer が同じ snapshot に載る形が往復する（期限を超えても Complete まで配信・性質 7.7）", () => {
+    const cooking = {
+      ...base,
+      timers: [{ ...TIMER, orderItem: { externalOrderId: ITEM.externalOrderId, itemIndex: 0 } }],
+      orderItems: [ITEM],
+    };
+    expect(decode(cooking)).toEqual(cooking);
   });
 });

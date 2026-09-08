@@ -23,7 +23,7 @@ import type { QueueEntry, QueueSuggestion } from "../../src/client/components/qu
 import { noodleColors } from "../../src/client/components/noodleColor";
 import { FIRMNESS_LABEL } from "../../src/client/components/firmness";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import { isNonEmpty, type NonEmptyArray } from "../../src/domain/timer";
 
 // globals を有効にしていないため、自動 cleanup は働かない。描画を明示的に畳む
@@ -39,7 +39,7 @@ const NOODLE_MENU = ["Thin", "Thick", "Flat"] as const;
 const noodleColor = noodleColors([...NOODLE_MENU]);
 
 /** 1 品目の未着手オーダー。必要な事実だけを上書きする。 */
-function pendingOrder(overrides: Partial<PendingOrder> = {}): PendingOrder {
+function pendingOrder(overrides: Partial<OrderItem> = {}): OrderItem {
   return {
     externalOrderId: "o-1",
     itemIndex: 0,
@@ -50,6 +50,8 @@ function pendingOrder(overrides: Partial<PendingOrder> = {}): PendingOrder {
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }

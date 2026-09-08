@@ -9,7 +9,7 @@ import { digestInput } from "../../src/engine/digest";
 import { PLAN_TARGET_LIMIT } from "../../src/engine/schedule";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import {
   DEFAULT_NOODLE_PRESETS,
@@ -51,7 +51,7 @@ function slots(...slotIds: readonly string[]): NonEmptyArray<SlotId> {
 }
 
 /** 品目 1 件。arrivalTime は index から決定的に振る（正準順序が並びを一意にする）。 */
-function order(externalOrderId: string, itemIndex: number, arrivalTime: number): PendingOrder {
+function order(externalOrderId: string, itemIndex: number, arrivalTime: number): OrderItem {
   return {
     externalOrderId,
     itemIndex,
@@ -62,10 +62,12 @@ function order(externalOrderId: string, itemIndex: number, arrivalTime: number):
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 
-const PENDING: readonly PendingOrder[] = [
+const PENDING: readonly OrderItem[] = [
   order("o-1", 0, NOW - 300_000),
   order("o-1", 1, NOW - 300_000),
   order("o-2", 0, NOW - 100_000),
@@ -76,7 +78,26 @@ const RUNNING: readonly Timer[] = [
   timerOn({ slot: 3, endOffset: 120_000, boiled: false, tableId: null }, 1),
 ];
 
-describe("engine/digest — digestInput", () => {
+describe("engine/digest — digestInput（order-lifecycle AC 4.1：正本を受け、内側で未調理に絞る）", () => {
+  it("調理中の品目（自分を指す生きた Timer が在る）は指紋に現れず、完了しても現れない", () => {
+    const cooking = timerOn({ slot: 4, endOffset: 90_000, boiled: false, tableId: null }, 2);
+    const referencing = {
+      ...cooking,
+      orderItem: { externalOrderId: "o-2", itemIndex: 0, tableId: null },
+    };
+    const withoutItem = digestInput(PENDING.slice(0, 2), [...RUNNING, referencing], PARAMS, NOW);
+    expect(digestInput(PENDING, [...RUNNING, referencing], PARAMS, NOW)).toBe(withoutItem);
+    // done（Timer が消え completedAt が在る）も計画対象に無い。
+    const done = [...PENDING.slice(0, 2), { ...PENDING[2]!, completedAt: NOW }];
+    expect(digestInput(done, RUNNING, PARAMS, NOW)).toBe(
+      digestInput(PENDING.slice(0, 2), RUNNING, PARAMS, NOW),
+    );
+    // 開始そのものは指紋を変える（Timer が増え、計画対象が減る）——抑制が効きすぎない。
+    expect(digestInput(PENDING, [...RUNNING, referencing], PARAMS, NOW)).not.toBe(
+      digestInput(PENDING, RUNNING, PARAMS, NOW),
+    );
+  });
+
   it("列挙順に依存しない（待ち行列・Timer・slotIds の並びは事実ではない）", () => {
     const baseline = digestInput(PENDING, RUNNING, PARAMS, NOW);
 

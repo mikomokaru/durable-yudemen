@@ -69,7 +69,7 @@ const genSceneWithDigest: fc.Arbitrary<QuadrupleScene> = genScheduledScene.chain
       state: withDigest(
         scene.state,
         requested
-          ? digestInput(scene.state.pendingOrders, scene.state.timers, scene.params, scene.now)
+          ? digestInput(scene.state.orderItems, scene.state.timers, scene.params, scene.now)
           : null,
       ),
       event: scene.event,
@@ -123,7 +123,7 @@ const genDeliveryScene: fc.Arbitrary<QuadrupleScene> = fc
       ...EMPTY_STATE,
       timers,
       nextSeq: timers.length,
-      pendingOrders: pending,
+      orderItems: pending,
     };
     const plan = seed.shortestFirst
       ? shortestFirstPlan(pending, timers, seed.slotCount, seed.planParams)

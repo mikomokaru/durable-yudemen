@@ -110,7 +110,7 @@ describe("Feature: slot-suggested-start, Property 7: 商品名の往復", () => 
         expect(decoded).toEqual(message);
         // 2 項目が実際に往復の対象になっていることを、値の形で確かめる（型だけでは分布を保証しない）。
         if (decoded === null || decoded.type !== "snapshot") return;
-        for (const order of decoded.pendingOrders) {
+        for (const order of decoded.orderItems) {
           expect(order.itemName === null || order.itemName.length > 0).toBe(true);
           expect(order.sizeName === null || order.sizeName.length > 0).toBe(true);
         }
@@ -125,7 +125,7 @@ describe("Feature: slot-suggested-start, Property 7: 商品名の往復", () => 
       serverTime: 1,
       timers: [],
       recommendations: [],
-      pendingOrders: [
+      orderItems: [
         {
           externalOrderId: "o-1",
           itemIndex: 0,
@@ -136,6 +136,8 @@ describe("Feature: slot-suggested-start, Property 7: 商品名の往復", () => 
           slotSpan: 1,
           itemName: "",
           sizeName: null,
+          completedAt: null,
+          interruptedAt: null,
         },
       ],
     };

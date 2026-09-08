@@ -94,6 +94,7 @@ function toWireTimer(timer: ClientTimer): TimerFact {
     firmness: timer.firmness,
     startTime: timer.startTime,
     endTime: timer.endTime,
+    orderItem: null,
   };
 }
 
@@ -411,7 +412,7 @@ describe("client/connection 一時的なローカル権限（offline-degradation
           timers: view.timers
             .filter((timer) => timer.origin === "server" && timer.id !== target.id)
             .map(toWireTimer),
-          pendingOrders: view.pendingOrders,
+          orderItems: view.orderItems,
           recommendations: view.recommendations,
           receivedAt,
         });

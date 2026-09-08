@@ -55,7 +55,7 @@ fc.assert(
 **型は実装の公開型を import する。** テスト側で同じ概念を再定義しない（`ClientView` / `ClientTimer` /
 `ClientEvent` / `Connectivity` / `TimerOrigin` / `SyncPhase` / `UnreachableReason` は
 `src/client/connection.ts`、`PersistedView` は `src/client/persistence.ts`、ワイヤ型（`TimerFact` /
-`ServerMessage` / `PendingOrder` / `CookRecommendation`）は `src/domain/` から引く・要件12.2）。ビューは
+`ServerMessage` / `OrderItem` / `CookRecommendation`）は `src/domain/` から引く・要件12.2）。ビューは
 `EMPTY_VIEW` を基点に差分を上書きして組む——公開型にフィールドが増えても生成器は既定値で追随する。
 
 次を構造的にサンプリングできる（要件13.3・design.md「生成器の前提」）:

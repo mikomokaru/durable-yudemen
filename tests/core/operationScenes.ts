@@ -29,7 +29,7 @@ import {
   type SlotSuggestion,
 } from "../../src/client/components/liftGroups";
 import type { ServerMessage } from "../../src/domain/messages";
-import { compareArrival, itemKeyOf, liveOrders, type PendingOrder } from "../../src/domain/order";
+import { compareArrival, itemKeyOf, pendingOrders, type OrderItem } from "../../src/domain/order";
 import { occupiedSlotsOf, SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { configResidualDefaults } from "../storeConfigDefaults";
@@ -136,11 +136,11 @@ export function advance(kitchen: Kitchen, state: TimerState, events: readonly Ev
 
 export function order(
   externalOrderId: string,
-  overrides: Partial<PendingOrder> & {
+  overrides: Partial<OrderItem> & {
     readonly noodleType: string;
     readonly tableId: string | null;
   },
-): PendingOrder {
+): OrderItem {
   return {
     externalOrderId,
     itemIndex: 0,
@@ -149,6 +149,8 @@ export function order(
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
@@ -169,12 +171,12 @@ export function timerIdOf(item: {
   return `timer-${nameOf(item)}` as TimerId;
 }
 
-export function arrive(orders: readonly PendingOrder[], now: EpochMillis): Event {
+export function arrive(orders: readonly OrderItem[], now: EpochMillis): Event {
   return { type: "OrderArrived", arrival: nonEmpty(orders), now };
 }
 
 /** 品目を指す開始。釜は現場が押した釜——推奨と一致しなくても engine は通す（観測事実 12）。 */
-export function startItem(item: PendingOrder, slots: readonly string[], now: EpochMillis): Event {
+export function startItem(item: OrderItem, slots: readonly string[], now: EpochMillis): Event {
   return {
     type: "StartOrderItem",
     slotIds: [...slots],
@@ -565,7 +567,13 @@ export function operate(
         startItem(head.order, head.suggestion.slotIds, now),
       );
     }
-    if (current.state.pendingOrders.length === 0 && current.state.timers.length === 0) break;
+    // 品目は開始で消費されず正本に残る（order-lifecycle）——未調理が無く走行中も無ければ全品目が処理済み。
+    if (
+      pendingOrders(current.state.orderItems, current.state.timers, now).length === 0 &&
+      current.state.timers.length === 0
+    ) {
+      break;
+    }
   }
   return trace;
 }
@@ -576,7 +584,7 @@ export function operate(
  */
 function adoptCommitted(kitchen: Kitchen, current: Step): Step {
   const { state, now } = current;
-  const live = liveOrders(state.pendingOrders, now);
+  const live = pendingOrders(state.orderItems, state.timers, now);
   const committed = committedSchedule(
     state.acceptedSlices,
     live,

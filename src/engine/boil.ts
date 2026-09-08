@@ -5,17 +5,17 @@
 // 循環する。ここに置くのは「品目の茹で時間はどこから引くか」と「合流の窓はどう決まるか」の 2 つの導出だけで、
 // 配置・採点・推奨はそれぞれの場所に残る。schedule.ts は同名で再輸出し、読む側の入口は変えない。
 
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 import type { ScheduleParams } from "./objective";
 
 /**
  * 品目の茹で時間（ミリ秒）。麺種がプリセットに無ければ null。
  *
- * 茹で時間は PendingOrder が持たない導出値（noodleType × firmness）。配置・ゲート・推奨の射影・変更費用が同じ引き方を
+ * 茹で時間は OrderItem が持たない導出値（noodleType × firmness）。配置・ゲート・推奨の射影・変更費用が同じ引き方を
  * 読む唯一の場所（二度書けば二つの真実になる）。
  */
-export function boilMillisOf(order: PendingOrder, presets: readonly NoodlePreset[]): number | null {
+export function boilMillisOf(order: OrderItem, presets: readonly NoodlePreset[]): number | null {
   const preset = presets.find((candidate) => candidate.noodleType === order.noodleType);
   if (preset === undefined) return null;
   return preset.boilSeconds[order.firmness] * 1000;

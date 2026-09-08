@@ -13,7 +13,7 @@ import { advanceLifts, type LiftTable } from "../../src/engine/lift";
 import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
 import type { PlanSlice } from "../../src/engine/schedule";
 import type { EpochMillis, SlotId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import {
   DEFAULT_ARMS,
   DEFAULT_TOLERANCE_RATIO,
@@ -89,7 +89,7 @@ function placement(input: {
 }
 
 /** Pending_Order 1 件（Wait_Time の起点を与える）。麺種・硬さ・卓は採点に寄与しない。 */
-function pendingItem(orderId: string, itemIndex: number, arrivalTime: number): PendingOrder {
+function pendingItem(orderId: string, itemIndex: number, arrivalTime: number): OrderItem {
   return {
     externalOrderId: orderId,
     itemIndex,
@@ -100,6 +100,8 @@ function pendingItem(orderId: string, itemIndex: number, arrivalTime: number): P
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
 

@@ -659,7 +659,7 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
     expect(off.timer.finalWorkingCopy).toEqual({
       timers: off.timer.finalSnapshot?.timers,
       nextSeq: off.timer.finalSnapshot?.nextSeq,
-      pendingOrders: off.timer.finalSnapshot?.pendingOrders,
+      orderItems: off.timer.finalSnapshot?.orderItems,
       acceptedSlices: off.timer.finalSnapshot?.acceptedSlices,
       requestedDigest: off.timer.finalSnapshot?.requestedDigest,
       lastSequenceByTerminal: off.timer.finalSnapshot?.lastSequenceByTerminal,

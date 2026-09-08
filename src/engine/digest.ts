@@ -13,7 +13,7 @@ import type { SettleParams } from "./settle";
 import type { Timer } from "./timer";
 import type { EpochMillis } from "./types";
 import { FIRMNESS_ORDER } from "../domain/firmness";
-import type { PendingOrder } from "../domain/order";
+import { pendingOrders, type OrderItem } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 
 /**
@@ -31,14 +31,15 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
 /**
  * digestInput — 計画の入力から決定的に指紋を導出する（要件5.3 / 5.6・Glossary Input_Fingerprint）。
  *
- * 畳むのは 4 つ。**計画対象**の Pending_Order（planTargets が定める先頭 PLAN_TARGET_LIMIT 件）、
+ * 畳むのは 4 つ。**計画対象**の品目（未調理の品目 `pendingOrders` から planTargets が定める先頭 PLAN_TARGET_LIMIT 件）、
  * 釜を占める Timer の必要事実（id / slotIds / 実効 endTime）、採点パラメータ、そして計画対象が引く麺プリセット。
  * 現在の指紋は導出値であり状態に昇格させない（保持するのは「直前に要求した時点の値」だけ・AC 7.2 / 7.3）。
  *
  * **何を含めるかは「変われば計画が変わりうるか」で決まる。** 変わっても計画が変わらない値を含めれば、
  * 無駄な要求が出る。逆に計画を変える値を落とせば、改善の機会に気づけないまま抑制が効く。
- *   - 計画対象の Pending_Order は**計画に効くフィールド**を含める（鍵・麺種・茹で加減・卓・到着時刻・
- *     slotSpan）。表示だけに効く申告名（itemName / sizeName）は含めない——変わっても計画は変わらない。
+ *   - 計画対象の品目は**計画に効くフィールド**を含める（鍵・麺種・茹で加減・卓・到着時刻・
+ *     slotSpan）。表示だけに効く申告名（itemName / sizeName）と厨房の事実（completedAt / interruptedAt）は含めない
+ *     ——前者は変わっても計画は変わらず、後者は状態（unstarted か否か）を通して計画対象の範囲にだけ効く。
  *   - 計画対象**外**（65 件目以降）は含めない。計画に現れず推奨の対象にもならないので、増減しても
  *     計画は変わらない。含めれば混雑時に届く到着のたびに要求が出る（AC 11.2 の意図に反する）。
  *   - Timer は id / slotIds / 実効 endTime だけ。麺種・茹で加減・seq・boiledAt は解放表に効かない。
@@ -68,6 +69,8 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
  *     **第 4 引数の `now` は計画対象を絞るためだけに受ける**（pending-order-expiry AC 2.6）——期限切れの品目は
  *     計画対象に無いので指紋に現れず、品目が期限を過ぎれば計画対象が変わって指紋も変わる。`now` そのものは
  *     畳まない（畳めば上と同じ理由で抑制が壊れる）。
+ *   - **第 1 引数は品目の正本（`orderItems`）で、内側で `pendingOrders(items, running, now)` に絞る**（order-lifecycle
+ *     AC 4.1）。調理中・調理済みの品目は計画対象に無いので指紋に現れない——開始や完了で計画対象が変わって指紋も変わる。
  *
  * **列挙順に依存しない**（AC 4.3 と同じ規律）。計画対象は planTargets が正準順序へ整列済み。Timer は id 昇順、
  * slotIds は符号単位順、麺プリセットは麺種の符号単位順へ整列してから畳む。文字列比較に localeCompare を
@@ -79,12 +82,12 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
  * あちらは「色をどう割り当てるか」であってこちらは「入力が変わったか」——概念が違うので共有しない）。
  */
 export function digestInput(
-  pending: readonly PendingOrder[],
+  items: readonly OrderItem[],
   running: readonly Timer[],
   params: SettleParams,
   now: EpochMillis,
 ): InputDigest {
-  const targets = planTargets(pending, now);
+  const targets = planTargets(pendingOrders(items, running, now), now);
   const occupants = [...running].sort(byTimerId);
 
   let digest = FNV_OFFSET_BASIS;
@@ -160,7 +163,7 @@ export function digestInput(
  */
 function drawnPresets(
   presets: readonly NoodlePreset[],
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
 ): readonly NoodlePreset[] {
   const drawn = new Set(targets.map((order) => order.noodleType));
   return presets

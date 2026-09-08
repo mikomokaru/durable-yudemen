@@ -22,12 +22,7 @@ import type { ScheduleParams } from "../../src/engine/objective";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { CookRecommendation } from "../../src/domain/messages";
-import {
-  itemKeyOf,
-  liveOrders,
-  ORDER_LIFETIME_MS,
-  type PendingOrder,
-} from "../../src/domain/order";
+import { itemKeyOf, liveOrders, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -219,7 +214,7 @@ const PARAMS: ScheduleParams = {
 const H_SECONDS = (BOIL_SECONDS * PARAMS.toleranceRatio) / 100;
 
 /** 品目。到着は同時で、同値の順は externalOrderId の辞書順（a → b → c）。 */
-function order(externalOrderId: string): PendingOrder {
+function order(externalOrderId: string): OrderItem {
   return {
     externalOrderId,
     itemIndex: 0,
@@ -230,9 +225,11 @@ function order(externalOrderId: string): PendingOrder {
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   };
 }
-const PENDING: readonly PendingOrder[] = [order("a"), order("b"), order("c")];
+const PENDING: readonly OrderItem[] = [order("a"), order("b"), order("c")];
 
 /** 旧 Shown_Plan の 1 品目。serveAt は startAt + 茹で時間。 */
 function shownItem(
@@ -452,7 +449,7 @@ describe("Feature: pending-order-expiry — 期限切れの品目は対応から
     { noodleType: "Long", boilSeconds: { extraHard: 600, hard: 600, normal: 600, soft: 600 } },
   ];
   const PARAMS: ScheduleParams = { ...schedulingDefaults(1), arms: 1, liftIntervalSeconds: L };
-  const order = (externalOrderId: string, arrivalTime: number): PendingOrder => ({
+  const order = (externalOrderId: string, arrivalTime: number): OrderItem => ({
     externalOrderId,
     itemIndex: 0,
     noodleType: "Long",
@@ -462,6 +459,8 @@ describe("Feature: pending-order-expiry — 期限切れの品目は対応から
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   });
   const A = order("a", T0 - ORDER_LIFETIME_MS);
   const B = order("b", T0 - 60 * SECOND);
@@ -474,14 +473,14 @@ describe("Feature: pending-order-expiry — 期限切れの品目は対応から
     ],
   };
   const shown = shownPlanOf(previous, recommend(previous));
-  const contextWith = (pending: readonly PendingOrder[]): ChangeContext => ({
+  const contextWith = (pending: readonly OrderItem[]): ChangeContext => ({
     shown,
     running: [],
     now: T0 as EpochMillis,
     pending,
     presets: PRESETS,
   });
-  const costOf = (schedule: CookSchedule, pending: readonly PendingOrder[]) =>
+  const costOf = (schedule: CookSchedule, pending: readonly OrderItem[]) =>
     changeCost({ schedule, recommendations: recommend(schedule) }, contextWith(pending), PARAMS);
   /** B を 1 秒遅らせる計画（A は期限切れゆえ計画に無い）。 */
   const delayed: CookSchedule = {

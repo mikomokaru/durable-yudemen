@@ -21,7 +21,7 @@
 
 import { BOIL_SECONDS_MAX, BOIL_SECONDS_MIN } from "../engine/types";
 import type { CookRecommendation, ServerMessage } from "../domain/messages";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { TimerFact, NonEmptyArray } from "../domain/timer";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
@@ -105,12 +105,16 @@ export interface ClientView {
   /** アクティブな全 Timer（全量保持・起源タグ付き）。snapshot で server-confirmed を全置換する（要件4.2 / 4.5）。 */
   readonly timers: readonly ClientTimer[];
   /**
-   * 未着手オーダーの全量（計画対象の上限を超える分も含む）。snapshot の写しに留める（online-cook-scheduling AC 2.4）。
+   * 注文品目の集合（snapshot の `orderItems`＝期限内 ∨ 生きた Timer の参照先・計画対象の上限を超える分も含む）。
+   * snapshot の写しに留める（online-cook-scheduling AC 2.4・order-lifecycle AC 4.2）。
    *
-   * 到着順の並び・担当範囲での絞り込みは表示時の導出であって、ここには保持しない（保持は全量・表示は導出）。
-   * Timer と違い provisional の対概念を持たない——待ち行列はサーバだけが確定させる事実なので、全置換で足りる。
+   * 状態（unstarted / cooking / done）は保持せず `itemStatusOf` で導く。左レール・ラジアルは未調理
+   * （`pendingOrders(orderItems, timers, correctedNow)`）だけを出し、釜のカードは `orderItemOf(timer, orderItems)` で
+   * 品目を引く（AC 4.5 / 4.6）。到着順の並び・担当範囲での絞り込みも表示時の導出であって、ここには保持しない
+   * （保持は全量・表示は導出）。Timer と違い provisional の対概念を持たない——品目はサーバだけが確定させる事実
+   * なので、全置換で足りる。
    */
-  readonly pendingOrders: readonly PendingOrder[];
+  readonly orderItems: readonly OrderItem[];
   /**
    * サーバが Committed_Plan から導いた開始推奨の写し（online-cook-scheduling AC 8.1 / 8.5）。
    *
@@ -131,6 +135,13 @@ export interface ClientView {
   readonly lastResults: ReadonlyMap<string, { readonly noodleType: string; readonly at: number }>;
   /** 到達性の事実。Mode の導出元（要件3.1）。 */
   readonly connectivity: Connectivity;
+  /**
+   * 通信復旧の後、まだサーバの snapshot / Reconcile で再整合していない（order-lifecycle 判断 18）。
+   * pong だけで connectivity は up になるが、その時点の view は「古い品目集合 ＋ ローカルで消した Timer 集合」で、
+   * 未調理の導出（自分を指す生きた Timer が無い品目）に調理済みが混ざる。再整合（reconcileServerConfirmed）で false。
+   * down で true。起動時は false（最初の snapshot までは connectivity が down で列挙されず、古い品目集合も無い）。
+   */
+  readonly awaitingResync: boolean;
   /** down 時のみ意味を持つ分類結果。既定 "offline"（要件15.7 / 15.12）。Connectivity(二値)・Mode(導出) とは独立の別軸。 */
   readonly unreachableReason: UnreachableReason;
   /** 同期フェーズ。 */
@@ -185,9 +196,9 @@ export type ClientEvent =
   | {
       readonly kind: "Reconcile"; // 要件11（決定 B）
       readonly timers: readonly TimerFact[];
-      // 待ち行列と推奨も運ぶ。Timer と違い provisional の対概念を持たないため snapshot と同じ全置換で足りる。
+      // 品目の集合と推奨も運ぶ。Timer と違い provisional の対概念を持たないため snapshot と同じ全置換で足りる。
       // 運ばないと再接続後の最初の snapshot だけ待ち行列が更新されず、他端末との一致（AC 2.4）が破れる。
-      readonly pendingOrders: readonly PendingOrder[];
+      readonly orderItems: readonly OrderItem[];
       readonly recommendations: readonly CookRecommendation[];
       readonly receivedAt: number;
     };
@@ -195,12 +206,13 @@ export type ClientEvent =
 /** 初期ビュー。まだ何も受信しておらず接続中。boot 時は接続未確立 = degraded 起点（要件3）。 */
 export const EMPTY_VIEW: ClientView = {
   timers: [],
-  pendingOrders: [],
+  orderItems: [],
   recommendations: [],
   offset: 0,
   processedIds: new Set<string>(),
   lastResults: new Map<string, { readonly noodleType: string; readonly at: number }>(),
   connectivity: "down",
+  awaitingResync: false,
   unreachableReason: "offline",
   sync: "connecting",
   error: null,
@@ -243,7 +255,7 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
       // 待ち行列と推奨は snapshot 分岐と同じ全置換（サーバだけが確定させる事実ゆえ保持すべきローカル分が無い）。
       return {
         ...reconcileServerConfirmed(view, event.timers, event.receivedAt),
-        pendingOrders: event.pendingOrders,
+        orderItems: event.orderItems,
         recommendations: event.recommendations,
       };
 
@@ -265,6 +277,7 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
       // 構造（一方向の流れ）で担保する（要件15.12）。down のときは変えない（次の Classify が上書きするまで直前値を保つ）。
       return {
         ...view,
+        awaitingResync: event.status === "down" ? true : view.awaitingResync,
         connectivity: event.status,
         unreachableReason: event.status === "up" ? "offline" : view.unreachableReason,
       };
@@ -339,6 +352,8 @@ function decideLocalStart(
     firmness: DEFAULT_FIRMNESS,
     startTime: event.correctedNow,
     endTime: event.correctedNow + event.boilSeconds * 1000,
+    // ローカルの暫定開始はアドホック（注文を持たない）。品目を指す開始はサーバ確定の snapshot で参照付きの Timer になる。
+    orderItem: null,
     origin: "local",
   };
   // 新規開始した駆動スロットの直前結果（残滓）は解除する（要件13.7）。
@@ -452,12 +467,12 @@ function decideServerMessage(
       // 初回 hydration では prevServer / provisional が空ゆえ全置換に縮退する。offset 再確立・同期確定・
       // エラー解消を重ねる。残滓記録時刻 at には受信時刻 receivedAt を渡す（要件4.2 / 5.1）。
       const reconciled = reconcileServerConfirmed(view, message.timers, receivedAt);
-      // 待ち行列と推奨も同じ snapshot が運ぶ（種別を増やさない・online-cook-scheduling AC 2.3 / 2.4）。
-      // Timer と違い起源の区別が無いため全置換で足りる。導出（到着順の並び・担当範囲での絞り込み・
+      // 品目の集合と推奨も同じ snapshot が運ぶ（種別を増やさない・online-cook-scheduling AC 2.3 / 2.4）。
+      // Timer と違い起源の区別が無いため全置換で足りる。導出（状態・到着順の並び・担当範囲での絞り込み・
       // 開始に要る茹で秒）は表示時に行い、ここでは写すだけに留める。
       return {
         ...reconciled,
-        pendingOrders: message.pendingOrders,
+        orderItems: message.orderItems,
         recommendations: message.recommendations,
         offset,
         sync: "synced",
@@ -655,6 +670,7 @@ export function reconcileServerConfirmed(
 
   return {
     ...view,
+    awaitingResync: false,
     // (e) 最後に 1 回だけ占有を解決する。(a)〜(d) の順序と入力を変えないのは、刈り取り (d) を**解決前**の保持 id
     //     集合で行う必要があるためである——落とした server Timer の id が processedIds から抜けると、その Timer が
     //     次の snapshot で（local 側が消えた後に決定 B で）在席を取り戻したとき、endTime が過去ゆえ dueLocalTimers が
@@ -689,6 +705,25 @@ export interface SocketListeners {
 /** Socket を開く関数。既定はブラウザ WebSocket。テストでは差し替える。 */
 export type SocketOpener = (url: string, listeners: SocketListeners) => Socket;
 
+/**
+ * complete の対象（純粋・view と補正済み現在時刻の関数）。
+ *
+ * 対象が boiled（実効 endTime ≤ correctedNow）なら同時上がり群（boiledGroup）——一括完了の従来経路。対象が running
+ * なら早め上げで、対象ただ一つを返す（order-lifecycle 判断 4・Requirement 5.1）。走行中を群に巻き込まない規律
+ * （sync-set-batch-complete 要件1.2 / 3.2）は boiledGroup が保ち、ここは「群を作らない」場合に対象自身を足すだけ。
+ * 不在なら空。
+ */
+function completeTargets(
+  view: ClientView,
+  timerId: string,
+  correctedNow: number,
+): readonly ClientTimer[] {
+  const group = boiledGroup(view, timerId, correctedNow);
+  if (group.length > 0) return group;
+  const target = view.timers.find((timer) => timer.id === timerId);
+  return target === undefined ? [] : [target];
+}
+
 /** 接続のコントローラ。UI（タスク20）はこれを通してビューを購読し、操作を送る。 */
 export interface TimerConnection {
   /** 現在のビューを取得する（描画のたびに残りを導出する元）。 */
@@ -716,8 +751,12 @@ export interface TimerConnection {
   /** タイマーキャンセル操作を送る。 */
   cancel(timerId: string): void;
   /**
-   * 茹で上がりの明示完了（消し込み）を送る。その Timer と同時上がり群（実効 endTime が一致する boiled 群）を
-   * 完了する。単一の消し込みは群が 1 件の退化ケースであって別概念ではない。対象が running / 不在なら何もしない。
+   * 完了を送る。boiled の Timer なら茹で上がりの明示完了（消し込み）——その Timer と同時上がり群（実効 endTime が
+   * 一致する boiled 群）を完了する。単一の消し込みは群が 1 件の退化ケースであって別概念ではない。
+   *
+   * running の Timer なら早め上げ（order-lifecycle 判断 4・Requirement 5.1）——対象だけを完了し、群は作らない
+   * （走行中を一括完了の対象にしない規律は保つ・sync-set-batch-complete 要件3.2）。engine は complete を残り時間で
+   * 判定せず、参照先の品目に completedAt を書く。対象が不在なら何もしない。
    */
   complete(timerId: string): void;
   /** 走行中の茹で加減変更を送る（live のみ・サーバが endTime を引き直す）。 */
@@ -1012,8 +1051,8 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
           decideView(view, {
             kind: "Reconcile",
             timers: message.timers,
-            // 待ち行列と推奨は provisional の対概念を持たないため、再接続直後も通常の snapshot と同じ全置換。
-            pendingOrders: message.pendingOrders,
+            // 品目の集合と推奨は provisional の対概念を持たないため、再接続直後も通常の snapshot と同じ全置換。
+            orderItems: message.orderItems,
             recommendations: message.recommendations,
             receivedAt,
           }),
@@ -1089,7 +1128,9 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       // 押下時刻は一度だけ採る。群の再構成の基準時刻と残滓の記録時刻を同じ瞬間から導くため——二度呼べば
       // 境界に居る Timer が「群を作る判定」と「残滓に刻む時刻」で別の現在時刻を見ることになる。
       const at = now();
-      const group = boiledGroup(view, timerId, at + view.offset);
+      // 対象が boiled なら同時上がり群、running なら早め上げで対象だけ（completeTargets）。どちらもメンバーごとに
+      // 既存の経路（complete の送信 / LocalComplete）へ流す——群は引数にも状態にもならない。
+      const group = completeTargets(view, timerId, at + view.offset);
       const live = mode(view) === "live";
       let next = view;
       for (const member of group) {

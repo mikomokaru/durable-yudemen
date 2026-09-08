@@ -46,7 +46,7 @@ import { recommend } from "../../src/engine/recommend";
 import { changeCost, shownPlanOf, type ChangeContext } from "../../src/engine/stability";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
@@ -73,7 +73,7 @@ import { nonEmpty } from "../nonEmpty";
 
 /** 生成した場面。baselineSchedule の引数と、検査に要る slot 数が揃う。 */
 interface Scene {
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   readonly release: SlotRelease;
   readonly members: TableMembers;
   readonly lifts: LiftTable;
@@ -233,7 +233,7 @@ const keyOf = (externalOrderId: string, itemIndex: number): string =>
   `${externalOrderId}#${itemIndex}`;
 
 /** テスト側で独立に求めた計画対象の鍵集合（実装と同じ正準順序を、実装を呼ばずに組む）。 */
-function planTargetKeys(pending: readonly PendingOrder[]): readonly string[] {
+function planTargetKeys(pending: readonly OrderItem[]): readonly string[] {
   return [...pending]
     .sort(
       (order, other) =>
@@ -713,7 +713,7 @@ describe("Feature: pending-order-expiry — 計画対象は生きている待ち
         fc.integer({ min: 0, max: 60 * 60 * 1000 }),
         (expiredCount, orders, age) => {
           const alive = toPending(orders);
-          const dead: readonly PendingOrder[] = Array.from({ length: expiredCount }, (_u, i) => ({
+          const dead: readonly OrderItem[] = Array.from({ length: expiredCount }, (_u, i) => ({
             externalOrderId: `dead-${i}`,
             itemIndex: 0,
             noodleType: KNOWN_NOODLE_TYPES[0]!,
@@ -723,6 +723,8 @@ describe("Feature: pending-order-expiry — 計画対象は生きている待ち
             slotSpan: 1,
             itemName: null,
             sizeName: null,
+            completedAt: null,
+            interruptedAt: null,
           }));
 
           const targets = planTargets([...dead, ...alive], NOW);

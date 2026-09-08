@@ -18,7 +18,7 @@ import {
   visibleGroups,
 } from "../../src/client/components/liftGroups";
 import type { CookRecommendation } from "../../src/domain/messages";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import { defaultUnitOrigins, occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
@@ -33,7 +33,7 @@ const PRESETS: NonEmptyArray<NoodlePreset> = [
   { noodleType: "Short", boilSeconds: { extraHard: 330, hard: 330, normal: 330, soft: 330 } },
 ];
 
-function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): PendingOrder {
+function order(overrides: Partial<OrderItem> & { externalOrderId: string }): OrderItem {
   return {
     itemIndex: 0,
     noodleType: "Long",
@@ -43,6 +43,8 @@ function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): 
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
@@ -64,6 +66,7 @@ function timer(overrides: Partial<ClientTimer> & { id: string; endTime: number }
     noodleType: "Long",
     firmness: "normal",
     startTime: overrides.endTime - 510 * SECOND,
+    orderItem: null,
     origin: "server",
     ...overrides,
   };
@@ -98,7 +101,7 @@ function suggestionsAt(current: ClientView, corrected: number) {
 }
 
 describe("Feature: lift-group-display — 同卓 3 品で濃いのは店舗全体で先頭 arms 本だけ（判断 21・レビューの再現）", () => {
-  const current = view({ pendingOrders: THREE, recommendations: THREE_PLAN });
+  const current = view({ orderItems: THREE, recommendations: THREE_PLAN });
 
   it("3 品は一つの群 g1（serveAt は 510 秒で揃う）に束なり、0 秒では 510 秒の品目だけが head（他 2 品はまだ現れない）", () => {
     const groups = liftGroups(current, T0);
@@ -155,7 +158,7 @@ describe("Feature: lift-group-display — 同卓 3 品で濃いのは店舗全�
     const crowded = view({
       unitCount: 2,
       unitOrigins: defaultUnitOrigins(2),
-      pendingOrders: nine,
+      orderItems: nine,
       recommendations: plan,
     });
     const rolesOf = (bySlot: ReturnType<typeof suggestionsAt>) =>
@@ -215,7 +218,7 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
 
   it("先頭の群が started でない間、後の群は Prep_Lead が来ても出ない", () => {
     const current = view({
-      pendingOrders: [...THREE, other],
+      orderItems: [...THREE, other],
       recommendations: [...THREE_PLAN, otherPlan],
     });
     const groups = liftGroups(current, T0 + 180 * SECOND);
@@ -231,7 +234,7 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
     const extra = order({ externalOrderId: "extra", tableId: "t-2", noodleType: "Short" });
     const extraPlan = recommendation("extra", ["0"], T0 + 230 * SECOND, "g2");
     const current = view({
-      pendingOrders: [THREE[1]!, THREE[2]!, other, extra],
+      orderItems: [THREE[1]!, THREE[2]!, other, extra],
       recommendations: [
         recommendation("mid", ["1"], T0 + 150 * SECOND, "g1", anchor),
         recommendation("short", ["2"], T0 + 180 * SECOND, "g1", anchor),
@@ -264,7 +267,7 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
     const rest2 = order({ externalOrderId: "rest2", noodleType: "Short" });
     const g2 = order({ externalOrderId: "g2", tableId: "t-2", noodleType: "Short" });
     const current = view({
-      pendingOrders: [g2, rest2, rest1],
+      orderItems: [g2, rest2, rest1],
       recommendations: [
         recommendation("g2", ["1"], T0 + 300 * SECOND, "g2"),
         recommendation("rest2", ["1"], T0 + 270 * SECOND, "g1", anchor),
@@ -300,7 +303,7 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
     const startedWith = (anchor: number | null, timers: readonly ClientTimer[]) =>
       liftGroups(
         view({
-          pendingOrders: [THREE[1]!, THREE[2]!],
+          orderItems: [THREE[1]!, THREE[2]!],
           recommendations: [
             recommendation("mid", ["1"], T0 + 150 * SECOND, "g1", anchor),
             recommendation("short", ["2"], T0 + 180 * SECOND, "g1", anchor),
@@ -326,7 +329,7 @@ describe("Feature: lift-group-display — 連鎖は「1 本目が始まった」
     const rest = order({ externalOrderId: "rest", noodleType: "Mid" });
     const g2 = order({ externalOrderId: "g2", tableId: "t-2", noodleType: "Short" });
     const current = view({
-      pendingOrders: [rest, g2],
+      orderItems: [rest, g2],
       recommendations: [
         recommendation("rest", ["1"], T0 + 240 * SECOND, "g1", anchor),
         recommendation("g2", ["2"], T0 + 300 * SECOND, "g2"),
@@ -348,7 +351,7 @@ describe("Feature: lift-group-display — 群に入らない推奨・group だ�
   it("品目が待ち行列に無い・麺種がプリセットに無い推奨は群に入らない", () => {
     const retired = order({ externalOrderId: "retired", noodleType: "Retired" });
     const current = view({
-      pendingOrders: [THREE[0]!, retired],
+      orderItems: [THREE[0]!, retired],
       recommendations: [
         THREE_PLAN[0]!,
         recommendation("retired", ["1"], T0, "g1"),
@@ -365,7 +368,7 @@ describe("Feature: lift-group-display — 群に入らない推奨・group だ�
     const a = order({ externalOrderId: "a", tableId: null });
     const b = order({ externalOrderId: "b", tableId: null });
     const current = view({
-      pendingOrders: [a, b],
+      orderItems: [a, b],
       recommendations: [recommendation("a", ["0"], T0, "ga"), recommendation("b", ["1"], T0, "gb")],
     });
     const groups = liftGroups(current, T0);
@@ -378,7 +381,7 @@ describe("Feature: lift-group-display — 群に入らない推奨・group だ�
   it("群の鍵は group だけ——同じ卓・同じ serveAt でも group が違えば別の群、serveAt が違っても group が同じなら一つの群", () => {
     // 同じ卓 t-1・同じ serveAt 510 秒の 2 品を、engine が別の群に置いた snapshot。
     const split = view({
-      pendingOrders: [THREE[0]!, THREE[1]!],
+      orderItems: [THREE[0]!, THREE[1]!],
       recommendations: [
         recommendation("long", ["0"], T0, "g1"),
         recommendation("mid", ["1"], T0 + 150 * SECOND, "g2"),
@@ -387,7 +390,7 @@ describe("Feature: lift-group-display — 群に入らない推奨・group だ�
     expect(liftGroups(split, T0).map((group) => group.group)).toEqual(["g1", "g2"]);
     // serveAt が 510 秒と 540 秒でずれていても、同じ group なら一つの群（client は serveAt の等号を見ない）。
     const skewed = view({
-      pendingOrders: [THREE[0]!, THREE[1]!],
+      orderItems: [THREE[0]!, THREE[1]!],
       recommendations: [
         recommendation("long", ["0"], T0, "g1"),
         recommendation("mid", ["1"], T0 + 180 * SECOND, "g1"),
@@ -404,11 +407,11 @@ describe("Feature: lift-group-display — 群に入らない推奨・group だ�
   it("複数釜の推奨は一部の釜が埋まっていればどの釜にも出ず、boiled の釜も埋まっている", () => {
     const wide = order({ externalOrderId: "wide", slotSpan: 2 });
     const plan = recommendation("wide", ["0", "1"], T0, "g1");
-    const idle = view({ pendingOrders: [wide], recommendations: [plan] });
+    const idle = view({ orderItems: [wide], recommendations: [plan] });
     expect([...suggestionsAt(idle, T0).keys()].sort()).toEqual([0, 1]);
     // 釜 1 が茹で上がり（endTime ≤ corrected）でも Complete までは埋まっている。担当外のアドホック Timer でも同じ。
     const boiled = view({
-      pendingOrders: [wide],
+      orderItems: [wide],
       recommendations: [plan],
       timers: [timer({ id: "b", slotIds: nonEmpty(["1"]), endTime: T0 - SECOND })],
     });
@@ -480,9 +483,9 @@ describe("Feature: lift-group-display — 釜の組（pairSlots・判断 10）",
 describe("Feature: pending-order-expiry — 寿命を跨いだ品目は釜の提案からも同じ瞬間に消える（AC 3.1 / 3.3）", () => {
   /** long の到着を寿命の境界に置く：`EXPIRY` でちょうど切れ、`EXPIRY − 1` では生きている。 */
   const EXPIRY = T0 + 180 * SECOND;
-  const [LONG, MID, SHORT] = THREE as [PendingOrder, PendingOrder, PendingOrder];
+  const [LONG, MID, SHORT] = THREE as [OrderItem, OrderItem, OrderItem];
   const expiringLong = { ...LONG, arrivalTime: EXPIRY - ORDER_LIFETIME_MS };
-  const current = view({ pendingOrders: [expiringLong, MID, SHORT], recommendations: THREE_PLAN });
+  const current = view({ orderItems: [expiringLong, MID, SHORT], recommendations: THREE_PLAN });
 
   it("1 ms 手前では 3 品が群 g1 に在り、ちょうど寿命では long が群から抜けて 2 品になる（推奨は残るが品目が無い）", () => {
     expect(
@@ -493,7 +496,7 @@ describe("Feature: pending-order-expiry — 寿命を跨いだ品目は釜の提
     expect(after[0]!.items.map((item) => item.order.externalOrderId)).toEqual(["mid", "short"]);
     // 絞った値を view に持たない——推奨も待ち行列も wire のまま。
     expect(current.recommendations).toEqual(THREE_PLAN);
-    expect(current.pendingOrders).toEqual([expiringLong, MID, SHORT]);
+    expect(current.orderItems).toEqual([expiringLong, MID, SHORT]);
   });
 
   it("釜の提案：1 ms 手前は 釜 0 head・釜 1 head・釜 2 member、ちょうど寿命では釜 0 が空き、mid と short が先頭 arms 2 本に繰り上がる", () => {
@@ -552,7 +555,7 @@ describe("Feature: startable-placement — client の占有は domain の occupi
     const plan = six.map((each, slot) =>
       recommendation(each.externalOrderId, [String(slot)], T0, "g1"),
     );
-    const current = view({ pendingOrders: six, recommendations: plan, timers: TIMERS, arms: 6 });
+    const current = view({ orderItems: six, recommendations: plan, timers: TIMERS, arms: 6 });
     const bySlot = suggestionsAt(current, T0);
     const shownSlots = [...bySlot.keys()].sort();
     const occupied = occupiedSlotsOf(current.timers);
@@ -571,5 +574,43 @@ describe("Feature: startable-placement — client の占有は domain の occupi
     for (const slotId of pairSlots(0, 2, current) ?? []) {
       expect(occupied.has(Number(slotId))).toBe(false);
     }
+  });
+});
+
+// order-lifecycle（AC 4.5・性質 7.6）：群の品目も左レールと同じ未調理（pendingOrders）から組む。調理中（生きた Timer が
+// 指す）・調理済み（completedAt）の品目を指す推奨は群に入らず、釜の提案にも出ない。
+describe("Feature: order-lifecycle — 群と釜の提案は未調理の品目だけから組む（AC 4.5・性質 7.6）", () => {
+  it("long を指す走行中の Timer が在れば long は群から外れ、残る mid / short が群を成す（推奨は snapshot のまま）", () => {
+    const cookingLong = timer({
+      id: "t-long",
+      slotIds: nonEmpty(["5"]),
+      endTime: T0 + 510 * SECOND,
+      orderItem: { externalOrderId: "long", itemIndex: 0 },
+    });
+    const current = view({
+      orderItems: THREE,
+      recommendations: THREE_PLAN,
+      timers: [cookingLong],
+    });
+    const groups = liftGroups(current, T0 + 150 * SECOND);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.items.map((item) => item.order.externalOrderId)).toEqual(["mid", "short"]);
+    // 釜 0（long の推奨先）には何も出ない——long は調理中で提案の対象ではない。
+    const bySlot = suggestionsAt(current, T0 + 150 * SECOND);
+    expect(bySlot.get(0)).toBeUndefined();
+    expect(bySlot.get(1)?.map((each) => each.item.order.externalOrderId)).toEqual(["mid"]);
+  });
+
+  it("completedAt を持つ品目（done）を指す推奨は群に入らない。interruptedAt だけの品目は未調理として入る", () => {
+    const done = { ...THREE[0]!, completedAt: T0 - SECOND };
+    const interrupted = { ...THREE[1]!, interruptedAt: T0 - SECOND };
+    const current = view({
+      orderItems: [done, interrupted, THREE[2]!],
+      recommendations: THREE_PLAN,
+    });
+    const groups = liftGroups(current, T0 + 180 * SECOND);
+    expect(
+      groups.flatMap((group) => group.items.map((item) => item.order.externalOrderId)),
+    ).toEqual(["mid", "short"]);
   });
 });

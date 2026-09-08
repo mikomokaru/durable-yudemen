@@ -41,7 +41,7 @@ import { env, evictDurableObject, reset, runInDurableObject } from "cloudflare:t
 import type { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
 import type { ServerMessage } from "../../src/domain/messages";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
 import { SLOTS_PER_UNIT } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
@@ -247,7 +247,7 @@ async function fillEverySlot(client: WsProbe): Promise<void> {
  * 採用経路（`admit`）を通さないのは意図で、そちらはタスク 20.6 が受け持つ。ここで要るのは
  * 「永続に載った採用の事実が、失敗や hibernation を跨いで残るか」だけである。
  */
-function acceptedSliceFor(order: PendingOrder, slotId: string, boilMillis: number): AcceptedSlice {
+function acceptedSliceFor(order: OrderItem, slotId: string, boilMillis: number): AcceptedSlice {
   return {
     tableKey: order.tableId ?? `${order.externalOrderId}#${order.itemIndex}`,
     placements: [
@@ -279,7 +279,7 @@ async function confirmedWithAcceptedSlice(
   return runInDurableObject(stub, async (_instance, state) => {
     const persisted = await state.storage.get<StoreSnapshot>(SNAPSHOT_KEY);
     if (persisted === undefined) throw new Error("到着が永続されていない");
-    const order = persisted.pendingOrders[0];
+    const order = persisted.orderItems[0];
     if (order === undefined) throw new Error("待ち行列が空である");
     const next: StoreSnapshot = {
       ...persisted,
@@ -316,7 +316,7 @@ describe("20.1 hydration と 2 端末の一致（Requirements 2.4, 8.5）", () =
 
     // 同卓 2 品目の到着。確定変化ゆえ両端末へ snapshot が broadcast される。
     expect(await arrive(stub, [item("order-a", 0, "t-1"), item("order-a", 1, "t-1")])).toBe(200);
-    const broadcast = await second.waitForSnapshot((message) => message.pendingOrders.length === 2);
+    const broadcast = await second.waitForSnapshot((message) => message.orderItems.length === 2);
     // 前提が崩れた空虚な合格を許さない（推奨が 1 件も無ければ「一致」は何も語らない）。
     expect(broadcast.recommendations).toHaveLength(2);
 
@@ -326,7 +326,7 @@ describe("20.1 hydration と 2 端末の一致（Requirements 2.4, 8.5）", () =
     const hydrated = await reconnected.waitForSnapshot(() => true);
 
     // 待ち行列と推奨が、他端末が受けた broadcast と厳密に一致する（AC 2.4 / 8.5）。
-    expect(hydrated.pendingOrders).toEqual(broadcast.pendingOrders);
+    expect(hydrated.orderItems).toEqual(broadcast.orderItems);
     expect(hydrated.recommendations).toEqual(broadcast.recommendations);
 
     reconnected.close();
@@ -344,7 +344,7 @@ describe("20.2 `Persist` 失敗の抑止と回復（Requirements 10.5）", () =>
 
     const client = await connect(stub);
     const hydrated = await client.waitForSnapshot(() => true);
-    expect(hydrated.pendingOrders).toEqual(confirmed.pendingOrders);
+    expect(hydrated.orderItems).toEqual(confirmed.orderItems);
     const beforeFailure = client.messages.length;
 
     // put を失敗させたまま別オーダーの到着を通す。応答の側（受理を返さないこと）は 20.4 が受け持つため、
@@ -366,13 +366,13 @@ describe("20.2 `Persist` 失敗の抑止と回復（Requirements 10.5）", () =>
 
     // 直前の確定状態が保たれる——待ち行列に order-b は無く、採用済み PlanSlice も失われていない。
     const persisted = await readSnapshot(stub);
-    expect(persisted?.pendingOrders).toEqual(confirmed.pendingOrders);
+    expect(persisted?.orderItems).toEqual(confirmed.orderItems);
     expect(persisted?.acceptedSlices).toEqual(confirmed.acceptedSlices);
 
     // 後続の hydration が確定状態を回復する（推奨も確定状態から改めて導出される）。
     const recovered = await connect(stub);
     const rehydrated = await recovered.waitForSnapshot(() => true);
-    expect(rehydrated.pendingOrders).toEqual(confirmed.pendingOrders);
+    expect(rehydrated.orderItems).toEqual(confirmed.orderItems);
     expect(itemKeys(rehydrated.recommendations)).toEqual([["order-a", 0]]);
 
     client.close();
@@ -394,7 +394,7 @@ describe("20.3 hibernation 越しの復元（Requirements 2.5）", () => {
     expect(await arrive(stub, [item("order-b", 0, "t-2")])).toBe(200);
 
     const persisted = await readSnapshot(stub);
-    expect(itemKeys(persisted?.pendingOrders ?? [])).toEqual([
+    expect(itemKeys(persisted?.orderItems ?? [])).toEqual([
       ["order-a", 0],
       ["order-b", 0],
     ]);
@@ -403,7 +403,7 @@ describe("20.3 hibernation 越しの復元（Requirements 2.5）", () => {
     // 復元された状態から推奨が導出される（両オーダーが推奨の対象に入る）。
     const client = await connect(stub);
     const hydrated = await client.waitForSnapshot(() => true);
-    expect(itemKeys(hydrated.pendingOrders)).toEqual([
+    expect(itemKeys(hydrated.orderItems)).toEqual([
       ["order-a", 0],
       ["order-b", 0],
     ]);
@@ -449,14 +449,14 @@ describe("20.7 スキーマ v6 → v7 移行（Requirements 2.5）", () => {
     expect(hydrated.timers[0]?.id).toBe(v6Timer.id);
     expect(hydrated.timers[0]?.endTime).toBe(v6Timer.endTime);
     // 移行で埋まった 3 フィールドのうち、ワイヤに出るのは待ち行列と（そこから導く）推奨の 2 つ。
-    expect(hydrated.pendingOrders).toEqual([]);
+    expect(hydrated.orderItems).toEqual([]);
     expect(hydrated.recommendations).toEqual([]);
 
     // 移行は在メモリで済むため、永続の書き換えは次の確定変化まで起きない。到着を 1 件通して v7 を確定させる。
     expect(await arrive(stub, [item("order-a", 0, "t-1")])).toBe(200);
     const persisted = await readSnapshot(stub);
     expect(persisted?.version).toBe(CURRENT_SCHEMA_VERSION);
-    expect(itemKeys(persisted?.pendingOrders ?? [])).toEqual([["order-a", 0]]);
+    expect(itemKeys(persisted?.orderItems ?? [])).toEqual([["order-a", 0]]);
     expect(persisted?.acceptedSlices).toEqual([]);
     // 指紋は「直前に要求した時点の値」として埋まる（到着は要求を出してよい遷移である）。
     expect(typeof persisted?.requestedDigest).toBe("number");
@@ -640,7 +640,7 @@ async function planStage(prefix: string): Promise<PlanStage> {
       item(ORDER_SHORT, 0, TABLE_SHORT, PLAN_SHORT_NOODLE),
     ]),
   ).toBe(200);
-  const arrived = await client.waitForSnapshot((message) => message.pendingOrders.length === 2);
+  const arrived = await client.waitForSnapshot((message) => message.orderItems.length === 2);
   // 自前解は同時到着を卓 id 順に置くため、長い麺が先に入る。ここに改善の余地が在る（B を先に入れれば
   // 総和が縮む）。この前提が崩れていれば以後の「採用された」は何も語らない。
   expect(itemKeys(arrived.recommendations)).toEqual([
@@ -700,15 +700,15 @@ describe("20.4 Order_Ingress の認可・拒否・確定順序（Requirements 1.
     // 状態を変更しない（AC 1.1）。永続にも broadcast にも痕跡が無い。
     await idle(200);
     expect(client.messages.length).toBe(before);
-    expect((await readSnapshot(stub))?.pendingOrders ?? []).toEqual([]);
+    expect((await readSnapshot(stub))?.orderItems ?? []).toEqual([]);
 
     // **401 が DO 由来でないことの証。** DO の受け口は 401 を返さない（未プロビジョニング・非活性は 403、
     // 不正ボディは 400、put 失敗は 503）。同じ要求に正しいトークンを添えれば到達して受理される。
     const authorized = await callOrderIngress(storeId, AUTHORIZED_BEARER, body);
     await authorized.text();
     expect(authorized.status).toBe(200);
-    const broadcast = await client.waitForSnapshot((message) => message.pendingOrders.length === 1);
-    expect(itemKeys(broadcast.pendingOrders)).toEqual([["order-a", 0]]);
+    const broadcast = await client.waitForSnapshot((message) => message.orderItems.length === 1);
+    expect(itemKeys(broadcast.orderItems)).toEqual([["order-a", 0]]);
 
     client.close();
   });
@@ -727,7 +727,7 @@ describe("20.4 Order_Ingress の認可・拒否・確定順序（Requirements 1.
     });
     await client.waitForSnapshot((message) => message.timers.length === 1);
     expect(await arrive(stub, [item("order-a", 0, "t-1")])).toBe(200);
-    await client.waitForSnapshot((message) => message.pendingOrders.length === 1);
+    await client.waitForSnapshot((message) => message.orderItems.length === 1);
     const confirmed = await readSnapshot(stub);
     const before = client.messages.length;
 
@@ -761,7 +761,7 @@ describe("20.4 Order_Ingress の認可・拒否・確定順序（Requirements 1.
 
     // 対照：put が働くときは受理（200）が返り broadcast も出る。後段の「出ない」が空虚でないことの担保。
     expect(await arrive(stub, [item("order-a", 0, "t-1")])).toBe(200);
-    const confirmed = await client.waitForSnapshot((message) => message.pendingOrders.length === 1);
+    const confirmed = await client.waitForSnapshot((message) => message.orderItems.length === 1);
     expect(confirmed.recommendations).toHaveLength(1);
     const beforeFailure = client.messages.length;
 
@@ -785,7 +785,7 @@ describe("20.4 Order_Ingress の認可・拒否・確定順序（Requirements 1.
     // broadcast も出ない。受理応答と broadcast が put 成功という一点に揃っていることの表明である。
     await idle(200);
     expect(client.messages.length).toBe(beforeFailure);
-    expect(itemKeys((await readSnapshot(stub))?.pendingOrders ?? [])).toEqual([["order-a", 0]]);
+    expect(itemKeys((await readSnapshot(stub))?.orderItems ?? [])).toEqual([["order-a", 0]]);
 
     client.close();
   });
@@ -795,7 +795,7 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
   it("shell は 202 のみを await して event 処理を終え、応答ボディを復路として読まない", async () => {
     const stage = await planStage("cook-solver-outbound");
     let calls = 0;
-    let pendingAtSend: readonly PendingOrder[] | undefined;
+    let pendingAtSend: readonly OrderItem[] | undefined;
 
     const status = await withSolver(
       stage.stub,
@@ -803,7 +803,7 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
         calls += 1;
         // **送出の時点で put は既に成功している。** Effect 列は `Persist` を先頭に持ち `RequestPlan` を
         // 末尾に置くため、外部へ要求が出るのは確定の後だけである。
-        pendingAtSend = (await state.storage.get<StoreSnapshot>(SNAPSHOT_KEY))?.pendingOrders;
+        pendingAtSend = (await state.storage.get<StoreSnapshot>(SNAPSHOT_KEY))?.orderItems;
         // 復路を応答ボディに載せて返す（毒入りの 202）。読まれれば採用が起きてしまう計画である
         // ——同じ計画を `deliverPlan` へ渡すと採用されることは 20.6 が示す。
         return Response.json(improvingPlan(Date.now() + PLAN_START_LEAD_MS), { status: 202 });
@@ -874,7 +874,7 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
 
     // 送出失敗を Timer 本体の応答へ伝播させない（AC 10.2）。到着は確定して受理が返る。
     expect(status).toBe(200);
-    const broadcast = await client.waitForSnapshot((message) => message.pendingOrders.length === 1);
+    const broadcast = await client.waitForSnapshot((message) => message.orderItems.length === 1);
     // 推奨は出続ける——外部は改善の供給源であって前提ではない（AC 4.4 / 10.1）。
     expect(itemKeys(broadcast.recommendations)).toEqual([["order-a", 0]]);
     // 計時は乱れない。実効 endTime も次の発火予定も、外部の失敗を跨いで同じ値である。
@@ -921,14 +921,14 @@ describe("20.6 採用経路の end-to-end（Requirements 2.4, 6.5, 7.1, 7.5）",
     const reconnected = await connect(stage.stub);
     const hydrated = await reconnected.waitForSnapshot(() => true);
     expect(hydrated.recommendations).toEqual(adopted.recommendations);
-    expect(hydrated.pendingOrders).toEqual(adopted.pendingOrders);
+    expect(hydrated.orderItems).toEqual(adopted.orderItems);
 
     // 続く状態変化での再評価（AC 7.5）。陳腐化しない一片は維持され、尾部だけが新着を織り込んで走り直す。
     expect(await arrive(stage.stub, [item(ORDER_THIRD, 0, TABLE_THIRD, PLAN_LONG_NOODLE)])).toBe(
       200,
     );
     const reevaluated = await reconnected.waitForSnapshot(
-      (message) => message.pendingOrders.length === 3,
+      (message) => message.orderItems.length === 3,
     );
     expect(itemKeys(reevaluated.recommendations)).toEqual([
       [ORDER_SHORT, 0],
@@ -981,7 +981,7 @@ describe("lift-group-planning — 群の 1 本目を入れた後も残りが 1 �
       },
     ];
     expect(await arrive(stub, items)).toBe(200);
-    const planned = await client.waitForSnapshot((message) => message.pendingOrders.length === 3);
+    const planned = await client.waitForSnapshot((message) => message.orderItems.length === 3);
     // 計画は 3 本の serveAt（startAt + 茹で秒）を一致させる。
     const boilOf = (firmness: string) => ({ hard: 52, normal: 60, soft: 75 })[firmness]! * 1000;
     const serveTimes = planned.recommendations.map(

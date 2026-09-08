@@ -53,7 +53,7 @@ import { scoreSchedule, type ScheduleParams } from "../../src/engine/objective";
 import { tableMembers } from "../../src/engine/project";
 import type { Timer } from "../../src/engine/timer";
 import type { EpochMillis } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
@@ -78,7 +78,7 @@ import {
 
 /** ゲートの場面。admit の 7 引数と、検査に要る slot 数・外部計画の到着列が揃う。 */
 interface AdmitScene {
-  readonly pending: readonly PendingOrder[];
+  readonly pending: readonly OrderItem[];
   readonly running: readonly Timer[];
   readonly now: EpochMillis;
   readonly slotCount: number;

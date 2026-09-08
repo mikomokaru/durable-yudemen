@@ -46,21 +46,23 @@ export interface Adjusted {
 }
 
 /**
- * Ordered — engine だけが持つ「どの注文品目から始まったか」の事実（ワイヤには出ない）。
+ * Ordered — 「どの注文品目から始まったか」の事実。参照の鍵は共有契約（`TimerFact.orderItem`）に出し、卓は engine 専用。
  *
  * orderItem は POS 由来の注文品目への参照（externalOrderId と、その注文内の itemIndex）と、その品目が
  * 由来する卓（tableId・卓を持たない品目は null）。null はアドホック麺茹で＝POS を経ない開始。
- * 用途は二つ。(1) 開始済み品目の同定——同一注文の modification が全品目を再送してきたとき、生きた Timer
- * （running / boiled）を持つ品目を Pending_Order の置換から除いて二重調理を防ぐ（要件1.8 / 8.4）。
+ * 生成時に一度書いて不変、Timer が消えれば関係も消える（order-lifecycle 判断 2）。
+ * 用途は二つ。(1) 品目の状態の導出——自分を指す生きた Timer（running / boiled）が在る品目は cooking であり
+ * （`itemStatusOf`）、開始の照合・後着の置換・計画対象から自然に外れて二重調理を防ぐ（要件1.8・order-lifecycle 判断 1）。
+ * 釜側（カード・番号）は `orderItemOf(timer, items)` で品目を引く（判断 9）。
  * (2) 卓の同定——同じ卓の走行中 Timer を計画の群の成員に留め、群の 1 本目を入れた後も残りが 1 本目へ揃う
  * （lift-group-planning・ADR-0003）。
  * tableId を Timer の直下ではなく orderItem の内側に置くのは、(orderItem = null, tableId 非 null) という
  * 「POS を経ないのに卓を知る Timer」を型として構築不能にするためである。
- * modification で品目の卓が移っても走行中 Timer の tableId は追随しない——その Timer は既に旧卓の群として
- * 茹でている事実であり、再送で届いた未着手の品目が新しい卓の群に入る（upsertOrder が生きた Timer の
- * 品目を置換から除く規律の帰結。新しいコードは要らない）。
- * client は注文への紐づけを表示に用いないため共有契約 domain には出さない
- * （timer-model.md: 片側専用の関心事は共有契約に混ぜない。混ぜれば TimerFact が god type に転じる）。
+ * 後着で品目の卓が移っても走行中 Timer の tableId は追随しない（order-lifecycle 判断 7）——その Timer は既に旧卓の
+ * 群として茹でている事実であり（`OrderItem` は最新の注文情報、`Timer` は調理を開始した時点の情報）、カードは参照先の
+ * 品目から新しい卓を、計画の `tableMembers` はここに残る旧卓を読む。
+ * tableId は共有契約 domain には出さない（timer-model.md: 片側専用の関心事は共有契約に混ぜない。混ぜれば TimerFact が
+ * god type に転じる）。
  */
 export interface Ordered {
   /** 由来する注文品目への参照と卓。null はアドホック麺茹で（POS を経ない開始）。 */
@@ -79,10 +81,14 @@ export interface Ordered {
  * Boilable / Adjusted / Ordered を多重継承で合成する。endTime を持たない Timer や slotId を持たない Timer は型として
  * 存在しえない（ブランド型と smart constructor が担保）。
  * 残り秒は状態として持たない。保持するのは絶対終了時刻 endTime という「事実」だけ。
+ *
+ * `orderItem` は共有契約の参照（鍵）を engine 専用の卓で具体化する（Ordered）。TimerFact の側の `orderItem` を
+ * `Omit` で外して Ordered の形に差し替える——engine の Timer は wire の参照より広い（tableId を持つ）ので、
+ * wire へは `toWireTimer` が鍵だけを写す。
  */
 export interface Timer
   extends
-    TimerFact<TimerId, SlotId, NoodleType, EpochMillis>,
+    Omit<TimerFact<TimerId, SlotId, NoodleType, EpochMillis>, "orderItem">,
     Sequenced,
     Boilable,
     Adjusted,

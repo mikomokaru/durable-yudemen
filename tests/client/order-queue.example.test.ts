@@ -7,11 +7,16 @@
 // いずれも WS・DOM・時計に触れないため既定 pool（workerd 不要）で走る。now は引数で運ぶ。
 
 import { describe, expect, it } from "vitest";
-import { decideView, EMPTY_VIEW, type ClientView } from "../../src/client/connection";
+import {
+  decideView,
+  EMPTY_VIEW,
+  type ClientTimer,
+  type ClientView,
+} from "../../src/client/connection";
 import { orderQueueEntries, suggestedItemOf } from "../../src/client/components/queueDisplay";
 import { liftGroups, slotSuggestions, visibleGroups } from "../../src/client/components/liftGroups";
 import { correctedNow } from "../../src/client/clock";
-import { ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { CookRecommendation } from "../../src/domain/messages";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
@@ -19,7 +24,7 @@ import type { NonEmptyArray } from "../../src/domain/timer";
 const T = 1_700_000_000_000;
 
 /** 品目の鍵（`id#itemIndex`・比較用の読める形）。 */
-function keyOf(order: PendingOrder): string {
+function keyOf(order: OrderItem): string {
   return `${order.externalOrderId}#${order.itemIndex}`;
 }
 
@@ -28,8 +33,8 @@ function order(
   externalOrderId: string,
   itemIndex: number,
   arrivalTime: number,
-  overrides: Partial<PendingOrder> = {},
-): PendingOrder {
+  overrides: Partial<OrderItem> = {},
+): OrderItem {
   return {
     externalOrderId,
     itemIndex,
@@ -40,6 +45,8 @@ function order(
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }
@@ -56,14 +63,14 @@ function recommendation(
 
 /** synced 済みのビュー（待ち行列と推奨だけを差し替える）。 */
 function viewWith(
-  pendingOrders: readonly PendingOrder[],
+  orderItems: readonly OrderItem[],
   recommendations: readonly CookRecommendation[],
 ): ClientView {
   return {
     ...EMPTY_VIEW,
     sync: "synced",
     connectivity: "up",
-    pendingOrders,
+    orderItems,
     recommendations,
     noodlePresets: DEFAULT_NOODLE_PRESETS,
   };
@@ -87,12 +94,12 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
         type: "snapshot",
         serverTime: T,
         timers: [],
-        pendingOrders: [order("o-1", 0, T)],
+        orderItems: [order("o-1", 0, T)],
         recommendations: [recommendation("o-1", 0, ["2"], T + 5_000)],
       },
       receivedAt: T,
     });
-    expect(applied.pendingOrders).toEqual([order("o-1", 0, T)]);
+    expect(applied.orderItems).toEqual([order("o-1", 0, T)]);
     expect(applied.recommendations).toEqual([recommendation("o-1", 0, ["2"], T + 5_000)]);
     // server-confirmed の全置換規律は不変（provisional は保持される）。
     expect(applied.timers.map((timer) => timer.id)).toEqual(["local-1"]);
@@ -104,12 +111,12 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
         type: "snapshot",
         serverTime: T + 1,
         timers: [],
-        pendingOrders: [],
+        orderItems: [],
         recommendations: [],
       },
       receivedAt: T + 1,
     });
-    expect(emptied.pendingOrders).toEqual([]);
+    expect(emptied.orderItems).toEqual([]);
     expect(emptied.recommendations).toEqual([]);
   });
 
@@ -118,11 +125,11 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
     const reconciled = decideView(stale, {
       kind: "Reconcile",
       timers: [],
-      pendingOrders: [order("o-new", 0, T + 10)],
+      orderItems: [order("o-new", 0, T + 10)],
       recommendations: [recommendation("o-new", 0, ["1"], T + 20)],
       receivedAt: T + 30,
     });
-    expect(reconciled.pendingOrders).toEqual([order("o-new", 0, T + 10)]);
+    expect(reconciled.orderItems).toEqual([order("o-new", 0, T + 10)]);
     expect(reconciled.recommendations).toEqual([recommendation("o-new", 0, ["1"], T + 20)]);
   });
 
@@ -233,7 +240,7 @@ describe("待ち行列の表示導出（AC 8.1 / 8.2 / 8.5）", () => {
 
 // ── pending-order-expiry: client も同じ述語で絞る（Requirement 3・性質 5.8） ────────────────────────────
 //
-// wire の `pendingOrders` は保持したまま（ClientView に絞った値を持たない）、レールを並べる入口が補正後現在時刻で
+// wire の `orderItems` は保持したまま（ClientView に絞った値を持たない）、レールを並べる入口が補正後現在時刻で
 // domain の liveOrders に通す。サーバは既に絞って送るが、snapshot の後に時刻が進んで寿命を跨ぐ品目は client が
 // 消す——次の snapshot を待たない。時刻はすべて引数で運び、Date.now は用いない（純粋層の規律）。
 
@@ -246,13 +253,13 @@ describe("Feature: pending-order-expiry — 寿命を跨いだ品目は次の sn
   const keys = (entries: ReturnType<typeof orderQueueEntries>) =>
     entries.map((entry) => keyOf(entry.order));
 
-  it("snapshot 直後は残り、correctedNow が寿命を跨ぐと消える。view の pendingOrders は wire のまま", () => {
+  it("snapshot 直後は残り、correctedNow が寿命を跨ぐと消える。view の orderItems は wire のまま", () => {
     const view = viewWith([EXPIRING, FRESH], []);
     expect(keys(orderQueueEntries(view, [0], T - 1))).toEqual(["o-expiring#0", "o-fresh#0"]);
     expect(keys(orderQueueEntries(view, [0], T))).toEqual(["o-fresh#0"]);
     expect(keys(orderQueueEntries(view, [0], T + 60_000))).toEqual(["o-fresh#0"]);
     // 絞った値を状態にしない——wire の全量はそのまま残る（design 原則 1）。
-    expect(view.pendingOrders).toEqual([EXPIRING, FRESH]);
+    expect(view.orderItems).toEqual([EXPIRING, FRESH]);
   });
 
   it("境界は半開区間：ちょうど arrivalTime + 寿命 は含まず、その 1 ms 前は含む（domain と同じ 1 つの述語）", () => {
@@ -339,5 +346,215 @@ describe("Feature: pending-order-expiry — 非ゼロの offset で左レール�
     for (const now of [NOW_LOCAL - 2, NOW_LOCAL - 1, NOW_LOCAL, NOW_LOCAL + 1]) {
       expect(railKeys(now), `now = ${now - NOW_LOCAL}`).toEqual(boardKeys(now));
     }
+  });
+});
+
+// order-lifecycle（AC 4.5・性質 7.6）：左レール（とそれを読むラジアルの帯）は `pendingOrders(view.orderItems,
+// view.timers, corrected)`＝期限内 ∧ unstarted だけを出す。snapshot の `orderItems` は調理中（生きた Timer の参照先）と
+// 調理済み（completedAt）も運ぶ（釜のカードが参照で引くため）が、それらはレールに現れない。中断された品目
+// （interruptedAt・状態には効かない）は未調理として戻る。
+describe("Feature: order-lifecycle — 左レールは未調理（pendingOrders）だけを出す（AC 4.5・性質 7.6）", () => {
+  const UNSTARTED = order("o-u", 0, T);
+  const COOKING = order("o-c", 0, T + 1);
+  const DONE = order("o-d", 0, T + 2, { completedAt: T + 100_000 });
+  const INTERRUPTED = order("o-i", 0, T + 3, { interruptedAt: T + 50_000 });
+
+  /** COOKING を指す生きた Timer（走行中・boiled とも「生きた Timer」で、指す品目は cooking）。 */
+  function timerFor(item: OrderItem, endTime: number): ClientTimer {
+    return {
+      id: `t-${item.externalOrderId}`,
+      slotIds: ["3"],
+      noodleType: item.noodleType,
+      firmness: item.firmness,
+      startTime: endTime - 60_000,
+      endTime,
+      orderItem: { externalOrderId: item.externalOrderId, itemIndex: item.itemIndex },
+      origin: "server",
+    };
+  }
+
+  const NOW = T + 200_000;
+
+  it("調理中（生きた Timer が指す）と調理済み（completedAt）は orderItems に在ってもレールに無く、未調理と中断済みは並ぶ", () => {
+    const view: ClientView = {
+      ...viewWith([DONE, INTERRUPTED, COOKING, UNSTARTED], []),
+      timers: [timerFor(COOKING, NOW + 30_000)],
+    };
+    expect(view.orderItems).toHaveLength(4); // wire のまま保持する（絞った値を view に持たない）
+    expect(orderQueueEntries(view, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+      "o-u#0",
+      "o-i#0",
+    ]);
+  });
+
+  it("茹で上がって Complete を待つ boiled の Timer が指す品目も調理中（時間が来ただけでは done にならない）", () => {
+    const view: ClientView = {
+      ...viewWith([COOKING, UNSTARTED], []),
+      timers: [timerFor(COOKING, NOW - 30_000)],
+    };
+    expect(orderQueueEntries(view, [0], NOW).map((entry) => keyOf(entry.order))).toEqual(["o-u#0"]);
+  });
+
+  it("Timer が snapshot から消えると品目はレールに戻る（厨房 Cancel で unstarted へ・期限内なら再び現れる）", () => {
+    const cooking: ClientView = {
+      ...viewWith([COOKING, UNSTARTED], []),
+      timers: [timerFor(COOKING, NOW + 30_000)],
+    };
+    const cancelled = decideView(cooking, {
+      kind: "Server",
+      message: {
+        type: "snapshot",
+        serverTime: NOW,
+        timers: [],
+        orderItems: [{ ...COOKING, interruptedAt: NOW }, UNSTARTED],
+        recommendations: [],
+      },
+      receivedAt: NOW,
+    });
+    expect(orderQueueEntries(cancelled, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+      "o-u#0",
+      "o-c#0",
+    ]);
+  });
+
+  describe("通信断（degraded）ではレールを列挙しない（order-lifecycle 判断 18・レビュー P2）", () => {
+    // 未調理は「自分を指す生きた Timer が無い品目」の導出なので、通信断中にローカルで Timer だけを消す完了は品目に
+    // completedAt を書けず、調理済みの品目が未調理として戻って見える（実測：レール [] → ["A"]）。ラジアルと同じく
+    // degraded では列挙せず、再接続の snapshot で復帰する。サーバ未確定の completedAt を client では書かない。
+    const cookingLive: ClientView = {
+      ...viewWith([COOKING, UNSTARTED], []),
+      timers: [timerFor(COOKING, NOW + 30_000)],
+    };
+    const offline = decideView(cookingLive, { kind: "Connectivity", status: "down" });
+
+    it("通信断中はレールが空（未調理が在っても列挙しない）", () => {
+      expect(orderQueueEntries(cookingLive, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+        "o-u#0",
+      ]);
+      expect(orderQueueEntries(offline, [0], NOW)).toEqual([]);
+    });
+
+    it("通信断中の通常完了（boiled の LocalComplete）で、調理済みの品目が未調理として戻らない", () => {
+      const boiledOffline = decideView(
+        { ...cookingLive, timers: [timerFor(COOKING, NOW - 30_000)] },
+        { kind: "Connectivity", status: "down" },
+      );
+      const completed = decideView(boiledOffline, {
+        kind: "LocalComplete",
+        timerId: timerFor(COOKING, NOW - 30_000).id,
+        now: NOW,
+      });
+      expect(completed.timers).toEqual([]);
+      expect(orderQueueEntries(completed, [0], NOW)).toEqual([]);
+    });
+
+    it("通信断中の早め上げ（走行中への complete → LocalComplete）でも戻らない", () => {
+      const lifted = decideView(offline, {
+        kind: "LocalComplete",
+        timerId: timerFor(COOKING, NOW + 30_000).id,
+        now: NOW,
+      });
+      expect(lifted.timers).toEqual([]);
+      expect(orderQueueEntries(lifted, [0], NOW)).toEqual([]);
+    });
+
+    it("通信断中の中断（LocalCancel）でも通信断の間は戻らない（未調理へ戻すのはサーバの snapshot）", () => {
+      const interrupted = decideView(offline, {
+        kind: "LocalCancel",
+        timerId: timerFor(COOKING, NOW + 30_000).id,
+        now: NOW,
+      });
+      expect(interrupted.timers).toEqual([]);
+      expect(orderQueueEntries(interrupted, [0], NOW)).toEqual([]);
+    });
+
+    it("段階ごとの検査：down → ローカル完了 → pong/up → snapshot。up だけでは復帰せず、snapshot の再整合で復帰する", () => {
+      const lifted = decideView(offline, {
+        kind: "LocalComplete",
+        timerId: timerFor(COOKING, NOW + 30_000).id,
+        now: NOW,
+      });
+      expect(orderQueueEntries(lifted, [0], NOW)).toEqual([]);
+      // pong だけで connectivity は up になる。view はまだ「古い品目集合 ＋ ローカルで消した Timer 集合」——
+      // ここで導けば A が未調理として戻る（レビュー実走：レール [A]・snapshot 受信数 0）。再整合までは列挙しない。
+      const pong = decideView(lifted, { kind: "Connectivity", status: "up" });
+      expect(pong.connectivity).toBe("up");
+      expect(pong.awaitingResync).toBe(true);
+      expect(orderQueueEntries(pong, [0], NOW)).toEqual([]);
+      const reconciled = decideView(pong, {
+        kind: "Server",
+        message: {
+          type: "snapshot",
+          serverTime: NOW,
+          timers: [],
+          orderItems: [{ ...COOKING, completedAt: NOW }, UNSTARTED],
+          recommendations: [],
+        },
+        receivedAt: NOW,
+      });
+      expect(reconciled.awaitingResync).toBe(false);
+      expect(orderQueueEntries(reconciled, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+        "o-u#0",
+      ]);
+    });
+
+    it("Reconcile でも再整合する（snapshot と同じ規律）", () => {
+      const pong = decideView(
+        decideView(offline, {
+          kind: "LocalComplete",
+          timerId: timerFor(COOKING, NOW + 30_000).id,
+          now: NOW,
+        }),
+        { kind: "Connectivity", status: "up" },
+      );
+      const reconciled = decideView(pong, {
+        kind: "Reconcile",
+        timers: [],
+        orderItems: [{ ...COOKING, completedAt: NOW }, UNSTARTED],
+        recommendations: [],
+        receivedAt: NOW,
+      });
+      expect(reconciled.awaitingResync).toBe(false);
+      expect(orderQueueEntries(reconciled, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+        "o-u#0",
+      ]);
+    });
+  });
+
+  it("調理中・調理済みの品目を指す推奨は提案として成立しない（待ち行列に無い推奨と同じ経路）", () => {
+    const recommendations = [
+      recommendation("o-c", 0, ["0"], NOW),
+      recommendation("o-d", 0, ["1"], NOW),
+      recommendation("o-u", 0, ["2"], NOW),
+    ];
+    const view: ClientView = {
+      ...viewWith([DONE, COOKING, UNSTARTED], recommendations),
+      timers: [timerFor(COOKING, NOW + 30_000)],
+    };
+    expect(suggestedItemOf(view, recommendations[0]!, NOW)).toBeNull();
+    expect(suggestedItemOf(view, recommendations[1]!, NOW)).toBeNull();
+    expect(suggestedItemOf(view, recommendations[2]!, NOW)?.order).toEqual(UNSTARTED);
+    const entries = orderQueueEntries(view, [0], NOW);
+    expect(entries.map((entry) => [keyOf(entry.order), entry.suggestion !== null])).toEqual([
+      ["o-u#0", true],
+    ]);
+  });
+
+  it("全件が未調理なら view.orderItems と同じ参照で読む（再描画の抑制を壊さない）——アドホックの Timer は品目を指さない", () => {
+    const adHoc: ClientTimer = {
+      id: "t-adhoc",
+      slotIds: ["0"],
+      noodleType: "Thin",
+      firmness: "normal",
+      startTime: NOW - 10_000,
+      endTime: NOW + 50_000,
+      orderItem: null,
+      origin: "server",
+    };
+    const view: ClientView = { ...viewWith([UNSTARTED, INTERRUPTED], []), timers: [adHoc] };
+    expect(orderQueueEntries(view, [0], NOW).map((entry) => entry.order)).toEqual([
+      UNSTARTED,
+      INTERRUPTED,
+    ]);
   });
 });

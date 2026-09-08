@@ -36,7 +36,7 @@ import { shownPlanOf } from "../../src/engine/stability";
 import { createTimer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
-import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
+import { itemKeyOf, type OrderItem } from "../../src/domain/order";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import { toPending } from "./scheduleScenes";
 import { nonEmpty } from "../nonEmpty";
@@ -89,7 +89,7 @@ function perturb(
   scene: Scene,
   previous: CookSchedule,
   kind: Perturbation,
-  arrival: readonly PendingOrder[],
+  arrival: readonly OrderItem[],
 ): Scene | null {
   const { pending, running, slotCount, params, now } = scene;
   switch (kind) {

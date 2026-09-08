@@ -3,8 +3,9 @@
 // 担当スロットの表示状態 SlotDisplay からのみ生成されるため、担当外には現れない／要件12.3）。
 // 残りは導出済みの値を受け取って整形するだけ。00:00 固定・負なしは format/clock 側で担保（要件5.6）。
 //
-// 状態機械: idle（カード全体が開始ボタン・タップでラジアル）→ running（Cancel で中断）→ boiled
-// （Complete で明示消し込み）。boiled は「ユーザーが消し込むべき状態」で、Complete までカードに残る。
+// 状態機械: idle（カード全体が開始ボタン・タップでラジアル）→ running（停止ボタン：残り ≥ 60 秒の 2 段タップは
+// Cancel で中断、残り < 60 秒の 1 タップは Complete で早め上げ・order-lifecycle 判断 4）→ boiled（Complete で明示
+// 消し込み）。boiled は「ユーザーが消し込むべき状態」で、Complete までカードに残る。
 // 完了後、当該スロットは idle に戻り、直前の調理結果（noodleType）をベストエフォートで一定時間表示する。
 
 import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from "react";
@@ -452,7 +453,12 @@ export function SlotCard({
   const cancelArmed =
     display.kind === "running" &&
     isCancelArmed({ remainingMs: display.remainingMs, armedAt, now: Date.now() });
-  // Cancel タップ。決定は純粋関数（cancelGuard）に委ね、ここは決定に応じた作用（送信・armed 更新）だけを行う。
+  // 完了の操作口は一つ（boiled の Complete ボタンと、running の早め上げが同じ口を通る・sync-set-batch-complete 要件7.1）。
+  // 渡すのは単一 Timer で、同時上がり群の再構成は窓口（connection.complete）の関心事である。
+  const completeTimer = () => onComplete(slot, display.timer);
+  // 停止タップ。決定は純粋関数（cancelGuard）に委ね、ここは決定に応じた作用（送信・armed 更新）だけを行う。
+  // 残り < しきいの 1 タップは早め上げ＝complete（品目は done）、残り ≥ しきいの 2 段タップは中断＝cancel（品目は
+  // 未調理へ戻る）——order-lifecycle 判断 4・Requirement 5.1。
   const onCancelTap = () => {
     if (display.kind !== "running") return; // このボタンは running のみ描画（型絞り込み）
     const decision = decideCancelTap({
@@ -461,6 +467,9 @@ export function SlotCard({
       now: Date.now(),
     });
     switch (decision.kind) {
+      case "complete":
+        completeTimer();
+        break;
       case "cancel":
         onCancel(display.timer.id);
         setArmedAt(null);
@@ -557,7 +566,7 @@ export function SlotCard({
                 <button
                   type="button"
                   aria-label="Complete"
-                  onClick={() => onComplete(slot, display.timer)}
+                  onClick={completeTimer}
                   style={{ backgroundColor: tint }}
                   className={cn(actionBtn, "text-[#15120c] hover:brightness-105")}
                 >

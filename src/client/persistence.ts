@@ -8,7 +8,7 @@
 // 永続するのは「これ以上分解できない事実」だけ —— timers（起源タグ込み）・クロックオフセット・
 // processedIds。Connectivity / sync / error / unreachableReason は導出・一過性のフィールドであり永続しない。
 //
-// 待ち行列（pendingOrders）と推奨（recommendations）も永続しない。走行中 Timer を永続するのは endTime が
+// 品目の集合（orderItems）と推奨（recommendations）も永続しない。走行中 Timer を永続するのは endTime が
 // それ自体で完結する事実で、秒読みが瞬断で死んではならないからである。待ち行列はそうではない——サーバだけが
 // 確定させる事実で、接続が無い間に外で変わりうる（到着・キャンセル・他端末の開始）。起動時に古い写しを
 // 出せば「まだ茹でていない注文」という嘘を語る。接続が無い間は「知らない」を空で示し、hydration で受け直す。
@@ -21,6 +21,7 @@ import { EMPTY_VIEW } from "./connection";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness } from "../domain/firmness";
+import { isNonEmptyString, isNonNegativeInteger } from "../domain/predicate";
 
 /**
  * 永続ブロブの形（単一 JSON・version 付き・要件11.1）。
@@ -132,6 +133,8 @@ function isTimerOrigin(value: unknown): value is TimerOrigin {
  * id / noodleType は string、endTime は number、origin は "server" | "local"。slotIds は
  * 現行 v2 形（非空文字列の非空配列）を優先し、旧 v1 形（単一 `slotId` 文字列）は `[slotId]` に包んで
  * 受理する（保存キー据え置きで走行中タイマーを失わない優雅な移行）。余剰フィールドは無視する。
+ * orderItem（Timer → 品目の参照・order-lifecycle）は `toOrderItemRef` で検証して復元し、欠如（旧ブロブ）・不正は
+ * null に畳んで Timer を失わない——参照は釜のカードの表示に要る事実だが、秒読みの継続はそれに依らない。
  */
 function toClientTimer(value: unknown): ClientTimer | null {
   if (!isRecord(value)) {
@@ -160,8 +163,24 @@ function toClientTimer(value: unknown): ClientTimer | null {
     firmness,
     startTime,
     endTime: value.endTime,
+    orderItem: toOrderItemRef(value.orderItem),
     origin: value.origin,
   };
+}
+
+/**
+ * 永続された Timer → 品目の参照を復元する。null と { externalOrderId: 非空文字列; itemIndex: 非負整数 } だけを受理し、
+ * 欠如（orderItem を持たない旧 localStorage ブロブ）と不正はいずれも null（注文なしと同じ経路）に畳む。
+ *
+ * wire（domain/wire.ts）は不正な参照を snapshot ごと落とすが、ここは落とさない——永続は走行中の秒読みを瞬断で
+ * 失わないための写しであり、参照が読めないことは Timer を捨てる理由にならない（design Component 4・レビュー P2）。
+ * 余剰フィールド（engine 側の tableId 等）は写さない。
+ */
+function toOrderItemRef(value: unknown): ClientTimer["orderItem"] {
+  if (!isRecord(value)) return null;
+  const { externalOrderId, itemIndex } = value;
+  if (!isNonEmptyString(externalOrderId) || !isNonNegativeInteger(itemIndex)) return null;
+  return { externalOrderId, itemIndex };
 }
 
 /** 永続スロット表現を現行形（非空文字列の非空配列）へ写す。v2 配列を優先し、無ければ v1 単一を包む。 */

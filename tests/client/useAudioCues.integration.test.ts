@@ -97,6 +97,7 @@ function timerAt(id: string, slotId: string, endTime: number): ClientTimer {
     firmness: "normal",
     startTime: BASE - 100_000,
     endTime,
+    orderItem: null,
     origin: "server",
   };
 }

@@ -34,7 +34,7 @@ import {
 import type { SettleParams } from "../../src/engine/settle";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
+import { itemKeyOf, type OrderItem } from "../../src/domain/order";
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
 import { DEFAULT_NOODLE_PRESETS, occupiedSlotsOf, type NoodlePreset } from "../../src/domain/store";
 import { physicalViolationsOf, sceneFrom, totalOf } from "./restoreScenes";
@@ -166,7 +166,8 @@ describe("Feature: startable-placement — 観測事実 8（卓なし 8 品・�
     expect(startedB).toHaveLength(1);
     expect(startedB[0]!.at).toBe(75);
     const last = trace[trace.length - 1]!;
-    expect(last.step.state.pendingOrders).toHaveLength(0);
+    // 品目は開始で消費されない（order-lifecycle）——全品目が done（completedAt 付き）で走行中が無いことが「最後まで処理された」。
+    expect(last.step.state.orderItems.every((item) => item.completedAt !== null)).toBe(true);
     expect(last.step.state.timers).toHaveLength(0);
     // 開始はすべて提案の釜——Timer の無い釜——で行われた（開始の直前の snapshot でその釜に Timer が無い）。
     for (const [index, transition] of trace.entries()) {
@@ -211,7 +212,7 @@ function timerOn(slot: number, endSeconds: number): Timer {
 }
 
 /** 自前解（NOW の解放表・成員表・上げ表・占有から）。 */
-function ownPlan(pending: readonly PendingOrder[], running: readonly Timer[]) {
+function ownPlan(pending: readonly OrderItem[], running: readonly Timer[]) {
   return baselineSchedule(
     pending,
     initialRelease(running, NOW, 6),
@@ -307,7 +308,7 @@ describe("Feature: startable-placement — レビュー反例", () => {
       ...EMPTY_STATE,
       timers: running,
       nextSeq: 10,
-      pendingOrders: [b],
+      orderItems: [b],
       acceptedSlices: [accepted],
     };
     const arrived = step(kitchen, state, arrive([a], NOW));
@@ -450,7 +451,7 @@ const TABLES = {
   quads: (index: number) => `t${Math.floor(index / 4)}`,
 } as const;
 
-function itemsOf(tables: keyof typeof TABLES, slotSpan: number): readonly PendingOrder[] {
+function itemsOf(tables: keyof typeof TABLES, slotSpan: number): readonly OrderItem[] {
   return Array.from({ length: 24 }, (_unused, index) =>
     order(`o${index}`, {
       noodleType: "Thin",
@@ -500,7 +501,8 @@ describe("Feature: startable-placement — 24 品の連続処理で、例外に�
       const run = runOf(tables, slotSpan, options);
       expect(gapsOf(run)).toEqual([]);
       const last = run[run.length - 1]!;
-      expect(last.step.state.pendingOrders).toHaveLength(0);
+      // 品目は開始で消費されない（order-lifecycle）——全品目が done（completedAt 付き）で走行中が無いことが「最後まで処理された」。
+      expect(last.step.state.orderItems.every((item) => item.completedAt !== null)).toBe(true);
       expect(last.step.state.timers).toHaveLength(0);
       // 釜の再利用が二周目以降まで進んでいる（釜ごとに 24 / 6 ≧ 2 回以上の開始）。
       const starts = run.filter((transition) => transition.operation.startsWith("start "));

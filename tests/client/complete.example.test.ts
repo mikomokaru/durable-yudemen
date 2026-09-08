@@ -58,6 +58,7 @@ describe("SlotCard — Complete の実描画境界", () => {
     firmness: "normal",
     startTime: START_NOW - 60_000,
     endTime: START_NOW,
+    orderItem: null,
   };
 
   it("boiled は Complete button を 1 つ描画し、running / idle は描画しない（要件7.1 / 7.3）", () => {
@@ -65,12 +66,14 @@ describe("SlotCard — Complete の実描画境界", () => {
       kind: "boiled",
       slot: 0,
       timer: { ...timer, endTime: START_NOW - 1_000 },
+      orderItem: null,
       overdueMs: 1_000,
     });
     const running = slotCardMarkup({
       kind: "running",
       slot: 0,
       timer: { ...timer, endTime: START_NOW + 30_000 },
+      orderItem: null,
       remainingMs: 30_000,
       unconfirmed: false,
     });
@@ -102,9 +105,10 @@ describe("client/connection — 茹で上がりの明示完了", () => {
           firmness: "normal",
           startTime: START_NOW - 91_000,
           endTime: START_NOW - 1000,
+          orderItem: null,
         },
       ],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
 
@@ -126,7 +130,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
       type: "snapshot",
       serverTime: START_NOW + 5,
       timers: [],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     const view2 = connection.getView();
@@ -153,9 +157,10 @@ describe("client/connection — 茹で上がりの明示完了", () => {
           firmness: "normal",
           startTime: START_NOW - 91_000,
           endTime: START_NOW - 1000,
+          orderItem: null,
         },
       ],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     connection.complete("T");
@@ -163,7 +168,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
       type: "snapshot",
       serverTime: START_NOW + 5,
       timers: [],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     expect(connection.getView().lastResults.has("3")).toBe(true);
@@ -180,9 +185,10 @@ describe("client/connection — 茹で上がりの明示完了", () => {
           firmness: "normal",
           startTime: START_NOW + 10_000,
           endTime: START_NOW + 70_000,
+          orderItem: null,
         },
       ],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     expect(connection.getView().lastResults.has("3")).toBe(false);
@@ -220,6 +226,7 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
       firmness: "normal",
       startTime: START_NOW,
       endTime,
+      orderItem: null,
     };
   }
 
@@ -323,7 +330,53 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
     connection.close();
   });
 
-  it("対象 running — 群が空ゆえ送信ゼロ・ビュー不変（要件1.2 / 3.2）", () => {
+  it("対象 running — 群を作らず対象だけを complete で送る（早め上げ・order-lifecycle 判断 4）。走行中は一括の対象にしない（要件1.2 / 3.2）", () => {
+    const { connection, send, save, setConnectivity, receiveSnapshot } =
+      openConnectionWithFakeWatch();
+    setConnectivity("up");
+    // R と S は同じ実効 endTime の走行中、B は boiled。R の早め上げは R だけを完了し、S（同じ endTime でも走行中）も
+    // B（boiled だが対象と endTime が違う）も巻き込まない——群は boiled の対象からしか作らない（boiledGroup は空）。
+    receiveSnapshot([
+      timerAt("R", "0", START_NOW + 60_000),
+      timerAt("S", "1", START_NOW + 60_000),
+      timerAt("B", "2", BOILED_AT),
+    ]);
+    const before = connection.getView();
+
+    send.mockClear();
+    save.mockClear();
+    connection.complete("R");
+
+    expect(completeSends(send)).toEqual(["R"]);
+    // live の server-confirmed はサーバの全量 snapshot が除去を運ぶ。局所ビューは動かない（cancel と同じ）。
+    expect(connection.getView()).toBe(before);
+    expect(save).not.toHaveBeenCalled();
+
+    connection.close();
+  });
+
+  it("対象 running・degraded — 対象だけをローカルで畳み、同じ endTime の走行中も boiled も残す", () => {
+    const { connection, send, setConnectivity, receiveSnapshot } = openConnectionWithFakeWatch();
+    setConnectivity("up");
+    receiveSnapshot([
+      timerAt("R", "0", START_NOW + 60_000),
+      timerAt("S", "1", START_NOW + 60_000),
+      timerAt("B", "2", BOILED_AT),
+    ]);
+    setConnectivity("down");
+
+    send.mockClear();
+    connection.complete("R");
+
+    expect(send).not.toHaveBeenCalled();
+    expect(connection.getView().timers.map((timer) => timer.id)).toEqual(["S", "B"]);
+    expect(connection.getView().processedIds.has("R")).toBe(true);
+    expect(connection.getView().lastResults.get("0")?.noodleType).toBe("noodle-R");
+
+    connection.close();
+  });
+
+  it("対象 不在 — 送信ゼロ・ビュー不変", () => {
     const { connection, send, save, setConnectivity, receiveSnapshot } =
       openConnectionWithFakeWatch();
     setConnectivity("up");
@@ -332,9 +385,8 @@ describe("client/connection — 同時上がり群の一括消し込み（経路
 
     send.mockClear();
     save.mockClear();
-    connection.complete("R");
+    connection.complete("no-such");
 
-    // 窓口の関門（boiledGroup が空を返す）で止まる。update(view) は参照同一ゆえ早期 return する。
     expect(send).not.toHaveBeenCalled();
     expect(connection.getView()).toBe(before);
     expect(save).not.toHaveBeenCalled();

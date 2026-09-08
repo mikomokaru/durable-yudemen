@@ -13,7 +13,11 @@ export type Rejection =
   // 指した品目が待ち行列に無い（slot-suggested-start）。麺種を導けないため Timer を作れない。
   // AC 8.3「推奨との不一致を理由に拒否しない」の例外ではなく別の事実である——同 AC が守るのは現場の
   // 選択であり、他端末が直前に開始した品目の二重調理ではない。
-  | { readonly code: "OrderItemNotFound"; readonly message: string };
+  | { readonly code: "OrderItemNotFound"; readonly message: string }
+  // 指した品目が調理中（自分を指す生きた Timer が在る・order-lifecycle 判断 12）。done・期限切れ・不在は上の
+  // OrderItemNotFound のまま——調理中だけを分けるのは、他端末が直前に開始した品目への二重調理を現場が
+  // 「無い」ではなく「もう始まっている」と読めるようにするためである。
+  | { readonly code: "OrderItemCooking"; readonly message: string };
 
 /** shell 側で扱う、core の外側の失敗（永続・スキーマに由来する）。 */
 export type ShellFailure =

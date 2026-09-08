@@ -103,6 +103,7 @@ function serverTimer(id: string, endTime: number): TimerFact {
     firmness: "normal",
     startTime: RECEIVED_AT,
     endTime,
+    orderItem: null,
   };
 }
 
@@ -112,7 +113,7 @@ function snapshotFrame(timers: readonly TimerFact[], serverTime: number): string
     type: "snapshot",
     serverTime,
     timers,
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
   };
   return JSON.stringify(message);

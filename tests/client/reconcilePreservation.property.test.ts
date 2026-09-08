@@ -73,6 +73,7 @@ function genFacts(
     firmness: fc.constantFrom(...FIRMNESS_POOL),
     startTime: fc.integer({ min: ANCHOR - 10_000, max: ANCHOR }),
     endTime: fc.constantFrom(...END_TIME_POOL),
+    orderItem: fc.constant(null),
   });
   return fc
     .uniqueArray(fc.constantFrom(...idPool), { maxLength: idPool.length })
@@ -194,7 +195,7 @@ describe("client/connection decideView(Reconcile) — offline-degradation Proper
         const result = decideView(view, {
           kind: "Reconcile",
           timers: snapshot,
-          pendingOrders: [],
+          orderItems: [],
           recommendations: [],
           receivedAt,
         });

@@ -169,6 +169,8 @@ export function toGridPoint(value: unknown): GridPoint | null {
 
 代替案（`toPendingOrder` を構造部分と整合部分に分割し前者を共有する）も検討した。共有できるのは 5 つのフィールド検査で、`arrivalTime` の扱いを両立させるには「省略可能な `arrivalTime`」という第三の形を作る必要がある。得るものより持ち込む曖昧さが大きい。採らない。
 
+> **改訂（`order-lifecycle` 判断 9・ADR-0013・2026-09-08）:** `snapshot.pendingOrders` は `snapshot.orderItems`、Decoder は `toOrderItemFromWire`（取り込み側は `toOrderItems`・畳まない判断はそのまま）。要素の型 `OrderItem` は厨房の事実 `completedAt` / `interruptedAt` を持ち、Decoder は **null か非負整数**を要し、欠如・型違い・負・非整数は snapshot ごと落とす（既定値への置換をしない・AC 2.5）。`TimerFact` の 7 番目の項目 `orderItem` は `toOrderItemRef` が **`null` か `{ externalOrderId: 非空 string, itemIndex: 非負整数 }`** を要し、欠如・余剰の `tableId` 付きを含む他の形は落とす（往復と関門は `tests/domain/wire.example` / `wire.property`）。client の `persistence.ts` は wire と義務が違い、旧ブロブの欠如・不正は `orderItem: null` に畳んで Timer を失わない（義務が違う検証は畳まない、の再適用）。
+
 ### Component 4b: `src/domain/predicate.ts`（新設・本体）— 述語の持ち主を一つにする
 
 同じ検査が 4 つに散っている。
@@ -275,6 +277,8 @@ toSnapshotMessage(record) → Snapshot | null
 ```
 
 粒度はメッセージ単位である（要件 2.7）。壊れた推奨 1 件が `timers` ごと落とす。要素単位で畳めば「畳まない」に反し、`snapshot` の全量性という権威表現の性質も濁る。代償（盤面が更新されない）は記録で可視化する。
+
+> **改訂（`order-lifecycle` 判断 9・ADR-0013・2026-09-08）:** `orders ← toArrayOf(record.orderItems, toOrderItemFromWire)`（旧名 `pendingOrders` は読まず落とす）・戻り値は `orderItems: orders`。`toTimerFact` は `orderItem` を `toOrderItemRef` で検証する。
 
 ### `toStartMessage`
 

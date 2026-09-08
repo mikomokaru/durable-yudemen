@@ -27,6 +27,8 @@
 4. **期限切れは「消えた品目」として扱う。** 変更費用の対応（`plan-stability` 判断 3）で「開始済み・キャンセル済み・新規は費用を動かさない」に「期限切れ」を加える。外部計画が期限切れの品目を指せば、計画対象と一致しないので既存の `isStale` が棄却し、合成の尾部が自前解で埋める。期限切れの品目への開始は、待ち行列に無い品目への開始と同じ `OrderItemNotFound` で拒否する（新しい拒否事由は足さない）。
 5. **指紋は絞った計画対象から導く。** 品目が期限を過ぎると計画対象が変わり、指紋も変わる。ただし要求が出るのは既存の抑制条件のまま——**外部要求を許す次の確定変化で、生きている計画対象が残っていれば**要求する（レビュー指摘：settle は no-op なら指紋の計算前に戻るので、期限切れそのものは要求を起こさない。全件期限切れなら空の待ち行列と同じく要求しない）。
 6. **走行中は待ち行列に依存せず自立する（ユーザー確定）。** 調理中に注文が 2 時間を過ぎても、走行中 Timer と同じ卓の合流の錨は変わらない。これは既に成り立っている（観測事実 8：開始が値を Timer へ写し、以後どの遷移も待ち行列を読まない）ので新しい構造は足さず、**本 spec で性質として固定する**——期限切れが走行中に一切影響しないことをテストで守る。
+
+> **改訂（`order-lifecycle` 判断 5・6・ADR-0013・2026-09-08）:** 調理の状態（unstarted / cooking / done——品目は開始で消費されなくなり、状態は Timer の参照と `completedAt` から導く）と期限は**別の軸**である。期限切れは第 4 の状態ではなく、「未調理だが期限切れ」「調理済みで期限切れ」は普通に在る。Live_Orders の述語（`isLive`）は一つのまま、読む集合が二つに分かれた——計画・左レール・ラジアル＝`pendingOrders(items, timers, now)`（期限内 ∧ unstarted）／snapshot の `orderItems`＝`orderItemsToBroadcast(items, timers, now)`（期限内 ∨ 生きた Timer の参照先）。厨房の Cancel は品目を `unstarted` に戻すが期限は戻さない（`arrivalTime` は更新しない——「注文から 2 時間」を「最後にやり直した時刻から 2 時間」に変えない）。期限内なら左レールと計画に再び現れ、期限外なら現れない。
 ### スコープ外
 
 - 正本（永続層）からの物理的な除去。絞った値が正なので、残っていることは観測されない（未決 1 に整理の選択肢を残す）。
@@ -55,6 +57,8 @@
 4. WHEN `arrivalTime + Order_Lifetime` がちょうど `now` に等しいとき、THE `Live_Orders` SHALL その品目を含めない（半開区間。境界の 1 ms を二度定義しない）
 5. THE `TimerState.pendingOrders` と永続 snapshot SHALL 変えない（期限は状態を書き換えない・永続スキーマの版は上げない）
 
+> **改訂（`order-lifecycle` Requirement 1.6〜1.7・ADR-0013・2026-09-08）:** 正本は `TimerState.orderItems`（永続 v13）に改名・拡張された。本 AC の主張「期限は状態を書き換えない」は変わらない（版を上げたのは期限ではなく、厨房の事実 `completedAt` / `interruptedAt` を足したためである）。
+
 ### Requirement 2: 読む側の入口で絞る
 
 **User Story:** As a 設計者, I want 計画・提案・要求・照合が同じ生きている待ち行列を読む, so that どこかで死んだ注文が復活しない。
@@ -69,6 +73,8 @@
 6. THE 指紋（`digestInput`） SHALL 絞った計画対象から導く。品目の期限切れで計画対象が変われば指紋は変わるが、要求は既存の抑制条件でだけ出る——**外部要求を許す次の確定変化（no-op でない遷移）で、生きている計画対象が 1 件以上残っていれば**要求し、全件期限切れなら要求しない（期限切れは状態の変化ではないので、それ自体では遷移も要求も起こさない）
 7. THE no-op 検出（`isSameConfirmedResult` / `isSamePending`） SHALL 正本の集合の比較のままとする（期限切れは状態の変化ではない。読む側で絞るので、no-op の遷移でも次の読み手は絞った値を見る）
 8. THE 受理（`arriveRecords` / `upsertOrder` / `removeOrder`） SHALL 変えない。期限切れの注文の後着も正本へは従来どおり写し、重複排除の材料は従来どおり進める。**同じ注文の品目が正本に残っている間は**最早の `arrivalTime` を引き継ぐので Live_Orders に現れない。引き継ぐ起点が無くなった後（「期限切れ → 0 品目の後着で `removeOrder` → 非空の後着」の系列）は新しい `arrivalTime` で入り、生きている注文として扱う（レビュー指摘：受理を変えない以上これは既存の規則の帰結であり、本 spec は保証しない）
+
+> **改訂（`order-lifecycle` Requirement 2〜4・ADR-0013・2026-09-08）:** AC 2.1〜2.6 の入口が読む「Live_Orders」は **`pendingOrders(items, timers, now)`**（期限内 ∧ `unstarted`・`liveOrders` を内側に畳む）に、AC 2.2 の snapshot は `orderItems`＝**`orderItemsToBroadcast(items, timers, now)`**（期限内 ∨ 生きた Timer の参照先）になった。AC 2.5 の拒否は期限切れ・`done`・不在が `OrderItemNotFound`、`cooking` は新しい `OrderItemCooking`。AC 2.7 の no-op 検出は `isSameOrderItems`（正本の比較のまま）。AC 2.8 の「受理は変えない」のうち `upsertOrder` / `removeOrder` の意味は `order-lifecycle` Requirement 2 が改めた（注文属性だけ更新・`unstarted` だけ除く）が、`arrivalTime` の引継ぎと重複排除は据え置き。
 
 ### Requirement 3: client も同じ述語で絞る
 
@@ -90,6 +96,8 @@
 2. THE 走行中 Timer・その卓の錨（`tableMembers`）・Alarm・Boil_Sync の結果 SHALL 待ち行列の `arrivalTime` に依存しない——Timer・設定・`now`・操作を固定して待ち行列の `arrivalTime` だけを過去へ動かしても、両状態で同じに成立する操作（既存 Timer への操作・アドホック開始・Record 受理・外部計画の受領・hydration）から同じ結果が出る（性質 5.9。時間経過そのものへの不変ではなく、`StartOrderItem` は AC 2.5 の拒否があるので対象にしない）
 3. WHEN 同じ卓の未着手の品目が期限切れになったとき、THE 走行中 Timer SHALL 影響を受けず、残った生きている品目だけがその錨に合流する（期限切れの品目は「消えた品目」・判断 4）
 4. THE `TimerFact`（wire） SHALL 待ち行列を参照せず、client は Timer の表示に `pendingOrders` を引かない（現状維持を明記）
+
+> **改訂（`order-lifecycle` 判断 9・13・ADR-0013・2026-09-08）:** AC 4.4 は改めた——`TimerFact` は **`orderItem: { externalOrderId, itemIndex } | null`**（Timer → 品目の参照・鍵だけ・`tableId` は出さない）を運び、釜のカードは `orderItemOf(timer, view.orderItems)` で品目を引いて卓・品名・番号を読む（`lift-order-numbering`）。走行中の**自立**（AC 4.1〜4.3・性質 5.9）は変わらない——参照が解けなくても Timer は麺種だけで成立し、発火・完了・調整・Cancel・Boil_Sync・Alarm は品目を読まない。参照先の無い Timer（アドホック・v12 由来）を扱う経路は一つで、表示は注文なしと同じ。
 
 ### Requirement 5: 検証可能な性質
 

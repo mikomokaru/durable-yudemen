@@ -45,6 +45,7 @@ function timerOnSlot(slot: number, id: string): ClientTimer {
     firmness: "normal",
     startTime: 0,
     endTime: 60_000,
+    orderItem: null,
     origin: "server",
   };
 }
@@ -54,12 +55,13 @@ function syncedView(timers: readonly ClientTimer[]): ClientView {
   return {
     timers,
     // 待ち行列と推奨は担当絞り込みの主張に関与しないため空に据える。
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
     offset: 0,
     processedIds: new Set<string>(),
     lastResults: new Map(),
     connectivity: "up",
+    awaitingResync: false,
     unreachableReason: "offline",
     sync: "synced",
     error: null,

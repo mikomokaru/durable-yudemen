@@ -14,7 +14,7 @@ import type { StoreSnapshot } from "./snapshot";
 import type { Rejection } from "./rejection";
 import type { ScheduleParams } from "./objective";
 import type { InputDigest } from "./digest";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 import type { ServerMessage } from "../domain/messages";
 import type { ShownPlan } from "./stability";
@@ -32,7 +32,7 @@ export type Effect =
   // 送出は投機であって確定の一部ではないため列の末尾に置く。失敗は Timer 本体へ伝播させない（AC 10.2）。
   | {
       readonly type: "RequestPlan";
-      readonly pending: readonly PendingOrder[]; // 計画の対象集合（未着手品目）
+      readonly pending: readonly OrderItem[]; // 計画の対象集合（未着手品目）
       readonly running: readonly Timer[]; // 釜を占める Timer（slot 解放表の所与）
       readonly params: ScheduleParams; // 重み 3・arms・許容調整割合・許容幅 2・距離 1・上げの間隔・レイアウト 2 の 11 値
       readonly noodlePresets: readonly NoodlePreset[]; // 茹で時間の出所（外部解が serveAt = startAt + 茹で時間 を満たすために要る）

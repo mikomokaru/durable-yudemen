@@ -12,7 +12,7 @@
 
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../domain/lift-group";
 import type { CookRecommendation } from "../domain/messages";
-import { itemKeyOf, type ItemKey, type PendingOrder } from "../domain/order";
+import { itemKeyOf, type ItemKey, type OrderItem } from "../domain/order";
 import { slotOf, type NoodlePreset } from "../domain/store";
 import type { NonEmptyArray } from "../domain/timer";
 import { boilMillisOf, joinWindowMillis } from "./boil";
@@ -37,7 +37,7 @@ import type { EpochMillis, SlotId } from "./types";
  * 同じ now・同じ Timer 集合で導く（判断 8）。ここに残すのは配置という履歴であり、いま守る対象はそこから導く。
  */
 export interface ShownItem {
-  /** POS 側の識別子。itemIndex との組で 1 品目を指す（Placement / PendingOrder と同じ鍵）。 */
+  /** POS 側の識別子。itemIndex との組で 1 品目を指す（Placement / OrderItem と同じ鍵）。 */
   readonly externalOrderId: string;
   /** 同一オーダー内の品目連番。 */
   readonly itemIndex: number;
@@ -113,7 +113,12 @@ export function shownPlanOf(
  * 偽の先頭変更が生まれる。
  *
  * `pending` と `presets` は Head の共有導出（`LiftItem`）が要る——到着時刻（同値の順）と茹で秒は推奨も Shown_Plan も
- * 持たず、Pending_Order 集合と麺種プリセットから引く（design Component 2 の入力契約）。
+ * 持たず、未調理の品目と麺種プリセットから引く（design Component 2 の入力契約）。
+ *
+ * **`pending` は `pendingOrders(items, timers, now)` の結果（未調理＝期限内 ∧ unstarted）である（order-lifecycle
+ * AC 4.1）。** 対応は「未調理の間」で数える——開始済み（cooking）・完了済み（done）・期限切れの品目は `pending` に無く、
+ * `completeWithShown` / `shownItemsOf` が読む対応から自然に外れる。正本（`orderItems`）を渡せば、開始した品目が
+ * 旧 Shown_Plan の Head に数えられて偽の先頭変更が生まれる。
  */
 export interface ChangeContext {
   /** 旧 Shown_Plan（遷移前の状態が持つ）。空は比較の相手なし（費用 0）。 */
@@ -122,8 +127,8 @@ export interface ChangeContext {
   readonly running: readonly Timer[];
   /** 比較の時点。 */
   readonly now: EpochMillis;
-  /** 品目の到着時刻（同値の順）と麺種・茹で加減（茹で秒）を引く。 */
-  readonly pending: readonly PendingOrder[];
+  /** 未調理の品目（`pendingOrders` の結果）。到着時刻（同値の順）と麺種・茹で加減（茹で秒）を引き、対応の範囲を定める。 */
+  readonly pending: readonly OrderItem[];
   /** 茹で秒の出所。 */
   readonly presets: readonly NoodlePreset[];
 }
@@ -315,7 +320,7 @@ function costBetween(
 function completeWithShown(
   partial: CookSchedule,
   shown: ShownPlan,
-  pendingByKey: ReadonlyMap<ItemKey, PendingOrder>,
+  pendingByKey: ReadonlyMap<ItemKey, OrderItem>,
 ): CookSchedule {
   const placedKeys = new Set(
     partial.slices.flatMap((slice) => slice.placements.map((placement) => itemKeyOf(placement))),
@@ -365,7 +370,7 @@ function completeWithShown(
  */
 function shownItemsOf(
   shown: ShownPlan,
-  pendingByKey: ReadonlyMap<ItemKey, PendingOrder>,
+  pendingByKey: ReadonlyMap<ItemKey, OrderItem>,
   presets: readonly NoodlePreset[],
 ): readonly LiftItem[] {
   const groupByKey = shownGroupsOf(shown);
@@ -438,7 +443,7 @@ function nextItemsOf(
     readonly schedule: CookSchedule;
     readonly recommendations: readonly CookRecommendation[];
   },
-  pendingByKey: ReadonlyMap<ItemKey, PendingOrder>,
+  pendingByKey: ReadonlyMap<ItemKey, OrderItem>,
   presets: readonly NoodlePreset[],
 ): readonly LiftItem[] {
   const recommendationByKey = new Map(

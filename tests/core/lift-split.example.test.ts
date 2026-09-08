@@ -13,7 +13,7 @@ import { initialLifts } from "../../src/engine/lift";
 import { tableMembers } from "../../src/engine/project";
 import { createTimer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import type { PendingOrder } from "../../src/domain/order";
+import type { OrderItem } from "../../src/domain/order";
 import { DEFAULT_NOODLE_PRESETS, occupiedSlotsOf } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -36,7 +36,7 @@ describe("上限を超える合流の列は候補の窓の残り容量で切る"
         orderItem: { externalOrderId: "o0", itemIndex: 0, tableId: "T1" },
       }),
     ];
-    const pending: PendingOrder[] = [1, 2, 3, 4, 5].map((index) => ({
+    const pending: OrderItem[] = [1, 2, 3, 4, 5].map((index) => ({
       externalOrderId: `o${index}`,
       itemIndex: 0,
       noodleType: "Thin",
@@ -46,6 +46,8 @@ describe("上限を超える合流の列は候補の窓の残り容量で切る"
       slotSpan: 1,
       itemName: null,
       sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
     }));
     const now = (NOW + 12 * SECOND) as EpochMillis;
     const schedule = baselineSchedule(

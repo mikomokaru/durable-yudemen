@@ -9,7 +9,7 @@
 
 import type { TimerFact, NonEmptyArray } from "./timer";
 import type { StoreConfig } from "./store";
-import type { PendingOrder } from "./order";
+import type { OrderItem } from "./order";
 import type { Firmness } from "./firmness";
 
 /**
@@ -66,7 +66,7 @@ export type ClientMessage =
       readonly boilSeconds: number;
     }
   // 注文品目を指す開始。運ぶのは「どの品目を、どの釜で」だけで、麺種・茹で加減・茹で秒は運ばない
-  // ——それらは server が pendingOrders と noodlePresets から導く事実であり、client が言い直せば
+  // ——それらは server が未調理の品目（`pendingOrders`）と noodlePresets から導く事実であり、client が言い直せば
   // 二つの真実になる（現に茹で加減は届かず、Timer は常に既定で作られていた）。
   //
   // 品目の鍵を組にせず平坦な 2 項目で持つ。両方が必須ゆえ「片方だけ在る形」が型に現れず、組で
@@ -92,8 +92,12 @@ export type ServerMessage =
       readonly type: "snapshot";
       readonly serverTime: number;
       readonly timers: readonly TimerFact[];
-      /** 未着手オーダーの全量（計画対象の 64 件を超える分も含む・要件2.3 / 2.4）。 */
-      readonly pendingOrders: readonly PendingOrder[];
+      /**
+       * 注文品目の集合＝`orderItemsToBroadcast`（期限内 ∨ 生きた Timer の参照先・order-lifecycle AC 4.2 / 性質 7.7）。
+       * 計画対象の 64 件を超える分も含む（要件2.3 / 2.4）。unstarted / cooking / done を問わず載り、状態は client が
+       * `itemStatusOf` で導く（保存しない）。左レールはこの中の未調理（`pendingOrders(items, timers, now)`）だけを出す。
+       */
+      readonly orderItems: readonly OrderItem[];
       /** Committed_Plan からの導出値。永続しない（要件8.1 / 8.5）。 */
       readonly recommendations: readonly CookRecommendation[];
     }

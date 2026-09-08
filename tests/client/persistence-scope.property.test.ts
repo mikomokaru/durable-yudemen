@@ -84,6 +84,7 @@ const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   firmness: fc.constantFrom(...FIRMNESS_POOL),
   startTime: genTime,
   endTime: genTime,
+  orderItem: fc.constant(null),
   origin: fc.constantFrom("server" as const, "local" as const),
 });
 

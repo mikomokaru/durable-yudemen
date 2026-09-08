@@ -156,9 +156,8 @@ describe("core/migrate — v7 → v8 の面", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
-        expect(result.snapshot.pendingOrders).toHaveLength(v7.pendingOrders.length);
-        for (const order of result.snapshot.pendingOrders)
-          expect(order.slotSpan).toBe(SLOT_SPAN_MIN);
+        expect(result.snapshot.orderItems).toHaveLength(v7.pendingOrders.length);
+        for (const order of result.snapshot.orderItems) expect(order.slotSpan).toBe(SLOT_SPAN_MIN);
         expect(result.snapshot.lastSequenceByTerminal).toEqual({});
       }),
       { numRuns: 300 },
@@ -179,10 +178,18 @@ describe("core/migrate — v7 → v8 の面", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         // slotSpan を除いた待ち行列は v7 の値そのままである。
-        // v9 が埋めるのは 3 つ（slotSpan・itemName・sizeName）。埋めた分を除いた残りが写しであることを問う。
+        // v9 が埋めるのは 3 つ（slotSpan・itemName・sizeName）、v13 が埋めるのは 2 つ（completedAt・interruptedAt）。
+        // 埋めた分を除いた残りが写しであることを問う。
         expect(
-          result.snapshot.pendingOrders.map(
-            ({ slotSpan: _span, itemName: _item, sizeName: _size, ...rest }) => rest,
+          result.snapshot.orderItems.map(
+            ({
+              slotSpan: _span,
+              itemName: _item,
+              sizeName: _size,
+              completedAt: _completed,
+              interruptedAt: _interrupted,
+              ...rest
+            }) => rest,
           ),
         ).toEqual(v7.pendingOrders);
         // v10 で一片は点数を持たない。v7 の score は余剰として捨てられ、v11 が配置に埋める anchor（null）を
@@ -231,6 +238,7 @@ const genAdjustmentState: fc.Arbitrary<TimerState> = fc
         firmness: "normal",
         startTime: spec.startTime as EpochMillis,
         endTime: endTime as EpochMillis,
+        orderItem: null,
         seq: index,
         boiledAt: spec.boiled ? (endTime as EpochMillis) : null,
         adjustment: spec.adjustment,
@@ -239,7 +247,7 @@ const genAdjustmentState: fc.Arbitrary<TimerState> = fc
     return {
       timers,
       nextSeq: timers.length,
-      pendingOrders: EMPTY_STATE.pendingOrders,
+      orderItems: EMPTY_STATE.orderItems,
       acceptedSlices: EMPTY_STATE.acceptedSlices,
       requestedDigest: EMPTY_STATE.requestedDigest,
       lastSequenceByTerminal: EMPTY_STATE.lastSequenceByTerminal,
@@ -261,6 +269,63 @@ describe("core/migrate — Adjustment snapshot round-trip", () => {
           expect(timer.adjustment).toBe(adjustmentById.get(timer.id));
         }
         expect(restored).toEqual(state);
+      }),
+      { numRuns: 200 },
+    );
+  });
+});
+
+describe("Feature: order-lifecycle, Requirement 6.1 / 性質 7.9: v12 → v13 は品目を落とさず、往復は同一", () => {
+  /** v12 の待ち行列 1 件（厨房の事実を持たない）。 */
+  const genV12Order = fc.record({
+    externalOrderId: fc.string({ minLength: 1, maxLength: 6 }),
+    itemIndex: fc.nat({ max: 3 }),
+    noodleType: fc.constantFrom("Thin", "Medium", "Thick"),
+    firmness: fc.constantFrom(...FIRMNESS_ORDER),
+    tableId: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
+    arrivalTime: fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }),
+    slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: 6 }),
+    itemName: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
+    sizeName: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
+  });
+  /** v13 の品目（厨房の事実は null か時刻）。 */
+  const genV13Order = genV12Order.chain((order) =>
+    fc
+      .record({
+        completedAt: fc.option(fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }), {
+          nil: null,
+        }),
+        interruptedAt: fc.option(fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }), {
+          nil: null,
+        }),
+      })
+      .map((facts) => ({ ...order, ...facts })),
+  );
+
+  it("v12 の pendingOrders は同じ件数・同じ並びで orderItems に読み替えられ、厨房の事実は null になる", () => {
+    fc.assert(
+      fc.property(fc.array(genV12Order, { maxLength: 5 }), (pendingOrders) => {
+        const result = migrate({ version: 12, timers: [], nextSeq: 0, pendingOrders });
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+        expect(result.snapshot.orderItems).toEqual(
+          pendingOrders.map((order) => ({ ...order, completedAt: null, interruptedAt: null })),
+        );
+        expect(result.snapshot).not.toHaveProperty("pendingOrders");
+      }),
+      { numRuns: 200 },
+    );
+  });
+
+  it("現行 snapshot の往復（toSnapshot → migrate → fromSnapshot）は品目の厨房の事実を含めて同一", () => {
+    fc.assert(
+      fc.property(fc.array(genV13Order, { maxLength: 5 }), (orderItems) => {
+        const state: TimerState = { ...EMPTY_STATE, orderItems };
+        const result = migrate(structuredClone(toSnapshot(state)));
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(fromSnapshot(result.snapshot)).toEqual(state);
       }),
       { numRuns: 200 },
     );
@@ -293,12 +358,18 @@ describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさ
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         // 件数は変わらない——名前が読めないことは品目を落とす理由にならない。
-        expect(result.snapshot.pendingOrders).toHaveLength(pendingOrders.length);
-        for (const [index, order] of result.snapshot.pendingOrders.entries()) {
+        expect(result.snapshot.orderItems).toHaveLength(pendingOrders.length);
+        for (const [index, order] of result.snapshot.orderItems.entries()) {
           expect(order.itemName).toBeNull();
           expect(order.sizeName).toBeNull();
-          // 埋めた 2 つ以外は写しである。
-          const { itemName: _item, sizeName: _size, ...rest } = order;
+          // 埋めた 2 つ（と v13 の厨房の事実 2 つ）以外は写しである。
+          const {
+            itemName: _item,
+            sizeName: _size,
+            completedAt: _completed,
+            interruptedAt: _interrupted,
+            ...rest
+          } = order;
           expect(rest).toEqual(pendingOrders[index]);
         }
         expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
@@ -325,6 +396,8 @@ describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさ
           slotSpan: 1,
           itemName: "",
           sizeName: null,
+          completedAt: null,
+          interruptedAt: null,
         },
       ],
       lastSequenceByTerminal: {},

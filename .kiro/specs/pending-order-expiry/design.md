@@ -34,6 +34,8 @@ domain/order.ts      liveOrders(pending, now)          ← 述語はここ一つ
 
 変更なし。`PendingOrder` / `TimerState` / `StoreSnapshot` / wire の `snapshot` の形は同じ（永続の版は 12 のまま）。加わるのは定数と純粋関数だけ。
 
+> **改訂（`order-lifecycle` 判断 5・10・ADR-0013・2026-09-08）:** 上の図と Data Models は `order-lifecycle` で形が変わった。正本は `TimerState.orderItems`（`OrderItem`・永続 v13・`completedAt` / `interruptedAt` 付き）で、`liveOrders` は公開の入口ではなく **`pendingOrders(items, timers, now)`（期限内 ∧ `unstarted`）と `orderItemsToBroadcast(items, timers, now)`（期限内 ∨ 生きた Timer の参照先）の内側**に畳まれた（期限の述語 `isLive` は一つのまま）。読む集合は二つ——計画対象 `planTargets` / 指紋 / `RequestPlan.pending` / `ChangeContext.pending` / 開始の照合 / client の左レール・ラジアル（`queueDisplay` の `livePending` は撤去し `pendingOrders(view.orderItems, view.timers, corrected)` を直接読む）は `pendingOrders`、snapshot（`orderItems`・Broadcast と hydration）は `orderItemsToBroadcast`。調理中の品目は期限を超えても Complete まで配信され、釜のカードが参照で卓・品名を引ける（注文から 1 時間 59 分で開始し 2 時間 1 分に snapshot を送っても品目は載る）。期限判定を共有することと、全用途で同じ集合を読むことは別である。「正本と no-op 検出は触らない」はそのまま（`isSameOrderItems` は正本の比較）。
+
 ```ts
 // src/domain/order.ts
 /** Order_Lifetime — 注文の寿命（ミリ秒）。arrivalTime + ORDER_LIFETIME_MS ≤ now で期限切れ（半開区間）。 */

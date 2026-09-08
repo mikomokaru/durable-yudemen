@@ -9,7 +9,7 @@
 // 現在の Pending_Order / Timer 集合である。ゆえにここに永続する形は現れない。
 
 import { SLOTS_PER_UNIT, occupiedSlotsOf, type NoodlePreset } from "../domain/store";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import { advanceLifts, initialLifts, liftsOf, withinLiftCap, type LiftTable } from "./lift";
 import type { ScheduleParams } from "./objective";
 import { tableMembers } from "./project";
@@ -60,7 +60,7 @@ import type { EpochMillis } from "./types";
  */
 export function committedSchedule(
   accepted: readonly AcceptedSlice[],
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   running: readonly Timer[],
   now: EpochMillis,
   presets: readonly NoodlePreset[],
@@ -137,7 +137,7 @@ export function committedSchedule(
  */
 function livePrefix(
   accepted: readonly AcceptedSlice[],
-  targets: readonly PendingOrder[],
+  targets: readonly OrderItem[],
   now: EpochMillis,
   occupied: ReadonlySet<number>,
   initial: SlotRelease,
@@ -167,6 +167,6 @@ function livePrefix(
 }
 
 /** 接頭辞が既に配置した品目か。品目の同一性は schedule.ts の refersTo ただ一つ。 */
-function isPlaced(order: PendingOrder, prefix: readonly AcceptedSlice[]): boolean {
+function isPlaced(order: OrderItem, prefix: readonly AcceptedSlice[]): boolean {
   return prefix.some((slice) => slice.placements.some((placement) => refersTo(placement, order)));
 }

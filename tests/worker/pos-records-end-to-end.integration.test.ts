@@ -212,7 +212,7 @@ async function readSnapshot(storeId: string): Promise<StoreSnapshot | undefined>
 /** 待ち行列に並ぶ品目の Unique_Key 列（bill_no だけが違うため末尾で読み分けられる）。 */
 async function queuedBills(storeId: string): Promise<readonly string[]> {
   const snapshot = await readSnapshot(storeId);
-  return (snapshot?.pendingOrders ?? []).map((order) => order.externalOrderId);
+  return (snapshot?.orderItems ?? []).map((order) => order.externalOrderId);
 }
 
 function billKey(billNo: string): string {
@@ -347,7 +347,7 @@ describe("未プロビジョニング競合（Requirements 11.19, 5.7）", () =>
 
     expect(resent.status).toBe(200);
     const snapshot = await readSnapshot(targetStoreId);
-    expect(snapshot?.pendingOrders).toHaveLength(1);
+    expect(snapshot?.orderItems).toHaveLength(1);
     expect(snapshot?.lastSequenceByTerminal).toEqual({ "1": seq(1) });
   });
 });

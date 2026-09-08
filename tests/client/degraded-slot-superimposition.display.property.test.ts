@@ -171,6 +171,7 @@ function genTimerFacts(
             firmness: firmnesses[i]!,
             startTime: endTime - 60_000,
             endTime,
+            orderItem: null,
           });
         }
         return facts;
@@ -215,12 +216,13 @@ const genScenario: fc.Arbitrary<DisplayScenario> = fc
             timers,
             // 待ち行列・推奨・残滓・処理済み記録は在席と表示の突き合わせに関与しない（表示は timers と
             // sync だけから導出される）。空に据えて、主張の対象を在席と表示に絞る。
-            pendingOrders: [],
+            orderItems: [],
             recommendations: [],
             offset,
             processedIds: new Set<string>(),
             lastResults: new Map<string, { readonly noodleType: string; readonly at: number }>(),
             connectivity: "down",
+            awaitingResync: false,
             unreachableReason: "offline",
             sync,
             error: null,

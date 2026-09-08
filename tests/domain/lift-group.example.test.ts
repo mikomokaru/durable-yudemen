@@ -16,14 +16,14 @@ import {
   type LiftItem,
 } from "../../src/domain/lift-group";
 import { PREP_LEAD_MS, type CookRecommendation } from "../../src/domain/messages";
-import { itemKeyOf, type PendingOrder } from "../../src/domain/order";
+import { itemKeyOf, type OrderItem } from "../../src/domain/order";
 import { nonEmpty } from "../nonEmpty";
 
 const T0 = 1_700_000_000_000;
 const SECOND = 1000;
 const NONE: ReadonlySet<number> = new Set();
 
-function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): PendingOrder {
+function order(overrides: Partial<OrderItem> & { externalOrderId: string }): OrderItem {
   return {
     itemIndex: 0,
     noodleType: "Long",
@@ -33,6 +33,8 @@ function order(overrides: Partial<PendingOrder> & { externalOrderId: string }): 
     slotSpan: 1,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
     ...overrides,
   };
 }

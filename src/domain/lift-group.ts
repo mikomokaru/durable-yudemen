@@ -10,7 +10,7 @@
 // 判定する（AC 1.6 / 2.12）。
 
 import { PREP_LEAD_MS, type CookRecommendation } from "./messages";
-import { compareArrival, itemKeyOf, type ItemKey, type PendingOrder } from "./order";
+import { compareArrival, itemKeyOf, type ItemKey, type OrderItem } from "./order";
 import { slotOf } from "./store";
 import { isNonEmpty, type NonEmptyArray } from "./timer";
 
@@ -23,7 +23,7 @@ import { isNonEmpty, type NonEmptyArray } from "./timer";
  */
 export interface LiftItem {
   readonly recommendation: CookRecommendation;
-  readonly order: PendingOrder;
+  readonly order: OrderItem;
   readonly boilSeconds: number;
 }
 

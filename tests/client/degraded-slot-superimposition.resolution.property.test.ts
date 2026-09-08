@@ -86,6 +86,7 @@ function genFacts(
     firmness: fc.constantFrom(...FIRMNESS_POOL),
     startTime: fc.integer({ min: ANCHOR - 10_000, max: ANCHOR }),
     endTime: fc.constantFrom(...END_TIME_POOL),
+    orderItem: fc.constant(null),
   });
   return fc
     .uniqueArray(fc.constantFrom(...idPool), { maxLength: idPool.length })
@@ -167,12 +168,13 @@ function genScene(
           return {
             view: {
               timers,
-              pendingOrders: [],
+              orderItems: [],
               recommendations: [],
               offset: drawn.offset,
               processedIds: new Set(processed),
               lastResults: drawn.lastResults,
               connectivity: drawn.connectivity,
+              awaitingResync: false,
               unreachableReason: "offline",
               sync: drawn.sync,
               error: null,

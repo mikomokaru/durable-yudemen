@@ -63,7 +63,7 @@ describe("migrate — v6 → v8", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
-    expect(result.snapshot.pendingOrders).toEqual([]);
+    expect(result.snapshot.orderItems).toEqual([]);
     expect(result.snapshot.acceptedSlices).toEqual([]);
     expect(result.snapshot.requestedDigest).toBeNull();
     expect(result.snapshot.lastSequenceByTerminal).toEqual({});
@@ -120,7 +120,7 @@ describe("migrate — v6 → v8", () => {
     expect(timer.firmness).toBe("normal");
     expect(timer.adjustment).toBe(0);
     expect(timer.orderItem).toBeNull();
-    expect(result.snapshot.pendingOrders).toEqual([]);
+    expect(result.snapshot.orderItems).toEqual([]);
     expect(result.snapshot.acceptedSlices).toEqual([]);
     expect(result.snapshot.requestedDigest).toBeNull();
     expect(result.snapshot.lastSequenceByTerminal).toEqual({});
@@ -173,8 +173,15 @@ describe("migrate — v7 → v8", () => {
     });
     // v7 の待ち行列は slotSpan / itemName / sizeName を持たない。欠如は 1 スロット占有と「名前なし」として
     // 読み戻る（当時の実際の挙動に一致する——v7 に商品名の概念が無かったことと、名前が無い状態は同じである）。
-    expect(result.snapshot.pendingOrders).toEqual([
-      { ...v7Raw.pendingOrders[0], slotSpan: 1, itemName: null, sizeName: null },
+    expect(result.snapshot.orderItems).toEqual([
+      {
+        ...v7Raw.pendingOrders[0],
+        slotSpan: 1,
+        itemName: null,
+        sizeName: null,
+        completedAt: null,
+        interruptedAt: null,
+      },
     ]);
     // v10 で一片は点数を持たない。v7 の score（140）は余剰として捨てられ、鍵と配置は写しである。
     // v11 で配置は合流の所属（anchor）を持つ。v7 の配置は持たないので null で埋まる。
@@ -253,6 +260,8 @@ describe("migrate — v8 の往復", () => {
     slotSpan: 2,
     itemName: null,
     sizeName: null,
+    completedAt: null,
+    interruptedAt: null,
   } as const;
 
   it("v8 で書いた slotSpan と判定材料を読み戻す", () => {
@@ -270,7 +279,7 @@ describe("migrate — v8 の往復", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.snapshot.pendingOrders).toEqual([v8Order]);
+    expect(result.snapshot.orderItems).toEqual([v8Order]);
     expect(result.snapshot.lastSequenceByTerminal).toEqual(v8Raw.lastSequenceByTerminal);
   });
 
@@ -396,6 +405,107 @@ describe("migrate — v10 → v11（lift-group-planning 判断 20・AC 9.9）", 
     if (text.ok || infinite.ok) return;
     expect(text.failure.code).toBe("MigrationFailed");
     expect(infinite.failure.code).toBe("MigrationFailed");
+  });
+});
+
+describe("migrate — v12 → v13（order-lifecycle AC 1.6・Requirement 6.1・性質 7.9）", () => {
+  /** v12 の待ち行列 1 件（厨房の事実を持たない——開始で消費していた）。 */
+  const v12Order = {
+    externalOrderId: "order-13",
+    itemIndex: 0,
+    noodleType: "Thin",
+    firmness: "normal",
+    tableId: "t-1",
+    arrivalTime: 1_700_000_050_000,
+    slotSpan: 1,
+    itemName: "かけ",
+    sizeName: null,
+  } as const;
+  /** v12 由来の走行中 Timer——参照先（order-12#0）は待ち行列に無い（旧実装が開始時に消費した）。 */
+  const v12Raw = {
+    version: 12,
+    timers: [
+      { ...v6Timer, boiledAt: null, orderItem: { externalOrderId: "order-12", itemIndex: 0 } },
+    ],
+    nextSeq: 42,
+    pendingOrders: [v12Order],
+    acceptedSlices: [],
+    requestedDigest: null,
+    lastSequenceByTerminal: {},
+    shownPlan: [],
+  } as const;
+
+  it("v12 の pendingOrders を orderItems に読み替え、completedAt / interruptedAt を null で埋める", () => {
+    const result = migrate(structuredClone(v12Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+    expect(result.snapshot.orderItems).toEqual([
+      { ...v12Order, completedAt: null, interruptedAt: null },
+    ]);
+    expect(result.snapshot).not.toHaveProperty("pendingOrders");
+  });
+
+  it("参照先の無い v12 由来の Timer はそのまま保たれる（計時に触れない・移行例外）", () => {
+    const result = migrate(structuredClone(v12Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const timer = result.snapshot.timers[0]!;
+    expect(timer.orderItem).toEqual({ externalOrderId: "order-12", itemIndex: 0, tableId: null });
+    expect(timer.endTime).toBe(v6Timer.endTime);
+    expect(timer.adjustment).toBe(v6Timer.adjustment);
+    // 参照先は正本に無い——推測で品目を作らない。
+    expect(result.snapshot.orderItems.some((item) => item.externalOrderId === "order-12")).toBe(
+      false,
+    );
+  });
+
+  it("v13 の永続値は orderItems（completedAt / interruptedAt の数値・null）をそのまま読み戻す（往復）", () => {
+    const v13Raw = {
+      ...v12Raw,
+      version: 13,
+      pendingOrders: undefined,
+      orderItems: [
+        { ...v12Order, completedAt: 1_700_000_090_000, interruptedAt: null },
+        { ...v12Order, itemIndex: 1, completedAt: null, interruptedAt: 1_700_000_080_000 },
+      ],
+    };
+
+    const result = migrate(structuredClone(v13Raw));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.orderItems).toEqual(v13Raw.orderItems);
+  });
+
+  it("形を満たさない completedAt / interruptedAt は全体を移行失敗にする（個別に捨てない・レビュー P2）", () => {
+    // 完了済みの品目を捨てれば POS の再送で未調理として復活し得る——Shown_Plan とは失う事実の重さが違う。
+    const text = migrate({
+      ...structuredClone(v12Raw),
+      version: 13,
+      orderItems: [{ ...v12Order, completedAt: "90000", interruptedAt: null }],
+    });
+    const infinite = migrate({
+      ...structuredClone(v12Raw),
+      version: 13,
+      orderItems: [{ ...v12Order, completedAt: null, interruptedAt: Number.NaN }],
+    });
+    const broken = migrate({
+      ...structuredClone(v12Raw),
+      version: 13,
+      orderItems: [
+        { ...v12Order, completedAt: null, interruptedAt: null },
+        { externalOrderId: "" },
+      ],
+    });
+
+    expect([text.ok, infinite.ok, broken.ok]).toEqual([false, false, false]);
+    if (text.ok || infinite.ok || broken.ok) return;
+    expect(text.failure.code).toBe("MigrationFailed");
+    expect(infinite.failure.code).toBe("MigrationFailed");
+    expect(broken.failure.code).toBe("MigrationFailed");
   });
 });
 

@@ -1,7 +1,7 @@
 // engine/receive.ts — 取り込み経路が受けた 1 店舗分の受領を、ただ 1 つの状態遷移へ畳む純粋変換。
 // cloudflare:workers にも storage にも触れない。副作用なし・決定的（同じ入力に同じ出力）。
 //
-// **order.ts へ置かない。** あちらの冒頭が語る同居の理由は「どちらも Timer に触れず Pending_Order 集合だけを
+// **order.ts へ置かない。** あちらの冒頭が語る同居の理由は「どちらも Timer に触れず Order_Item 集合だけを
 // 動かす、集合操作の上に一枚被せるだけの薄さ」であり、かつ「拒否経路を持たない」ことがその規律である。
 // 受領は集合と重複判定の材料（lastSequenceByTerminal）の 2 つを同時に動かし、状態を見て読み飛ばす分岐を
 // 持つ。同居させれば order.ts の冒頭が嘘になる。遷移ごとに 1 ファイル（start / cancel / complete / adjust /
@@ -51,25 +51,25 @@ export function arriveRecords(
   // 判定材料の写しは 1 つだけ作り、その中で畳む。ループの中で写し直せば受領件数だけオブジェクトが生まれる。
   // 局所の可変で純粋性は損なわれない——この写しはここから外へ出るまで誰も触れない。
   const lastSequenceByTerminal: Record<string, string> = { ...state.lastSequenceByTerminal };
-  let pendingOrders = state.pendingOrders;
+  let orderItems = state.orderItems;
 
   for (const received of args.received) {
     if (!isNewerSequence(received.sequenceNumber, lastSequenceByTerminal[received.terminalId]))
       continue;
     lastSequenceByTerminal[received.terminalId] = received.sequenceNumber;
-    // 生きた Timer の集合を渡すのは `arriveOrder` と同じ理由——開始済み品目が後着の置換で待ち行列へ
-    // 復活すれば二重調理になる（意味論の正本は pending.ts の upsertOrder）。
+    // Timer の集合を渡すのは `arriveOrder` と同じ理由——後着に無い品目を除くかどうかを品目の状態で判定する
+    // （未調理だけ除く・order-lifecycle AC 2.5。意味論の正本は pending.ts の upsertOrder / removeOrder）。
     //
     // 非空の側で `externalOrderId` を渡さないのは、置換の鍵を二箇所に書かないためである。`upsertOrder` は
     // 到着に現れた externalOrderId の群を置換する規則を既に持っており、ここで先に除いてから足せば
     // 「何が置換されるか」の規則が engine の 2 箇所に生まれる。受領単位の externalOrderId が要るのは、
     // 品目が 1 つも無く群から鍵を引けない除去の側だけである。
-    pendingOrders = isNonEmpty(received.items)
-      ? upsertOrder(pendingOrders, state.timers, received.items)
-      : removeOrder(pendingOrders, received.externalOrderId);
+    orderItems = isNonEmpty(received.items)
+      ? upsertOrder(orderItems, state.timers, received.items)
+      : removeOrder(orderItems, state.timers, received.externalOrderId);
   }
 
   // 判定材料と集合を同じ `moved` に載せ、同一の `Persist` で確定させる（Property 14）。別の書き込みにすれば
   // 「判定材料だけ進んで注文が無い」欠落が生じ、その注文は再送でも重複として弾かれて永久に失われる。
-  return settle(state, { ...state, pendingOrders, lastSequenceByTerminal }, params, args.now, true);
+  return settle(state, { ...state, orderItems, lastSequenceByTerminal }, params, args.now, true);
 }

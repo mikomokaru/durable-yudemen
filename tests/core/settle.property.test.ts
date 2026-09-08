@@ -99,6 +99,7 @@ const genBoundedWireTimer: fc.Arbitrary<TimerFact> = fc.record({
   firmness: fc.constantFrom<Firmness>(...FIRMNESS),
   startTime: fc.integer({ min: 0, max: 9_999_999_999_999 }),
   endTime: fc.integer({ min: 0, max: 9_999_999_999_999 }),
+  orderItem: fc.constant(null),
 });
 
 /** snapshot メッセージの UTF-8 バイト長（文字数ではなくエンコード後のバイト数で測る）。 */
@@ -108,7 +109,7 @@ function snapshotByteLength(serverTime: number, timers: readonly TimerFact[]): n
     type: "snapshot",
     serverTime,
     timers,
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
   };
   return new TextEncoder().encode(JSON.stringify(message)).length;

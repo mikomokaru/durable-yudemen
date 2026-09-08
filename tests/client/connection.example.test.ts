@@ -33,6 +33,7 @@ function makeTimer(id: string, endTime = START_NOW + 180_000): TimerFact {
     firmness: "normal",
     startTime: START_NOW,
     endTime,
+    orderItem: null,
   };
 }
 
@@ -54,7 +55,7 @@ describe("client/connection — 状態同期と切断継続", () => {
       type: "snapshot",
       serverTime: START_NOW,
       timers: [makeTimer("A", START_NOW - 1000), makeTimer("B")],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     expect(connection.getView().sync).toBe("synced");
@@ -70,7 +71,7 @@ describe("client/connection — 状態同期と切断継続", () => {
       type: "snapshot",
       serverTime: START_NOW + 20,
       timers: [makeTimer("B"), makeTimer("C")],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     expect(connection.getView().timers.map((t) => t.id)).toEqual(["B", "C"]);
@@ -88,7 +89,7 @@ describe("client/connection — 状態同期と切断継続", () => {
       type: "snapshot",
       serverTime: START_NOW,
       timers: [makeTimer("A")],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     expect(connection.getView().sync).toBe("synced");
@@ -127,9 +128,10 @@ describe("client/connection — 状態同期と切断継続", () => {
           firmness: "normal",
           startTime: endTime - 60_000,
           endTime,
+          orderItem: null,
         },
       ],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     const fixedOffset = connection.getView().offset;
@@ -245,7 +247,7 @@ describe("client/connection — provisional への操作は origin で経路分�
         type: "snapshot",
         serverTime: START_NOW,
         timers: [makeTimer("S")],
-        pendingOrders: [],
+        orderItems: [],
         recommendations: [],
       },
       START_NOW,
@@ -294,6 +296,7 @@ describe("client/connection — 占有ゲートは degraded の畳み込みに�
       firmness: "normal",
       startTime: START_NOW,
       endTime: START_NOW + 120_000,
+      orderItem: null,
     };
     receiveSnapshot([occupant]);
     expect(mode(connection.getView())).toBe("live");

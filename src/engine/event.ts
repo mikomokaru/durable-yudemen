@@ -8,7 +8,7 @@
 import type { EpochMillis, TimerId } from "../engine/types";
 import type { CookSchedule } from "./schedule";
 import type { Firmness } from "../domain/firmness";
-import type { PendingOrder } from "../domain/order";
+import type { OrderItem } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 
 /** core への入力イベント。すべて `now` を入力として受け取る。 */
@@ -22,7 +22,7 @@ export type Event =
       readonly now: EpochMillis;
     }
   // 注文品目を指す開始（slot-suggested-start）。運ぶのは鍵と釜だけで、麺種・茹で加減・茹で秒は運ばない
-  // ——engine が pendingOrders の当該品目と params.noodlePresets から導く。Start と一つに畳まないのは、
+  // ——engine が orderItems の当該品目（未調理・`pendingOrders`）と params.noodlePresets から導く。Start と一つに畳まないのは、
   // 「主張を検証して使う」と「事実から導く」で義務が違うためである（畳めば引数で切り替える分岐が生まれる）。
   | {
       readonly type: "StartOrderItem";
@@ -48,12 +48,12 @@ export type Event =
   | { readonly type: "Reconcile"; readonly now: EpochMillis }
   // POS からのオーダー到着（要件1.7）。新規・再送・変更を区別せず upsert ひとつで受ける——区別を外部の
   // 申告に委ねれば到着の冪等性が外部の正しさに依存する。arrival は upsertOrder が受ける形そのまま
-  // （NonEmptyArray<PendingOrder>）で、境界で形を変えない。各品目の arrivalTime は「Order_Ingress が
+  // （NonEmptyArray<OrderItem>）で、境界で形を変えない。各品目の arrivalTime は「Order_Ingress が
   // 受理した絶対時刻」という受け手側の事実で、now と同じく shell が採取して渡す（Wait_Time の起点）。
   // now は当該遷移の時計（settle の再同期と snapshot の serverTime が用いる）であり、役割が別ゆえ両方運ぶ。
   | {
       readonly type: "OrderArrived";
-      readonly arrival: NonEmptyArray<PendingOrder>;
+      readonly arrival: NonEmptyArray<OrderItem>;
       readonly now: EpochMillis;
     }
   // POS からのオーダー取り消し。当該 externalOrderId の未着手品目だけを除き、開始済み Timer には触れない。
@@ -73,7 +73,7 @@ export type Event =
   // 外部（Solver_Worker）から届いた計画（要件6.1）。計画は点数を運ばない（PlanSlice に score は無い）——
   // 採否の根拠は engine 側の採点（scoreSchedule）が比較の時点で出す値だけである（lift-group-planning 判断 7）。
   // 解析不能・スキーマ不正・Input_Fingerprint の欠落（AC 10.3）はここに到達する前に落とす——境界で検証して
-  // engine には検証済みの型だけを渡す既存の規律（domain の toPendingOrders・shell の parseClientMessage）に
+  // engine には検証済みの型だけを渡す既存の規律（domain の toOrderItems・shell の parseClientMessage）に
   // 従い、受け口（deliverPlan・タスク 19.2）の担当とする。届かなければ状態は変わらず、全体棄却が成立する。
   | { readonly type: "PlanArrived"; readonly plan: CookSchedule; readonly now: EpochMillis };
 
@@ -100,5 +100,5 @@ export interface ReceivedOrder {
    * 判定材料は進む（AC 6.11 / 6.12）。OrderArrived が非空を要求するのは 1 つの到着だけを扱うためで、
    * 受領単位では空が意味を持つ。
    */
-  readonly items: readonly PendingOrder[];
+  readonly items: readonly OrderItem[];
 }

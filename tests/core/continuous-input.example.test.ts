@@ -21,7 +21,7 @@ import type { SettleParams } from "../../src/engine/settle";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import type { CookRecommendation, ServerMessage } from "../../src/domain/messages";
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
-import { itemKeyOf, type ItemKey, type PendingOrder } from "../../src/domain/order";
+import { itemKeyOf, type ItemKey, type OrderItem } from "../../src/domain/order";
 import { DEFAULT_NOODLE_PRESETS, HELPER_ARMS, slotOf } from "../../src/domain/store";
 import type { ShownItem, ShownPlan } from "../../src/engine/stability";
 import { settleParams } from "../settleParams";
@@ -44,7 +44,7 @@ function step(state: TimerState, event: Event, params: SettleParams) {
 }
 
 /** 同じ卓の Thin（60 秒）8 品。 */
-const ORDERS: readonly PendingOrder[] = Array.from({ length: 8 }, (_unused, index) => ({
+const ORDERS: readonly OrderItem[] = Array.from({ length: 8 }, (_unused, index) => ({
   externalOrderId: `o${index}`,
   itemIndex: 0,
   noodleType: "Thin",
@@ -54,6 +54,8 @@ const ORDERS: readonly PendingOrder[] = Array.from({ length: 8 }, (_unused, inde
   slotSpan: 1,
   itemName: null,
   sizeName: null,
+  completedAt: null,
+  interruptedAt: null,
 }));
 
 /** 走行中（boiled を含む）が占める釜。 */
@@ -100,7 +102,7 @@ function exceedsLiftCap(
  */
 function headsOfShown(
   shown: ShownPlan,
-  pending: readonly PendingOrder[],
+  pending: readonly OrderItem[],
   state: TimerState,
   now: EpochMillis,
   arms: number,
@@ -222,7 +224,7 @@ describe("連続投入の不変 — 同じ卓の同じ茹で時間の品目を 1
               }
             }
           }
-          const remaining = current.state.pendingOrders;
+          const remaining = current.state.orderItems;
           const oldHead = headsOfShown(previous, remaining, current.state, at(now), arms);
           const newHead = headsOfShown(next, remaining, current.state, at(now), arms);
           for (const key of oldHead) {

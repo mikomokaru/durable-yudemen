@@ -22,7 +22,7 @@ import type { CookSchedule } from "../../src/engine/schedule";
 import { EMPTY_SHOWN_PLAN } from "../../src/engine/stability";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
-import { liveOrders, ORDER_LIFETIME_MS, type PendingOrder } from "../../src/domain/order";
+import { liveOrders, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
 import type { NoodlePreset } from "../../src/domain/store";
 import { schedulingDefaults } from "../storeConfigDefaults";
 import { nonEmpty } from "../nonEmpty";
@@ -59,7 +59,7 @@ const BLOCKED: readonly Timer[] = [1, 2, 3, 4, 5].map((slot) =>
 );
 
 /** 長い麺の A（卓 t-a）と短い麺の B（卓 t-b）。同時到着ゆえ自前解は卓 id 順に A → B と置く。 */
-const LONG: PendingOrder = {
+const LONG: OrderItem = {
   externalOrderId: "o-long",
   itemIndex: 0,
   noodleType: "Long",
@@ -69,8 +69,10 @@ const LONG: PendingOrder = {
   slotSpan: 1,
   itemName: null,
   sizeName: null,
+  completedAt: null,
+  interruptedAt: null,
 };
-const SHORT: PendingOrder = {
+const SHORT: OrderItem = {
   ...LONG,
   externalOrderId: "o-short",
   noodleType: "Short",
@@ -82,7 +84,7 @@ const STATE: TimerState = {
   ...EMPTY_STATE,
   timers: BLOCKED,
   nextSeq: BLOCKED.length,
-  pendingOrders: [LONG, SHORT],
+  orderItems: [LONG, SHORT],
 };
 
 /** B（60 秒）を先に入れる計画。自前解（A → B・総和 1260）より良い（総和 720）。 */
@@ -109,6 +111,32 @@ function receive(state: TimerState, plan: CookSchedule) {
   return receivePlan(state, { type: "PlanArrived", plan, now: NOW }, PARAMS);
 }
 
+describe("receivePlan — 読む集合は未調理の品目（order-lifecycle AC 4.1）", () => {
+  it("一片が指す品目が調理中（自分を指す生きた Timer が在る）なら陳腐化として全棄却し、状態も Effect も動かない", () => {
+    // SHORT を釜 0 で始めた Timer。品目は正本に残るが未調理ではない。
+    const cookingShort = createTimer({
+      id: "t-short" as TimerId,
+      slotIds: nonEmpty(["0" as SlotId]),
+      noodleType: "Short" as NoodleType,
+      firmness: "normal",
+      startTime: NOW,
+      endTime: (NOW + 60 * SECOND) as EpochMillis,
+      seq: BLOCKED.length,
+      orderItem: { externalOrderId: SHORT.externalOrderId, itemIndex: 0, tableId: "t-b" },
+    });
+    const state: TimerState = {
+      ...STATE,
+      timers: [...BLOCKED, cookingShort],
+      nextSeq: BLOCKED.length + 1,
+    };
+    const outcome = receive(state, IMPROVING);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.state).toBe(state);
+    expect(outcome.effects).toEqual([]);
+  });
+});
+
 describe("receivePlan — 採用（AC 6.5）", () => {
   it("採用された接頭辞で acceptedSlices を更新し、Persist 先頭の Effect 列を出す", () => {
     const outcome = receive(STATE, IMPROVING);
@@ -130,7 +158,7 @@ describe("receivePlan — 採用（AC 6.5）", () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.state.timers).toEqual(BLOCKED);
-    expect(outcome.state.pendingOrders).toEqual(STATE.pendingOrders);
+    expect(outcome.state.orderItems).toEqual(STATE.orderItems);
   });
 
   it("受領は新たな計画要求の契機にならない（RequestPlan を出さず指紋も書かない・AC 5.7）", () => {
@@ -175,9 +203,7 @@ describe("receivePlan — 全棄却（AC 6.6）", () => {
   });
 
   it("現行 Committed_Plan と同値の計画を棄却する（同値は改善ではない）", () => {
-    expectUntouched(
-      committedSchedule([], STATE.pendingOrders, BLOCKED, NOW, PRESETS, PARAMS, null),
-    );
+    expectUntouched(committedSchedule([], STATE.orderItems, BLOCKED, NOW, PRESETS, PARAMS, null));
   });
 
   it("部分和は改善するが合成後の総和が悪化する計画を棄却する（段 2）", () => {
@@ -274,7 +300,7 @@ describe("receivePlan — 採否は採用後に確定する走行中と同じ実
       ...EMPTY_STATE,
       timers: TIMERS,
       nextSeq: 11,
-      pendingOrders: [LONG],
+      orderItems: [LONG],
       acceptedSlices: [accepted],
     };
   }
@@ -306,7 +332,7 @@ describe("receivePlan — 採否は採用後に確定する走行中と同じ実
     const resynced = synchronize(state.timers, PARAMS);
     const committed = committedSchedule(
       state.acceptedSlices,
-      state.pendingOrders,
+      state.orderItems,
       resynced,
       NOW,
       PARAMS.noodlePresets,
@@ -321,15 +347,15 @@ describe("receivePlan — 採否は採用後に確定する走行中と同じ実
 
 describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 2.4）", () => {
   /** 2 時間前に届いて誰も作らなかった注文（卓 t-x）。正本には残るが、生きている待ち行列には無い。 */
-  const EXPIRED: PendingOrder = {
+  const EXPIRED: OrderItem = {
     ...SHORT,
     externalOrderId: "o-expired",
     tableId: "t-x",
     arrivalTime: NOW - ORDER_LIFETIME_MS,
   };
-  const WITH_EXPIRED: TimerState = { ...STATE, pendingOrders: [EXPIRED, LONG, SHORT] };
+  const WITH_EXPIRED: TimerState = { ...STATE, orderItems: [EXPIRED, LONG, SHORT] };
 
-  function placementFor(order: PendingOrder, startAt: number, boilSeconds: number) {
+  function placementFor(order: OrderItem, startAt: number, boilSeconds: number) {
     return {
       externalOrderId: order.externalOrderId,
       itemIndex: order.itemIndex,
@@ -363,13 +389,13 @@ describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 
     if (!outcome.ok) return;
     expect(outcome.state.acceptedSlices).toEqual([IMPROVING.slices[0]!]);
     // 正本は全件のまま（性質 5.7）。snapshot は生きている待ち行列（性質 5.5）。
-    expect(outcome.state.pendingOrders).toBe(WITH_EXPIRED.pendingOrders);
+    expect(outcome.state.orderItems).toBe(WITH_EXPIRED.orderItems);
     const broadcast = outcome.effects.find((effect) => effect.type === "Broadcast");
     if (broadcast?.type !== "Broadcast" || broadcast.message.type !== "snapshot") {
       throw new Error("snapshot が無い");
     }
-    expect(broadcast.message.pendingOrders).toEqual(liveOrders(WITH_EXPIRED.pendingOrders, NOW));
-    expect(broadcast.message.pendingOrders).toEqual([LONG, SHORT]);
+    expect(broadcast.message.orderItems).toEqual(liveOrders(WITH_EXPIRED.orderItems, NOW));
+    expect(broadcast.message.orderItems).toEqual([LONG, SHORT]);
   });
 
   it("採用済みの一片が期限切れの品目を指していれば合成が捨て、尾部を自前解が埋める", () => {
@@ -386,7 +412,7 @@ describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 
       [LONG.externalOrderId, NOW],
       [SHORT.externalOrderId, NOW + 600 * SECOND],
     ]);
-    expect(message.pendingOrders).toEqual([LONG, SHORT]);
+    expect(message.orderItems).toEqual([LONG, SHORT]);
   });
 
   describe("混在（レビュー実走）：期限切れの旧先頭を文脈から外す（AC 2.4）", () => {
@@ -437,8 +463,8 @@ describe("receivePlan — 未知麺種を含む卓の外部計画が採用でき
   // Feature: plan-stability
   // **Validates: Requirements 7.4, 7.5**
   /** 卓 t-b に B と並ぶ、プリセットに無い麺種の品目（設定の差し替えを跨いで残った）。 */
-  const GHOST: PendingOrder = { ...SHORT, externalOrderId: "o-ghost", noodleType: "Ghost" };
-  const WITH_GHOST: TimerState = { ...STATE, pendingOrders: [LONG, SHORT, GHOST] };
+  const GHOST: OrderItem = { ...SHORT, externalOrderId: "o-ghost", noodleType: "Ghost" };
+  const WITH_GHOST: TimerState = { ...STATE, orderItems: [LONG, SHORT, GHOST] };
   const GHOST_PRESET: NoodlePreset = {
     noodleType: "Ghost",
     boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 },

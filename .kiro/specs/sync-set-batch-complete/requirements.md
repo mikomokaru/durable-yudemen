@@ -76,6 +76,8 @@
 2. WHILE ある Timer が running である間、THE Yudemen_Timer SHALL 当該 Timer を一括完了の対象にしない。
 3. IF 指示対象の Timer が boiled でない（running である）ならば、THEN THE Slot_Card SHALL 当該スロットに Complete ボタンを描画しない。
 
+> **改訂（`order-lifecycle` 判断 3・4・Requirement 5.1・ADR-0013・2026-09-08）:** 一括完了（boiled の群）の意味は変わらない。engine の `complete` は Timer を除去するとともに、**その Timer が参照していた品目に `completedAt = now` を記録する**（品目は `done`）ので、一括はメンバーごとの `complete` の帰結として各品目へ自然に記録される。**走行中を一括の対象にしない規律（AC 1.2・3.2）はそのまま**だが、走行中カードの停止ボタンは残り 60 秒未満（`CANCEL_GUARD_THRESHOLD_MS`）の 1 タップで**早め上げ＝`complete`** を送るようになった（60 秒以上の 2 段タップは従来どおり `cancel`）——このとき `connection.complete` は Boiled_Group を作らず、**対象の走行中 Timer ただ 1 件**を `complete` で送る（`completeTargets`：対象が boiled なら群、running なら対象だけ、不在なら空）。AC 3.3「running に Complete ボタンを描画しない」は Complete ボタンについてそのままで、早め上げは Cancel の位置の停止ボタンが担う。
+
 ### Requirement 4: 担当スコープと一括完了の範囲
 
 **User Story:** As a 厨房スタッフ, I want 自分の担当ボードで見えている釜を消し込みたい, so that 他の担当者が管理する釜を意図せず操作しない。
@@ -197,3 +199,5 @@ snapshot-broadcast の SSOT 規律では、確定した状態変化ごとにサ�
 1. THE Yudemen_Timer SHALL 本機能のために `TimerFact`（domain/timer.ts の 6 フィールド）を変更しない。
 2. WHERE 本機能が新しい `ClientMessage` / `ServerMessage` の種別、新しい engine の公開関数・Effect 種別、または新しいクライアント `ClientEvent` 種別の追加を要するならば、THE Yudemen_Timer SHALL それらの候補名と概念境界を、フェーズを問わず判明した時点でただちにユーザー確認へ付す（naming.md の公開シンボル確認ゲート）。
 3. THE Yudemen_Timer SHALL 一括完了を既存の `complete` メッセージのファンアウトのみで実現し、新しいメッセージ種別・engine 公開関数・Effect 種別を追加しない（YAGNI・Q2 = ファンアウトの帰結）。
+
+> **改訂（`order-lifecycle` 判断 9・ADR-0013・2026-09-08）:** AC 10.1 の `TimerFact` は本機能では変えていないが、`order-lifecycle` が 7 番目の項目 `orderItem: { externalOrderId, itemIndex } | null` を足した（`tests/sync-set-batch-complete.static` は 7 フィールドを数える）。Boiled_Group の識別（実効 `endTime` の一致）はこの項目を読まない。

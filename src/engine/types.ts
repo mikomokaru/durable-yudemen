@@ -36,10 +36,10 @@ export const EPSILON_MS = 500 as const;
  *  v6: Timer に engine 専用の adjustment（同期用の符号付きオフセット）を追加。欠如は 0 で埋める。
  *  v7: pendingOrders / acceptedSlices / requestedDigest を追加（調理順スケジューリング）。単一キーは維持する。
  *      Timer には engine 専用の orderItem（由来する注文品目）が乗る。欠如は null で埋める。
- *  v8: PendingOrder に slotSpan（占有するスロット幅）、状態に lastSequenceByTerminal（取り込みの重複排除の
+ *  v8: OrderItem に slotSpan（占有するスロット幅）、状態に lastSequenceByTerminal（取り込みの重複排除の
  *      判定材料）を追加（POS オーダー取り込み）。前者の欠如は 1、後者の欠如は空で埋める——v7 以前の待ち行列は
  *      現に 1 品目 1 スロットで計画され、取り込み経路が無いため判定材料を持つ端末も無い。
- *  v9: PendingOrder に POS 申告の商品名 itemName / sizeName を追加（slot-suggested-start）。欠如は null で埋める。
+ *  v9: OrderItem に POS 申告の商品名 itemName / sizeName を追加（slot-suggested-start）。欠如は null で埋める。
  *  v10: Timer.orderItem に由来する卓 tableId を追加（欠如は null）。AcceptedSlice から score を除去
  *      （一片は点数を持たない・採点は比較の時点の導出）。v9 の score は余剰として読まずに捨てる
  *      （lift-group-planning・ADR-0001 / 0003）。
@@ -48,5 +48,8 @@ export const EPSILON_MS = 500 as const;
  *      （toleranceRatio・プリセット）を持たず h_i の窓を引けないため推定できない（design Component 10 の
  *      「推定できなければ null」）。合成（committedSchedule）が現在の走行中で再検証し、切るか維持する。
  *  v12: shownPlan（前回配信対象として確定した提案）を追加。欠如は空（plan-stability 判断 1・AC 1.3）。壊れた要素は
- *      その要素だけ落とす——履歴の欠けは Change_Cost 0 に倒れるだけで、状態全体を失わせない。 */
-export const CURRENT_SCHEMA_VERSION = 12 as const;
+ *      その要素だけ落とす——履歴の欠けは Change_Cost 0 に倒れるだけで、状態全体を失わせない。
+ *  v13: pendingOrders を orderItems に読み替え、各品目に厨房の事実 completedAt / interruptedAt を追加（order-lifecycle
+ *      判断 1・3・AC 1.6）。欠如は null。品目は開始で消費されず状態は導出する。不正な品目は既存どおり全体を移行失敗
+ *      （部分受理という嘘を作らない）。v12 由来で参照先の無い走行中 Timer はそのまま動く（判断 14・移行例外）。 */
+export const CURRENT_SCHEMA_VERSION = 13 as const;

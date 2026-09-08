@@ -2,7 +2,7 @@
 // cloudflare:workers にも storage にも触れない。副作用なし・決定的（同じ入力に同じ出力）。
 //
 // **order.ts へ置かない。** あちらは冒頭が語るとおり「POS 由来のオーダー到着・取り消し」の場であり、
-// 2 つの遷移を 1 ファイルに置く理由は「どちらも Timer に触れず Pending_Order 集合だけを動かす、
+// 2 つの遷移を 1 ファイルに置く理由は「どちらも Timer に触れず Order_Item 集合だけを動かす、
 // 集合操作の上に一枚被せるだけの薄さ」である。受領が動かすのは採用済み計画（acceptedSlices）で、
 // しかも現行 Committed_Plan の導出（commit.ts）と採否の判定（admit.ts）を通す別の関心事である。
 // 同居させれば order.ts の冒頭が嘘になり、「拒否経路を持たない」というあちらの規律の理由づけも濁る。
@@ -13,7 +13,7 @@
 //
 // **engine が受け取るのは検証済みの CookSchedule ただ一つである。** 解析不能・スキーマ不正・
 // Input_Fingerprint の欠落（AC 10.3）は境界で落とし、ここには型の立った計画だけが届く。生値の検証を
-// engine に置かないのは既存の規律そのもので（domain の toPendingOrders・shell の parseClientMessage が
+// engine に置かないのは既存の規律そのもので（domain の toOrderItems・shell の parseClientMessage が
 // 境界で検証し、engine は検証済みの型だけを受ける）、CookSchedule がブランド型と非空配列を含むことが
 // その規律を型で要求している。届かなかった計画は状態を一切変えない——AC 10.3 の「全体棄却」は、
 // 受け口が事象を起こさないという形で満たされる。型の内側で成立していない計画（釜の割り込み・
@@ -28,7 +28,7 @@ import { settle } from "./settle";
 import type { SettleParams } from "./settle";
 import type { ChangeContext } from "./stability";
 import { synchronize } from "./sync";
-import { liveOrders } from "../domain/order";
+import { pendingOrders } from "../domain/order";
 
 /** PlanArrived イベントの本体。receivePlan はこの形だけを受け取る（event.ts の唯一の出所を再利用）。 */
 type PlanArrivedEvent = Extract<Event, { type: "PlanArrived" }>;
@@ -65,11 +65,11 @@ export function receivePlan(
   params: SettleParams,
 ): Outcome {
   const timers = synchronize(state.timers, params);
-  // 受領時刻の生きている待ち行列（Live_Orders）を一度だけ導き、合成・採否・変更費用の文脈のすべてがそれを読む
-  // （pending-order-expiry AC 2.3 / 2.4）。期限切れの品目を指す一片は計画対象と一致しないので `isStale` が落とし、
-  // 期限切れの旧先頭は対応から外れる——正本の集合を渡せば、生きている次品目を遅らせる計画の先頭の変更（2L）が
-  // 0 に消える。
-  const live = liveOrders(state.pendingOrders, args.now);
+  // 受領時刻の未調理の品目（`pendingOrders`＝期限内 ∧ unstarted）を一度だけ導き、合成・採否・変更費用の文脈のすべてが
+  // それを読む（pending-order-expiry AC 2.3 / 2.4・order-lifecycle AC 4.1）。期限切れ・開始済みの品目を指す一片は計画対象と
+  // 一致しないので `isStale` が落とし、旧先頭は対応から外れる——正本の集合を渡せば、生きている次品目を遅らせる計画の
+  // 先頭の変更（2L）が 0 に消える。状態は再同期後の `timers` で導く（同期は参照を動かさないので同じ結果）。
+  const live = pendingOrders(state.orderItems, timers, args.now);
   // 旧 Shown_Plan は遷移前の状態が持つもの（`state` は遷移前・plan-stability AC 1.7）。現行 Committed_Plan の自前解も
   // 採用の可否（Business_Cost + Change_Cost）も同じ文脈で組み、採用すれば `settle` が同じ Persist で新しい Shown_Plan を
   // 確定する。
