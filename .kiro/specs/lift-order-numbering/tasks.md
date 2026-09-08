@@ -24,6 +24,8 @@
     - 実測（2026-09-08）：`pnpm typecheck` 0 error（tests 含む）・`pnpm lint` 0 error（警告は既存のみ）・`pnpm test` 255 files / 1902 tests 全通過・`pnpm fmt:check` 通過。`audioCue.property` + `slotDisplay.property` + `lift-order.property` の 3 回再実行はいずれも 14 / 14
   - _Requirements: 1.5, 2.1〜2.4, 3.6_
 
-- [ ] 3. 文書
-  - [ ] 3.1 `lift-group-display` design に注記（マーカー "order"・バッジの語に品名と卓）、`pending-order-list-left-rail` に注記（中断の色分け）
-  - [ ] 3.2 全数チェックポイント
+- [x] 3. 文書
+  - [x] 3.1 `lift-group-display` design に注記（マーカー "order"・バッジの語に品名と卓）、`pending-order-list-left-rail` に注記（中断の色分け）
+    - 実測（2026-09-08）：`lift-group-display/design.md` の Component 5（`SlotBoard.tsx` / `SlotCard.tsx`）の末尾に改訂注記——`"boiling"`（点滅ドット）の撤去と `{ kind: "order"; n }`、番号の出所は `liftOrderOf`（店舗全体・`view.timers` 全件）、`NoodleBadge` の prop `noodleType` → `label` と語（`displayName(orderItem)` ＋ ` · Table {id}`・提案と同じ規則）、残滓は不変、群・先頭・連鎖・提案の描き分けは不変（性質 3.6）。`pending-order-list-left-rail/design.md` の `OrderRow` 節の末尾に改訂注記——`interruptedAt !== null` の行に ↩ と `opacity-60`、並びと語は不変、design の字面から変えた 2 点（aria は英語 `Returned`＝`offline-degradation.static` (f) と S15、淡さは `opacity-60`＝S6 / S12 がインライン色を麺種色に固定するため class の `text-muted` が負ける）とその根拠。どちらも既存の改訂注記と同じ `> **改訂（spec・日付）:**` の形
+  - [x] 3.2 全数チェックポイント
+    - 実測（2026-09-08）：`pnpm typecheck` 0 error・`pnpm lint` 0 error（警告 76 はすべて既存の `no-map-spread` / `no-shadow` / `no-array-index-key`）・`pnpm test` 255 files / 1902 tests 全通過（24 秒・load average 6.6）・`pnpm fmt:check` 440 files 通過。`lift-order.property` + `slotDisplay.property` + `audioCue.property` の 3 回再実行はいずれも 14 / 14
