@@ -85,8 +85,9 @@ function freeSlots(state: TimerState): readonly SlotId[] {
  *
  * **卓の全件でなければならない**——`isStale` は「一片の配置集合＝その卓の計画対象」を要求するので、
  * 1 件だけを置く一片は同じ卓に他の対象が在れば必ず失効する（採否を語る前に土俵に乗らない）。
- * 対象は `planTargets`（到着順の先頭 `PLAN_TARGET_LIMIT` 件）から採り、卓の括りは `tableKeyOf` に従う
- * ——「計画対象とは何か」「卓の鍵とは何か」を、ここで書き直さずに engine の正本から引く。
+ * 対象は **`placeableTargets`（置ける計画対象）**から採り、卓の括りは `tableKeyOf` に従う——「何が対象か」
+ * 「卓の鍵とは何か」を、ここで書き直さずに engine の正本から引く。`planTargets` ではないのは、
+ * Acceptance_Gate が `isStale` に渡すのがそちらだからである（呼び出し側の注記を参照）。
  */
 function planForTable(
   members: readonly OrderItem[],

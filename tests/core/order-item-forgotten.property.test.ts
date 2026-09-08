@@ -13,6 +13,10 @@
 // 同じに成立する操作を与えると、走行中 Timer の集合・実効 endTime・Alarm 効果・`tableMembers` は等しい。
 // 落とす k 件には**走行中 Timer の参照先を必ず含める**——含めなければ「参照が解けない」場面を踏まない。
 //
+// 節は 2 つ。(1) `decide` の結果を比べる。(2) **hydration（`toWireSnapshot`）と確定の `settle`**（Boil_Sync を
+// 通す経路）を比べる——`pending-order-expiry` 性質 5.9 が持つ 2 節目と同じ形で、wire の `TimerFact` が品目集合を
+// 参照しないこと・同期の結果が品目集合に依らないことを別に固定する。
+//
 // 操作から `StartOrderItem` を除くのは性質 5.9 と同じ理由である（片方に在って片方に無い品目への開始は、
 // 一方だけが成功して「結果が等しい」という主張と衝突する。忘れられた品目への開始は
 // `order-item-forgotten.example` が `OrderItemNotFound` として別に見る）。
@@ -23,6 +27,7 @@ import { decide } from "../../src/engine/decide";
 import { nextAlarmEffect } from "../../src/engine/alarm";
 import { adjustedEndTime, tableMembers } from "../../src/engine/project";
 import { synchronize } from "../../src/engine/sync";
+import { settle, toWireSnapshot } from "../../src/engine/settle";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Effect } from "../../src/engine/effect";
@@ -72,6 +77,13 @@ function timerFor(target: OrderItem, seq: number): Timer {
   });
 }
 
+/** hydration の wire snapshot。 */
+function hydrated(state: TimerState, now: EpochMillis) {
+  const message = toWireSnapshot(state, PARAMS, now);
+  if (message.type !== "snapshot") throw new Error("snapshot でない");
+  return message;
+}
+
 /** Effect 列の Alarm（DO は同時に 1 Alarm ゆえ高々 1 件）。 */
 function alarmsOf(effects: readonly Effect[]): readonly Effect[] {
   const alarms = effects.filter(
@@ -116,25 +128,50 @@ const genScene = fc
       ...full,
       orderItems: items.filter((each) => !gone.has(itemKeyOf(each))),
     };
-    return { full, forgotten, gone, now: (T0 + seed.elapsed) as EpochMillis };
+    return {
+      full,
+      forgotten,
+      gone,
+      // 落ちた品目の 1 つ（外部計画がこれを指す＝`forgotten` 側では必ず失効する）。
+      dropped: oldest[0]!,
+      now: (T0 + seed.elapsed) as EpochMillis,
+    };
   });
 
-/** 両状態で同じに成立する操作（`StartOrderItem` は除く——ヘッダの理由）。 */
-function genEventFor(state: TimerState, now: EpochMillis): fc.Arbitrary<Event> {
+/**
+ * 両状態で同じに成立する操作。**除くのは `StartOrderItem` だけ**（ヘッダの理由）。
+ *
+ * `PlanArrived` は片側だけが採用しうる非対称な経路である——`full` では品目が在るので一片が計画対象と
+ * 一致しうるが、`forgotten` では落ちた品目を指すので `isStale` で棄却され、状態が動かない。それでも
+ * **走行中 Timer は等しい**（Timer は同期済みで、採用側の再同期が no-op になる）というのが主張である。
+ */
+function genEventFor(
+  state: TimerState,
+  now: EpochMillis,
+  forgotten: OrderItem,
+): fc.Arbitrary<Event> {
   const timerIds = state.timers.map((timer) => timer.id);
+  const forTimer = (make: (timerId: string) => Event) =>
+    timerIds.length === 0 ? [] : [fc.constantFrom(...timerIds).map(make)];
   return fc.oneof(
     fc.constant({ type: "AlarmFired", now } satisfies Event),
     fc.constant({ type: "Reconcile", now } satisfies Event),
-    ...(timerIds.length === 0
-      ? []
-      : [
-          fc
-            .constantFrom(...timerIds)
-            .map((timerId) => ({ type: "Complete", timerId, now }) satisfies Event),
-          fc
-            .constantFrom(...timerIds)
-            .map((timerId) => ({ type: "Cancel", timerId, now }) satisfies Event),
-        ]),
+    ...forTimer((timerId) => ({ type: "Complete", timerId, now }) satisfies Event),
+    ...forTimer((timerId) => ({ type: "Cancel", timerId, now }) satisfies Event),
+    // 調整（ヘッダが挙げている操作。Timer だけを動かし、品目集合を読まない）。
+    ...forTimer(
+      (timerId) =>
+        ({ type: "Adjust", timerId, firmness: "hard", boilSeconds: 52, now }) satisfies Event,
+    ),
+    // アドホック開始（注文を持たない開始。`StartOrderItem` と違い品目集合を照合しない）。
+    fc.constant({
+      type: "Start",
+      slotIds: ["5"],
+      noodleType: NOODLE,
+      boilSeconds: 90,
+      newTimerId: "t-adhoc" as TimerId,
+      now,
+    } satisfies Event),
     fc.constant({
       type: "OrderArrived",
       arrival: nonEmpty([item(9_999, "t-a")]),
@@ -145,6 +182,48 @@ function genEventFor(state: TimerState, now: EpochMillis): fc.Arbitrary<Event> {
       externalOrderId: "o-0003",
       now,
     } satisfies Event),
+    // 受領（新規・後着・0 件の除去を踏む）。判定材料も同じに進む。
+    fc.constant({
+      type: "RecordsReceived",
+      received: [
+        {
+          externalOrderId: "o-9998",
+          terminalId: "1",
+          sequenceNumber: "9".repeat(56),
+          items: [item(9_998, "t-b")],
+        },
+      ],
+      now,
+    } satisfies Event),
+    fc.constant({
+      type: "RecordsReceived",
+      received: [
+        { externalOrderId: "o-0002", terminalId: "2", sequenceNumber: "8".repeat(56), items: [] },
+      ],
+      now,
+    } satisfies Event),
+    // 外部計画の受領。**落ちた品目を指す**ので、`forgotten` 側では必ず失効する（非対称な経路）。
+    fc.constant({
+      type: "PlanArrived",
+      plan: {
+        slices: [
+          {
+            tableKey: forgotten.tableId ?? forgotten.externalOrderId,
+            placements: [
+              {
+                externalOrderId: forgotten.externalOrderId,
+                itemIndex: forgotten.itemIndex,
+                slotIds: nonEmpty(["4" as SlotId]),
+                startAt: now,
+                serveAt: (now + 60_000) as EpochMillis,
+                anchor: null,
+              },
+            ],
+          },
+        ],
+      },
+      now,
+    } satisfies Event),
   );
 }
 
@@ -153,7 +232,7 @@ describe("Feature: order-item-truncation, Property 5.11: 走行中は忘却か�
     fc.assert(
       fc.property(
         genScene.chain((scene) =>
-          genEventFor(scene.full, scene.now).map((event) => ({
+          genEventFor(scene.full, scene.now, scene.dropped).map((event) => ({
             full: scene.full,
             forgotten: scene.forgotten,
             gone: scene.gone,
@@ -213,6 +292,49 @@ describe("Feature: order-item-truncation, Property 5.11: 走行中は忘却か�
           }
         },
       ),
+      { numRuns: 300 },
+    );
+  });
+
+  it("hydration（toWireSnapshot）と確定の settle も、忘却に依らず同じ Timer・実効 endTime・tableMembers・Alarm を配る", () => {
+    fc.assert(
+      fc.property(genScene, ({ full, forgotten, gone, now }) => {
+        // wire の TimerFact は品目集合を参照しない——Timer は同じ、品目だけが片方で減っている。
+        const fromFull = hydrated(full, now);
+        const fromForgotten = hydrated(forgotten, now);
+        expect(fromFull.timers).toEqual(fromForgotten.timers);
+        expect(fromFull.serverTime).toBe(fromForgotten.serverTime);
+        // 落ちた品目は配信にも現れない（片側だけが持つ）。
+        for (const key of gone) {
+          expect(fromForgotten.orderItems.some((each: OrderItem) => itemKeyOf(each) === key)).toBe(
+            false,
+          );
+        }
+        expect(fromForgotten.orderItems.length).toBeLessThan(fromFull.orderItems.length);
+
+        // 確定の settle（Boil_Sync を通す経路）も Timer と Alarm は同じ——同期の結果は品目集合に依らない。
+        const settledFull = settle(full, { ...full }, PARAMS, now, true);
+        const settledForgotten = settle(forgotten, { ...forgotten }, PARAMS, now, true);
+        expect(settledFull.ok).toBe(true);
+        expect(settledForgotten.ok).toBe(true);
+        if (!settledFull.ok || !settledForgotten.ok) return;
+        expect(settledFull.state.timers).toEqual(settledForgotten.state.timers);
+        expect(settledFull.state.timers.map(adjustedEndTime)).toEqual(
+          settledForgotten.state.timers.map(adjustedEndTime),
+        );
+        expect(tableMembers(settledFull.state.timers)).toEqual(
+          tableMembers(settledForgotten.state.timers),
+        );
+        const fullAlarms = alarmsOf(settledFull.effects);
+        const forgottenAlarms = alarmsOf(settledForgotten.effects);
+        if (fullAlarms.length > 0 && forgottenAlarms.length > 0) {
+          expect(fullAlarms).toEqual(forgottenAlarms);
+        }
+        for (const alarm of fullAlarms)
+          expect(alarm).toEqual(nextAlarmEffect(settledForgotten.state.timers));
+        for (const alarm of forgottenAlarms)
+          expect(alarm).toEqual(nextAlarmEffect(settledFull.state.timers));
+      }),
       { numRuns: 300 },
     );
   });

@@ -1,7 +1,7 @@
 // tests/shell/store-timer-rehydrate.integration.test.ts — rehydrate 配線のうち、他所で覆われていない
-// 2 節だけを受け持つ統合テスト（Workers pool）。
+// 3 節を受け持つ統合テスト（Workers pool）。
 //
-// _Validates: Requirements 7.4, 7.5, 8.6_
+// _Validates: Requirements 7.4, 7.5, 8.6・order-item-truncation Requirements 2.5, 2.6, 4.3_
 //
 // **本ファイルが主張しないこと（既に他所が固めているため、ここでは繰り返さない）。**
 //   - `get → migrate → fromSnapshot` の順序そのもの：
@@ -13,11 +13,15 @@
 //       `tests/shell/hot-path.integration.test.ts` / `tests/shell/autonomy.integration.test.ts`
 //       （接続直後の hydration snapshot が timers 0 件）
 //
-// **ゆえに本ファイルの関心は 2 節に絞る。**
+// **ゆえに本ファイルの関心は 3 節に絞る。**
 //   (1) `storage.get` の失敗で Working_Copy を確定せず throw する（要件7.5 / 8.6）。永続層への注入は
 //       これまで `put` にしか行われておらず、読み出し側の失敗経路は suite 全体で未到達だった。
 //   (2) snapshot 不在の新規起動で Alarm を設定しない（要件7.4）。空 snapshot の配信は既存が主張済みだが、
 //       「Alarm が張られていないこと」は誰も観測していない。
+//   (3) 上限を超える永続値を持つ DO の振る舞い（order-item-truncation 判断 8・Requirements 2.5 / 2.6 / 4.3）。
+//       hydration では永続値が変わらず、次の確定変化で既存キーへ 1 回だけ書かれて上限へ縮む——この 2 つを
+//       分けて固定する。純粋関数の側（migrate が上限を当てること）は `tests/core/migrate.example` が持つが、
+//       「hydration が put を起こさない」は shell の配線でしか観測できない。
 //
 // **(1) で用いる継ぎ目と、それが誠実である理由。** 注入先は `runInDurableObject` が渡す実 instance の
 // `ctx.storage`（既存の `put` 注入と同一の storage）で、起点は **エントリポイントの前段 `ensureLoaded`**
@@ -242,7 +246,7 @@ describe("上限超過の永続値（order-item-truncation Requirement 4.3 / AC 
   it("hydration では永続値が変わらず、次の確定変化で既存キーへ 1 回だけ書かれて上限へ縮む", async () => {
     const storeId = freshStoreId("over-limit-hydration");
     const stub = await provision(storeId);
-    const OVER = ORDER_ITEM_LIMIT + 37;
+    const OVER_LIMIT_ITEM_COUNT = ORDER_ITEM_LIMIT + 37;
 
     const observed = await runInDurableObject(stub, async (instance, state) => {
       // (0) 上限を超える永続値を直に置く（旧版の DO が積み上げた状態の再現）。
@@ -250,7 +254,9 @@ describe("上限超過の永続値（order-item-truncation Requirement 4.3 / AC 
         version: CURRENT_SCHEMA_VERSION,
         timers: [],
         nextSeq: 0,
-        orderItems: Array.from({ length: OVER }, (_unused, index) => rawItem(index)),
+        orderItems: Array.from({ length: OVER_LIMIT_ITEM_COUNT }, (_unused, index) =>
+          rawItem(index),
+        ),
         acceptedSlices: [],
         requestedDigest: null,
         lastSequenceByTerminal: {},
@@ -303,7 +309,7 @@ describe("上限超過の永続値（order-item-truncation Requirement 4.3 / AC 
 
     // (1) hydration：Working_Copy は縮むが、**永続値は元のまま**で put は 1 度も起きない。
     expect(observed.afterHydration.working).toBe(ORDER_ITEM_LIMIT);
-    expect(observed.afterHydration.persisted).toBe(OVER);
+    expect(observed.afterHydration.persisted).toBe(OVER_LIMIT_ITEM_COUNT);
     expect(observed.afterHydration.puts).toEqual([]);
 
     // (2) 次の確定変化：**既存キーへ 1 回だけ**書かれ、そこで初めて永続値が上限へ縮む。
