@@ -107,7 +107,7 @@
 ### Requirement 5: 検証可能な性質
 
 1. **有界**：任意の入力に対し `Truncation(items).length ≤ Order_Item_Limit`
-2. **冪等**：`Truncation(Truncate(items)) = Truncate(items)`
+2. **冪等**：`Truncation(Truncation(items)) = Truncation(items)`
 3. **部分集合**：`Truncation(items) ⊆ items`（要素の内容を変えない）
 4. **並び保存**：`Truncation(items)` の相対順序は `items` の相対順序に一致する
 5. **恒等**：`items.length ≤ Order_Item_Limit` なら `Truncation(items)` は `items` と同じ参照
