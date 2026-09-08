@@ -1,7 +1,13 @@
-// tests/core/migrate.property.test.ts — migrate と永続境界の 3 つの Property。
+// tests/core/migrate.property.test.ts — migrate と永続境界の Property。
 //   yude-men-timer Property 13: version 不整合・移行失敗で元データ不変。
 //   pos-order-ingress Property 12: 移行は既存の挙動を保つ（v7 → v8 の欠如の埋め方）。
 //   synchronized-boil-adjustment: 現行 snapshot 往復で符号付き Adjustment を保存。
+//   order-lifecycle Requirement 6.1 / 性質 7.9: v12 → v13 は品目を落とさず往復は同一。
+//   order-item-truncation Requirement 4: 鍵が一意な上限超過は成功して上限以下・鍵の重複は移行失敗。
+//
+// **品目集合を組む生成器は鍵一意（`fc.uniqueArray(..., { selector: itemKeyOf })`）である。** 重複鍵は
+// `MigrationFailed` になる契約（order-item-truncation AC 4.5）なので、移行の成功を要求する面に重複を
+// 与えれば偽陽性で落ちる。重複を与える面は専用の property が別に持つ。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -785,8 +791,8 @@ describe("Feature: order-item-truncation, Requirement 4: 上限と鍵の一意�
     shownPlan: [],
   });
 
-  // 上限超過の集合は 1 件が 4096 件超ゆえ runs を絞る（超過分 k と並びの置換で振る）。
-  const OVER = { numRuns: 12 };
+  // 上限超過の集合は 1 件が 4096 件超の配列ゆえ、runs を絞る（振れ幅は超過分 k と並びの置換だけ）。
+  const OVER_LIMIT_ASSERT_OPTIONS = { numRuns: 12 };
 
   it("鍵が一意な上限超過の集合は、移行に成功して上限以下になる（超過は移行が直せる欠陥）", () => {
     fc.assert(
@@ -825,34 +831,46 @@ describe("Feature: order-item-truncation, Requirement 4: 上限と鍵の一意�
           }
         },
       ),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 
   it("鍵が重複する集合は、上限以下でも上限超過でも MigrationFailed（部分受理しない）", () => {
+    /** 同じ鍵の 2 件（最も古い側に置く——上限を当てれば消えうる形）と、鍵一意な rest 件。 */
+    function withDuplicate(rest: number, seed: number): readonly unknown[] {
+      const built = [
+        order("dup", 0, 0),
+        order("dup", 0, 1),
+        ...Array.from({ length: rest }, (_unused, index) =>
+          order(`o-${String(index).padStart(6, "0")}`, index % 3, 10_000 + index * 1000),
+        ),
+      ];
+      return shuffleBySeed(built, seed);
+    }
+
+    function expectMigrationFailed(items: readonly unknown[]) {
+      const result = migrate(v13With(items));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.failure.code).toBe("MigrationFailed");
+    }
+
     fc.assert(
       fc.property(
-        // 上限を跨ぐ両側を踏む。重複の位置も振る（最も古い側に置けば truncate が消しうる形になる）。
-        fc.integer({ min: 0, max: ORDER_ITEM_LIMIT + 4 }),
+        // **両帯を各 run で必ず生成する。** 一つの整数を 0..LIMIT+4 から抽選すると上限超過になるのは
+        // 6 / 4101 通りしかなく、12 runs では 1.7% しか踏まない——「上限以下でも上限超過でも」が
+        // 事実上「上限以下だけ」になる。帯ごとに引数を分ければ、どの run も両側を検査する。
+        fc.integer({ min: 0, max: ORDER_ITEM_LIMIT - 2 }), // + 重複 2 件で上限以下
+        fc.integer({ min: ORDER_ITEM_LIMIT - 1, max: ORDER_ITEM_LIMIT + 4 }), // + 2 件で上限超過
         fc.integer({ min: 0, max: 0x7fff_ffff }),
-        (rest, seed) => {
-          const built = [
-            // 同じ鍵の 2 件。arrivalTime は最も古い側に置く。
-            order("dup", 0, 0),
-            order("dup", 0, 1),
-            ...Array.from({ length: rest }, (_unused, index) =>
-              order(`o-${String(index).padStart(6, "0")}`, index % 3, 10_000 + index * 1000),
-            ),
-          ];
-
-          const result = migrate(v13With(shuffleBySeed(built, seed)));
-
-          expect(result.ok).toBe(false);
-          if (result.ok) return;
-          expect(result.failure.code).toBe("MigrationFailed");
+        (restBelow, restAbove, seed) => {
+          expect(restBelow + 2).toBeLessThanOrEqual(ORDER_ITEM_LIMIT);
+          expect(restAbove + 2).toBeGreaterThan(ORDER_ITEM_LIMIT);
+          expectMigrationFailed(withDuplicate(restBelow, seed));
+          expectMigrationFailed(withDuplicate(restAbove, seed));
         },
       ),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 });

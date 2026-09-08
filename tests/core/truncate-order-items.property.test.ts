@@ -63,8 +63,8 @@ function truncateGuarded(items: readonly OrderItem[]): readonly OrderItem[] {
   return result;
 }
 
-/** 上限超過の帯は 1 件が 4KiB 超の配列ゆえ runs を絞る（k の範囲は 8 通りしかない）。 */
-const OVER = { numRuns: 40 };
+/** 上限超過の帯は 1 件が 4096 件超の配列ゆえ runs を絞る（k の範囲は 8 通りしかない）。 */
+const OVER_LIMIT_ASSERT_OPTIONS = { numRuns: 40 };
 
 describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", () => {
   it("5.1 有界：どの入力でも結果は ORDER_ITEM_LIMIT 以下", () => {
@@ -72,7 +72,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
       fc.property(fc.oneof(genUnderLimit, genOverLimit), (items) => {
         expect(truncateGuarded(items).length).toBeLessThanOrEqual(ORDER_ITEM_LIMIT);
       }),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 
@@ -82,7 +82,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
         const once = truncateGuarded(items);
         expect(truncateGuarded(once)).toBe(once);
       }),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 
@@ -94,7 +94,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
         for (const item of kept) expect(source.get(itemKeyOf(item))).toBe(item);
         expect(new Set(kept.map((item) => itemKeyOf(item))).size).toBe(kept.length);
       }),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 
@@ -107,7 +107,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
         const keys = keysOf(kept);
         expect(kept).toEqual(before.filter((item) => keys.has(itemKeyOf(item))));
       }),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 
@@ -116,7 +116,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
       fc.property(genUnderLimit, (items) => {
         expect(truncateGuarded(items)).toBe(items);
       }),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 
@@ -132,7 +132,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
           for (const stay of kept) expect(compareArrival(gone, stay)).toBeLessThan(0);
         }
       }),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 
@@ -143,7 +143,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
         const reordered = keysOf(truncateGuarded(shuffleBySeed(items, seed)));
         expect([...reordered].sort()).toEqual([...kept].sort());
       }),
-      OVER,
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 });
