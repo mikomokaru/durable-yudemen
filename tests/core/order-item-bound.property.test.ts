@@ -71,7 +71,7 @@ const genLarge = genUniqueOrderItems({
   maxLength: ORDER_ITEM_LIMIT + 4,
 });
 
-const OPTIONS = { numRuns: 25 };
+const BOUND_ASSERT_OPTIONS = { numRuns: 25 };
 
 /**
  * **両帯を各 run で必ず検査する。** `fc.oneof` で 1 つ選ぶ形にすると、どの run がどちらの帯を踏んだかが
@@ -86,7 +86,7 @@ function forBothBands(check: (items: readonly OrderItem[]) => void) {
       check(small);
       check(large);
     }),
-    OPTIONS,
+    BOUND_ASSERT_OPTIONS,
   );
 }
 
@@ -112,7 +112,7 @@ describe("(a)(b) 件数を増やしうるのは upsertOrder だけで、その�
           );
         }
       }),
-      OPTIONS,
+      BOUND_ASSERT_OPTIONS,
     );
   });
 
