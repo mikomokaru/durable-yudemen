@@ -167,11 +167,12 @@ function toSnapshotMessage(
 ): ServerMessage | null {
   const timers = toArrayOf(record.timers, toTimerFact);
   if (timers === null) return null;
-  const pendingOrders = toArrayOf(record.pendingOrders, toOrderItemFromWire);
-  if (pendingOrders === null) return null;
+  // 品目の集合は `orderItems`（order-lifecycle AC 4.2）。旧名 `pendingOrders` は読まない——鍵の欠如は形の違いである。
+  const orderItems = toArrayOf(record.orderItems, toOrderItemFromWire);
+  if (orderItems === null) return null;
   const recommendations = toArrayOf(record.recommendations, toRecommendation);
   if (recommendations === null) return null;
-  return { type: "snapshot", serverTime, timers, pendingOrders, recommendations };
+  return { type: "snapshot", serverTime, timers, orderItems, recommendations };
 }
 
 /** ワイヤの Timer 表現（既定の型パラメータ＝生プリミティブ）を確立する。 */
@@ -202,7 +203,7 @@ function toOrderItemRef(value: unknown): TimerFact["orderItem"] | undefined {
 }
 
 /**
- * ワイヤの OrderItem を確立する。
+ * ワイヤの OrderItem を確立する（snapshot の `orderItems` の 1 件）。
  *
  * order.ts の toArrivedItem を流用しない。あちらは arrivalTime を引数で受け（POS の主張を許さない）
  * noodleType を presets と照合する受け口用の検証で、義務が違う。ここは arrivalTime を値から読み、
@@ -397,7 +398,7 @@ function toErrorMessage(record: Record<string, unknown>, serverTime: number): Se
  *
  * contract は復号器と 1 対 1 で、受け手も向きもここから導ける。direction を使わないのは Operation_Log が
  * send / recv の意味で持つためで、at も同 log の epoch ms と衝突する。Wire_Text の中身は載せない——
- * snapshot の pendingOrders は externalOrderId / tableId を含み、これは POS 由来の業務データである。
+ * snapshot の orderItems は externalOrderId / tableId を含み、これは POS 由来の業務データである。
  */
 export function toDecodeFailureLine(contract: "ClientMessage" | "ServerMessage"): string {
   return JSON.stringify({ kind: "decode-failure", contract });

@@ -106,7 +106,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
           orderItem: null,
         },
       ],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
 
@@ -128,7 +128,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
       type: "snapshot",
       serverTime: START_NOW + 5,
       timers: [],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     const view2 = connection.getView();
@@ -158,7 +158,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
           orderItem: null,
         },
       ],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     connection.complete("T");
@@ -166,7 +166,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
       type: "snapshot",
       serverTime: START_NOW + 5,
       timers: [],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     expect(connection.getView().lastResults.has("3")).toBe(true);
@@ -186,7 +186,7 @@ describe("client/connection — 茹で上がりの明示完了", () => {
           orderItem: null,
         },
       ],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     });
     expect(connection.getView().lastResults.has("3")).toBe(false);

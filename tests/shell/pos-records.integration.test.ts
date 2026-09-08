@@ -341,7 +341,7 @@ describe("1 受領は 1 遷移・1 put である（Requirements 5.5）", () => {
     expect(putCalls).toBe(1);
 
     await client.waitForSnapshot(
-      (message) => message.type === "snapshot" && message.pendingOrders.length === 10,
+      (message) => message.type === "snapshot" && message.orderItems.length === 10,
     );
     await idle(200);
     expect(client.messages.length).toBe(before + 1);
@@ -367,7 +367,7 @@ describe("確定は put 成功の上にのみ立つ（Requirements 5.6, 5.7）",
     ]);
     expect(first.kind).toBe("settled");
     await client.waitForSnapshot(
-      (message) => message.type === "snapshot" && message.pendingOrders.length === 1,
+      (message) => message.type === "snapshot" && message.orderItems.length === 1,
     );
     const confirmed = await readSnapshot(stub);
     const beforeFailure = client.messages.length;
@@ -551,7 +551,7 @@ describe("Property 9: 冪等は収束する（Requirements 9.9, 10.2, 10.7）", 
       counts: { doDedupeSkipped: 0, unknownNoodleType: 0 },
     });
     await client.waitForSnapshot(
-      (message) => message.type === "snapshot" && message.pendingOrders.length === 2,
+      (message) => message.type === "snapshot" && message.orderItems.length === 2,
     );
     const confirmed = await readSnapshot(stub);
     const afterFirst = client.messages.length;

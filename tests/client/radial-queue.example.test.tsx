@@ -103,7 +103,7 @@ const OPEN: ClientView = {
   unitCount: 1,
   unitOrigins: defaultUnitOrigins(1),
   noodlePresets: PRESETS,
-  pendingOrders: [C, A, B],
+  orderItems: [C, A, B],
 };
 
 /** 釜 1〜3 が走行中の台。釜 0 の隣接（横 10・縦 10・斜め 14）がすべて埋まり、残る釜 4・5 は許容 14 の外。 */
@@ -417,7 +417,7 @@ describe("時計が寿命を跨ぐと、開いたままの帯とレールから�
   const OFFSET = 1_000;
   /** 補正後現在時刻が T0 + 1 秒 + 1 ms になった瞬間にちょうど寿命を迎える A。 */
   const EXPIRING_A = { ...A, arrivalTime: T0 + OFFSET + 1 - ORDER_LIFETIME_MS };
-  const AGING: ClientView = { ...OPEN, offset: OFFSET, pendingOrders: [C, EXPIRING_A, B] };
+  const AGING: ClientView = { ...OPEN, offset: OFFSET, orderItems: [C, EXPIRING_A, B] };
 
   /** レールの行の語。 */
   function railNames(): readonly string[] {

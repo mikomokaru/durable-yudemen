@@ -65,7 +65,7 @@ const genTimerFact: fc.Arbitrary<TimerFact> = fc.record({
   ),
 });
 
-const genPendingOrder: fc.Arbitrary<OrderItem> = fc.record({
+const genOrderItem: fc.Arbitrary<OrderItem> = fc.record({
   externalOrderId: fc.string({ minLength: 1, maxLength: 8 }),
   itemIndex: fc.integer({ min: 0, max: 8 }),
   noodleType: fc.constantFrom(...NOODLE_POOL),
@@ -125,7 +125,7 @@ export const genValidServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
     type: fc.constant("snapshot" as const),
     serverTime: genEpoch,
     timers: fc.array(genTimerFact, { maxLength: 4 }),
-    pendingOrders: fc.array(genPendingOrder, { maxLength: 4 }),
+    orderItems: fc.array(genOrderItem, { maxLength: 4 }),
     recommendations: fc.array(genRecommendation, { maxLength: 4 }),
   }),
   fc

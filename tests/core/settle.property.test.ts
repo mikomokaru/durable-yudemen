@@ -109,7 +109,7 @@ function snapshotByteLength(serverTime: number, timers: readonly TimerFact[]): n
     type: "snapshot",
     serverTime,
     timers,
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
   };
   return new TextEncoder().encode(JSON.stringify(message)).length;

@@ -290,9 +290,9 @@ describe("Feature: pending-order-expiry — 期限切れの品目への開始は
       throw new Error("snapshot が無い");
     }
     // 配信は「期限内 ∨ 生きた Timer の参照先」——期限切れの未調理 OLD は載らず、調理中の ORDER は載る（AC 4.2）。
-    expect(broadcast.message.pendingOrders).toEqual(
+    expect(broadcast.message.orderItems).toEqual(
       orderItemsToBroadcast(outcome.state.orderItems, outcome.state.timers, NOW),
     );
-    expect(broadcast.message.pendingOrders).toEqual([ORDER]);
+    expect(broadcast.message.orderItems).toEqual([ORDER]);
   });
 });

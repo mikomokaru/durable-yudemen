@@ -113,7 +113,7 @@ function snapshotFrame(timers: readonly TimerFact[], serverTime: number): string
     type: "snapshot",
     serverTime,
     timers,
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
   };
   return JSON.stringify(message);

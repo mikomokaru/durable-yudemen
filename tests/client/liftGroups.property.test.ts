@@ -127,7 +127,7 @@ describe("Feature: lift-group-display, Property 1: 群の所属", () => {
             expect(preset).toBeDefined();
             const boilSeconds = preset!.boilSeconds[item.order.firmness];
             expect(item.suggestion.serveAt).toBe(item.suggestion.startAt + boilSeconds * 1000);
-            expect(view.pendingOrders).toContain(item.order);
+            expect(view.orderItems).toContain(item.order);
           }
         }
         // 逆向き：開始できる推奨（品目が待ち行列に在り、麺種がプリセットに在る）の group がそのまま群の集合である。
@@ -215,7 +215,7 @@ describe("Feature: lift-group-display, Property 2: 一意（担当範囲・端�
             corrected: fc.constant(corrected),
             timers: permutationOf(view.timers),
             recommendations: permutationOf(view.recommendations),
-            pendingOrders: permutationOf(view.pendingOrders),
+            orderItems: permutationOf(view.orderItems),
             connectivity: genConnectivity,
             unreachableReason: genUnreachableReason,
             sync: fc.constantFrom<ClientView["sync"]>("connecting", "synced", "syncFailed"),

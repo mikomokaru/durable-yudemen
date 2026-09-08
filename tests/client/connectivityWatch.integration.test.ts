@@ -67,7 +67,7 @@ function snapshotFrame(): string {
     type: "snapshot",
     serverTime: RECEIVED_AT,
     timers: [],
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
   };
   return JSON.stringify(message);

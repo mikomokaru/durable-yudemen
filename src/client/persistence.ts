@@ -8,7 +8,7 @@
 // 永続するのは「これ以上分解できない事実」だけ —— timers（起源タグ込み）・クロックオフセット・
 // processedIds。Connectivity / sync / error / unreachableReason は導出・一過性のフィールドであり永続しない。
 //
-// 待ち行列（pendingOrders）と推奨（recommendations）も永続しない。走行中 Timer を永続するのは endTime が
+// 品目の集合（orderItems）と推奨（recommendations）も永続しない。走行中 Timer を永続するのは endTime が
 // それ自体で完結する事実で、秒読みが瞬断で死んではならないからである。待ち行列はそうではない——サーバだけが
 // 確定させる事実で、接続が無い間に外で変わりうる（到着・キャンセル・他端末の開始）。起動時に古い写しを
 // 出せば「まだ茹でていない注文」という嘘を語る。接続が無い間は「知らない」を空で示し、hydration で受け直す。

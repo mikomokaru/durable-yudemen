@@ -145,7 +145,7 @@ function genClusteredTimers(timers: readonly ClientTimer[]): fc.Arbitrary<Client
  * 一括消し込みの入力となる ClientView（src/client/connection.ts の公開型）。
  *
  * genClientView を土台に、群が立つ盤面へ効く次元（timers の endTime / slotIds・lastResults）だけを差し替え、
- * 群の再構成にも LocalComplete の畳み込みにも影響しない次元（pendingOrders / recommendations /
+ * 群の再構成にも LocalComplete の畳み込みにも影響しない次元（orderItems / recommendations /
  * unreachableReason / unitCount / noodlePresets）は既定へ固定して生成の分散を本質へ集める
  * （audioGenerators.ts の genAudioView と同形）。lastResults は Property 8 の検査対象ゆえ本ファイルの
  * genLastResults で上書きする——群のスロットプールに合わせた既存残滓を密に載せるため。
@@ -156,7 +156,7 @@ export const genBatchView: fc.Arbitrary<ClientView> = genClientView.chain((view)
     .map(({ timers, lastResults }): ClientView => ({
       ...view,
       timers,
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
       lastResults,
       unreachableReason: "offline",

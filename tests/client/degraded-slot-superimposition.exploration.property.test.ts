@@ -202,7 +202,7 @@ function replayBoiledThenLocalStart(run: DegradedRun): DegradedRunStages {
       type: "snapshot",
       serverTime: run.serverTime,
       timers: [serverFact],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     },
     receivedAt: run.receivedAt,
@@ -242,7 +242,7 @@ function replayBoiledThenLocalStart(run: DegradedRun): DegradedRunStages {
   const afterReconcile = decideView(reconnected, {
     kind: "Reconcile",
     timers: [serverFact],
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
     // receivedAt は生のローカル読み。受け手が correctedNow(view.offset, at) で補正するため、
     // 補正後時刻 startAt をそのまま渡すと offset が二重に足される。
@@ -313,7 +313,7 @@ function replayCompleteThenReconcile(run: DegradedRun): ResurrectionRunStages {
       type: "snapshot",
       serverTime: run.serverTime,
       timers: [serverFact],
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
     },
     receivedAt: run.receivedAt,
@@ -364,7 +364,7 @@ function replayCompleteThenReconcile(run: DegradedRun): ResurrectionRunStages {
   const afterReconcile = decideView(reconnected, {
     kind: "Reconcile",
     timers: [serverFact],
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
     // receivedAt は生のローカル読み（経路 A と同じ。補正は受け手の correctedNow が行う）。
     receivedAt: localReadingOf(startAt, offset),

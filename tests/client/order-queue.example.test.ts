@@ -58,14 +58,14 @@ function recommendation(
 
 /** synced 済みのビュー（待ち行列と推奨だけを差し替える）。 */
 function viewWith(
-  pendingOrders: readonly OrderItem[],
+  orderItems: readonly OrderItem[],
   recommendations: readonly CookRecommendation[],
 ): ClientView {
   return {
     ...EMPTY_VIEW,
     sync: "synced",
     connectivity: "up",
-    pendingOrders,
+    orderItems,
     recommendations,
     noodlePresets: DEFAULT_NOODLE_PRESETS,
   };
@@ -89,12 +89,12 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
         type: "snapshot",
         serverTime: T,
         timers: [],
-        pendingOrders: [order("o-1", 0, T)],
+        orderItems: [order("o-1", 0, T)],
         recommendations: [recommendation("o-1", 0, ["2"], T + 5_000)],
       },
       receivedAt: T,
     });
-    expect(applied.pendingOrders).toEqual([order("o-1", 0, T)]);
+    expect(applied.orderItems).toEqual([order("o-1", 0, T)]);
     expect(applied.recommendations).toEqual([recommendation("o-1", 0, ["2"], T + 5_000)]);
     // server-confirmed の全置換規律は不変（provisional は保持される）。
     expect(applied.timers.map((timer) => timer.id)).toEqual(["local-1"]);
@@ -106,12 +106,12 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
         type: "snapshot",
         serverTime: T + 1,
         timers: [],
-        pendingOrders: [],
+        orderItems: [],
         recommendations: [],
       },
       receivedAt: T + 1,
     });
-    expect(emptied.pendingOrders).toEqual([]);
+    expect(emptied.orderItems).toEqual([]);
     expect(emptied.recommendations).toEqual([]);
   });
 
@@ -120,11 +120,11 @@ describe("client が待ち行列と推奨を受ける（AC 2.4）", () => {
     const reconciled = decideView(stale, {
       kind: "Reconcile",
       timers: [],
-      pendingOrders: [order("o-new", 0, T + 10)],
+      orderItems: [order("o-new", 0, T + 10)],
       recommendations: [recommendation("o-new", 0, ["1"], T + 20)],
       receivedAt: T + 30,
     });
-    expect(reconciled.pendingOrders).toEqual([order("o-new", 0, T + 10)]);
+    expect(reconciled.orderItems).toEqual([order("o-new", 0, T + 10)]);
     expect(reconciled.recommendations).toEqual([recommendation("o-new", 0, ["1"], T + 20)]);
   });
 
@@ -235,7 +235,7 @@ describe("待ち行列の表示導出（AC 8.1 / 8.2 / 8.5）", () => {
 
 // ── pending-order-expiry: client も同じ述語で絞る（Requirement 3・性質 5.8） ────────────────────────────
 //
-// wire の `pendingOrders` は保持したまま（ClientView に絞った値を持たない）、レールを並べる入口が補正後現在時刻で
+// wire の `orderItems` は保持したまま（ClientView に絞った値を持たない）、レールを並べる入口が補正後現在時刻で
 // domain の liveOrders に通す。サーバは既に絞って送るが、snapshot の後に時刻が進んで寿命を跨ぐ品目は client が
 // 消す——次の snapshot を待たない。時刻はすべて引数で運び、Date.now は用いない（純粋層の規律）。
 
@@ -248,13 +248,13 @@ describe("Feature: pending-order-expiry — 寿命を跨いだ品目は次の sn
   const keys = (entries: ReturnType<typeof orderQueueEntries>) =>
     entries.map((entry) => keyOf(entry.order));
 
-  it("snapshot 直後は残り、correctedNow が寿命を跨ぐと消える。view の pendingOrders は wire のまま", () => {
+  it("snapshot 直後は残り、correctedNow が寿命を跨ぐと消える。view の orderItems は wire のまま", () => {
     const view = viewWith([EXPIRING, FRESH], []);
     expect(keys(orderQueueEntries(view, [0], T - 1))).toEqual(["o-expiring#0", "o-fresh#0"]);
     expect(keys(orderQueueEntries(view, [0], T))).toEqual(["o-fresh#0"]);
     expect(keys(orderQueueEntries(view, [0], T + 60_000))).toEqual(["o-fresh#0"]);
     // 絞った値を状態にしない——wire の全量はそのまま残る（design 原則 1）。
-    expect(view.pendingOrders).toEqual([EXPIRING, FRESH]);
+    expect(view.orderItems).toEqual([EXPIRING, FRESH]);
   });
 
   it("境界は半開区間：ちょうど arrivalTime + 寿命 は含まず、その 1 ms 前は含む（domain と同じ 1 つの述語）", () => {

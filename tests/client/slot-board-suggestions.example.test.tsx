@@ -133,7 +133,7 @@ const VIEW: ClientView = {
   unitCount: 2,
   unitOrigins: defaultUnitOrigins(2),
   noodlePresets: PRESETS,
-  pendingOrders: [LONG, MID, SHORT],
+  orderItems: [LONG, MID, SHORT],
   recommendations: [
     recommendation(LONG, ["0", "1"], T0),
     recommendation(MID, ["2"], T0 + 150 * SECOND),
@@ -147,7 +147,7 @@ const B = order({ externalOrderId: "b", itemName: "B" });
 const C = order({ externalOrderId: "c", itemName: "C" });
 const CROWDED: ClientView = {
   ...VIEW,
-  pendingOrders: [A, B, C],
+  orderItems: [A, B, C],
   recommendations: [
     recommendation(A, ["0"], T0),
     recommendation(B, ["2"], T0),

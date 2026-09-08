@@ -394,8 +394,8 @@ describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 
     if (broadcast?.type !== "Broadcast" || broadcast.message.type !== "snapshot") {
       throw new Error("snapshot が無い");
     }
-    expect(broadcast.message.pendingOrders).toEqual(liveOrders(WITH_EXPIRED.orderItems, NOW));
-    expect(broadcast.message.pendingOrders).toEqual([LONG, SHORT]);
+    expect(broadcast.message.orderItems).toEqual(liveOrders(WITH_EXPIRED.orderItems, NOW));
+    expect(broadcast.message.orderItems).toEqual([LONG, SHORT]);
   });
 
   it("採用済みの一片が期限切れの品目を指していれば合成が捨て、尾部を自前解が埋める", () => {
@@ -412,7 +412,7 @@ describe("receivePlan — 期限切れの品目（pending-order-expiry AC 2.3 / 
       [LONG.externalOrderId, NOW],
       [SHORT.externalOrderId, NOW + 600 * SECOND],
     ]);
-    expect(message.pendingOrders).toEqual([LONG, SHORT]);
+    expect(message.orderItems).toEqual([LONG, SHORT]);
   });
 
   describe("混在（レビュー実走）：期限切れの旧先頭を文脈から外す（AC 2.4）", () => {

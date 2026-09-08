@@ -168,7 +168,7 @@ const genView: fc.Arbitrary<ClientView> = genTimerFacts(SERVER_ID_POOL).chain((s
         return {
           timers,
           // 残滓・processedIds の主張に関与しないため空に据える（reconcile は timers だけを畳む）。
-          pendingOrders: [],
+          orderItems: [],
           recommendations: [],
           offset: r.offset,
           processedIds: new Set(r.processed),

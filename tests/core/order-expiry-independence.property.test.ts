@@ -371,8 +371,8 @@ describe("Feature: pending-order-expiry, Property 5.9: 注文期限からの独�
         // wire の TimerFact は待ち行列を参照しない（AC 4.4）——Timer は同じ、待ち行列だけが片方で空。
         expect(fromAlive.timers).toEqual(fromExpired.timers);
         expect(fromAlive.serverTime).toBe(fromExpired.serverTime);
-        expect(fromExpired.pendingOrders).toEqual([]);
-        expect(fromAlive.pendingOrders).toEqual(alive.orderItems);
+        expect(fromExpired.orderItems).toEqual([]);
+        expect(fromAlive.orderItems).toEqual(alive.orderItems);
 
         // 確定の settle（同じ状態から・確定変化として）も Timer と Alarm は同じ——Boil_Sync の結果は待ち行列に依らない。
         const settledAlive = settle(alive, { ...alive }, params, now, true);

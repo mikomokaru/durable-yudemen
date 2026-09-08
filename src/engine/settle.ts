@@ -359,8 +359,7 @@ function snapshotMessage(
     // AC 4.2）。正本の集合そのものは載せない——期限切れの未調理・調理済みは読まれない（pending-order-expiry AC 2.2・
     // 性質 5.5）が、調理中の品目は期限を超えても Complete まで載る（釜側が参照で卓・品名を引く・性質 7.7）。
     // 確定変化の Broadcast と hydration は同じこの関数を通るので、両方が同時に絞られる。推奨は確定計画からの導出値。
-    // wire のフィールド名（`pendingOrders` → `orderItems`）の改名は task 3 で行う。
-    pendingOrders: orderItemsToBroadcast(state.orderItems, state.timers, now),
+    orderItems: orderItemsToBroadcast(state.orderItems, state.timers, now),
     recommendations,
   };
 }

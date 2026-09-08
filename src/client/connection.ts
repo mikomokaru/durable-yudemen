@@ -105,12 +105,16 @@ export interface ClientView {
   /** アクティブな全 Timer（全量保持・起源タグ付き）。snapshot で server-confirmed を全置換する（要件4.2 / 4.5）。 */
   readonly timers: readonly ClientTimer[];
   /**
-   * 未着手オーダーの全量（計画対象の上限を超える分も含む）。snapshot の写しに留める（online-cook-scheduling AC 2.4）。
+   * 注文品目の集合（snapshot の `orderItems`＝期限内 ∨ 生きた Timer の参照先・計画対象の上限を超える分も含む）。
+   * snapshot の写しに留める（online-cook-scheduling AC 2.4・order-lifecycle AC 4.2）。
    *
-   * 到着順の並び・担当範囲での絞り込みは表示時の導出であって、ここには保持しない（保持は全量・表示は導出）。
-   * Timer と違い provisional の対概念を持たない——待ち行列はサーバだけが確定させる事実なので、全置換で足りる。
+   * 状態（unstarted / cooking / done）は保持せず `itemStatusOf` で導く。左レール・ラジアルは未調理
+   * （`pendingOrders(orderItems, timers, correctedNow)`）だけを出し、釜のカードは `orderItemOf(timer, orderItems)` で
+   * 品目を引く（AC 4.5 / 4.6）。到着順の並び・担当範囲での絞り込みも表示時の導出であって、ここには保持しない
+   * （保持は全量・表示は導出）。Timer と違い provisional の対概念を持たない——品目はサーバだけが確定させる事実
+   * なので、全置換で足りる。
    */
-  readonly pendingOrders: readonly OrderItem[];
+  readonly orderItems: readonly OrderItem[];
   /**
    * サーバが Committed_Plan から導いた開始推奨の写し（online-cook-scheduling AC 8.1 / 8.5）。
    *
@@ -185,9 +189,9 @@ export type ClientEvent =
   | {
       readonly kind: "Reconcile"; // 要件11（決定 B）
       readonly timers: readonly TimerFact[];
-      // 待ち行列と推奨も運ぶ。Timer と違い provisional の対概念を持たないため snapshot と同じ全置換で足りる。
+      // 品目の集合と推奨も運ぶ。Timer と違い provisional の対概念を持たないため snapshot と同じ全置換で足りる。
       // 運ばないと再接続後の最初の snapshot だけ待ち行列が更新されず、他端末との一致（AC 2.4）が破れる。
-      readonly pendingOrders: readonly OrderItem[];
+      readonly orderItems: readonly OrderItem[];
       readonly recommendations: readonly CookRecommendation[];
       readonly receivedAt: number;
     };
@@ -195,7 +199,7 @@ export type ClientEvent =
 /** 初期ビュー。まだ何も受信しておらず接続中。boot 時は接続未確立 = degraded 起点（要件3）。 */
 export const EMPTY_VIEW: ClientView = {
   timers: [],
-  pendingOrders: [],
+  orderItems: [],
   recommendations: [],
   offset: 0,
   processedIds: new Set<string>(),
@@ -243,7 +247,7 @@ export function decideView(view: ClientView, event: ClientEvent): ClientView {
       // 待ち行列と推奨は snapshot 分岐と同じ全置換（サーバだけが確定させる事実ゆえ保持すべきローカル分が無い）。
       return {
         ...reconcileServerConfirmed(view, event.timers, event.receivedAt),
-        pendingOrders: event.pendingOrders,
+        orderItems: event.orderItems,
         recommendations: event.recommendations,
       };
 
@@ -454,12 +458,12 @@ function decideServerMessage(
       // 初回 hydration では prevServer / provisional が空ゆえ全置換に縮退する。offset 再確立・同期確定・
       // エラー解消を重ねる。残滓記録時刻 at には受信時刻 receivedAt を渡す（要件4.2 / 5.1）。
       const reconciled = reconcileServerConfirmed(view, message.timers, receivedAt);
-      // 待ち行列と推奨も同じ snapshot が運ぶ（種別を増やさない・online-cook-scheduling AC 2.3 / 2.4）。
-      // Timer と違い起源の区別が無いため全置換で足りる。導出（到着順の並び・担当範囲での絞り込み・
+      // 品目の集合と推奨も同じ snapshot が運ぶ（種別を増やさない・online-cook-scheduling AC 2.3 / 2.4）。
+      // Timer と違い起源の区別が無いため全置換で足りる。導出（状態・到着順の並び・担当範囲での絞り込み・
       // 開始に要る茹で秒）は表示時に行い、ここでは写すだけに留める。
       return {
         ...reconciled,
-        pendingOrders: message.pendingOrders,
+        orderItems: message.orderItems,
         recommendations: message.recommendations,
         offset,
         sync: "synced",
@@ -1014,8 +1018,8 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
           decideView(view, {
             kind: "Reconcile",
             timers: message.timers,
-            // 待ち行列と推奨は provisional の対概念を持たないため、再接続直後も通常の snapshot と同じ全置換。
-            pendingOrders: message.pendingOrders,
+            // 品目の集合と推奨は provisional の対概念を持たないため、再接続直後も通常の snapshot と同じ全置換。
+            orderItems: message.orderItems,
             recommendations: message.recommendations,
             receivedAt,
           }),

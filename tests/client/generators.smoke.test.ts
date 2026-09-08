@@ -103,8 +103,8 @@ describe("client/generators 生成器土台のスモーク", () => {
 
   it("genClientView の待ち行列・推奨は空と非空の双方を踏む（サーバ権威の写し）", () => {
     const samples = fc.sample(genClientView, 300);
-    expect(samples.some((v) => v.pendingOrders.length === 0)).toBe(true);
-    expect(samples.some((v) => v.pendingOrders.length > 0)).toBe(true);
+    expect(samples.some((v) => v.orderItems.length === 0)).toBe(true);
+    expect(samples.some((v) => v.orderItems.length > 0)).toBe(true);
     expect(samples.some((v) => v.recommendations.length === 0)).toBe(true);
     expect(samples.some((v) => v.recommendations.length > 0)).toBe(true);
   });
@@ -159,9 +159,9 @@ describe("client/generators 生成器土台のスモーク", () => {
     const reconciles = fc.sample(genEvent(view), 600).filter((e) => e.kind === "Reconcile");
     expect(reconciles.length).toBeGreaterThan(0);
     expect(
-      reconciles.every((e) => Array.isArray(e.pendingOrders) && Array.isArray(e.recommendations)),
+      reconciles.every((e) => Array.isArray(e.orderItems) && Array.isArray(e.recommendations)),
     ).toBe(true);
-    expect(reconciles.some((e) => e.pendingOrders.length > 0)).toBe(true);
+    expect(reconciles.some((e) => e.orderItems.length > 0)).toBe(true);
   });
 
   it("genEvent の Reconcile は cancel 済み server の snapshot 復活を踏みうる（processedIds 登録 id の再出現）", () => {

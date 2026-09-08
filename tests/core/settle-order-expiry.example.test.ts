@@ -3,7 +3,7 @@
 //
 // tests/core/settle-order-expiry.example.test.ts — 期限は状態を書き換えず、読む側の入口が now で絞る。ここで固定するのは
 // settle の 3 つの読み口——snapshot（確定変化の Broadcast と hydration）・外部要求（RequestPlan.pending と指紋）・変更費用の
-// 文脈（deriveRecommendations）——が同じ Live_Orders を読み、正本（TimerState.pendingOrders・Persist の snapshot）は
+// 文脈（deriveRecommendations）——が同じ Live_Orders を読み、正本（TimerState.orderItems・Persist の snapshot）は
 // 触らないことである。混在の場面（期限切れの旧先頭を文脈から外す）は expiryScenes.ts を共有する。
 
 import { describe, expect, it } from "vitest";
@@ -75,14 +75,14 @@ function arrive(prev: TimerState, pending: readonly OrderItem[], now: EpochMilli
   return outcome;
 }
 
-describe("snapshot の pendingOrders は Live_Orders（AC 2.2・性質 5.5）", () => {
+describe("snapshot の orderItems は Live_Orders（AC 2.2・性質 5.5）", () => {
   it("確定変化の Broadcast は liveOrders(state.orderItems, now) を載せ、正本の集合そのものは載せない", () => {
     const prev: TimerState = { ...EMPTY_STATE, orderItems: [STALE] };
     const outcome = arrive(prev, [STALE, LIVE, EXPIRED], NOW);
 
     const snapshot = broadcastOf(outcome.effects);
-    expect(snapshot.pendingOrders).toEqual(liveOrders(outcome.state.orderItems, NOW));
-    expect(snapshot.pendingOrders).toEqual([LIVE]);
+    expect(snapshot.orderItems).toEqual(liveOrders(outcome.state.orderItems, NOW));
+    expect(snapshot.orderItems).toEqual([LIVE]);
     // 正本は全件のまま（性質 5.7）。
     expect(outcome.state.orderItems).toEqual([STALE, LIVE, EXPIRED]);
   });
@@ -95,19 +95,19 @@ describe("snapshot の pendingOrders は Live_Orders（AC 2.2・性質 5.5）", 
 
     if (atNow.type !== "snapshot" || justBefore.type !== "snapshot")
       throw new Error("snapshot でない");
-    expect(atNow.pendingOrders).toEqual(liveOrders(state.orderItems, NOW));
-    expect(atNow.pendingOrders).toEqual([LIVE]);
+    expect(atNow.orderItems).toEqual(liveOrders(state.orderItems, NOW));
+    expect(atNow.orderItems).toEqual([LIVE]);
     // 1 ms 手前では EXPIRED はまだ生きている（並びは正本のまま）。
-    expect(justBefore.pendingOrders).toEqual([LIVE, EXPIRED]);
+    expect(justBefore.orderItems).toEqual([LIVE, EXPIRED]);
     // 期限は状態を書き換えない——同じ状態から両方を導いた。
     expect(state.orderItems).toEqual([STALE, LIVE, EXPIRED]);
   });
 
-  it("全件が期限内なら snapshot の pendingOrders は状態の配列そのもの（参照同値・再描画の抑制を壊さない）", () => {
+  it("全件が期限内なら snapshot の orderItems は状態の配列そのもの（参照同値・再描画の抑制を壊さない）", () => {
     const state: TimerState = { ...EMPTY_STATE, orderItems: [LIVE, EXPIRED] };
     const message = toWireSnapshot(state, EXPIRY_PARAMS, (NOW - 1) as EpochMillis);
     if (message.type !== "snapshot") throw new Error("snapshot でない");
-    expect(message.pendingOrders).toBe(state.orderItems);
+    expect(message.orderItems).toBe(state.orderItems);
   });
 });
 
@@ -127,7 +127,7 @@ describe("期限切れの品目は要求に乗らず、指紋にも現れない�
 });
 
 describe("性質 5.6 無害：期限切れの品目だけの待ち行列は空の待ち行列と同じ", () => {
-  it("同じ推奨（無し）・同じ snapshot の pendingOrders（空）・要求しない（指紋も永続しない）", () => {
+  it("同じ推奨（無し）・同じ snapshot の orderItems（空）・要求しない（指紋も永続しない）", () => {
     // 空の待ち行列側の確定変化は判定材料の前進（0 品目の受領・pos-order-ingress Property 16）で起こす。
     const emptyQueue = settle(
       EMPTY_STATE,
@@ -141,7 +141,7 @@ describe("性質 5.6 無害：期限切れの品目だけの待ち行列は空�
     if (!emptyQueue.ok) return;
 
     expect(broadcastOf(expiredOnly.effects)).toEqual(broadcastOf(emptyQueue.effects));
-    expect(broadcastOf(expiredOnly.effects).pendingOrders).toEqual([]);
+    expect(broadcastOf(expiredOnly.effects).orderItems).toEqual([]);
     expect(broadcastOf(expiredOnly.effects).recommendations).toEqual([]);
     expect(requestOf(expiredOnly.effects)).toBeNull();
     expect(expiredOnly.state.requestedDigest).toBeNull();
@@ -162,13 +162,13 @@ describe("性質 5.6 無害：期限切れの品目だけの待ち行列は空�
 });
 
 describe("性質 5.7 不変：期限切れは正本と永続 snapshot を変えない（AC 1.5 / 2.7）", () => {
-  it("返る状態の pendingOrders は遷移が置いた配列そのもので、Persist の snapshot も全件を持つ", () => {
+  it("返る状態の orderItems は遷移が置いた配列そのもので、Persist の snapshot も全件を持つ", () => {
     const pending = [STALE, LIVE, EXPIRED];
     const outcome = arrive(EMPTY_STATE, pending, NOW);
     expect(outcome.state.orderItems).toBe(pending);
     expect(persistOf(outcome.effects).orderItems).toEqual([STALE, LIVE, EXPIRED]);
     // 配る値だけが絞られている。
-    expect(broadcastOf(outcome.effects).pendingOrders).toEqual([LIVE]);
+    expect(broadcastOf(outcome.effects).orderItems).toEqual([LIVE]);
   });
 
   it("no-op 検出は正本を比べる：期限切れだけの待ち行列に同じ集合を渡せば no-op（Persist も Broadcast も出ない）", () => {
@@ -204,7 +204,7 @@ describe("性質 5.7 不変：期限切れは正本と永続 snapshot を変え�
     // 次に読む時点の now で絞られるので、正本に残っていることは観測されない。
     const hydrated = toWireSnapshot(prev, EXPIRY_PARAMS, later);
     if (hydrated.type !== "snapshot") throw new Error("snapshot でない");
-    expect(hydrated.pendingOrders).toEqual([]);
+    expect(hydrated.orderItems).toEqual([]);
     expect(hydrated.recommendations).toEqual([]);
   });
 });
@@ -231,8 +231,8 @@ describe("order-lifecycle：snapshot は期限内 ∨ 生きた Timer の参照�
     };
     const outcome = arrive(prev, [EXPIRED, LIVE], NOW);
     const snapshot = broadcastOf(outcome.effects);
-    expect(snapshot.pendingOrders).toEqual([EXPIRED, LIVE]);
-    expect(snapshot.pendingOrders).toEqual(
+    expect(snapshot.orderItems).toEqual([EXPIRED, LIVE]);
+    expect(snapshot.orderItems).toEqual(
       orderItemsToBroadcast(outcome.state.orderItems, outcome.state.timers, NOW),
     );
     expect(snapshot.recommendations.map((each) => each.externalOrderId)).toEqual(["o-live"]);
@@ -241,14 +241,14 @@ describe("order-lifecycle：snapshot は期限内 ∨ 生きた Timer の参照�
     // hydration も同じ射影。
     const hydrated = toWireSnapshot(outcome.state, EXPIRY_PARAMS, NOW);
     if (hydrated.type !== "snapshot") throw new Error("snapshot でない");
-    expect(hydrated.pendingOrders).toEqual([EXPIRED, LIVE]);
+    expect(hydrated.orderItems).toEqual([EXPIRED, LIVE]);
   });
 
   it("参照先の無い Timer（アドホック）は snapshot の品目集合に何も足さない", () => {
     const adHoc = createTimer({ ...cookingExpired, id: "t-adhoc" as TimerId, orderItem: null });
     const prev: TimerState = { ...EMPTY_STATE, timers: [adHoc], nextSeq: 1, orderItems: [EXPIRED] };
     const outcome = arrive(prev, [EXPIRED, LIVE], NOW);
-    expect(broadcastOf(outcome.effects).pendingOrders).toEqual([LIVE]);
+    expect(broadcastOf(outcome.effects).orderItems).toEqual([LIVE]);
   });
 });
 
@@ -262,7 +262,7 @@ describe("混在（レビュー実走）：変更費用の文脈は生きてい�
       ["B", 0],
       ["C", 45],
     ]);
-    expect(message.pendingOrders).toEqual(scene.live);
+    expect(message.orderItems).toEqual(scene.live);
   });
 
   it("確定変化（settle）でも同じ推奨が確定して Shown_Plan に載り、要求は生きている品目だけを運ぶ", () => {

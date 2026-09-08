@@ -51,7 +51,7 @@ function serverTimer(id: string, endTime: number, slotId = `slot-${id}`): TimerF
  * offset を常に 0 にするため、この識別には使えない）。
  */
 function snapshotOf(timers: readonly TimerFact[], serverTime: number): ServerMessage {
-  return { type: "snapshot", serverTime, timers, pendingOrders: [], recommendations: [] };
+  return { type: "snapshot", serverTime, timers, orderItems: [], recommendations: [] };
 }
 
 /** probe が読む面（`type` / `status` / `json`）だけを持つ応答の代役。端はこの 3 つ以外を読まない。 */

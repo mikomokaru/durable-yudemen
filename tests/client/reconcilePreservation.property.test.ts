@@ -195,7 +195,7 @@ describe("client/connection decideView(Reconcile) — offline-degradation Proper
         const result = decideView(view, {
           kind: "Reconcile",
           timers: snapshot,
-          pendingOrders: [],
+          orderItems: [],
           recommendations: [],
           receivedAt,
         });

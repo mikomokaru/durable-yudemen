@@ -177,7 +177,7 @@ function genViewWith(
     .map((record): ClientView => ({
       timers,
       // 待ち行列と推奨は LocalStart の畳み込みが読まない。要らない次元へ生成の分散を広げない。
-      pendingOrders: [],
+      orderItems: [],
       recommendations: [],
       offset: record.offset,
       processedIds: new Set<string>([...record.processed, ...record.unrelated]),

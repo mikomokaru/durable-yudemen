@@ -124,7 +124,7 @@ describe("complete — 参照先に completedAt を記録する（AC 1.3・性�
     const done = step(started.state, { type: "Complete", timerId: "t-o-a" as TimerId, now: at(9) });
     expect(pendingOrders(done.state.orderItems, done.state.timers, at(9))).toEqual([B]);
     const snapshot = snapshotOf(done.effects);
-    expect(snapshot.pendingOrders).toEqual([{ ...A, completedAt: at(9) }, B]);
+    expect(snapshot.orderItems).toEqual([{ ...A, completedAt: at(9) }, B]);
     expect(snapshot.recommendations.map((each) => each.externalOrderId)).toEqual(["o-b"]);
   });
 
@@ -179,7 +179,7 @@ describe("cancel — 参照先に interruptedAt を記録し、品目は未調�
     expect(itemOf(cancelled.state, old).arrivalTime).toBe(old.arrivalTime);
     expect(itemStatusOf(itemOf(cancelled.state, old), cancelled.state.timers)).toBe("unstarted");
     expect(pendingOrders(cancelled.state.orderItems, cancelled.state.timers, at(6))).toEqual([]);
-    expect(snapshotOf(cancelled.effects).pendingOrders).toEqual([]);
+    expect(snapshotOf(cancelled.effects).orderItems).toEqual([]);
   });
 
   it("参照先の無い Timer（アドホック開始）の cancel は品目に何も書かない", () => {
@@ -258,8 +258,8 @@ describe("読む側の入口——snapshot は期限内 ∨ 参照先、要求�
     const started = step({ ...EMPTY_STATE, orderItems: [late] }, startOf(late, "0", startedAt));
     const hydrated = toWireSnapshot(started.state, PARAMS, snapshotAt);
     if (hydrated.type !== "snapshot") throw new Error("snapshot でない");
-    expect(hydrated.pendingOrders).toEqual([late]);
-    expect(hydrated.pendingOrders).toEqual(
+    expect(hydrated.orderItems).toEqual([late]);
+    expect(hydrated.orderItems).toEqual(
       orderItemsToBroadcast(started.state.orderItems, started.state.timers, snapshotAt),
     );
     expect(hydrated.recommendations).toEqual([]);
@@ -269,7 +269,7 @@ describe("読む側の入口——snapshot は期限内 ∨ 参照先、要求�
       timerId: "t-o-late" as TimerId,
       now: snapshotAt,
     });
-    expect(snapshotOf(done.effects).pendingOrders).toEqual([]);
+    expect(snapshotOf(done.effects).orderItems).toEqual([]);
   });
 
   it("RequestPlan.pending と推奨は未調理の品目だけを運び、調理中の品目は指紋にも現れない", () => {
@@ -330,7 +330,7 @@ describe("移行例外——v12 由来で参照先の無い Timer（Requirement 
     });
     expect(itemStatusOf(itemOf(supplied.state, resent), supplied.state.timers)).toBe("cooking");
     // 推測による復元ではない——実際の入力が正本に品目を置き、Timer の参照がそれを指す。
-    expect(snapshotOf(supplied.effects).pendingOrders).toEqual([B, resent]);
+    expect(snapshotOf(supplied.effects).orderItems).toEqual([B, resent]);
     expect(requestOf(supplied.effects)?.pending).toEqual([B]);
 
     const done = step(supplied.state, {

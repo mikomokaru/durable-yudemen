@@ -265,7 +265,7 @@ const genLastResults: fc.Arbitrary<ClientView["lastResults"]> = fc.oneof(
  * timers は 0〜プール件数の ClientTimer（id をビュー内で一意化・server/local 混在）で、空ビュー・provisional
  * のみ・server のみ・両混在を境界として含む（要件13.3）。offset は負/0/正、processedIds は空/timers と一致/
  * 無関係、lastResults は空/占有スロット上/空きスロット上、connectivity は up/down、unreachableReason は 3 値、
- * pendingOrders / recommendations は空/複数、unitCount / noodlePresets はサーバ権威の写しとして 2 種以上を踏む。
+ * orderItems / recommendations は空/複数、unitCount / noodlePresets はサーバ権威の写しとして 2 種以上を踏む。
  * レイアウト（unitOrigins / slotOffsets）と許容距離は既定に固定する（振らせても畳み込みの主張は強まらない）が、
  * unitOrigins だけは生成した unitCount と整合させる（config の生成器と同じ規律・要素数が unitCount に依存する）。
  */
@@ -277,7 +277,7 @@ export const genClientView: fc.Arbitrary<ClientView> = fc
         offset: genOffset,
         processedIds: genProcessedIds(timers.map((t) => t.id)),
         lastResults: genLastResults,
-        pendingOrders: genPendingOrders,
+        orderItems: genPendingOrders,
         recommendations: genRecommendations,
         connectivity: genConnectivity,
         unreachableReason: genUnreachableReason,
@@ -342,7 +342,7 @@ export const genServerMessage: fc.Arbitrary<ServerMessage> = fc.oneof(
     type: fc.constant("snapshot" as const),
     serverTime: genReceivedAt,
     timers: genWireTimers,
-    pendingOrders: genPendingOrders,
+    orderItems: genPendingOrders,
     recommendations: genRecommendations,
   }),
   // 計画の重み・許容幅（秒）は client の畳み込みが読まない（採点はサーバ側の計算・ビューへ写されない）。
@@ -435,7 +435,7 @@ export function genEvent(view: ClientView): fc.Arbitrary<ClientEvent> {
     fc.record({
       kind: fc.constant("Reconcile" as const),
       timers: genWireTimers,
-      pendingOrders: genPendingOrders,
+      orderItems: genPendingOrders,
       recommendations: genRecommendations,
       receivedAt: genReceivedAt,
     }),
@@ -578,7 +578,7 @@ function liftViewOf(
   unitCount: number,
   { batches, mates, orphan, retired, arms }: LiftSceneSpec,
 ): ClientView {
-  const pendingOrders: OrderItem[] = [];
+  const orderItems: OrderItem[] = [];
   const recommendations: CookRecommendation[] = [];
   const timers: ClientTimer[] = [];
   batches.forEach((batch, batchIndex) => {
@@ -586,7 +586,7 @@ function liftViewOf(
     const anchor = anchorOf(batch);
     batch.items.forEach((item, itemIndex) => {
       const externalOrderId = `o-${batchIndex}`;
-      pendingOrders.push({
+      orderItems.push({
         externalOrderId,
         itemIndex,
         noodleType: item.noodleType,
@@ -623,7 +623,7 @@ function liftViewOf(
     }
   });
   if (retired) {
-    pendingOrders.push({
+    orderItems.push({
       externalOrderId: "o-retired",
       itemIndex: 0,
       noodleType: "Retired",
@@ -681,7 +681,7 @@ function liftViewOf(
     unitCount,
     unitOrigins: defaultUnitOrigins(unitCount),
     noodlePresets: DEFAULT_NOODLE_PRESETS,
-    pendingOrders,
+    orderItems,
     recommendations,
     timers,
     arms,

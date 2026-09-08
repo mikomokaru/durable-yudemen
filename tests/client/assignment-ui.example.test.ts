@@ -55,7 +55,7 @@ function syncedView(timers: readonly ClientTimer[]): ClientView {
   return {
     timers,
     // 待ち行列と推奨は担当絞り込みの主張に関与しないため空に据える。
-    pendingOrders: [],
+    orderItems: [],
     recommendations: [],
     offset: 0,
     processedIds: new Set<string>(),

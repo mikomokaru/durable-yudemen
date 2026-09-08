@@ -225,6 +225,40 @@ describe("Operation History の Timer モデル規律", () => {
     );
   });
 
+  // order-lifecycle（タスク 3）：TimerFact に足された品目への参照 orderItem を、Operation History の読み手は無視する。
+  // 参照の有無で Record が変わらず、Record にも console 行にも orderItem / tableId が現れない（形の拡張だけ・design Component 3）。
+  it("TimerFact.orderItem を Operation Record と console 行へ出さず、参照の有無で Record が変わらない", () => {
+    const withReference = createTimer({
+      id: "timer-1" as TimerId,
+      slotIds: nonEmpty(["slot-1" as SlotId, "slot-2" as SlotId]),
+      noodleType: "Thin" as NoodleType,
+      firmness: "normal",
+      startTime: 1_700_000_000_000 as EpochMillis,
+      endTime: 1_700_000_060_000 as EpochMillis,
+      seq: 41,
+      orderItem: { externalOrderId: "order-1", itemIndex: 2, tableId: "table-7" },
+    });
+    const observation: OperationObservation = {
+      ...startObservation(),
+      after: { ...EMPTY_STATE, timers: [withReference], nextSeq: 42 },
+    };
+    const records = recordsFromCommittedDiff(observation);
+    expect(records).toEqual(recordsFromCommittedDiff(startObservation()));
+    expect(records[0]).not.toHaveProperty("orderItem");
+    expect(records[0]).not.toHaveProperty("tableId");
+
+    const calls: unknown[][] = [];
+    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      calls.push(args);
+    });
+    tryWriteOperationLines(true, observation);
+    const line = calls[0]?.[0];
+    expect(typeof line).toBe("string");
+    expect(line).not.toContain("orderItem");
+    expect(line).not.toContain("order-1");
+    expect(line).not.toContain("table-7");
+  });
+
   it("Operation History の record／console 経路は採番フィールドを参照しない", () => {
     for (const { source } of operationHistorySources) {
       expect(source).not.toMatch(/\b(?:Record_Seq|seq|nextSeq)\b/);

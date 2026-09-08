@@ -70,7 +70,7 @@ export const genUnits: fc.Arbitrary<readonly number[]> = fc.uniqueArray(
  */
 export const genAudioView: fc.Arbitrary<ClientView> = genClientView.map((view): ClientView => ({
   ...view,
-  pendingOrders: [],
+  orderItems: [],
   recommendations: [],
   unreachableReason: "offline",
   lastResults: new Map(),

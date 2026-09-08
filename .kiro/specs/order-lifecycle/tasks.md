@@ -26,10 +26,13 @@
   - [x] 2.6 チェックポイントとコミット
   - _Requirements: 1.1, 1.3〜1.6, 2.1〜2.6, 3.3〜3.4, 4.1〜4.3, 6.1〜6.3, 7.2〜7.6, 7.8〜7.9′_
 
-- [ ] 3. wire と shell
-  - [ ] 3.1 `messages.ts` / `wire.ts` / `timer.ts`：snapshot の `orderItems`・`TimerFact.orderItem` の decode（形の検証・不正は snapshot ごと落とす）。`store-timer-do.ts` / `solver/request.ts` の名前の付け替え。Operation History の `TimerFact` 読み手が追加フィールドを無視できることを確認
-  - [ ] 3.2 `tests/wire/*`：往復と関門。`timer-model.static`（鍵集合・inline snapshot v13）・`offline-degradation.static`
-  - [ ] 3.3 チェックポイントとコミット
+- [x] 3. wire と shell
+  - [x] 3.1 `messages.ts` / `wire.ts` / `timer.ts`：snapshot の `orderItems`・`TimerFact.orderItem` の decode（形の検証・不正は snapshot ごと落とす）。`store-timer-do.ts` / `solver/request.ts` の名前の付け替え。Operation History の `TimerFact` 読み手が追加フィールドを無視できることを確認
+    - 実測（2026-09-08）：snapshot のフィールドを `pendingOrders` → `orderItems` に改名（`messages.ts` の型・`wire.ts` の `toSnapshotMessage` は `record.orderItems` だけを読み、旧名は落とす・`settle.ts` の `snapshotMessage` は `orderItems: orderItemsToBroadcast(...)`）。`TimerFact.orderItem` の decode（`toTimerFact` → `toOrderItemRef`）と `toOrderItemFromWire` の `completedAt` / `interruptedAt` は task 2 で先行済みのまま。`store-timer-do.ts` / `solver/request.ts` / `solver/index.ts` はフィールド名に触れておらず変更なし。Operation History（`derive.ts` は `fact.id / slotIds / noodleType / firmness` だけを写し、`correlation.ts` は Record 同士を比べる）は追加フィールドを読まない。**client の受け側（`ClientView.orderItems`・`Reconcile` イベント・`EMPTY_VIEW`・snapshot / Reconcile の反映）もここで改名した**——wire の型を変えると `connection.ts` が compile を通らないため、task 4.1 の「名前の付け替え」を task 3 に前倒し（`queueDisplay.ts` は `view.orderItems` を読むだけで、`pendingOrders(...)` への切替は task 4）。tests は wire / view の鍵名の付け替えのみ（`migrate.*` の v12 以前の生 record は `pendingOrders` のまま・`receive.property` の状態生成器は `orderItems` に正した）
+  - [x] 3.2 `tests/wire/*`：往復と関門。`timer-model.static`（鍵集合・inline snapshot v13）・`offline-degradation.static`
+    - 実測（2026-09-08）：wire のテストは `tests/domain/wire.*`（`tests/wire` は無い）。`wire.example` に 7 件——`orderItems` の `completedAt` / `interruptedAt` が null / 時刻の往復・旧名 `pendingOrders` の snapshot は落ちる・`completedAt` / `interruptedAt` の欠如 / 型違い / 負 / 非整数は snapshot ごと落とす・`TimerFact.orderItem` は null と参照の往復（余剰の tableId は落ちる）・`orderItem` の欠如は落ちる・不正 9 形（非オブジェクト・空 id・負 / 非整数 / 文字列の itemIndex・鍵の欠如）は落ちる・cooking の品目とそれを指す Timer が同じ snapshot で往復。`wireGenerators` は `orderItems` / `genOrderItem`（往復の property は `orderItem` の null / 参照と `completedAt` / `interruptedAt` の null / 時刻を分布・task 2 から）。`timer-model.static` に「`orderItem` を持つ Timer でも Operation Record と console 行に `orderItem` / tableId が出ず、参照の有無で Record が変わらない」を追加（鍵集合・inline snapshot v13 は task 2 のまま通過）。`offline-degradation.static` は core ファイル集合の変更なし。`pending-order-list-left-rail.static`（`orderQueueEntries` 3 引数・`QueueEntry` 3 フィールド）・`lift-group-display.static`・`sync-set-batch-complete.static`（TimerFact 7 フィールド）は変更なしで通過
+  - [x] 3.3 チェックポイントとコミット
+    - 実測（2026-09-08）：`pnpm typecheck` 0 error（tests 含む）・`pnpm lint` 0 error（警告は既存の no-shadow / no-map-spread のみ）・`pnpm test` 251 files / 1842 tests 全通過・`pnpm fmt:check` 通過。`wire.property` + `wire.example` の 3 回再実行はいずれも 33 / 33
   - _Requirements: 4.2, 4.4, 7.7_
 
 - [ ] 4. client

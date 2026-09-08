@@ -173,7 +173,7 @@ export function openConnectionWithFakeWatch(rehydrated: ClientView = EMPTY_VIEW)
           type: "snapshot",
           serverTime: currentNow,
           timers,
-          pendingOrders: [],
+          orderItems: [],
           recommendations: [],
         },
         currentNow,

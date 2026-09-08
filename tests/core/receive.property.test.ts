@@ -77,13 +77,13 @@ const genState: fc.Arbitrary<TimerState> = fc
     ),
   })
   .map(({ present, materials }) => {
-    const pendingOrders = present.flatMap((externalOrderId) => itemsOf(externalOrderId, 2));
+    const orderItems = present.flatMap((externalOrderId) => itemsOf(externalOrderId, 2));
     const lastSequenceByTerminal: Record<string, string> = {};
     TERMINAL_IDS.forEach((terminalId, index) => {
       const sequence = materials[index];
       if (sequence !== undefined) lastSequenceByTerminal[terminalId] = toSequenceNumber(sequence);
     });
-    return { ...EMPTY_STATE, pendingOrders, lastSequenceByTerminal };
+    return { ...EMPTY_STATE, orderItems, lastSequenceByTerminal };
   });
 
 const genScene = fc.record({ state: genState, received: genReceivedList });

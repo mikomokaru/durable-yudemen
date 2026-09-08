@@ -167,7 +167,7 @@ export function displayName(order: OrderItem): string {
 }
 
 /**
- * 生きている待ち行列（Live_Orders）——ClientView の wire の `pendingOrders` を、補正済み現在時刻 `corrected` で
+ * 生きている待ち行列（Live_Orders）——ClientView の wire の `orderItems` を、補正済み現在時刻 `corrected` で
  * domain の liveOrders に通した値（pending-order-expiry AC 3.1 / 3.2）。client が待ち行列を読む入口はこれ一つで、
  * レール（orderQueueEntries）も提案の品目（suggestedItemOf・liftGroups 経由）も同じ値を読む——左レールと釜の
  * 提案が別の集合を「生きている」と言う経路を持たない。
@@ -176,7 +176,7 @@ export function displayName(order: OrderItem): string {
  * 入力と同じ配列を返すので、参照同値で再描画を抑える経路もそのまま生きる。
  */
 function livePending(view: ClientView, corrected: number): readonly OrderItem[] {
-  return liveOrders(view.pendingOrders, corrected);
+  return liveOrders(view.orderItems, corrected);
 }
 
 /** 推奨が指す品目を待ち行列から引く（品目の鍵で 1 品目を指す・domain の itemKeyOf）。無ければ undefined。 */

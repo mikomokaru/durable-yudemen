@@ -168,7 +168,7 @@ function genScene(
           return {
             view: {
               timers,
-              pendingOrders: [],
+              orderItems: [],
               recommendations: [],
               offset: drawn.offset,
               processedIds: new Set(processed),

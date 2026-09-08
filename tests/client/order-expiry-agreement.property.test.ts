@@ -45,18 +45,18 @@ const genAgedScene = genLiftScene.chain(({ view, corrected }) =>
     .record({
       offset: genOffset,
       agings: fc.array(genAging, {
-        minLength: view.pendingOrders.length,
-        maxLength: view.pendingOrders.length,
+        minLength: view.orderItems.length,
+        maxLength: view.orderItems.length,
       }),
     })
     .map(({ offset, agings }) => {
-      const pendingOrders: readonly OrderItem[] = view.pendingOrders.map((order, index) => {
+      const orderItems: readonly OrderItem[] = view.orderItems.map((order, index) => {
         const aging = agings[index] ?? "keep";
         if (aging === "keep") return order;
         const delta = aging === "exact" ? 0 : aging === "before" ? 1 : -1;
         return { ...order, arrivalTime: corrected - ORDER_LIFETIME_MS + delta };
       });
-      const aged: ClientView = { ...view, offset, pendingOrders };
+      const aged: ClientView = { ...view, offset, orderItems };
       return { view: aged, corrected, now: corrected - offset };
     }),
 );
@@ -67,7 +67,7 @@ function allUnits(view: ClientView): readonly number[] {
 }
 
 describe("Feature: pending-order-expiry, Property 5.8: client の一致", () => {
-  it("左レールが並べる集合は wire の pendingOrders を corrected で liveOrders に通した集合そのもので、offset を足したローカル時計から 1 回の補正で導かれる", () => {
+  it("左レールが並べる集合は wire の orderItems を corrected で liveOrders に通した集合そのもので、offset を足したローカル時計から 1 回の補正で導かれる", () => {
     fc.assert(
       // Feature: pending-order-expiry, Property 5.8: client の一致
       // Validates: Requirements 3.1, 3.2, 5.8
@@ -76,13 +76,11 @@ describe("Feature: pending-order-expiry, Property 5.8: client の一致", () => 
         const rail = orderQueueEntries(view, allUnits(view), now).map((entry) =>
           itemKeyOf(entry.order),
         );
-        const live = liveOrders(view.pendingOrders, corrected).map(itemKeyOf);
+        const live = liveOrders(view.orderItems, corrected).map(itemKeyOf);
         expect(new Set(rail)).toEqual(new Set(live));
         expect(rail).toHaveLength(live.length);
         // 絞った値を view に持たない（wire のまま）。
-        expect(view.pendingOrders).toHaveLength(
-          rail.length + (view.pendingOrders.length - live.length),
-        );
+        expect(view.orderItems).toHaveLength(rail.length + (view.orderItems.length - live.length));
       }),
       { numRuns: NUM_RUNS },
     );
@@ -105,7 +103,7 @@ describe("Feature: pending-order-expiry, Property 5.8: client の一致", () => 
         // レールに在り、麺種がプリセットに在る推奨は群に在る（suggestedItemOf を同じ corrected で呼べば非 null）。
         for (const recommendation of view.recommendations) {
           const key = itemKeyOf(recommendation);
-          const known = view.pendingOrders.some(
+          const known = view.orderItems.some(
             (order) =>
               itemKeyOf(order) === key &&
               view.noodlePresets.some((preset) => preset.noodleType === order.noodleType),

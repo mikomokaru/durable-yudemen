@@ -6,7 +6,7 @@
 // ため、ここで Connectivity_Watch を実際に走らせて観測する。
 //
 // 押さえるのは三つ。壊れた ServerMessage で記録が 1 件残ること。記録に Wire_Text の中身が入らないこと
-// （snapshot の pendingOrders は externalOrderId / tableId を含み、これは POS 由来の業務データである）。
+// （snapshot の orderItems は externalOrderId / tableId を含み、これは POS 由来の業務データである）。
 // そして Decode_Failure が Connectivity を動かさないこと——凍っていることは到達性の問題ではなく、
 // pong による up の確定は変えない。
 
@@ -76,7 +76,7 @@ describe("Feature: verified-wire-contract, Property 6: Decode_Failure の可観�
         type: "snapshot",
         serverTime: 1,
         timers: [],
-        pendingOrders: [{ externalOrderId: "secret-order", tableId: "secret-table" }],
+        orderItems: [{ externalOrderId: "secret-order", tableId: "secret-table" }],
       }),
     );
     const line = String(errors[0]?.[0]);
