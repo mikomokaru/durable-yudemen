@@ -16,8 +16,8 @@
 2. **永続層は KV API だけで扱い、SQL は使わない。** SQLite は `new_sqlite_classes` が選ぶ**バックエンド**であって、コードが触るのは非同期 KV API（`get` / `put` / `setAlarm` / `deleteAlarm`）に限る——規律は明文化されている（`store-registry-do.ts:46`「ストレージは SQLite バックエンド（`new_sqlite_classes`）＋非同期 KV API のみで扱う（`ctx.storage.sql` は使わない・要件9 / tooling）」）。実際 `src/shell` に `ctx.storage.sql` の使用は無い。**品目ごとの行は存在しない**ので、品目を落とすことは行の削除ではなく配列を短くすることであり、ストレージ操作は従来と同じ `put` 一回のまま増えない。
 3. **集合を増やす経路は `upsertOrder`（`pending.ts:50`）ただ一つ。** `removeOrder`（`pending.ts:101`）は縮めるだけ、`complete`（`complete.ts:52`）と `cancel`（`cancel.ts:52`）は既存の要素に厨房の事実を書くだけで件数を変えない、`start`（`start.ts:157`）は照合するだけで消費しない（order-lifecycle 判断 1）。ほかに集合を組むのは `EMPTY_STATE`（`state.ts:69`）と `migrate`（`migrate.ts:81` の `reviveOrderItems`）の 2 箇所で、いずれも「新たに作る」ではなく「空」と「復元」である。
 4. 集合が**縮む**経路は 2 つだけで、どちらも `unstarted` の品目に限る——`removeOrder`（POS 取消・0 件の後着）と、後着に現れなかった同じ注文の未調理品目（`pending.ts` 規則 3）。`cooking` / `done` は残す（order-lifecycle AC 2.5：参照整合と履歴のため）。**`completedAt` を持つ品目を除く経路は存在しない。**
-5. 状態の他の成員のうち **3 つは構造的に有界**である。`timers` は `MAX_TIMERS` = 100（`types.ts:27`）で上限が拒否として働き、complete / cancel で除去される。`acceptedSlices` は `PLAN_TARGET_LIMIT` = 64（`schedule.ts:281`）の計画対象から組まれ、採用のたびにまるごと差し替わる。`shownPlan` は計画の大きさ。
-6. **`lastSequenceByTerminal` は構造的には有界でない。** `arriveRecords`（`receive.ts:59`）は未知の `terminalId` ごとにエントリを足し、除く経路を持たない。`terminalId` も `sequenceNumber` も**長さを検証しない**（`readDeclaredText`・`declared-text.ts:32` は「空でない文字列」「有限数値の文字列化」だけを見る）。有界性は**外部契約への前提**である——1 店舗の端末集合は有限で入れ替わりも稀、`sequence_number` は 56 桁の数値文字列（`state.ts` が「台帳なら 168 時間分で 1,200 万件、単調性なら端末数分で足りる」と書くのは、この前提の上での話である）。**本 spec が有界化するのは `orderItems` だけ**であり、この前提は明示するに留める（未決 6）。したがって「伸び続けるのは `orderItems` だけ」とは言えず、正しくは**「無条件に伸び続けるのは `orderItems` だけ」**である。
+5. 状態の他の成員のうち **3 つは engine の正常な生成経路では有界**である。`timers` は `MAX_TIMERS` = 100（`types.ts:27`）で上限が**開始の拒否**として働き（`start.ts:102, 198`）、complete / cancel で除去される。`acceptedSlices` は `PLAN_TARGET_LIMIT` = 64（`schedule.ts:281`）の計画対象から組まれ、採用のたびにまるごと差し替わる。`shownPlan` は計画の大きさ。**ただし `migrate` はこれらの件数を検査しない**（`MAX_TIMERS` も `PLAN_TARGET_LIMIT` も参照せず、要素の形だけを見る）ので、「永続から入ってくる値に対する構造的な上限」ではない。本 spec はこの非対称を `orderItems` についてだけ解消する（AC 2.4 (b)）。
+6. **`lastSequenceByTerminal` は構造的には有界でない。** `arriveRecords`（`receive.ts:59`）は未知の `terminalId` ごとにエントリを足し、除く経路を持たない。`terminalId` も `sequenceNumber` も**長さを検証しない**（`readDeclaredText`・`declared-text.ts:32` は「空でない文字列」「有限数値の文字列化」だけを見る）。有界性は**外部契約への前提**である——1 店舗の端末集合は有限で入れ替わりも稀、`sequence_number` は 56 桁の数値文字列（`state.ts` が「台帳なら 168 時間分で 1,200 万件、単調性なら端末数分で足りる」と書くのは、この前提の上での話である）。**本 spec が有界化するのは `orderItems` だけ**であり、この前提は明示するに留める（未決 4）。したがって「伸び続けるのは `orderItems` だけ」とは言えず、正しくは**「無条件に伸び続けるのは `orderItems` だけ」**である。
 7. 永続の値の上限は **2 MB（key + value 合わせて）**。`StoreTimerDO` は SQLite バックエンド（`wrangler.jsonc:63` の `new_sqlite_classes`）であり、Cloudflare の Durable Objects limits は SQLite backed で「key と value 合わせて 2 MB」「1 オブジェクト 10 GB」、KV backed で「key 2 KiB / value 128 KiB」。`yude-men-timer/design.md:523` の容量の見積り（「Timer 100 件 ≒ 15 KB。KV 値サイズ制限（KV バックエンドで 128 KiB）に対し十分小さい」）は **backend を移した時点で更新されないまま残った記述**であり、上限も前提（Timer だけが状態に居た頃の集合）も現状と合わない。本 spec で訂正する。
 8. 代表的な `OrderItem`（日本語の商品名・麺量・卓・完了時刻つき）は JSON で **279 バイト**（実測 2026-09-08）。2 MB は約 7,500 件に相当する。1 日 900 件（300 注文 × 3 品）の店で 8 日。
 9. `itemName` / `sizeName` / `externalOrderId` / `noodleType` / `tableId` は **長さを検証していない**（`toDeclaredName`・`predicate.ts:66` は「空でない文字列か」だけを見る。`itemName` / `sizeName` は Pass_Through で正規化もしない）。ゆえに **件数はバイト数の代理でしかなく、279 B は代表値であって最悪値ではない**。
@@ -40,9 +40,9 @@
 ### スコープ外
 
 - **時間窓による正本の整理**（判断 2）。期限は読む側の述語のまま。
-- **落とした品目の外部保存。** Operation History は Timer の操作（`boil-started` / `boiled` / `adjusted` / `completed` / `cancelled`）を既に tail から出しており、調理の履歴はそちらに在る。注文品目そのものを別の保管先へ流すことは本 spec では扱わない（未決 3）。
-- **文字列長の検証**（観測事実 9）。バイト数を厳密に有界にするなら `itemName` 等に長さの上限を置くか、件数ではなくバイト予算で切ることになるが、いずれも別の関心である（未決 2）。
-- **状態の他の成員**（観測事実 5〜6）。`timers` / `acceptedSlices` / `shownPlan` は構造的に有界なので触る理由がない。`lastSequenceByTerminal` は構造的には有界でないが、その有界化は外部契約（端末集合の有限性・識別子の長さ）に関わる別の関心であり、本 spec は前提として明示するに留める（未決 5）。
+- **落とした品目の外部保存。** Operation History は Timer の操作（`boil-started` / `boiled` / `adjusted` / `completed` / `cancelled`）を既に tail から出しており、調理の履歴はそちらに在る。注文品目そのものを別の保管先へ流すことは本 spec では扱わない（未決 2）。
+- **文字列長の検証**（観測事実 9）。バイト数を厳密に有界にするなら `itemName` 等に長さの上限を置くか、件数ではなくバイト予算で切ることになるが、いずれも別の関心である（未決 1）。
+- **状態の他の成員**（観測事実 5〜6）。`timers` / `acceptedSlices` / `shownPlan` は構造的に有界なので触る理由がない。`lastSequenceByTerminal` は構造的には有界でないが、その有界化は外部契約（端末集合の有限性・識別子の長さ）に関わる別の関心であり、本 spec は前提として明示するに留める（未決 4）。
 - **上限に達したことの通知・UI。**
 
 ## Glossary
@@ -59,12 +59,12 @@
 
 #### Acceptance Criteria
 
-1. THE engine SHALL 純粋関数 `Truncate(items)` を一つ持ち、`items.length ≤ Order_Item_Limit` ならそのまま、超えるなら `compareArrival` で最も古い `items.length − Order_Item_Limit` 件を落とした値を返す
-2. THE `Truncate` SHALL 生き残った品目の**相対順序を入力のまま保つ**（並べ替えない・重複を作らない・要素の内容を変えない）
-3. WHEN `items.length ≤ Order_Item_Limit` のとき、THE `Truncate` SHALL **入力と同じ配列インスタンス**を返す（`liveOrders` / `pendingOrders` と同じ理由：参照同値で空振りの差分を作らない）
-4. THE `Truncate` SHALL `items` だけに依存する（`now`・Timer・設定・前回の計画を読まない）。時刻を読まないことが、期限（読む側の述語）と保持（正本の性質）を別の関心として分ける
+1. THE engine SHALL 純粋関数 `Truncation(items)` を一つ持ち、`items.length ≤ Order_Item_Limit` ならそのまま、超えるなら `compareArrival` で最も古い `items.length − Order_Item_Limit` 件を落とした値を返す
+2. THE `Truncation` SHALL 生き残った品目の**相対順序を入力のまま保つ**（並べ替えない・重複を作らない・要素の内容を変えない）
+3. WHEN `items.length ≤ Order_Item_Limit` のとき、THE `Truncation` SHALL **入力と同じ配列インスタンス**を返す（`liveOrders` / `pendingOrders` と同じ理由：参照同値で空振りの差分を作らない）
+4. THE `Truncation` SHALL `items` だけに依存する（`now`・Timer・設定・前回の計画を読まない）。時刻を読まないことが、期限（読む側の述語）と保持（正本の性質）を別の関心として分ける
 5. THE `Order_Item_Limit` SHALL 4096 の定数であり、店舗設定・ワイヤ・環境変数のいずれからも読まない（`ORDER_LIFETIME_MS` / `MAX_TIMERS` と同じ立場）
-6. THE `Truncate` SHALL **鍵（`itemKeyOf` = `externalOrderId` + `itemIndex`）の一意性を事前条件とする**。この前提の下でのみ `compareArrival`（`arrivalTime` / `externalOrderId` / `itemIndex` の 3 段）は相異なる品目に対する全順序であり、落とす k 件が入力の並びに依らず一意に定まる（性質 5.7）。**前提は engine 側では成立している**——`upsertOrder` は `itemKeyOf` を鍵に upsert し、一つの到着の中の重複は `arrivalsOf` の Map が畳む——が、**永続からの復元では検証されていない**（`reviveOrderItems`・`migrate.ts:188` は要素の形だけを見る）。ゆえに前提は AC 4.5 が関門として守る
+6. THE `Truncation` SHALL **鍵（`itemKeyOf` = `externalOrderId` + `itemIndex`）の一意性を事前条件とする**。この前提の下でのみ `compareArrival`（`arrivalTime` / `externalOrderId` / `itemIndex` の 3 段）は相異なる品目に対する全順序であり、落とす k 件が入力の並びに依らず一意に定まる（性質 5.7）。**前提は engine 側では成立している**——`upsertOrder` は `itemKeyOf` を鍵に upsert し、一つの到着の中の重複は `arrivalsOf` の Map が畳む——が、**永続からの復元では検証されていない**（`reviveOrderItems`・`migrate.ts:188` は要素の形だけを見る）。ゆえに前提は AC 4.5 が関門として守る
 
 ### Requirement 2: 増やす経路に作り込む
 
@@ -72,8 +72,8 @@
 
 #### Acceptance Criteria
 
-1. THE `upsertOrder` SHALL 返す前に `Truncate` を通す（集合を増やす唯一の経路・観測事実 3）。冪等（AC 1.3）ゆえ、上限以下の通常の到着では戻り値も参照同値の判定も従来どおりである
-2. THE `migrate` SHALL 復元した `orderItems` に `Truncate` を通す（起動時に上限超過の集合を持ち込まない）。これにより「状態が上限を超えることはない」は条件つきの主張でなくなり、**すべての構築点が上限を通る**という機械的に検査できる形になる
+1. THE `upsertOrder` SHALL 返す前に `Truncation` を通す（集合を増やす唯一の経路・観測事実 3）。冪等（AC 1.3）ゆえ、上限以下の通常の到着では戻り値も参照同値の判定も従来どおりである
+2. THE `migrate` SHALL 復元した `orderItems` に `Truncation` を通す（起動時に上限超過の集合を持ち込まない）。これにより「状態が上限を超えることはない」は条件つきの主張でなくなり、**すべての構築点が上限を通る**という機械的に検査できる形になる
 3. THE `complete` / `cancel` / `removeOrder` / `start` SHALL 変えない（件数を増やさないので上限を当てる理由がない・観測事実 3）
 4. THE engine SHALL 次の**閉包性**を満たし、それを検査する——(a) `orderItems` の件数を**増やしうる**変換は `upsertOrder` ただ一つ、(b) `upsertOrder` と `migrate` の出力は `Order_Item_Limit` 以下、(c) それ以外に `orderItems` を返すすべての変換（`complete` / `cancel` / `removeOrder` / `fromSnapshot` / `toSnapshot`）は**入力の件数以下**を返す、(d) `EMPTY_STATE` は 0 件。**「代入の箇所を数える」形にはしない**——`complete` / `cancel` は `map` で新しい配列を作り、`fromSnapshot` / `toSnapshot` は写すので、字面としての構築点は 3 箇所ではなく、数えても不変条件にならない。(a)〜(d) は変換ごとの性質として検査でき、状態の有界性（性質 5.9）はそこから従う
 5. THE engine SHALL 掃除のための専用の遷移・Alarm・起動経路・永続の鍵を持たない（判断 1・`pending-order-expiry` 判断 1 の「新しい wake 源を増やさない」を引き継ぐ）
@@ -98,7 +98,7 @@
 #### Acceptance Criteria
 
 1. THE 永続スキーマの版 SHALL 上げない（`CURRENT_SCHEMA_VERSION` は 13 のまま）。集合の形は変わらず、変わるのは要素数の上界だけである（判断 6）
-2. WHEN 上限を超える件数を持つ v13 のデータを読んだとき、THE `migrate` SHALL 成功し（`MigrationFailed` にせず）、上限を当てた集合で復元する
+2. WHEN **形が妥当で鍵が一意な** v13 のデータが上限を超える件数を持つとき、THE `migrate` SHALL 成功し（`MigrationFailed` にせず）、上限を当てた集合で復元する。**件数の超過それ自体は移行失敗の事由にしない**——超過は移行が直せる欠陥である。形の不正（`reviveOrderItems` の既存の規律）と鍵の重複（AC 4.5）は従来どおり移行失敗であり、本 AC はそれらを緩めない
 3. THE hydration SHALL **縮めた集合をその場では永続しない**（判断 8）。`ensureLoaded` は `migrate` → `fromSnapshot` で Working_Copy を組むだけで、続く `Reconcile` は縮んだ Working_Copy 同士を比べるので `orderItems` の差分は立たない（`store-timer-do.ts:574-600`）。**永続が縮むのは、次に `Persist` が立つ任意の確定変化（到着・開始・完了・キャンセル・期限到来の発火・外部計画の採用）のとき**であり、それまで永続層には上限超過の値が残り、wake のたびに読み直される。稼働中の店では分単位で解消する
 4. THE no-op 検出（`isSameOrderItems` / `isSameConfirmedResult`） SHALL 変えない。`upsertOrder` の中で集合が縮めば普通に差分となり、`Persist` と `Broadcast` が立つ（観測事実 12）。**`migrate` の中で縮んだぶんは差分にならない**——比較の両側が既に縮んだ値だからである（AC 4.3）
 5. THE `migrate` SHALL 復元した `orderItems` の**鍵の一意性を検査**し、重複が在れば `MigrationFailed` とする（AC 1.6 の事前条件の関門）。engine が作る集合に重複は生じないので、これは壊れた永続値を弾く検査であり、部分受理はしない（`reviveOrderItems` の既存の規律「一件でも形を満たさなければ全体を移行失敗」と同じ・重複した品目を個別に捨てれば「完了済みの品目が POS の再送で未調理として復活する」既知の害に触れる）
@@ -106,11 +106,11 @@
 
 ### Requirement 5: 検証可能な性質
 
-1. **有界**：任意の入力に対し `Truncate(items).length ≤ Order_Item_Limit`
-2. **冪等**：`Truncate(Truncate(items)) = Truncate(items)`
-3. **部分集合**：`Truncate(items) ⊆ items`（要素の内容を変えない）
-4. **並び保存**：`Truncate(items)` の相対順序は `items` の相対順序に一致する
-5. **恒等**：`items.length ≤ Order_Item_Limit` なら `Truncate(items)` は `items` と同じ参照
+1. **有界**：任意の入力に対し `Truncation(items).length ≤ Order_Item_Limit`
+2. **冪等**：`Truncation(Truncate(items)) = Truncate(items)`
+3. **部分集合**：`Truncation(items) ⊆ items`（要素の内容を変えない）
+4. **並び保存**：`Truncation(items)` の相対順序は `items` の相対順序に一致する
+5. **恒等**：`items.length ≤ Order_Item_Limit` なら `Truncation(items)` は `items` と同じ参照
 6. **落とすのは最も古い k 件**：落ちた品目はいずれも、残った品目のすべてより `compareArrival` で真に古い
 7. **決定性**：**鍵が一意な入力に対し**、入力の並びを変えても落ちる**集合**は同じ（AC 1.6 の事前条件。鍵が重複する入力はここでの主張の外であり、AC 4.5 の関門が状態へ入れない）
 8. **件数の非増加（閉包性・AC 2.4）**：`orderItems` を返すすべての変換について、(a) `upsertOrder(items, …)` と `migrate(raw)` の出力は `Order_Item_Limit` 以下、(b) `complete` / `cancel` / `fromSnapshot` / `toSnapshot` は入力と**同数**、`removeOrder` は入力**以下**、(c) `EMPTY_STATE.orderItems` は 0 件。変換ごとに独立して検査する
@@ -118,21 +118,20 @@
 10. **永続サイズの代表値による回帰**：満杯の状態——`Order_Item_Limit` 件の代表的な品目 + `MAX_TIMERS` の Timer + `PLAN_TARGET_LIMIT` の `acceptedSlices` + `shownPlan` + 実運用規模の `lastSequenceByTerminal`——を組み、`TextEncoder` で測った UTF-8 バイト数を実測値として tasks に記録し、回帰として固定する。**これはハード上界ではなく参考指標である**——(a) 実際に載るのは structured clone で符号化されたオブジェクトであって `JSON` 文字列ではない（観測事実 1）、(b) 2 MB は key + value の合算で、キー長は別に載る、(c) 文字列長が未検証（観測事実 9）ゆえ1 件あたりのバイト数に上界がなく、(d) `lastSequenceByTerminal` は構造的に有界でない（観測事実 6）。**件数上限がバイト数の上界を与えないことは判断 4 の既知の帰結**であり、この回帰が守るのは「代表的な入力で桁が変わっていないこと」である
 11. **走行中の自立**：品目が忘れられても、走行中 Timer の集合・実効 endTime・Alarm・`tableMembers`・Boil_Sync の結果は変わらない（`pending-order-expiry` 性質 5.9 と同じ線。忘却は品目の消失であり、Timer は開始時に写した値だけで成立する）
 
-### naming ゲート（`naming.md`）
+### naming ゲート（`naming.md`・**2026-09-08 承認済み**）
 
-| 候補名 | 場所 | 表明する概念境界 |
+| 名 | 場所 | 表明する概念境界 |
 | --- | --- | --- |
-| `Order_Item_Limit` / `ORDER_ITEM_LIMIT`（仮） | 要件語彙 / `src/engine/pending.ts` | 正本が持てる件数の上限（定数） |
-| `Truncate` / `truncateOrderItems`（仮） | 要件語彙 / `src/engine/pending.ts` | 上限を当てる純粋関数（正本を縮める唯一の規則） |
-| `Forgotten_Item`（仮） | 要件語彙のみ | 上限超過で正本から落ちた品目 |
+| `Order_Item_Limit` / `ORDER_ITEM_LIMIT` | 要件語彙 / `src/engine/pending.ts` | 正本が持てる件数の上限（定数・4096） |
+| `Truncation` / `truncateOrderItems` | 要件語彙 / `src/engine/pending.ts` | 上限を当てる純粋関数（正本を縮める唯一の規則） |
+| `Forgotten_Item` | 要件語彙のみ | 上限超過で正本から落ちた品目 |
 
-置き場所について。`ORDER_LIFETIME_MS` / `liveOrders` が `src/domain/order.ts` に在るのは client と engine が**同じ線を引く**必要があるためだが、上限は永続側だけの関心で client は当てない（当てる意味がない——wire に載るのは既に絞られた集合である）。ゆえに `upsertOrder` と同じ `src/engine/pending.ts` に置き、`migrate` がそこから import する。domain へ置く案は「`compareArrival` が domain に在る」ことを理由にできるが、共有されない概念を共有の場所に置けば、client 側から「なぜ当てないのか」を毎回問うことになる。**design で確定する（未決 1）。**
+置き場所は **`src/engine/pending.ts`（承認済み・新規ファイルは作らない）**。`ORDER_LIFETIME_MS` / `liveOrders` が `src/domain/order.ts` に在るのは client と engine が**同じ線を引く**必要があるためだが、保持規則は client と共有しない——client は上限を当てないし、当てる意味もない（wire に載るのは既に絞られた集合である）。共有されない概念を共有の場所に置けば、client 側から「なぜ当てないのか」を毎回問うことになる。`pending.ts` は Order_Item 集合の変換を担う場所であり、`upsertOrder` と同居して `migrate` がそこから import する形が、既存の静的検査（`domain-imports` / `offline-degradation.static` の確定集合）への影響も最小である。
 
 ### 未決（design で決める）
 
-1. **`Truncate` の置き場所。** `src/engine/pending.ts`（推奨・上の理由）か `src/domain/order.ts`（`compareArrival` と同居）か。`domain-imports` の静的検査と `offline-degradation.static` の確定集合（`src/engine` を列挙する）への影響を design で確かめる。
-2. **バイト予算という代替。** 件数ではなく直列化後のバイト数で切れば、文字列長が未検証（観測事実 9）でも真に有界になる。判断 4 は件数を選んだが、`itemName` 等に長さの上限を置く別 spec と合わせて再考する余地を記録する。推奨は現状のまま（件数は決定性の検査が容易で、バイト予算は直列化の実装に性質が依存する）。
-3. **忘れた件数の観測値。** `upsertOrder` が落とした件数を Operation History に数えるか。上限に当たり続けている店を運用側が知れる価値はあるが、`ReceiveCounts` に項目を足すことになる。推奨は数えない（上限は設計上の定常状態であり、異常ではない）。
-4. **`yude-men-timer/design.md:523` の訂正の形。** backend（SQLite）・上限（2 MB）・現在の状態の構成（Timer だけでなく `orderItems` / `acceptedSlices` / `shownPlan`）を反映した見積りへ改訂注記で置き換える。ADR を立てるか注記で足りるかを design で判断する。
-5. **`lastSequenceByTerminal` の有界性（観測事実 6）。** 端末集合が有限であること・`sequence_number` が 56 桁であることは外部契約への**前提**であって、コードは検証していない。本 spec は `orderItems` だけを有界化するので、design ではこの前提を明示的な仮定として書き下し、AC 5.9 の fixture に実運用規模の値を含めるに留める。前提が崩れる（端末が入れ替わり続ける・長い識別子が来る）場合の有界化は別 spec の関心である。
-6. **鍵の一意性の関門を `migrate` に置く重さ（AC 4.5）。** 重複を `MigrationFailed` にすれば、壊れた永続値を持つ店は再初期化に委ねられる。重複は engine が作らない値なので実在しないはずだが、「失敗させる」以外に「先勝ちで畳む」選択肢もある（後者は `reviveOrderItems` の部分受理しない規律に反する）。design で確定する。
+1. **バイト予算という代替。** 件数ではなく直列化後のバイト数で切れば、文字列長が未検証（観測事実 9）でも真に有界になる。判断 4 は件数を選んだが、`itemName` 等に長さの上限を置く別 spec と合わせて再考する余地を記録する。推奨は現状のまま（件数は決定性の検査が容易で、バイト予算は直列化の実装に性質が依存する）。
+2. **忘れた件数の観測値。** `upsertOrder` が落とした件数を Operation History に数えるか。上限に当たり続けている店を運用側が知れる価値はあるが、`ReceiveCounts` に項目を足すことになる。推奨は数えない（上限は設計上の定常状態であり、異常ではない）。
+3. **`yude-men-timer/design.md:523` の訂正の形。** backend（SQLite）・上限（2 MB）・現在の状態の構成（Timer だけでなく `orderItems` / `acceptedSlices` / `shownPlan`）を反映した見積りへ改訂注記で置き換える。ADR を立てるか注記で足りるかを design で判断する。
+4. **`lastSequenceByTerminal` の有界性（観測事実 6）。** 端末集合が有限であること・`sequence_number` が 56 桁であることは外部契約への**前提**であって、コードは検証していない。本 spec は `orderItems` だけを有界化するので、design ではこの前提を明示的な仮定として書き下し、性質 5.10 の fixture に実運用規模の値を含めるに留める。前提が崩れる（端末が入れ替わり続ける・長い識別子が来る）場合の有界化は別 spec の関心である。
+5. **鍵の一意性の関門を `migrate` に置く重さ（AC 4.5）。** 重複を `MigrationFailed` にすれば、壊れた永続値を持つ店は再初期化に委ねられる。重複は engine が作らない値なので実在しないはずだが、「失敗させる」以外に「先勝ちで畳む」選択肢もある（後者は `reviveOrderItems` の部分受理しない規律に反する）。design で確定する。
