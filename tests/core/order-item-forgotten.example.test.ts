@@ -22,6 +22,13 @@ import type { Effect } from "../../src/engine/effect";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { itemKeyOf, orderItemOf, type OrderItem } from "../../src/domain/order";
 import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
+import { receivePlan } from "../../src/engine/plan";
+import { adjustedEndTime } from "../../src/engine/project";
+import { synchronize } from "../../src/engine/sync";
+import type { CookSchedule } from "../../src/engine/schedule";
+import type { SettleParams } from "../../src/engine/settle";
+import type { NoodlePreset } from "../../src/domain/store";
+import { schedulingDefaults } from "../storeConfigDefaults";
 import { settleParams } from "../settleParams";
 import { nonEmpty } from "../nonEmpty";
 
@@ -211,5 +218,122 @@ describe("忘れられた品目は Broadcast にも wire にも現れない（AC
     });
     // client 側の解決も null（釜のカードは麺種だけで出す）。
     expect(orderItemOf(fact!, snapshot.orderItems)).toBeNull();
+  });
+});
+
+/**
+ * 外部計画の**非対称経路**（性質 5.11 の前提を実際に踏ませる）。
+ *
+ * `order-item-forgotten.property` は「忘却に依らず走行中 Timer は等しい」を主張するが、そこで生成する
+ * `PlanArrived` は実測で一度も採用されなかった（945 scene で採用 0 件・非対称 0 件・レビュー指摘）。
+ * 両側とも不採用の no-op なら、主張は「何も起きないもの同士が等しい」に痩せる。ゆえに**採用が確実に
+ * 起きる場面**をここで別に組み、非対称そのものを直接主張する。
+ *
+ * フィクスチャは `order-expiry-independence.example` の採用実績のある形に倣う——茹で 600 秒と 60 秒の
+ * 2 種だけを持つ店で、短い方（`SHORT`）を先に入れる計画は自前解（`LONG` → `SHORT`・総和 1260 秒）より
+ * 総費用が小さく、採用される。その `SHORT` を忘れた側では、卓 `t-b` の計画対象が空になって一片が
+ * `isStale` で落ち、全棄却＝状態不変になる。
+ */
+describe("外部計画の非対称経路——full 側は採用され、forgotten 側は stale（性質 5.11 の前提）", () => {
+  const SECOND = 1_000;
+  const PLAN_PRESETS: readonly NoodlePreset[] = [
+    { noodleType: "Long", boilSeconds: { extraHard: 600, hard: 600, normal: 600, soft: 600 } },
+    { noodleType: "Short", boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 } },
+  ];
+  const PLAN_PARAMS: SettleParams = {
+    noodlePresets: PLAN_PRESETS,
+    ...schedulingDefaults(1),
+    toleranceRatio: 1,
+    arms: 2,
+  };
+
+  function blockingTimer(id: string, slot: number, endOffsetSeconds: number, seq: number): Timer {
+    return createTimer({
+      id: id as TimerId,
+      slotIds: nonEmpty([String(slot) as SlotId]),
+      noodleType: "Long" as NoodleType,
+      firmness: "normal",
+      startTime: NOW,
+      endTime: (NOW + endOffsetSeconds * SECOND) as EpochMillis,
+      seq,
+    });
+  }
+
+  /** 釜 0 だけを空け、近い 2 本は一つの Sync_Set に入る（同期済みで与える）。 */
+  const RUNNING: readonly Timer[] = synchronize(
+    [
+      blockingTimer("t-near-1", 1, 1030, 1),
+      blockingTimer("t-near-2", 2, 1033, 2),
+      ...[3, 4, 5].map((slot) =>
+        blockingTimer(`t-blocked-${slot}`, slot, 10_000 + 2_000 * slot, slot),
+      ),
+    ],
+    PLAN_PARAMS,
+  );
+
+  const LONG: OrderItem = { ...item("o-long", 0, NOW), noodleType: "Long", tableId: "t-a" };
+  const SHORT: OrderItem = { ...item("o-short", 0, NOW), noodleType: "Short", tableId: "t-b" };
+
+  /** `SHORT` を先に入れる計画（総和 720 秒）。品目が在る側では採用される。 */
+  const IMPROVING: CookSchedule = {
+    slices: [
+      {
+        tableKey: "t-b",
+        placements: [
+          {
+            externalOrderId: SHORT.externalOrderId,
+            itemIndex: 0,
+            slotIds: nonEmpty(["0" as SlotId]),
+            startAt: NOW,
+            serveAt: (NOW + 60 * SECOND) as EpochMillis,
+            anchor: null,
+          },
+        ],
+      },
+    ],
+  };
+
+  const stateWith = (orderItems: readonly OrderItem[]): TimerState => ({
+    ...EMPTY_STATE,
+    timers: RUNNING,
+    nextSeq: RUNNING.length,
+    orderItems,
+  });
+
+  it("full は採用して acceptedSlices が変わり、forgotten は全棄却で状態不変。それでも走行中 Timer は等しい", () => {
+    const full = stateWith([LONG, SHORT]);
+    // `SHORT` を忘れた側。卓 t-b の計画対象が空になるので、IMPROVING の一片は isStale で落ちる。
+    const forgotten = stateWith([LONG]);
+
+    const fromFull = receivePlan(
+      full,
+      { type: "PlanArrived", plan: IMPROVING, now: NOW },
+      PLAN_PARAMS,
+    );
+    const fromForgotten = receivePlan(
+      forgotten,
+      { type: "PlanArrived", plan: IMPROVING, now: NOW },
+      PLAN_PARAMS,
+    );
+
+    expect(fromFull.ok).toBe(true);
+    expect(fromForgotten.ok).toBe(true);
+    if (!fromFull.ok || !fromForgotten.ok) return;
+
+    // (1) full 側は**採用される**——acceptedSlices が空から IMPROVING の一片へ変わり、Effect が立つ。
+    expect(full.acceptedSlices).toEqual([]);
+    expect(fromFull.state.acceptedSlices).toEqual(IMPROVING.slices);
+    expect(fromFull.effects.length).toBeGreaterThan(0);
+
+    // (2) forgotten 側は**採用されない**——一片が stale で全棄却され、状態も Effect も動かない。
+    expect(fromForgotten.state.acceptedSlices).toEqual([]);
+    expect(fromForgotten.state).toBe(forgotten);
+    expect(fromForgotten.effects).toEqual([]);
+
+    // (3) それでも同期済みの走行中 Timer は両側で等しい（採用側の再同期が恒等になる）。
+    expect(fromFull.state.timers).toEqual(fromForgotten.state.timers);
+    expect(fromFull.state.timers.map(adjustedEndTime)).toEqual(
+      fromForgotten.state.timers.map(adjustedEndTime),
+    );
   });
 });

@@ -141,9 +141,11 @@ const genScene = fc
 /**
  * 両状態で同じに成立する操作。**除くのは `StartOrderItem` だけ**（ヘッダの理由）。
  *
- * `PlanArrived` は片側だけが採用しうる非対称な経路である——`full` では品目が在るので一片が計画対象と
- * 一致しうるが、`forgotten` では落ちた品目を指すので `isStale` で棄却され、状態が動かない。それでも
- * **走行中 Timer は等しい**（Timer は同期済みで、採用側の再同期が no-op になる）というのが主張である。
+ * `PlanArrived` は落ちた品目を指すので、`forgotten` 側では必ず `isStale` で棄却される。ただし
+ * **この生成器では `full` 側の採用は起きない**（実測：945 scene で採用 0 件）——自前解に勝てる計画を
+ * 無作為な場面に対して組むのは難しく、ここで踏めているのは「片側だけが棄却される」までである。
+ * **採用と全棄却が同時に起きる非対称そのものは `order-item-forgotten.example` が別に固定する**
+ * （採用実績のあるフィクスチャで、`acceptedSlices` の変化と状態不変を直接主張する）。
  */
 function genEventFor(
   state: TimerState,
