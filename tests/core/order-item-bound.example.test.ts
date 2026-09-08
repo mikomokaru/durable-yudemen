@@ -22,7 +22,7 @@ import { decide } from "../../src/engine/decide";
 import { migrate } from "../../src/engine/migrate";
 import { fromSnapshot, toSnapshot } from "../../src/engine/snapshot";
 import { ORDER_ITEM_LIMIT } from "../../src/engine/pending";
-import { isStale, planTargets, tableKeyOf } from "../../src/engine/schedule";
+import { isStale, placeableTargets, tableKeyOf } from "../../src/engine/schedule";
 import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import type { Event } from "../../src/engine/event";
 import type { CookSchedule } from "../../src/engine/schedule";
@@ -199,8 +199,18 @@ describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
       }
 
       // 5. 外部計画の受領（Requirement 5.9 の「外部計画の受領」）。engine の正本から組む——
-      //    計画対象は `planTargets`、卓の括りは `tableKeyOf`、一片はその卓の**全件**（非 stale の条件）。
-      const targets = planTargets(pendingOrders(state.orderItems, state.timers, now), now);
+      //    「未調理」は `pendingOrders`、卓の括りは `tableKeyOf`、一片はその卓の**全件**（非 stale の条件）。
+      //
+      //    対象集合は `placeableTargets`（＝置ける計画対象）であって `planTargets` ではない。**Acceptance_Gate が
+      //    `isStale` に渡すのがこちら**だからである（`admit.ts:140` / `commit.ts:73`）。現在の fixture では
+      //    麺種はプリセット内・`slotSpan` は 1 なので両者は一致するが、未知麺種や過大な `slotSpan` が混ざれば
+      //    ずれ、こちらの「非 stale」の判定が本番のゲートと食い違う。
+      const targets = placeableTargets(
+        pendingOrders(state.orderItems, state.timers, now),
+        now,
+        PARAMS.noodlePresets,
+        PARAMS,
+      );
       const planTable = targets[0] === undefined ? null : tableKeyOf(targets[0]);
       const members =
         planTable === null ? [] : targets.filter((item) => tableKeyOf(item) === planTable);
