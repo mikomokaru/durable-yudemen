@@ -63,6 +63,8 @@ SlotBoard（now を一度読む）
 
 > **改訂（`pending-order-expiry` AC 3.1〜3.3・ADR-0011・2026-09-06）:** `queue` と `groups` が読む待ち行列は wire の `view.pendingOrders` そのものではなく **`livePending(view, corrected)` = `liveOrders(view.pendingOrders, corrected)`**（domain の同じ述語・client 側に別の式を書かない）。サーバは snapshot を既に絞って送るが、snapshot の後で寿命を跨いだ品目は client が補正後現在時刻で消す（既存の秒 tick に乗る・新しいタイマーは足さない）。「全量から」は「生きている全量から」と読む。
 
+> **改訂（`order-lifecycle` 判断 9・12・ADR-0013・2026-09-08）:** `livePending` は撤去し、`queue` と `groups` が読む待ち行列は **`pendingOrders(view.orderItems, view.timers, corrected)`**（期限内 ∧ `unstarted`・domain の同じ関数）。`ClientView.pendingOrders` は `ClientView.orderItems`（wire の `snapshot.orderItems`＝期限内 ∨ 生きた Timer の参照先）に改名し、調理中・調理済みの品目も含む。左レール・ラジアル・群の 3 つの入口は同じ `pendingOrders` を見る（`suggestedItemOf` / `orderQueueEntries` 経由）。
+
 担当範囲で絞るのは `assignedSlotDisplays`（表示）だけで、群・開始・連鎖・全釜 idle は全量で判定する（AC 1.1・1.6・2.12）。
 
 ## Components and Interfaces
@@ -80,6 +82,8 @@ readonly anchor: number | null; // 合流した走行中の錨の実効 endTime�
 - 復号（`wire.ts` の `toRecommendation`）は `group` を非空文字列、`anchor` を null か number として要し、逸脱は復号失敗（`verified-wire-contract` の規律）。
 - **`TimerFact.orderItem` は撤去した。** 当初 Group_Started の判定のために足したが、`anchor` が同じ事実を運ぶので client に読み手が無い（`timer-model.md`「god type にしない」）。engine の `Ordered`（`orderItem.tableId`・永続 v10）はそのまま engine 専用に戻る。ADR-0003 の Consequences を再改訂。
 - 群の識別子は snapshot ごとに付け直される。client は群をビューに保持しないので（AC 1.5）、識別子の連続性は要らない。
+
+> **改訂（`order-lifecycle` 判断 9・17・ADR-0013・2026-09-08）:** `TimerFact.orderItem` は**再び wire に出す**——ただし形は `{ externalOrderId, itemIndex } | null`（参照の鍵だけ・`tableId` は出さない）で、読み手は群の開始の判定ではなく釜のカード（`slotDisplay.ts` の running / boiled に `orderItem: orderItemOf(timer, view.orderItems)`）である。番号・卓・品名は参照で品目を引いて読む（`lift-order-numbering`）。Group_Started の判定が `anchor` で運ばれる判断 20 は変わらない。engine の `Ordered.orderItem.tableId` は開始時点の卓（計画の錨の出所）として engine 専用のまま。ADR-0003 の Consequences を再改訂。
 
 ### Component 2: engine（本 spec では変えない）
 

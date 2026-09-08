@@ -303,6 +303,8 @@ export interface Timer extends TimerFact<TimerId, SlotId, NoodleType, EpochMilli
 
 > **オリジナル `endTime` が不変アンカーである根拠:** `Timer.endTime` は常にオリジナル（規定茹で上がり時刻）を保持し、`synchronize` も発火も**これを書き換えない**。窓 `[endTime − h_i, endTime + h_i]` はこの不変アンカーと不変の `startTime` からいつでも一意に再導出でき、Adjustment を適用しても移動・伸縮しない（要件4.7）。実効値は `adjustedEndTime` の導出でのみ現れ、状態には二重に持たない。
 
+> **改訂（`order-lifecycle` 判断 7・ADR-0013・2026-09-08）:** `Timer` は `Ordered`（`orderItem: { externalOrderId, itemIndex, tableId } | null`・`lift-group-planning` Component 7）も合成する。`orderItem` は開始時に一度書いて不変で、**`tableId` は調理を開始した時点の卓**——POS の後着で品目の卓が移っても Timer には追随しない（`OrderItem` は最新の注文情報、`Timer` はその調理を開始した時点の情報）。オリジナル `endTime` と同じく、Boil_Sync も発火も `orderItem` を書き換えない。wire の `TimerFact.orderItem` は鍵だけ（`tableId` 無し）。
+
 ### Adjustment を永続する判断（都度導出ではなく永続を推奨）
 
 要件は「Adjustment を永続に持つか都度導出かは design 判断」とする。本設計は **Adjustment を engine 専用フィールドとして永続する**ことを推奨する。理由:

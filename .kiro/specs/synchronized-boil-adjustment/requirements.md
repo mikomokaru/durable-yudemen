@@ -155,6 +155,8 @@ engine は元の規定茹で上がり時刻（オリジナル `endTime`）を **
 7. IF 再計算の結果が直前の確定結果から変化しない、THEN THE Boil_Sync SHALL 永続層への書き込みと broadcast のいずれも行わない
 8. IF 再計算後の確定結果の永続層への書き込みが失敗する、THEN THE Boil_Sync SHALL 直前に確定した調整結果を保持して broadcast を抑止し、後続の hydration により確定結果を回復する
 
+> **改訂（`order-lifecycle` 判断 3・ADR-0013・2026-09-08）:** AC 7.2 の「キャンセルされ Running_Timer 集合から除かれる」と完了（早め上げを含む `complete`）は、Timer の除去に加えて**参照先の注文品目に事実を記録する**——Cancel は `interruptedAt`（品目は未調理へ戻る）、完了は `completedAt`（品目は調理済み）。Boil_Sync の再計算（残りの Running_Timer 集合の全体置換）はどちらでも同じで、品目の記録は Timer 集合・Adjustment に影響しない。
+
 ### Requirement 8: 再計算の計算量と実行頻度の前提（非機能）
 
 **User Story:** 運用者として、同期計算が現場の規模で軽量に収まることを保証したい。DO 内のイベント処理が重くなって発火や broadcast が遅れたり、待機中に資源を浪費したりすると困るからだ。

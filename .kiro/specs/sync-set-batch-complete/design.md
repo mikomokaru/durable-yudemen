@@ -209,6 +209,8 @@ SSOT はサーバであり、担当外メンバーの除去も他端末には全
 
 > 併せて記録する: engine の `completeTimer` は対象が boiled かを検査せず、id 一致のみで除去する（`src/engine/complete.ts` で確認）。ゆえに要件3.2（running を一括完了の対象にしない）の担保は**クライアント側にある**。従来はそれを UI（boiled のときだけ Complete を描く）が担っていた。本機能では接続窓口の関門（`boiledGroup` が対象 running のとき空を返す）としても構造化され、担保が一段強くなる。
 
+> **改訂（`order-lifecycle` 判断 4・ADR-0013・2026-09-08）:** engine の `completeTimer` が boiled を検査しないことは、早め上げ（残り 60 秒未満の停止＝`complete`）が同じ遷移を通る根拠になった——engine は残り時間で判定せず、`complete` でだけ参照先の品目に `completedAt` を書く。client 側の担保は二段のまま——`boiledGroup` は対象が running なら空を返し（群を作らない）、その上に `completeTargets` が「群が空なら対象ただ 1 件」を足す。ゆえに running を一括に巻き込む経路は無く、早め上げは単一 Timer の `complete` である。停止ボタンの分岐は `cancelGuard.ts` の `decideCancelTap`（`complete` / `arm` / `cancel` / `ignore`）。
+
 ### データフロー（live・全メンバーが server-confirmed）
 
 ```mermaid

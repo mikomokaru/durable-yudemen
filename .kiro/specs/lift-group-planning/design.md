@@ -367,6 +367,8 @@ orderItem: { externalOrderId: args.externalOrderId, itemIndex: args.itemIndex, t
 
 `startTimer`（アドホック）は `orderItem: null` のまま。`Ordered` の doc の「用途は開始済み品目の同定ひとつ」は、卓の同定が二つ目の用途として加わるので書き換える。
 
+> **改訂（`order-lifecycle` 判断 2・7・ADR-0013・2026-09-08）:** `Ordered.orderItem` の用途は二つのまま——(1) 品目の状態の導出（自分を指す生きた Timer が在る品目は `cooking`・`itemStatusOf`）と、釜側が `orderItemOf(timer, items)` で品目を引く参照、(2) 卓の同定（`tableMembers`）。参照は Timer 側だけに置き、生成時に一度書いて不変、Timer が消えれば関係も消える。wire の `TimerFact.orderItem` には鍵（`externalOrderId` / `itemIndex`）だけを写し、`tableId` は engine 専用のまま。`PendingOrder` は `OrderItem` に改名。
+
 ### Component 8: 永続 v10（`types.ts` / `snapshot.ts` / `migrate.ts`）
 
 `CURRENT_SCHEMA_VERSION = 10`。移行は**二方向**である。

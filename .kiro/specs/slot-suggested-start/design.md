@@ -225,6 +225,8 @@ startOrderItemTimer(state, args, params) → Outcome
 
 **釜の占有・推奨との一致・`slotSpan` との一致を検査しない**（要件 3.7）。`start.ts:91-92` のコメントは「アドホック経路では拒否事由を増やさない」に書き換える——新しい経路が 1 つ足すため、現在の無条件の言明は偽になる（要件 7 と tasks）。
 
+> **改訂（`order-lifecycle` Requirement 1・ADR-0013・2026-09-08）:** 上の擬似コードの「`state.pendingOrders` から引く」は `pendingOrders(state.orderItems, state.timers, now)` から引く、「`consumeOrder` で当該品目を除く」は**無し**（`consumeOrder` は撤去）に読み替える。見つからなければ、正本の同じ鍵が `cooking` なら `OrderItemCooking`、他は `OrderItemNotFound`。共有する末尾は `validateStart` / `MAX_TIMERS` / `createTimer` / `settle`。
+
 ### Component 6: `noodle-spec.ts` — 集合を写像へ
 
 ここが本 spec で最も構造に触れる箇所である。現状は child を**コード集合**へ畳んでおり、名前が到達不能である。
@@ -376,6 +378,8 @@ timing(startAt, correctedNow) → "now" | { remainingMs }
 ### Property 5: 待ち行列の消費は既存と同じ
 
 `startOrderItem` の受理後、当該品目は `pendingOrders` から消え、他の品目は変わらない（`consumeOrder` の共有の帰結）。
+
+> **改訂（`order-lifecycle` 性質 7.6・ADR-0013・2026-09-08）:** Property 5 は「開始は消費せず同じ参照・指した品目だけ `cooking`」に改めた（`tests/core/start-order-item.property`）——受理後も `orderItems` は同じ配列で、当該品目は `pendingOrders(...)` から消え（`cooking`）、他の品目は変わらない。
 
 ### Property 6: degraded では提案が出ない
 

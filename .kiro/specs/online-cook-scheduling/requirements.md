@@ -88,6 +88,8 @@
 
 > **改訂（`pending-order-expiry` 判断 1・3・AC 2.2・ADR-0011・2026-09-06）:** AC 2.3 / 2.4 で broadcast と hydration に載せる「Pending_Order 集合」は、正本（`TimerState.pendingOrders`）そのものではなく **Live_Orders**——正本を純粋関数 `liveOrders(pending, now)`（`src/domain/order.ts`・`arrivalTime + ORDER_LIFETIME_MS > now`・幅は 2 時間の定数・半開区間）で絞った値——になった。design の「超過分も含む全量」は「**生きている品目の全量**」と読み替える——計画対象 64 件の枠は依然として越えて載せる（65 件目以降も生きていれば載る）が、期限切れの品目は載らない。正本と永続 snapshot（v12）は変えない。期限は状態を書き換える出来事ではなく、読む側の入口がそれぞれ自分の `now` で評価する述語である（Alarm を張らない・`isSameConfirmedResult` / `isSamePending` は正本の比較のまま・no-op の遷移でも次の読み手は絞った値を見る）。
 
+> **改訂（`order-lifecycle` 判断 5・9・ADR-0013・2026-09-08）:** snapshot の品目集合は `pendingOrders` から **`orderItems`** に改名し、載せるのは Live_Orders ではなく **`orderItemsToBroadcast(items, timers, now)`＝期限内 ∨ 生きた Timer の参照先**（unstarted / cooking / done を問わず・`completedAt` / `interruptedAt` 付き）。調理中の品目は期限を超えても Complete まで配信され、釜のカードが `TimerFact.orderItem` で卓・品名を引ける。「未着手の待ち行列」を読むのは計画と左レールで、それは snapshot の集合ではなく client が `pendingOrders(orderItems, timers, correctedNow)` で導く。
+
 ### Requirement 3: 目的関数と制約
 
 **User Story:** 店主として、注文された品それぞれが届くまでの待ち時間を、店全体でできるだけ短くしたい。そのうえで、同卓のお客様にはできるだけ近いタイミングで提供し、関連する麺は物理的に近い調理位置で茹でてほしい。待ち時間と現場のわかりやすさの両方が店の質だからだ。
@@ -221,6 +223,8 @@
 5. THE Cook_Scheduling SHALL External_Solver の計算を DO の実行外で行わせ、復路の受領を DO への通常の wake（RPC）として処理する（DO 側の待機の禁止は Requirement 12.2 に定める）
 
 > **改訂（`pending-order-expiry` AC 2.1・ADR-0011・2026-09-06）:** 計画対象の定義に `now` が入った——`planTargets(pending, now)` = **Live_Orders（`liveOrders(pending, now)`・`arrivalTime + ORDER_LIFETIME_MS > now`）→ 正準順序（Order_Arrival_Time 昇順, External_Order_Id 昇順, 品目 index 昇順）→ 先頭 64 件**。**絞ってから切る**（切ってから絞れば死んだ注文が枠を食い、到着順の先頭 64 件を期限切れが占めて新しい注文が計画に入らない・`pending-order-expiry` 性質 5.4）。「到着の受理・永続は上限なく継続し正本を欠かない」は変わらず、期限切れの品目も正本には残る（永続層は触らない）。`planTargets` が「何が計画対象か」の唯一の出所である規律はそのままで、呼び手（`baselineSchedule` / `committedSchedule` / `admit` / `digestInput` / `settle` の要求抑制）は既に持つ `now` を通す。
+
+> **改訂（`order-lifecycle` 判断 10〜12・ADR-0013・2026-09-08）:** 計画対象の入口は **`pendingOrders(items, timers, now)`**（期限内 ∧ `unstarted`・`liveOrders` を内側に畳む）→ `planTargets` → `placeableTargets` になった。品目は開始で消費されないので正本には調理中・調理済みの品目も残るが、計画・指紋・`RequestPlan.pending`・変更費用の対応・開始の照合はすべて未調理の品目だけを見る。`digestInput(orderItems, running, params, now)` は正本を受けて内側で同じ絞りをかける。`PlanRequest` は `pending`（engine が導いた未調理の品目）と `running`（走行中の Timer 全件・`orderItem` 参照付き）のままで、品目全件は solver に渡さない。
 
 ### Requirement 12: 外部ソルバーの実行形態（Solver_Worker・非機能）
 

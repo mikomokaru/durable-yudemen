@@ -117,6 +117,8 @@ _出所: 判断 1・7, 事実 1・2・3_
 10. THE 記録 SHALL Wire_Text の中身を含まない（`externalOrderId` / `tableId` は POS 由来の業務データである）
 11. THE 変更 SHALL pong による up の確定を変えない（Decode_Failure を到達性の判定に持ち込まない）
 
+> **改訂（`order-lifecycle` Requirement 4.2・4.4・ADR-0013・2026-09-08）:** Decoder の関門が二つ増えた——`snapshot.orderItems`（旧 `pendingOrders`）の要素の `completedAt` / `interruptedAt`（null か非負整数・欠如は Decode_Failure）と、`TimerFact.orderItem`（`null` か `{ externalOrderId: 非空 string, itemIndex: 非負整数 }`・欠如と他の形は Decode_Failure）。粒度はメッセージ単位のまま（AC 2.7）。AC 2.10 の記録の規律には `orderItem` の `externalOrderId` も含まれる（POS 由来の業務データ）。
+
 _出所: 判断 2・6・8・9, 事実 1・2・6・7・8_
 
 ### Requirement 3: ワイヤ型は検証済み契約を名指す

@@ -64,6 +64,9 @@
 - **Arrival_Timestamp（仮）**: `arrival_timestamp_ms`。上流ストリームが記録する観測時刻であり、retry でも値が変わらない。Order_Arrival_Time の起点。
 - **Unrouted_Record（宛先未解決レコード・仮）**: Store_Code が Code_Index に不在で宛先を解決できなかった Record。StoreRegistryDO が保留し、当該 Store_Code の店舗登録が確定した時点で再生する。
 - **Pending_Order / PendingOrder**: 未着手オーダーの 1 品目。正本は StoreTimerDO の永続層（`online-cook-scheduling` 要件2.1）。`(externalOrderId, itemIndex)` で 1 品目を一意に指す。
+
+> **改訂（`order-lifecycle` 判断 1・10・ADR-0013・2026-09-08）:** 型名は `PendingOrder` から **`OrderItem`**（`src/domain/order.ts`）に改めた。品目は「未着手オーダーの 1 品目」ではなく**生涯を通じて残る注文品目の事実**で、状態（unstarted / cooking / done）は自分を指す生きた Timer と `completedAt` から導く（`itemStatusOf`）。「未着手」は保存された集合ではなく関数 `pendingOrders(items, timers, now)` が表す。写像の関門 `toPendingOrders` は `toOrderItems` に改名（新しい品目は `completedAt` / `interruptedAt` を null で生まれる）。永続は v13（`TimerState.orderItems`・`docs/persisted-schema-rollback.md`）。
+
 - **Noodle_Size（麺量・仮）**: `child_items` に現れる麺量の指定（実データでは `s_class_code: 65` の要素。「普通」`19401` / 「大盛」`19603`）。**その有無が茹で対象かどうかの判定であり、その値が `slotSpan` を決める。** 茹で時間は変えない。
 - **slotSpan**: 1 品目がスロット軸上で占める幅（要する釜の数）。Noodle_Size から翻訳して定める Pending_Order の属性。`Timer.slotIds` / `Placement.slotIds`（割り当てられた実体）に対する「要求」の側であり、両者は対を成す。
 - **Order_Arrival_Time**: Pending_Order の到着時刻（絶対時刻の事実）。Wait_Time の起点であり待ち行列の並び順の基準。
@@ -210,6 +213,8 @@
 35. THE POS_Ingress SHALL `qty` が 2 以上の品目を前提としない（上流の実データでは `qty` は常に 1 である。1 品目が 1 件の Pending_Order に対応する）。
 36. 本 spec は engine の割り当て（`placeGroup` の算術）を変更しない。`slotSpan` を持たせるところまでを範囲とし、engine が `slotSpan` を見て複数スロットを割り当てる変更は別 spec で扱う（`online-cook-scheduling` の改訂）。それまで engine は現状どおり 1 品目 1 スロットで計画する——大盛が 1 スロットで計画されるのは「まだ実装していない」状態であり、状態について嘘をつくものではない。
 37. `[Q8]` 対応表の中身は未提示である。構造の解釈と所在は確定した（茹で対象の判定は Noodle_Size の有無・AC 6.21、`slotSpan` は Noodle_Size から翻訳・AC 6.24、硬さは商品コード → `Firmness`・AC 6.30、対応表はいずれも `StoreConfig` が関心事ごとに分けて持つ・AC 6.29・6.31、`itemIndex` は `order_items` の位置・AC 6.34）。残るのは値のみで、設定投入で後から与えられる。残るのは値のみである——(a) メニュー（親品目の商品コード）が用いる `noodleType`（実データでは `11421`＝特味噌ネギラーメン・`116051`＝新プレ塩）とそのサイズ 3 件の商品コード、(b) 硬さの商品コード帯の全体（判明しているのは `10010`＝かため・`10011`＝ふつうの 2 値のみ）。**値は設定投入と定数定義で後から与えられるため、design と実装は本項の確定を待たずに進められる**（対応表が空なら茹で対象が 0 件になるだけで、構造は成立する）。未知の商品は想定外の値であり、Pass_Through により Record 単位の Poison_Record にはしない（Requirement 14）。対応表に無い麺種の品目単位の扱いは、既存 `src/engine/schedule.ts` の前例（茹で時間が引けない品目は配置せず、待ち行列には残して表示し推奨だけを付けない）を候補とする。
+
+> **改訂（`order-lifecycle` Requirement 2・判断 7・8・ADR-0013・2026-09-08）:** AC 6.7 の「後着の内容で全置換」と AC 6.11 の「0 件で除去」は、**注文属性の更新**に読み替える。同じ品目（`externalOrderId` + `itemIndex`）の後着は、状態（unstarted / cooking / done）にかかわらず POS 由来の注文属性 6 つ（`noodleType` / `firmness` / `tableId` / `slotSpan` / `itemName` / `sizeName`）だけを更新し、厨房の事実（`completedAt` / `interruptedAt`）と生きた Timer は保つ（`OrderItem` は最新の注文情報、`Timer` はその調理を開始した時点の情報——いま茹でている麺の条件は書き換えない）。`arrivalTime` の引継ぎ規則（Requirement 8・同じ注文の最早を引き継ぐ）は変わらない。「生きた Timer を持つ品目は置換の結果から除く」規則（`online-cook-scheduling` Property 21）は撤去した——品目は開始で消費されないので、A を調理中に {A, B} が再送されても A は正本に残り参照が解ける。後着に現れない品目（前提の外＝削除・数量減少・0 件）は `unstarted` なら既存どおり除き、`cooking` / `done` なら残す（参照整合と履歴。その意味づけは定めない）。**前提（ユーザー確定・2026-09-07）：POS の取消は発生しない**——後着は名称・卓・麺種・茹で加減の変更通知であり、この前提を理由に受理（`arriveRecords`・重複排除）を黙って変えることはしない。
 
 ### Requirement 7: `path` による分岐
 

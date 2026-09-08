@@ -423,6 +423,8 @@ export function consumeOrder(pending: readonly PendingOrder[], externalOrderId: 
 
 `upsertOrder` が開始済み品目を除外するには「この `(externalOrderId, itemIndex)` は開始済みか」を答える必要がある。現行の `Timer` は注文への紐づけを持たないため、`consumeOrder` で pending から除いた時点で対応が失われる。
 
+> **改訂（`order-lifecycle` 判断 1・2・8・ADR-0013・2026-09-08）:** 上の `upsertOrder` の「開始済みの品目は置換から除外する」と `consumeOrder` は撤去した。品目（`OrderItem`・旧 `PendingOrder`）は開始で消費されず生涯を通じて残り、開始済みかどうかは `Timer.orderItem` が指す品目が `cooking` であること（`itemStatusOf`）で導く——ゆえに `upsertOrder(items, timers, arrival)` / `removeOrder(items, timers, externalOrderId)` が Timer 集合を受ける理由は「除外」ではなく「到着に無い品目が `unstarted` か `cooking` かの判定」に変わった。同じ品目の後着は状態にかかわらず注文属性（`noodleType` / `firmness` / `tableId` / `slotSpan` / `itemName` / `sizeName`）だけを更新し、厨房の事実（`completedAt` / `interruptedAt`）・生きた Timer・`arrivalTime` の引継ぎを保つ。「変更の正規化＝キャンセル＋新規到着と同義」は成り立たない（キャンセルは前提の外・`pos-order-ingress` Requirement 6 の改訂）。`isSamePending` は `isSameOrderItems` に改名し、11 フィールド全部を比べる（旧 `isSameOrder` は `slotSpan` / `itemName` / `sizeName` を比べていなかったので、名称だけの後着も確定変化として永続・配信される）。
+
 engine 専用の基底を 1 つ足して合成する（`Sequenced` / `Boilable` / `Adjusted` と同列）。
 
 ```ts
@@ -484,6 +486,8 @@ export function decide(state: TimerState, event: Event, params: SettleParams): O
 ```
 
 `Start` は既存経路のまま Timer を作り、`event` に `externalOrderId` が載っていれば `consumeOrder` で Pending_Order を除き `orderItem` に写す（AC 8.4）。載っていなければアドホック麺茹でで `orderItem` は `null`（Requirement 8 の確定注記）。既存の拒否事由は変えない（AC 8.3）。
+
+> **改訂（`order-lifecycle` Requirement 1・ADR-0013・2026-09-08）:** 開始は品目を除かない。`startOrderItemTimer` は `pendingOrders(state.orderItems, state.timers, now)` で照合し、正本に在って `cooking` の品目への開始は新しい拒否事由 `OrderItemCooking` で、`done` / 期限切れ / 不在は既存の `OrderItemNotFound` で拒否する。Timer の `orderItem` は従来どおり開始時に一度だけ写す。アドホック（`Start`）は `orderItem: null` のまま。
 
 ### client（`src/client`）
 
@@ -645,6 +649,8 @@ export type ServerMessage =
 ```
 
 > **改訂（`pending-order-expiry` AC 2.2・ADR-0011・2026-09-06）:** `snapshot.pendingOrders` に載せるのは正本の集合ではなく **Live_Orders**——`snapshotMessage` が `liveOrders(state.pendingOrders, now)` を載せる。確定結果の Broadcast と hydration（`toWireSnapshot`）は同じ関数を通るので両方が同時に絞られる（性質 5.5：Broadcast の `pendingOrders` はその `now` の `liveOrders(state.pendingOrders, now)` に等しい）。上の「超過分も含む全量」は「生きている品目の全量」と読む——計画対象 64 件の枠は依然として越えて載せるが、期限切れの品目は載らない。形は変えない（`PendingOrder` / `ServerMessage` / 永続 v12 はそのまま）。client（`queueDisplay`）はさらに補正後現在時刻で同じ述語を呼び、snapshot の後で寿命を跨いだ品目を次の snapshot を待たずに消す（`lift-group-display` design Component 4 の改訂）。
+
+> **改訂（`order-lifecycle` 判断 9・ADR-0013・2026-09-08）:** `snapshot.pendingOrders` は **`snapshot.orderItems`** に改名し、`snapshotMessage` が載せるのは `orderItemsToBroadcast(state.orderItems, state.timers, now)`（期限内 ∨ 生きた Timer の参照先）。`TimerFact` に `orderItem: { externalOrderId, itemIndex } | null` が加わる（`toWireTimer` が `Timer.orderItem` から鍵だけを写す・`tableId` は写さない）。要素の型は `OrderItem`（`completedAt` / `interruptedAt` を含む・wire の関門 `toOrderItemFromWire` は null か非負整数を要し欠如は落とす）。
 
 `config` は `StoreConfig` 全体を運ぶ（方針転換の理由は Data Models / `StoreConfig` の節）。項目が増えるたびに配信対象を選び直さない形にする。
 
@@ -1063,6 +1069,8 @@ Boil_Sync design の記法に揃える。
 ### Property 21: 開始済み品目は upsert で復活しない
 
 *For any* Pending_Order 集合・Running_Timer 集合・到着について、`upsertOrder` の結果に「`orderItem` が一致する生きた Timer（running / boiled）を持つ品目」は含まれない。POS が全品目を含む modification を再送しても二重調理にならないことを検証する。
+
+> **改訂（`order-lifecycle` 性質 7.2・7.5・ADR-0013・2026-09-08）:** この性質は反転した。`upsertOrder` の結果に生きた Timer の参照先は**必ず含まれる**（`tests/core/pending.property` の Property 21 を「生きた Timer の品目は正本に残り `cooking`・参照の整合」に改めた）。二重調理は `upsertOrder` の除外ではなく、`cooking` の品目が `pendingOrders` に現れず（計画・左レールから外れ）、開始が `OrderItemCooking` で拒否されることで防ぐ。
 
 **Validates: Requirements 1.3, 1.8**
 

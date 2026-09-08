@@ -96,6 +96,8 @@ export function changeCost(
 
 > **改訂（`pending-order-expiry` AC 2.4・ADR-0011・2026-09-06）:** `context.pending` に渡すのは正本ではなく **Live_Orders**（`liveOrders(pending, now)`・`src/domain/order.ts`）。文脈を組む入口は 4 つ——`settle.deriveRecommendations`（確定と hydration）・`plan.receivePlan`（受領）・`admit`（冒頭で絞り、文脈・採点・`planTargets`・合成のすべてに使う）・`src/solver`（`request.pending` を自分の時計の `now` で）——で、それぞれ自分の `now` で絞る。期限切れの品目は「`pending` に無い」ので、開始済み・キャンセル済みと同じく対応から自然に外れる。
 
+> **改訂（`order-lifecycle` 判断 12・ADR-0013・2026-09-08）:** `context.pending` は `pendingOrders(items, timers, now)`（期限内 ∧ `unstarted`）。4 入口はそれぞれ自分の `now` と Timer 集合で導く（`src/solver` は `request.pending`——engine が導いた未調理の品目——に自分の `now` で期限をもう一度当てる）。`LiftItem.order` の型は `OrderItem`。
+
 **単位（レビュー指摘）。** `startAt` / `serveAt` / `anchor` / `now` はミリ秒、`L = liftIntervalSeconds` は秒。窓の数と減衰の距離は `L × 1000`（ミリ秒）で数え、費用への換算には秒の `L` を使う。
 
 手順（AC 2.1〜2.6・判断 2・3・8）：

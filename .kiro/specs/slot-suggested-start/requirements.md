@@ -153,6 +153,8 @@ _出所: 判断 3・5・14・15・16, 観測事実 14_
 
 _出所: 判断 6・7・17, 観測事実 3・6・7_
 
+> **改訂（`order-lifecycle` Requirement 1・ADR-0013・2026-09-08）:** AC 3.4 の「当該品目を Pending_Order 集合から除き」は撤回した——**開始は品目を消費しない**。品目（`OrderItem`・旧 `PendingOrder`）は正本に残り、Timer の `orderItem` が指す間は `cooking`（計画・左レールから外れる）。AC 3.3 / 3.5 の照合は `pendingOrders(state.orderItems, state.timers, now)`（期限内 ∧ 未調理）に対して行い、正本に在って `cooking` の品目への開始は新しい拒否事由 **`OrderItemCooking`** で、`done` / 期限切れ / 不在は既存の `OrderItemNotFound` で拒否する（判断 7 の「二重調理の防止」は消費ではなく状態の導出で守る）。AC 3.10（アドホックは集合に触れない）と 3.11（degraded では送らず、ローカルにも立てない——参照を運ぶ暫定 Timer は生まれない）はそのまま。
+
 ### Requirement 4: 商品名を事実として取り込む
 
 **User Story:** As a 厨房スタッフ, I want 伝票に印字された商品名がそのまま釜の画面に出る, so that どのオーダーを茹でるのか迷わない。

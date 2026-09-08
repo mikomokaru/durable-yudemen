@@ -184,6 +184,8 @@ _出所: 判断 5・7・8・9・11, 観測事実 4・5・6・12・13_
 6. WHEN modification で品目の卓が変わる, THE engine SHALL 走行中 Timer の `tableId` を変えない（再送で届いた未着手の品目は新しい卓の群に入る）
 7. THE 永続スキーマ SHALL 版を 9 から 10 へ上げる。移行は v9 以前の Timer の `tableId` の欠如を `null` に畳み（追加）、v9 の `AcceptedSlice` が持つ `score` を余剰として捨てる（除去）。score の整数性の検証（`migrate.ts:219-232`）を外さなければ v10 の永続データが読めない
 
+> **改訂（`order-lifecycle` 判断 7・9・ADR-0013・2026-09-08）:** AC 3.5 の「`tableId` は `TimerFact` に出さない」はそのまま——ただし `TimerFact` は **`orderItem: { externalOrderId, itemIndex } | null`**（参照の鍵だけ）を運ぶようになった（`toWireTimer` は `tableId` を写さない）。engine の `Timer.orderItem.tableId` は**開始時点の卓**で、計画の錨（`tableMembers`）の出所として据え置く。品目は開始で消費されなくなった（観測事実 3・19 の前提が変わった）が、AC 3.6 の意味は同じ——後着で品目の卓が変わっても走行中 Timer の `tableId` は追随せず、カードは参照先の品目（`OrderItem`＝最新の注文情報）から新しい卓を、計画は Timer（調理を開始した時点の情報）の旧卓を読む。「生きた Timer を持つ品目は置換から除く」（観測事実 19）は撤去され、A を調理中に {A, B} が再送されても A は正本に残る。永続は v13（`docs/persisted-schema-rollback.md`）。
+
 _出所: 判断 5・6, 観測事実 2・3・19・22_
 
 ### Requirement 4: slotSpan と釜の選び方
