@@ -145,7 +145,7 @@ export function orderQueueEntries(
   const corrected = correctedNow(view.offset, now);
   // degraded と、通信復旧後に snapshot / Reconcile で再整合するまでは列挙しない（order-lifecycle 判断 18）。pong だけで
   // connectivity は up になるが、それは最新 snapshot の適用済みを意味しない。未調理は「自分を指す生きた Timer が無い品目」
-  // の導出で、通信断中にローカルで Timer だけを消す完了（LocalComplete / 早め上げの LocalCancel）は品目に
+  // の導出で、通信断中にローカルで Timer だけを消す完了（boiled の LocalComplete・早め上げは走行中への complete → LocalComplete）は品目に
   // completedAt を書けないため、調理済みの品目が未調理として戻って見える（重複調理につながる表示）。サーバ未確定の
   // completedAt を client で書く代わりに、再接続の snapshot で復帰する。
   if (mode(view) !== "live" || view.awaitingResync) return [];

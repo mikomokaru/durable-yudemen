@@ -109,7 +109,7 @@ export interface TimerState { …; readonly orderItems: readonly OrderItem[]; �
 - `queueDisplay.ts`：`livePending(view, corrected)` → `pendingOrders(view.orderItems, view.timers, corrected)`（`ClientTimer` は `TimerFact` を含むので `orderItem` を持つ）。左レール・ラジアル・`suggestedItemOf` はこれを読む。
 - `SlotCard` / `slotDisplay.ts`：走行中・茹で上がりのカードは `orderItemOf(display.timer, view.orderItems)` で品目を引ける（何を出すかは `lift-order-numbering`）。
 - 停止ボタン：`cancelGuard` の決定に `complete` を足す——残り < `CANCEL_GUARD_THRESHOLD_MS` の 1 タップは `{ kind: "complete" }` を返し、`SlotCard` は `onComplete` を呼ぶ。それ以外は従来どおり `arm` → `cancel`。
-- `orderQueueEntries` は `mode(view) !== "live" || view.awaitingResync` なら空を返す（判断 18・AC 4.7）。`awaitingResync` は `Connectivity: down` で true、`reconcileServerConfirmed`（snapshot / Reconcile）で false、起動時 true。pong だけの up では列挙しない。degraded の LocalComplete / LocalCancel は Timer だけを消すので、導出した未調理に調理済みが混ざる。ラジアルの `slotSuggestions` と同じ扱いで、再接続の snapshot で復帰する。
+- `orderQueueEntries` は `mode(view) !== "live" || view.awaitingResync` なら空を返す（判断 18・AC 4.7）。`awaitingResync` は `Connectivity: down` で true、`reconcileServerConfirmed`（snapshot / Reconcile）で false、起動時 false（品目集合が空なので今回の不具合は再発しない）。pong だけの up では列挙しない。degraded の LocalComplete / LocalCancel は Timer だけを消すので、導出した未調理に調理済みが混ざる。ラジアルの `slotSuggestions` と同じ扱いで、再接続の snapshot で復帰する。
 - `persistence.ts`：`orderItems` は永続しない（従来と同じ）。**ただし Timer は永続され `toClientTimer`（`persistence.ts:136`）がリテラルで復元しているので、`Timer.orderItem` の復元経路を足す**（レビュー P2）——新しい保存データでは `orderItem` を検証して復元（`null` か `{ externalOrderId: 非空 string, itemIndex: 非負整数 }`・不正なら null に畳んで Timer は失わない）、旧 localStorage の欠如は null に畳む（Timer を失わない）。品目集合を保存しないことと、Timer の参照を復元することは別。
 
 ### Component 5: 移行例外（Requirement 6）
