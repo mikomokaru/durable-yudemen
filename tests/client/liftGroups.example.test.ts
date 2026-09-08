@@ -576,3 +576,41 @@ describe("Feature: startable-placement — client の占有は domain の occupi
     }
   });
 });
+
+// order-lifecycle（AC 4.5・性質 7.6）：群の品目も左レールと同じ未調理（pendingOrders）から組む。調理中（生きた Timer が
+// 指す）・調理済み（completedAt）の品目を指す推奨は群に入らず、釜の提案にも出ない。
+describe("Feature: order-lifecycle — 群と釜の提案は未調理の品目だけから組む（AC 4.5・性質 7.6）", () => {
+  it("long を指す走行中の Timer が在れば long は群から外れ、残る mid / short が群を成す（推奨は snapshot のまま）", () => {
+    const cookingLong = timer({
+      id: "t-long",
+      slotIds: nonEmpty(["5"]),
+      endTime: T0 + 510 * SECOND,
+      orderItem: { externalOrderId: "long", itemIndex: 0 },
+    });
+    const current = view({
+      orderItems: THREE,
+      recommendations: THREE_PLAN,
+      timers: [cookingLong],
+    });
+    const groups = liftGroups(current, T0 + 150 * SECOND);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.items.map((item) => item.order.externalOrderId)).toEqual(["mid", "short"]);
+    // 釜 0（long の推奨先）には何も出ない——long は調理中で提案の対象ではない。
+    const bySlot = suggestionsAt(current, T0 + 150 * SECOND);
+    expect(bySlot.get(0)).toBeUndefined();
+    expect(bySlot.get(1)?.map((each) => each.item.order.externalOrderId)).toEqual(["mid"]);
+  });
+
+  it("completedAt を持つ品目（done）を指す推奨は群に入らない。interruptedAt だけの品目は未調理として入る", () => {
+    const done = { ...THREE[0]!, completedAt: T0 - SECOND };
+    const interrupted = { ...THREE[1]!, interruptedAt: T0 - SECOND };
+    const current = view({
+      orderItems: [done, interrupted, THREE[2]!],
+      recommendations: THREE_PLAN,
+    });
+    const groups = liftGroups(current, T0 + 180 * SECOND);
+    expect(
+      groups.flatMap((group) => group.items.map((item) => item.order.externalOrderId)),
+    ).toEqual(["mid", "short"]);
+  });
+});

@@ -1,5 +1,8 @@
-// Cancel 誤タップ保険の純粋決定ロジック（cancelGuard）の単体・PBT。
+// 停止ボタンの純粋決定ロジック（cancelGuard）の単体・PBT——早め上げ（complete）と Cancel 誤タップ保険。
 // 対話 UI（SlotCard）から切り出した決定関数なので、時刻・残り時間・armedAt を引数で与えて決定的に検証する。
+//
+// order-lifecycle（判断 4・Requirement 5.1・性質 7.4）：残り < しきいの 1 タップは「早め上げ」＝complete で、
+// 残り ≥ しきいの 2 段タップは「中断」＝cancel。しきいを跨いで操作の意味が変わる（送る種別が違う）。
 
 import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
@@ -14,22 +17,31 @@ import {
 const NOW = 1_000_000; // 任意の基準絶対時刻。
 
 describe("decideCancelTap — 残り時間による二分と armed 遷移", () => {
-  it("残り < しきい: armed でなくても 1 タップで即 cancel（早め上げ帯は摩擦なし）", () => {
+  it("残り < しきい: armed でなくても 1 タップで即 complete（早め上げ帯は摩擦なし・完了として記録・性質 7.4）", () => {
     expect(
       decideCancelTap({ remainingMs: CANCEL_GUARD_THRESHOLD_MS - 1, armedAt: null, now: NOW }),
     ).toEqual({
-      kind: "cancel",
+      kind: "complete",
     });
   });
 
-  it("残り < しきい: armed 中でも即 cancel（しきいを割った時点で保険は無効）", () => {
+  it("残り < しきい: armed 中でも即 complete（しきいを割った時点で保険は無効・cancel にはならない）", () => {
     expect(
       decideCancelTap({
         remainingMs: CANCEL_GUARD_THRESHOLD_MS - 1,
         armedAt: NOW - 1_000,
         now: NOW,
       }),
-    ).toEqual({ kind: "cancel" });
+    ).toEqual({ kind: "complete" });
+  });
+
+  it("残り 0 でも complete（茹で上がり直前の停止は完了）。ちょうどしきいは arm（cancel の側）", () => {
+    expect(decideCancelTap({ remainingMs: 0, armedAt: null, now: NOW })).toEqual({
+      kind: "complete",
+    });
+    expect(
+      decideCancelTap({ remainingMs: CANCEL_GUARD_THRESHOLD_MS, armedAt: null, now: NOW }).kind,
+    ).toBe("arm");
   });
 
   it("残り ≥ しきい・未 armed: 1 タップ目は送信せず arm（now を armedAt に）", () => {
@@ -103,7 +115,7 @@ const genRemaining = fc.integer({ min: 0, max: 1_800_000 });
 const genElapsed = fc.integer({ min: 0, max: 10_000 });
 
 describe("decideCancelTap — Property", () => {
-  it("残り < しきい では now/armedAt によらず必ず cancel（早め上げ帯に保険を掛けない）", () => {
+  it("残り < しきい では now/armedAt によらず必ず complete（早め上げ帯に保険を掛けず、完了として送る・性質 7.4）", () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 0, max: CANCEL_GUARD_THRESHOLD_MS - 1 }),
@@ -111,10 +123,21 @@ describe("decideCancelTap — Property", () => {
         genElapsed,
         (remainingMs, now, elapsed) => {
           for (const armedAt of [null, now - elapsed]) {
-            expect(decideCancelTap({ remainingMs, armedAt, now }).kind).toBe("cancel");
+            expect(decideCancelTap({ remainingMs, armedAt, now }).kind).toBe("complete");
           }
         },
       ),
+    );
+  });
+
+  it("complete を返すのは残り < しきい のときだけ（残り ≥ しきい では complete は決して出ない）", () => {
+    fc.assert(
+      fc.property(genRemaining, genNow, genElapsed, (remainingMs, now, elapsed) => {
+        for (const armedAt of [null, now - elapsed]) {
+          const decision = decideCancelTap({ remainingMs, armedAt, now });
+          expect(decision.kind === "complete").toBe(remainingMs < CANCEL_GUARD_THRESHOLD_MS);
+        }
+      }),
     );
   });
 
@@ -144,16 +167,16 @@ describe("decideCancelTap — Property", () => {
     );
   });
 
-  it("armed 中に cancel を返すのは残り ≥ しきい かつ elapsed ∈ [300ms, 3s) のときだけ", () => {
+  it("cancel を返すのは残り ≥ しきい かつ armed 中で elapsed ∈ [300ms, 3s) のときだけ（1 タップで cancel は出ない）", () => {
     fc.assert(
       fc.property(genRemaining, genNow, genElapsed, (remainingMs, now, elapsed) => {
+        expect(decideCancelTap({ remainingMs, armedAt: null, now }).kind).not.toBe("cancel");
         const decision = decideCancelTap({ remainingMs, armedAt: now - elapsed, now });
-        if (decision.kind === "cancel") {
-          const belowThreshold = remainingMs < CANCEL_GUARD_THRESHOLD_MS;
-          const inCommitWindow =
-            elapsed >= CANCEL_ARMED_BOUNCE_MS && elapsed < CANCEL_ARMED_WINDOW_MS;
-          expect(belowThreshold || inCommitWindow).toBe(true);
-        }
+        const inCommitWindow =
+          elapsed >= CANCEL_ARMED_BOUNCE_MS && elapsed < CANCEL_ARMED_WINDOW_MS;
+        expect(decision.kind === "cancel").toBe(
+          remainingMs >= CANCEL_GUARD_THRESHOLD_MS && inCommitWindow,
+        );
       }),
     );
   });

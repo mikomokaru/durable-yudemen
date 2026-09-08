@@ -27,6 +27,19 @@ import {
 } from "../../src/domain/order";
 import { settleParams } from "../settleParams";
 import { nonEmpty } from "../nonEmpty";
+import { orderQueueEntries } from "../../src/client/components/queueDisplay";
+import { itemKeyOf } from "../../src/domain/order";
+import {
+  every,
+  kitchenOf,
+  order as sceneOrder,
+  startItem,
+  step as sceneStep,
+  T0,
+  timerIdOf,
+  viewOf,
+  type Snapshot,
+} from "./operationScenes";
 
 const NOW = 1_700_000_000_000 as EpochMillis;
 const MINUTE = 60_000;
@@ -347,5 +360,86 @@ describe("移行例外——v12 由来で参照先の無い Timer（Requirement 
     });
     expect(itemOf(cancelled.state, resent).interruptedAt).toBe(at(2));
     expect(itemStatusOf(itemOf(cancelled.state, resent), cancelled.state.timers)).toBe("unstarted");
+  });
+});
+
+// 横断（design Testing Strategy・性質 7.6）：engine の遷移と client の左レールを同じ場面で踏む。開始 → Cancel → 再開始 →
+// 完了の系列で状態が cooking → unstarted → cooking → done と動き、各遷移の snapshot から client が並べる左レール（ラジアルの
+// 帯も同じ入口 orderQueueEntries を読む）と、engine の計画対象（pendingOrders・RequestPlan.pending）が同じ集合を見る。
+describe("横断：開始 → Cancel → 再開始 → 完了で左レールと計画が同じ未調理の集合を見る（性質 7.6）", () => {
+  const kitchen = kitchenOf({
+    unitCount: 1,
+    arms: 2,
+    toleranceRatio: 10,
+    presets: nonEmpty([{ noodleType: "Thin", boilSeconds: every(60) }]),
+  });
+  const X = sceneOrder("o-x", { noodleType: "Thin", tableId: "t-1" });
+  const Y = sceneOrder("o-y", { noodleType: "Thin", tableId: "t-2", arrivalTime: T0 + 1 });
+  const initial: TimerState = { ...EMPTY_STATE, orderItems: [X, Y] };
+
+  function sceneAt(seconds: number): EpochMillis {
+    return (T0 + seconds * 1000) as EpochMillis;
+  }
+
+  /** client の左レール（担当ユニット 0・受信時刻＝serverTime ゆえ補正なし）が並べる品目の鍵。 */
+  function railOf(snapshot: Snapshot): readonly string[] {
+    return orderQueueEntries(viewOf(kitchen, snapshot), [0], snapshot.serverTime).map((entry) =>
+      itemKeyOf(entry.order),
+    );
+  }
+
+  /** engine の計画対象（未調理）の鍵。 */
+  function plannedOf(state: TimerState, now: EpochMillis): readonly string[] {
+    return pendingOrders(state.orderItems, state.timers, now).map(itemKeyOf);
+  }
+
+  it("cooking → unstarted → cooking → done の各段で、左レール＝pendingOrders＝要求の pending（要求が出た段）", () => {
+    const statusOf = (state: TimerState) => itemStatusOf(itemOf(state, X), state.timers);
+    const s1 = sceneStep(kitchen, initial, startItem(X, ["0"], sceneAt(10)));
+    expect(statusOf(s1.state)).toBe("cooking");
+    expect(railOf(s1.snapshot)).toEqual([itemKeyOf(Y)]);
+    expect(plannedOf(s1.state, s1.now)).toEqual(railOf(s1.snapshot));
+    // 開始の snapshot は調理中の X も運ぶ（釜のカードが参照で引く・AC 4.2）。レールには出ない。
+    expect(s1.snapshot.orderItems.map(itemKeyOf)).toEqual([X, Y].map(itemKeyOf));
+    expect(s1.snapshot.timers[0]?.orderItem).toEqual({ externalOrderId: "o-x", itemIndex: 0 });
+
+    const cancel: Event = { type: "Cancel", timerId: timerIdOf(X), now: sceneAt(20) };
+    const outcome2 = decide(s1.state, cancel, kitchen.params);
+    expect(outcome2.ok).toBe(true);
+    if (!outcome2.ok) return;
+    const s2 = sceneStep(kitchen, s1.state, cancel);
+    expect(statusOf(s2.state)).toBe("unstarted");
+    expect(itemOf(s2.state, X).interruptedAt).toBe(sceneAt(20));
+    // 戻った X は到着順で Y の前に並び、計画対象にも戻る。要求（RequestPlan）の pending も同じ集合。
+    expect(railOf(s2.snapshot)).toEqual([X, Y].map(itemKeyOf));
+    expect(plannedOf(s2.state, s2.now)).toEqual(railOf(s2.snapshot));
+    const request = requestOf(outcome2.effects);
+    expect(request).not.toBeNull();
+    expect(request?.pending.map(itemKeyOf)).toEqual(railOf(s2.snapshot));
+
+    const s3 = sceneStep(kitchen, s2.state, {
+      type: "StartOrderItem",
+      slotIds: ["1"],
+      externalOrderId: X.externalOrderId,
+      itemIndex: X.itemIndex,
+      newTimerId: "timer-o-x-again" as TimerId,
+      now: sceneAt(30),
+    });
+    expect(statusOf(s3.state)).toBe("cooking");
+    expect(itemOf(s3.state, X).interruptedAt).toBe(sceneAt(20));
+    expect(railOf(s3.snapshot)).toEqual([itemKeyOf(Y)]);
+    expect(plannedOf(s3.state, s3.now)).toEqual(railOf(s3.snapshot));
+
+    const s4 = sceneStep(kitchen, s3.state, {
+      type: "Complete",
+      timerId: "timer-o-x-again" as TimerId,
+      now: sceneAt(50),
+    });
+    expect(statusOf(s4.state)).toBe("done");
+    expect(itemOf(s4.state, X).completedAt).toBe(sceneAt(50));
+    // done の X は期限内ゆえ snapshot には載るが、レールにも計画にも無い。
+    expect(s4.snapshot.orderItems.map(itemKeyOf)).toEqual([X, Y].map(itemKeyOf));
+    expect(railOf(s4.snapshot)).toEqual([itemKeyOf(Y)]);
+    expect(plannedOf(s4.state, s4.now)).toEqual(railOf(s4.snapshot));
   });
 });

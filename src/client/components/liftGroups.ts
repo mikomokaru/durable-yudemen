@@ -54,8 +54,8 @@ export type LiftGroup = LiftGroupOf<SuggestedItem>;
  * 束ね方・並び・started（`anchor > corrected`・AC 1.7）は domain の liftGroupsOf が定める。
  *
  * `corrected` は補正済み現在時刻で、境界（SlotBoard）が 1 回計算した値をそのまま suggestedItemOf へ渡す
- * （pending-order-expiry design Component 5）——品目が生きているかの判定はレール（orderQueueEntries）と同じ
- * `livePending` を同じ時刻で読み、左レールと釜の提案が別の集合を見ない。
+ * （pending-order-expiry design Component 5）——品目が未調理かの判定はレール（orderQueueEntries）と同じ
+ * `pendingOrders(view.orderItems, view.timers, corrected)` を同じ時刻で読み、左レールと釜の提案が別の集合を見ない。
  */
 export function liftGroups(view: ClientView, corrected: number): readonly LiftGroup[] {
   const items: SuggestedItem[] = [];

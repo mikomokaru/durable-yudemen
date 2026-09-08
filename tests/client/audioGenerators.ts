@@ -232,6 +232,7 @@ const genBoiledDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
   kind: fc.constant("boiled" as const),
   slot: genSlot,
   timer: genTimerFact,
+  orderItem: fc.constant(null),
   overdueMs: fc.integer({ min: 0, max: 100_000 }),
 });
 
@@ -239,6 +240,7 @@ const genRunningDisplay: fc.Arbitrary<SlotDisplay> = fc.record({
   kind: fc.constant("running" as const),
   slot: genSlot,
   timer: genTimerFact,
+  orderItem: fc.constant(null),
   remainingMs: fc.integer({ min: 1, max: 1_800_000 }),
   unconfirmed: fc.boolean(),
 });

@@ -6,17 +6,23 @@
 // 左レール（orderQueueEntries・ローカル時計 `now` を受けて境界で 1 回補正する）と釜の提案（liftGroups →
 // slotSuggestions・補正済み `corrected` を受ける）は、同じ品目集合を「生きている」とみなさなければならない。
 // 片方だけが先に消えれば、レールに無い品目が釜に「now」で出るか、釜に出ない品目がレールに提案付きで残る。
-// ここでは群の場面（genLiftScene）に任意の offset と、寿命の境界を跨ぐ到着時刻を混ぜ、`now`・`offset` を
-// どう振っても両者の集合が一致し、wire の全量に対する絞り込みが domain の liveOrders そのものであることを見る。
-// 時刻はすべて引数で運び、Date.now は用いない（純粋層の規律）。
+// ここでは群の場面（genLiftScene）に任意の offset と、寿命の境界を跨ぐ到着時刻、そして品目の状態（調理中＝
+// 自分を指す生きた Timer・調理済み＝completedAt・中断済み＝interruptedAt・order-lifecycle）を混ぜ、`now`・`offset` を
+// どう振っても両者の集合が一致し、wire の全量に対する絞り込みが domain の pendingOrders（期限内 ∧ unstarted・
+// liveOrders を内側に畳む）そのものであることを見る。時刻はすべて引数で運び、Date.now は用いない（純粋層の規律）。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { ClientView } from "../../src/client/connection";
+import type { ClientTimer, ClientView } from "../../src/client/connection";
 import { correctedNow } from "../../src/client/clock";
 import { liftGroups, slotSuggestions, visibleGroups } from "../../src/client/components/liftGroups";
 import { orderQueueEntries, suggestedItemOf } from "../../src/client/components/queueDisplay";
-import { itemKeyOf, liveOrders, ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
+import {
+  itemKeyOf,
+  ORDER_LIFETIME_MS,
+  pendingOrders,
+  type OrderItem,
+} from "../../src/domain/order";
 import { SLOTS_PER_UNIT } from "../../src/domain/store";
 import { genLiftScene } from "./generators";
 
@@ -39,7 +45,41 @@ const genAging: fc.Arbitrary<"exact" | "before" | "after" | "keep"> = fc.constan
   "keep",
 );
 
-/** 場面に offset と、品目ごとの寿命の位置を足す。`now` はローカル時計で、補正すると場面の `corrected` に戻る。 */
+/**
+ * 品目の状態（order-lifecycle）。unstarted のまま・調理中（自分を指す生きた Timer を足す）・調理済み（completedAt）・
+ * 中断済み（interruptedAt・状態には効かない）。
+ */
+const genStatus: fc.Arbitrary<"unstarted" | "cooking" | "done" | "interrupted"> = fc.constantFrom(
+  "unstarted",
+  "cooking",
+  "done",
+  "interrupted",
+);
+
+/** 品目を指す生きた Timer（走行中・boiled とも「生きた」）。釜は場面の釜と重なってよい（占有は提案を減らすだけ）。 */
+function cookingTimerOf(
+  order: OrderItem,
+  index: number,
+  corrected: number,
+  boiled: boolean,
+): ClientTimer {
+  const endTime = boiled ? corrected - 1 : corrected + 60_000;
+  return {
+    id: `t-cooking-${index}`,
+    slotIds: ["0"],
+    noodleType: order.noodleType,
+    firmness: order.firmness,
+    startTime: endTime - 120_000,
+    endTime,
+    orderItem: { externalOrderId: order.externalOrderId, itemIndex: order.itemIndex },
+    origin: "server",
+  };
+}
+
+/**
+ * 場面に offset と、品目ごとの寿命の位置・状態を足す。`now` はローカル時計で、補正すると場面の `corrected` に戻る。
+ * 調理中の品目には自分を指す Timer を view.timers に足す（品目の集合は wire のまま）。
+ */
 const genAgedScene = genLiftScene.chain(({ view, corrected }) =>
   fc
     .record({
@@ -48,16 +88,33 @@ const genAgedScene = genLiftScene.chain(({ view, corrected }) =>
         minLength: view.orderItems.length,
         maxLength: view.orderItems.length,
       }),
+      statuses: fc.array(fc.tuple(genStatus, fc.boolean()), {
+        minLength: view.orderItems.length,
+        maxLength: view.orderItems.length,
+      }),
     })
-    .map(({ offset, agings }) => {
+    .map(({ offset, agings, statuses }) => {
+      const cooking: ClientTimer[] = [];
       const orderItems: readonly OrderItem[] = view.orderItems.map((order, index) => {
         const aging = agings[index] ?? "keep";
-        if (aging === "keep") return order;
         const delta = aging === "exact" ? 0 : aging === "before" ? 1 : -1;
-        return { ...order, arrivalTime: corrected - ORDER_LIFETIME_MS + delta };
+        const aged =
+          aging === "keep"
+            ? order
+            : { ...order, arrivalTime: corrected - ORDER_LIFETIME_MS + delta };
+        const [status, boiled] = statuses[index] ?? ["unstarted", false];
+        if (status === "cooking") cooking.push(cookingTimerOf(aged, index, corrected, boiled));
+        if (status === "done") return { ...aged, completedAt: corrected - 1 };
+        if (status === "interrupted") return { ...aged, interruptedAt: corrected - 1 };
+        return aged;
       });
-      const aged: ClientView = { ...view, offset, orderItems };
-      return { view: aged, corrected, now: corrected - offset };
+      const agedView: ClientView = {
+        ...view,
+        offset,
+        orderItems,
+        timers: [...view.timers, ...cooking],
+      };
+      return { view: agedView, corrected, now: corrected - offset };
     }),
 );
 
@@ -67,20 +124,30 @@ function allUnits(view: ClientView): readonly number[] {
 }
 
 describe("Feature: pending-order-expiry, Property 5.8: client の一致", () => {
-  it("左レールが並べる集合は wire の orderItems を corrected で liveOrders に通した集合そのもので、offset を足したローカル時計から 1 回の補正で導かれる", () => {
+  it("左レールが並べる集合は wire の orderItems を corrected で pendingOrders（期限内 ∧ unstarted）に通した集合そのもので、offset を足したローカル時計から 1 回の補正で導かれる", () => {
     fc.assert(
-      // Feature: pending-order-expiry, Property 5.8: client の一致
+      // Feature: pending-order-expiry, Property 5.8: client の一致（order-lifecycle 性質 7.6：左レールは pendingOrders）
       // Validates: Requirements 3.1, 3.2, 5.8
       fc.property(genAgedScene, ({ view, corrected, now }) => {
         expect(correctedNow(view.offset, now)).toBe(corrected);
         const rail = orderQueueEntries(view, allUnits(view), now).map((entry) =>
           itemKeyOf(entry.order),
         );
-        const live = liveOrders(view.orderItems, corrected).map(itemKeyOf);
+        const live = pendingOrders(view.orderItems, view.timers, corrected).map(itemKeyOf);
         expect(new Set(rail)).toEqual(new Set(live));
         expect(rail).toHaveLength(live.length);
-        // 絞った値を view に持たない（wire のまま）。
+        // 絞った値を view に持たない（wire のまま）。調理中・調理済みの品目も集合には残る。
         expect(view.orderItems).toHaveLength(rail.length + (view.orderItems.length - live.length));
+        // 調理中（自分を指す生きた Timer）と調理済み（completedAt）はレールに無い。
+        for (const order of view.orderItems) {
+          const cooking = view.timers.some(
+            (timer) =>
+              timer.orderItem !== null &&
+              timer.orderItem.externalOrderId === order.externalOrderId &&
+              timer.orderItem.itemIndex === order.itemIndex,
+          );
+          if (cooking || order.completedAt !== null) expect(rail).not.toContain(itemKeyOf(order));
+        }
       }),
       { numRuns: NUM_RUNS },
     );

@@ -6,19 +6,21 @@
 // 描画のたびに算出する（残り秒と同じ扱い）。推奨も同様に、担当範囲での絞り込みと開始に要る茹で秒の
 // 引き当てをここで導き、ビューには写しだけを置く。
 //
-// 待ち行列そのものも、読むのは wire の全量ではなく生きている待ち行列（Live_Orders）である（pending-order-expiry
-// AC 3.1）。サーバは既に絞って送るが、snapshot の後に時刻が進んで寿命を跨ぐ品目は client が消す——次の snapshot
-// を待たない。述語は domain の liveOrders ただ一つで、client 側に別の式を書かない（AC 3.2）。絞った値は ClientView
-// に持たない（時刻が進めば古くなる導出値を保持しない・design 原則 1）。
+// 待ち行列そのものも、読むのは wire の品目全件（`orderItems`＝期限内 ∨ 生きた Timer の参照先）ではなく未調理の品目
+// （`pendingOrders(items, timers, now)`＝期限内 ∧ unstarted）である（pending-order-expiry AC 3.1・order-lifecycle
+// AC 4.5）。snapshot は調理中・調理済みの品目も運ぶ（釜のカードが参照で卓・品名を引くため）が、レールとラジアルには
+// 出さない。snapshot の後に時刻が進んで寿命を跨ぐ品目も client が消す——次の snapshot を待たない。述語は domain の
+// pendingOrders ただ一つで、client 側に別の式を書かない（AC 3.2）。絞った値は ClientView に持たない（時刻が進めば
+// 古くなる導出値を保持しない・design 原則 1）。
 //
 // 時刻の契約（design Component 5）。引数名 `now` はローカル時計、`corrected` は補正済み（サーバ基準）の時計で、
 // 混ぜない。部品の境界（SlotBoard と orderQueueEntries）だけが `now` を受けて correctedNow を **1 回** 計算し、
-// その下（suggestedItemOf / livePending と liftGroups.ts の全部）は `corrected` を受けて内部で補正しない——
-// 二重補正の経路を構造から無くす。
+// その下（suggestedItemOf と liftGroups.ts の全部）は `corrected` を受けて内部で補正しない——二重補正の経路を
+// 構造から無くす。
 
 import type { LiftItem } from "../../domain/lift-group";
 import type { CookRecommendation } from "../../domain/messages";
-import { compareArrival, itemKeyOf, liveOrders, type OrderItem } from "../../domain/order";
+import { compareArrival, itemKeyOf, pendingOrders, type OrderItem } from "../../domain/order";
 import type { NoodlePreset } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
 import type { ClientView } from "../connection";
@@ -75,16 +77,19 @@ export interface SuggestedItem extends LiftItem {
  * 無い推奨（設定差し替えの過渡）は、開始できないので提案として成立しない（lift-group-display AC 1.3）。理由は
  * 分けない——人はいつでも既存の開始経路で始められ、理由の内訳を現場へ持ち出さない。
  *
- * 待ち行列は `corrected`（補正済み現在時刻）の生きている待ち行列で引く（pending-order-expiry AC 3.3）——寿命を
- * 過ぎた品目を指す推奨は「待ち行列に無い推奨」と同じ経路で捨てる。`corrected` は境界（orderQueueEntries /
- * SlotBoard）が 1 回計算した値を受けるだけで、ここでは補正しない。
+ * 待ち行列は `corrected`（補正済み現在時刻）の未調理の品目（`pendingOrders`）で引く（pending-order-expiry AC 3.3・
+ * order-lifecycle AC 4.5）——寿命を過ぎた品目や調理中・調理済みの品目を指す推奨は「待ち行列に無い推奨」と同じ経路で
+ * 捨てる。`corrected` は境界（orderQueueEntries / SlotBoard）が 1 回計算した値を受けるだけで、ここでは補正しない。
  */
 export function suggestedItemOf(
   view: ClientView,
   recommendation: CookRecommendation,
   corrected: number,
 ): SuggestedItem | null {
-  const order = pendingItemOf(livePending(view, corrected), recommendation);
+  const order = pendingItemOf(
+    pendingOrders(view.orderItems, view.timers, corrected),
+    recommendation,
+  );
   if (order === undefined) return null;
   const boilSeconds = boilSecondsOf(view.noodlePresets, order);
   if (boilSeconds === null) return null;
@@ -110,7 +115,7 @@ export function suggestedItemOf(
  * 理由の内訳を現場へ持ち出す必要がない（機械は指示しない）。
  */
 export interface QueueEntry {
-  /** 未着手オーダーの事実そのもの（サーバ由来の写し）。 */
+  /** 未調理の品目の事実そのもの（サーバ由来の写し・`interruptedAt` は一度戻された品目の色分けに読める）。 */
   readonly order: OrderItem;
   /** 到着から現在までの経過（ミリ秒・導出値）。負にはしない。 */
   readonly waitingMs: number;
@@ -124,9 +129,11 @@ export interface QueueEntry {
  * 並びは到着順の全順序 compareArrival（domain/order.ts・同じ事実からは同じ見え方）。
  *
  * 件数は絞らない。計画対象の上限を超える分も待ち行列には現れ、提案が付かないだけである（AC 2.4 / 8.1）。
- * 絞るのは寿命だけ——並べるのは `corrected` の生きている待ち行列で、寿命を跨いだ品目は次の snapshot を待たずに
- * 消える（pending-order-expiry AC 3.1・性質 5.8）。ラジアルの帯もこの結果を読むので、入口はここ一つである。
- * 提案は担当スロット範囲で絞る（assignedBySlots の any-overlap＝Timer の担当絞り込みと同一判定）。
+ * 絞るのは未調理（期限内 ∧ unstarted）だけ——並べるのは `corrected` の `pendingOrders(view.orderItems, view.timers,
+ * corrected)` で、寿命を跨いだ品目は次の snapshot を待たずに消え（pending-order-expiry AC 3.1・性質 5.8）、生きた
+ * Timer が指す調理中の品目と `completedAt` を持つ調理済みの品目は snapshot に載っていても現れない（order-lifecycle
+ * AC 4.5・性質 7.6）。厨房 Cancel で戻った品目は unstarted ゆえ再び現れる。ラジアルの帯もこの結果を読むので、入口は
+ * ここ一つである。提案は担当スロット範囲で絞る（assignedBySlots の any-overlap＝Timer の担当絞り込みと同一判定）。
  *
  * ここは時刻の境界である。ローカル時計 `now` を受け、補正済み `corrected` を 1 回だけ計算して下へ渡す。
  */
@@ -144,11 +151,13 @@ export function orderQueueEntries(
     suggested.set(itemKeyOf(item.order), item.suggestion);
   }
 
-  return [...livePending(view, corrected)].sort(compareArrival).map((order) => ({
-    order,
-    waitingMs: Math.max(0, corrected - order.arrivalTime),
-    suggestion: suggested.get(itemKeyOf(order)) ?? null,
-  }));
+  return [...pendingOrders(view.orderItems, view.timers, corrected)]
+    .sort(compareArrival)
+    .map((order) => ({
+      order,
+      waitingMs: Math.max(0, corrected - order.arrivalTime),
+      suggestion: suggested.get(itemKeyOf(order)) ?? null,
+    }));
 }
 
 /**
@@ -164,19 +173,6 @@ export function displayName(order: OrderItem): string {
   const name = (order.itemName ?? order.noodleType).normalize("NFKC");
   const size = order.sizeName?.normalize("NFKC");
   return size === undefined ? name : `${name} ${size}`;
-}
-
-/**
- * 生きている待ち行列（Live_Orders）——ClientView の wire の `orderItems` を、補正済み現在時刻 `corrected` で
- * domain の liveOrders に通した値（pending-order-expiry AC 3.1 / 3.2）。client が待ち行列を読む入口はこれ一つで、
- * レール（orderQueueEntries）も提案の品目（suggestedItemOf・liftGroups 経由）も同じ値を読む——左レールと釜の
- * 提案が別の集合を「生きている」と言う経路を持たない。
- *
- * `corrected` は境界で 1 回計算した補正済みの値を受け、ここでは補正しない。全件が期限内なら liveOrders は
- * 入力と同じ配列を返すので、参照同値で再描画を抑える経路もそのまま生きる。
- */
-function livePending(view: ClientView, corrected: number): readonly OrderItem[] {
-  return liveOrders(view.orderItems, corrected);
 }
 
 /** 推奨が指す品目を待ち行列から引く（品目の鍵で 1 品目を指す・domain の itemKeyOf）。無ければ undefined。 */

@@ -211,7 +211,19 @@ const genRecommendations: fc.Arbitrary<readonly CookRecommendation[]> = fc.array
 
 // ── Timer / View 生成器 ────────────────────────────────────────────────────────────────────────
 
-/** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。 */
+/**
+ * Timer → 品目の参照（order-lifecycle）。null（アドホック）と参照の双方を分布し、参照の鍵は品目のプールと同じ域から
+ * 引く——ビューの品目を指す参照（調理中）と指さない参照（v12 由来・参照先なし）の双方を踏む。
+ */
+const genOrderItemRef: fc.Arbitrary<ClientTimer["orderItem"]> = fc.oneof(
+  fc.constant(null),
+  fc.record({
+    externalOrderId: fc.constantFrom(...EXTERNAL_ORDER_ID_POOL),
+    itemIndex: fc.integer({ min: 0, max: 2 }),
+  }),
+);
+
+/** 一件の ClientTimer。id はプールから引く（ビュー単位で一意化する）。server / local 混在。参照は null / 有り。 */
 export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   id: fc.constantFrom(...TIMER_ID_POOL),
   slotIds: genSlotIds,
@@ -219,7 +231,7 @@ export const genClientTimer: fc.Arbitrary<ClientTimer> = fc.record({
   firmness: genFirmness,
   startTime: genEndTime,
   endTime: genEndTime,
-  orderItem: fc.constant(null),
+  orderItem: genOrderItemRef,
   origin: genTimerOrigin,
 });
 

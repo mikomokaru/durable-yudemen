@@ -695,6 +695,25 @@ export interface SocketListeners {
 /** Socket を開く関数。既定はブラウザ WebSocket。テストでは差し替える。 */
 export type SocketOpener = (url: string, listeners: SocketListeners) => Socket;
 
+/**
+ * complete の対象（純粋・view と補正済み現在時刻の関数）。
+ *
+ * 対象が boiled（実効 endTime ≤ correctedNow）なら同時上がり群（boiledGroup）——一括完了の従来経路。対象が running
+ * なら早め上げで、対象ただ一つを返す（order-lifecycle 判断 4・Requirement 5.1）。走行中を群に巻き込まない規律
+ * （sync-set-batch-complete 要件1.2 / 3.2）は boiledGroup が保ち、ここは「群を作らない」場合に対象自身を足すだけ。
+ * 不在なら空。
+ */
+function completeTargets(
+  view: ClientView,
+  timerId: string,
+  correctedNow: number,
+): readonly ClientTimer[] {
+  const group = boiledGroup(view, timerId, correctedNow);
+  if (group.length > 0) return group;
+  const target = view.timers.find((timer) => timer.id === timerId);
+  return target === undefined ? [] : [target];
+}
+
 /** 接続のコントローラ。UI（タスク20）はこれを通してビューを購読し、操作を送る。 */
 export interface TimerConnection {
   /** 現在のビューを取得する（描画のたびに残りを導出する元）。 */
@@ -722,8 +741,12 @@ export interface TimerConnection {
   /** タイマーキャンセル操作を送る。 */
   cancel(timerId: string): void;
   /**
-   * 茹で上がりの明示完了（消し込み）を送る。その Timer と同時上がり群（実効 endTime が一致する boiled 群）を
-   * 完了する。単一の消し込みは群が 1 件の退化ケースであって別概念ではない。対象が running / 不在なら何もしない。
+   * 完了を送る。boiled の Timer なら茹で上がりの明示完了（消し込み）——その Timer と同時上がり群（実効 endTime が
+   * 一致する boiled 群）を完了する。単一の消し込みは群が 1 件の退化ケースであって別概念ではない。
+   *
+   * running の Timer なら早め上げ（order-lifecycle 判断 4・Requirement 5.1）——対象だけを完了し、群は作らない
+   * （走行中を一括完了の対象にしない規律は保つ・sync-set-batch-complete 要件3.2）。engine は complete を残り時間で
+   * 判定せず、参照先の品目に completedAt を書く。対象が不在なら何もしない。
    */
   complete(timerId: string): void;
   /** 走行中の茹で加減変更を送る（live のみ・サーバが endTime を引き直す）。 */
@@ -1095,7 +1118,9 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       // 押下時刻は一度だけ採る。群の再構成の基準時刻と残滓の記録時刻を同じ瞬間から導くため——二度呼べば
       // 境界に居る Timer が「群を作る判定」と「残滓に刻む時刻」で別の現在時刻を見ることになる。
       const at = now();
-      const group = boiledGroup(view, timerId, at + view.offset);
+      // 対象が boiled なら同時上がり群、running なら早め上げで対象だけ（completeTargets）。どちらもメンバーごとに
+      // 既存の経路（complete の送信 / LocalComplete）へ流す——群は引数にも状態にもならない。
+      const group = completeTargets(view, timerId, at + view.offset);
       const live = mode(view) === "live";
       let next = view;
       for (const member of group) {

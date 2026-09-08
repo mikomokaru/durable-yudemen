@@ -25,7 +25,12 @@ import { SlotCard, type SuggestionView } from "../../src/client/components/SlotC
 import type { GroupItem, SlotSuggestion } from "../../src/client/components/liftGroups";
 import type { SlotDisplay } from "../../src/client/components/slotDisplay";
 import { fadedTint, noodleColors } from "../../src/client/components/noodleColor";
+import {
+  CANCEL_ARMED_BOUNCE_MS,
+  CANCEL_GUARD_THRESHOLD_MS,
+} from "../../src/client/components/cancelGuard";
 import type { OrderItem } from "../../src/domain/order";
+import type { TimerFact } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
 
 afterEach(cleanup);
@@ -304,5 +309,82 @@ describe("提案と直前結果は同居する（slot-suggested-start design Com
     expect(badge.className).toContain("opacity-60");
     const running = noodleColor("Medium");
     expect(fadedTint(running)).not.toBe(running);
+  });
+});
+
+// order-lifecycle（判断 4・Requirement 5.1・性質 7.4）：走行中カードの停止ボタンは、残り < 60 秒の 1 タップで
+// onComplete（早め上げ＝完了・単一 Timer）を、残り ≥ 60 秒では 1 タップ目で arm、2 タップ目で onCancel（中断）を呼ぶ。
+// 決定は cancelGuard（純粋）にあり、ここは決定に応じた作用（どの口を呼ぶか）を実描画で固定する。
+describe("走行中カードの停止ボタン——残り < 60 秒は complete、≥ 60 秒は arm → cancel（order-lifecycle R5.1・性質 7.4）", () => {
+  const TIMER: TimerFact = {
+    id: "t-run",
+    slotIds: nonEmpty(["0"]),
+    noodleType: "Thin",
+    firmness: "normal",
+    startTime: T0 - 60_000,
+    endTime: T0 + 120_000,
+    orderItem: { externalOrderId: "o-1", itemIndex: 0 },
+  };
+
+  function running(remainingMs: number): SlotDisplay {
+    return {
+      kind: "running",
+      slot: 0,
+      timer: TIMER,
+      orderItem: null,
+      remainingMs,
+      unconfirmed: false,
+    };
+  }
+
+  function renderRunning(remainingMs: number) {
+    const onCancel = vi.fn<ComponentProps<typeof SlotCard>["onCancel"]>();
+    const onComplete = vi.fn<ComponentProps<typeof SlotCard>["onComplete"]>();
+    render(
+      <SlotCard
+        display={running(remainingMs)}
+        onStart={vi.fn()}
+        onCancel={onCancel}
+        onComplete={onComplete}
+        onAdjust={vi.fn()}
+        noodleColor={noodleColor}
+        suggestionOf={suggestionOf}
+        onStartSuggested={vi.fn()}
+      />,
+    );
+    return { onCancel, onComplete };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("残り < しきい：1 タップで onComplete(slot, timer) が呼ばれ、onCancel は呼ばれない（Complete ボタンは無い）", () => {
+    vi.spyOn(Date, "now").mockReturnValue(T0);
+    const { onCancel, onComplete } = renderRunning(CANCEL_GUARD_THRESHOLD_MS - 1);
+
+    expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith(0, TIMER);
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("残り ≥ しきい：1 タップ目は arm（送らない・Tap again）、バウンス窓の後の 2 タップ目で onCancel(timerId)。onComplete は呼ばれない", () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(T0);
+    const { onCancel, onComplete } = renderRunning(CANCEL_GUARD_THRESHOLD_MS);
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+    const armed = screen.getByRole("button", { name: "Tap again to cancel" });
+
+    clock.mockReturnValue(T0 + CANCEL_ARMED_BOUNCE_MS);
+    fireEvent.click(armed);
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledWith(TIMER.id);
+    expect(onComplete).not.toHaveBeenCalled();
   });
 });

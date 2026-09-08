@@ -460,3 +460,66 @@ describe("時計が寿命を跨ぐと、開いたままの帯とレールから�
     for (const preset of PRESETS) expect(petal(dialog, preset)).toBeDefined();
   });
 });
+
+// order-lifecycle（AC 4.5・性質 7.6）：帯もレールも同じ未調理（pendingOrders）を読む。snapshot の orderItems に載る
+// 調理中（生きた Timer の参照先）・調理済み（completedAt）の品目は、帯にもレールにも現れない。中断済みは戻る。
+describe("帯は未調理の品目だけ——調理中・調理済みは orderItems に在っても出ず、中断済みは戻る（order-lifecycle AC 4.5）", () => {
+  /** 調理済み（Complete 済み）の品目。期限内なので snapshot には載る。 */
+  const DONE = order({
+    externalOrderId: "d",
+    noodleType: "Mid",
+    itemName: "Done",
+    completedAt: T0 - 5 * SECOND,
+    arrivalTime: T0 - 120 * SECOND,
+  });
+  /** 一度 Cancel で戻された品目（interruptedAt・状態には効かない）。 */
+  const INTERRUPTED = order({
+    externalOrderId: "e",
+    noodleType: "Short",
+    itemName: "Back",
+    interruptedAt: T0 - 5 * SECOND,
+    arrivalTime: T0 - 45 * SECOND,
+  });
+  /** A を指す走行中の Timer（釜 5・起点の釜 0 は空いたまま）。 */
+  const COOKING_A = timer({
+    id: "cook-a",
+    slotIds: nonEmpty(["5"]),
+    orderItem: { externalOrderId: A.externalOrderId, itemIndex: A.itemIndex },
+  });
+  const MIXED: ClientView = {
+    ...OPEN,
+    orderItems: [C, DONE, A, INTERRUPTED, B],
+    timers: [COOKING_A],
+  };
+
+  it("釜 0 から開くと B → E → C（A は調理中・D は調理済みで出ない）。レールも同じ 3 品", () => {
+    renderBoard(MIXED);
+    const rail = screen.getByRole("region", { name: "Waiting orders" });
+    const railNames = within(rail)
+      .getAllByRole("listitem")
+      .map((item) => item.querySelector("span")?.textContent ?? "");
+    const dialog = openRadial(0);
+    const columnNames = rows(dialog).map((row) => row.querySelector("span")?.textContent ?? "");
+    expect(columnNames).toEqual(["Salt L", "Back", "ネギ丼"]);
+    expect(columnNames).toEqual(railNames);
+  });
+
+  it("A を指す Timer が snapshot から消えれば（厨房 Cancel）、開いたままの帯に A が戻る", () => {
+    const { replace } = renderBoard(MIXED);
+    const dialog = openRadial(0);
+    expect(rows(dialog).map((row) => row.querySelector("span")?.textContent)).not.toContain("Mid");
+
+    replace({
+      ...MIXED,
+      timers: [],
+      orderItems: [C, DONE, { ...A, interruptedAt: T0 }, INTERRUPTED, B],
+    });
+
+    expect(rows(dialog).map((row) => row.querySelector("span")?.textContent)).toEqual([
+      "Salt L",
+      "Mid",
+      "Back",
+      "ネギ丼",
+    ]);
+  });
+});

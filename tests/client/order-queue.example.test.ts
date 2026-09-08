@@ -7,7 +7,12 @@
 // いずれも WS・DOM・時計に触れないため既定 pool（workerd 不要）で走る。now は引数で運ぶ。
 
 import { describe, expect, it } from "vitest";
-import { decideView, EMPTY_VIEW, type ClientView } from "../../src/client/connection";
+import {
+  decideView,
+  EMPTY_VIEW,
+  type ClientTimer,
+  type ClientView,
+} from "../../src/client/connection";
 import { orderQueueEntries, suggestedItemOf } from "../../src/client/components/queueDisplay";
 import { liftGroups, slotSuggestions, visibleGroups } from "../../src/client/components/liftGroups";
 import { correctedNow } from "../../src/client/clock";
@@ -341,5 +346,111 @@ describe("Feature: pending-order-expiry — 非ゼロの offset で左レール�
     for (const now of [NOW_LOCAL - 2, NOW_LOCAL - 1, NOW_LOCAL, NOW_LOCAL + 1]) {
       expect(railKeys(now), `now = ${now - NOW_LOCAL}`).toEqual(boardKeys(now));
     }
+  });
+});
+
+// order-lifecycle（AC 4.5・性質 7.6）：左レール（とそれを読むラジアルの帯）は `pendingOrders(view.orderItems,
+// view.timers, corrected)`＝期限内 ∧ unstarted だけを出す。snapshot の `orderItems` は調理中（生きた Timer の参照先）と
+// 調理済み（completedAt）も運ぶ（釜のカードが参照で引くため）が、それらはレールに現れない。中断された品目
+// （interruptedAt・状態には効かない）は未調理として戻る。
+describe("Feature: order-lifecycle — 左レールは未調理（pendingOrders）だけを出す（AC 4.5・性質 7.6）", () => {
+  const UNSTARTED = order("o-u", 0, T);
+  const COOKING = order("o-c", 0, T + 1);
+  const DONE = order("o-d", 0, T + 2, { completedAt: T + 100_000 });
+  const INTERRUPTED = order("o-i", 0, T + 3, { interruptedAt: T + 50_000 });
+
+  /** COOKING を指す生きた Timer（走行中・boiled とも「生きた Timer」で、指す品目は cooking）。 */
+  function timerFor(item: OrderItem, endTime: number): ClientTimer {
+    return {
+      id: `t-${item.externalOrderId}`,
+      slotIds: ["3"],
+      noodleType: item.noodleType,
+      firmness: item.firmness,
+      startTime: endTime - 60_000,
+      endTime,
+      orderItem: { externalOrderId: item.externalOrderId, itemIndex: item.itemIndex },
+      origin: "server",
+    };
+  }
+
+  const NOW = T + 200_000;
+
+  it("調理中（生きた Timer が指す）と調理済み（completedAt）は orderItems に在ってもレールに無く、未調理と中断済みは並ぶ", () => {
+    const view: ClientView = {
+      ...viewWith([DONE, INTERRUPTED, COOKING, UNSTARTED], []),
+      timers: [timerFor(COOKING, NOW + 30_000)],
+    };
+    expect(view.orderItems).toHaveLength(4); // wire のまま保持する（絞った値を view に持たない）
+    expect(orderQueueEntries(view, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+      "o-u#0",
+      "o-i#0",
+    ]);
+  });
+
+  it("茹で上がって Complete を待つ boiled の Timer が指す品目も調理中（時間が来ただけでは done にならない）", () => {
+    const view: ClientView = {
+      ...viewWith([COOKING, UNSTARTED], []),
+      timers: [timerFor(COOKING, NOW - 30_000)],
+    };
+    expect(orderQueueEntries(view, [0], NOW).map((entry) => keyOf(entry.order))).toEqual(["o-u#0"]);
+  });
+
+  it("Timer が snapshot から消えると品目はレールに戻る（厨房 Cancel で unstarted へ・期限内なら再び現れる）", () => {
+    const cooking: ClientView = {
+      ...viewWith([COOKING, UNSTARTED], []),
+      timers: [timerFor(COOKING, NOW + 30_000)],
+    };
+    const cancelled = decideView(cooking, {
+      kind: "Server",
+      message: {
+        type: "snapshot",
+        serverTime: NOW,
+        timers: [],
+        orderItems: [{ ...COOKING, interruptedAt: NOW }, UNSTARTED],
+        recommendations: [],
+      },
+      receivedAt: NOW,
+    });
+    expect(orderQueueEntries(cancelled, [0], NOW).map((entry) => keyOf(entry.order))).toEqual([
+      "o-u#0",
+      "o-c#0",
+    ]);
+  });
+
+  it("調理中・調理済みの品目を指す推奨は提案として成立しない（待ち行列に無い推奨と同じ経路）", () => {
+    const recommendations = [
+      recommendation("o-c", 0, ["0"], NOW),
+      recommendation("o-d", 0, ["1"], NOW),
+      recommendation("o-u", 0, ["2"], NOW),
+    ];
+    const view: ClientView = {
+      ...viewWith([DONE, COOKING, UNSTARTED], recommendations),
+      timers: [timerFor(COOKING, NOW + 30_000)],
+    };
+    expect(suggestedItemOf(view, recommendations[0]!, NOW)).toBeNull();
+    expect(suggestedItemOf(view, recommendations[1]!, NOW)).toBeNull();
+    expect(suggestedItemOf(view, recommendations[2]!, NOW)?.order).toEqual(UNSTARTED);
+    const entries = orderQueueEntries(view, [0], NOW);
+    expect(entries.map((entry) => [keyOf(entry.order), entry.suggestion !== null])).toEqual([
+      ["o-u#0", true],
+    ]);
+  });
+
+  it("全件が未調理なら view.orderItems と同じ参照で読む（再描画の抑制を壊さない）——アドホックの Timer は品目を指さない", () => {
+    const adHoc: ClientTimer = {
+      id: "t-adhoc",
+      slotIds: ["0"],
+      noodleType: "Thin",
+      firmness: "normal",
+      startTime: NOW - 10_000,
+      endTime: NOW + 50_000,
+      orderItem: null,
+      origin: "server",
+    };
+    const view: ClientView = { ...viewWith([UNSTARTED, INTERRUPTED], []), timers: [adHoc] };
+    expect(orderQueueEntries(view, [0], NOW).map((entry) => entry.order)).toEqual([
+      UNSTARTED,
+      INTERRUPTED,
+    ]);
   });
 });
