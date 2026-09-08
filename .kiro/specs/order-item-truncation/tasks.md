@@ -59,7 +59,7 @@
       変異体 2 つで確認：`upsertOrder` の truncate を外すと `OrderArrived の直後に上限を超えた: expected 4156 to be less than or equal to 4096` で落ち（検査が遷移の直後に在ることの確認）、`StartOrderItem` を必ず拒否させると `StartOrderItem は成功しなければならない: expected 'rejected(OrderItemNotFound)' to be 'ok'` で落ちる（拒否を握り潰していないことの確認）
   - _Requirements: 2.4, 5.8, 5.9_
 
-- [ ] 5. 忘れることの帰結（新しいコードは無い・既存の経路に落ちることの固定）
+- [x] 5. 忘れることの帰結（新しいコードは無い・既存の経路に落ちることの固定）
   - [x] 5.1 参照先を失った Timer が既存の経路を通ること——`orderItemOf` が null、釜のカードは麺種だけ、`complete` / `cancel` は品目に何も書かず Timer を閉じる（`complete.ts:53` の `completed === null` 分岐）。忘れられた未調理の品目への `StartOrderItem` は既存の `OrderItemNotFound`
     - 実測（2026-09-08）：`tests/core/order-item-forgotten.example.test.ts` に 4 件（`orderItemOf` が null・`Complete` は Timer を閉じて品目には何も書かず**集合は同一インスタンスのまま**・`Cancel` も同じ・忘れられた品目への `StartOrderItem` は `OrderItemNotFound`）。**場面は実際に truncation を通して作る**——満杯の集合へ新しい注文が届いて最も古い品目（＝走行中の参照先）が落ちる本物の経路であり、状態を手で組めば「上限がその状態を生む」ことが検査されない
   - [x] 5.2 `tests/core/order-expiry-independence` と同形：性質 11（走行中の自立）。品目を忘れても走行中 Timer の集合・実効 endTime・Alarm・`tableMembers`・Boil_Sync の結果は変わらない
@@ -70,7 +70,11 @@
     - 実測（2026-09-08）：`order-item-forgotten.example` に 1 件。確定変化を 1 つ起こして Broadcast の snapshot を取り出し、忘れられた品目が `orderItems` に**載らない**こと、その品目を指す Timer は `TimerFact` として**載り続ける**こと、wire 側で `orderItemOf(fact, snapshot.orderItems)` が null になること（釜のカードは麺種だけで出す）を固定した
   - [x] 5.5 **永続サイズの回帰**（性質 10）：満杯の状態——`ORDER_ITEM_LIMIT` 件の代表的な品目 + `MAX_TIMERS` の Timer + `PLAN_TARGET_LIMIT` の `acceptedSlices` + `shownPlan` + **実運用規模の `lastSequenceByTerminal`（端末 8 台 × 56 桁）**——を組み、`TextEncoder` で測った UTF-8 バイト数を実測値としてここに記録する。**ハード上界ではなく参考指標**であることをテストの注記に書く（structured clone で載る／key + value の合算／文字列長は未検証／`lastSequenceByTerminal` は構造的に有界でない）
     - 実測（2026-09-08）：`tests/core/persisted-size.example.test.ts` に 2 件。満杯の状態（`ORDER_ITEM_LIMIT` 件の代表的な品目 + `MAX_TIMERS` の Timer + `PLAN_TARGET_LIMIT` の `acceptedSlices` と `shownPlan` + 端末 8 台 × 56 桁の `lastSequenceByTerminal`）で、**1 件 279.7 B・品目集合 1.093 MiB・全体 1.137 MiB・品目集合が全体の 96.1%**。回帰の帯は 1 件 200〜400 B・全体 < 1.5 MiB と広めに取る——ここは桁の変化を捕まえるものであって、数バイトの揺れで赤くする箱にはしない。**ハード上界ではない**ことをテストのヘッダに 4 つの理由つきで書いた
-  - [ ] 5.6 `tests/shell/store-timer-rehydrate.integration`（追記）：**上限超過の永続値を持つ DO を起こしても、hydration では永続値が変わらない**（`storage.get` で読み直して件数が元のまま）。続いて任意の確定変化（到着・開始・完了のいずれか）を1 回与えると、**そこで初めて永続値が `ORDER_ITEM_LIMIT` 件へ縮む**（Requirement 4.3・判断 8）。同じテストで、**新しい `put` の鍵も新しい storage 呼び出しも増えていない**こと（AC 2.5 / 2.6・掃除のための遷移も Alarm も起動経路も永続の鍵も足していない）を確かめる
+  - [x] 5.6 `tests/shell/store-timer-rehydrate.integration`（追記）：**上限超過の永続値を持つ DO を起こしても、hydration では永続値が変わらない**（`storage.get` で読み直して件数が元のまま）。続いて任意の確定変化（到着・開始・完了のいずれか）を1 回与えると、**そこで初めて永続値が `ORDER_ITEM_LIMIT` 件へ縮む**（Requirement 4.3・判断 8）。同じテストで、**新しい `put` の鍵も新しい storage 呼び出しも増えていない**こと（AC 2.5 / 2.6・掃除のための遷移も Alarm も起動経路も永続の鍵も足していない）を確かめる
+    - 実測（2026-09-08）：`tests/shell/store-timer-rehydrate.integration.test.ts` に 1 件（実 workerd・実 storage）。上限 +37 件の v13 を `storage.put` で直に置き、**2 段に分けて**固定した——
+      **(1) hydration の直後**：`loaded` を false に戻して確定変化にならない入口（不在 Timer への `complete`・`TimerNotFound` で拒否）を通す。Working_Copy は 4096 に縮むが、**永続値は 4133 のまま**で `put` は 1 度も起きない（`put` を包んで鍵を記録し、`[]` であることを主張）。
+      **(2) 次の確定変化**：Timer を 1 件開始すると、**既存キー（`activeTimers`）へちょうど 1 回**だけ `put` が立ち、そこで永続値が 4096 へ縮む。あわせて `storage.list()` のキー集合が前後で不変（AC 2.5 / 2.6——掃除のための鍵も遷移も増えていない）。
+      拒否は WS へエラーを返すので、accept 済みのサーバ側ソケットを渡す必要がある（最初は client 側を渡して `You must call one of accept()...` で落ちた）。変異体 2 つで確認：`migrate` の上限を外すと (1) の Working_Copy が 4133 のままで落ち、hydration に `put` を足すと (1) の「`put` は起きない」と (2) の「そこで初めて縮む」が両方落ちる
   - _Requirements: 2.5, 2.6, 3.1, 3.2, 3.4, 3.5, 4.3, 4.6, 5.10, 5.11_
 
 - [ ] 6. 文書
