@@ -431,32 +431,39 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
     return screen.getByLabelText(/^(Boiling \d+|Ready): /) as HTMLElement;
   }
 
-  it("走行中：マーカーは番号（aria-hidden の文字）、aria-label は `Boiling 2: 品名 麺量 · Table 卓`、語は displayName と同じ", () => {
+  it("走行中：マーカーは番号（aria-hidden のチップ）、可視の語は卓を数だけにし、読み上げは `Table 卓` を残す", () => {
     render(cardElement(running(2, ITEM)));
 
     const shown = badge();
+    // 読み上げ（accessible name）は卓を `Table {n}` と語る——文脈の無い読み上げで裸の数が何の数か分からなくなるため。
     expect(shown.getAttribute("aria-label")).toBe("Boiling 2: プレ塩 中盛 · Table 12");
-    // 番号は記号として先頭に置き（aria-hidden）、語がそれに続く。
+    // 番号は記号として先頭に置き（aria-hidden）、語がそれに続く。可視の語からは `Table` を省く。
     const marker = shown.querySelector("[aria-hidden]");
     expect(marker?.textContent).toBe("2");
-    expect(shown.textContent).toBe("2プレ塩 中盛 · Table 12");
+    expect(shown.textContent).toBe("2プレ塩 中盛 · 12");
+    expect(shown.textContent).not.toContain("Table");
   });
 
-  it("走行中：番号は点滅しない（バッジの内側に animate-pulse が無い）", () => {
+  it("走行中：番号はバッジらしい丸チップ（濃色の地にピルと同じ tint を白抜き）で、点滅しない", () => {
     render(cardElement(running(7, ITEM)));
 
     const shown = badge();
     expect(shown.className).not.toContain("animate-pulse");
     expect(shown.querySelector(".animate-pulse")).toBeNull();
-    // 番号は麺色とは独立の記号——バッジの文字色（濃色）で出す（親の color を継ぐ・自分の色を持たない）。
-    expect((shown.querySelector("[aria-hidden]") as HTMLElement).style.color).toBe("");
+    const marker = shown.querySelector("[aria-hidden]") as HTMLElement;
+    // 丸チップ：角丸いっぱいで、2 桁でも潰れないよう最小幅を持つ。
+    expect(marker.className).toContain("rounded-full");
+    expect(marker.className).toContain("min-w-[1.5em]");
+    // 塗りの出所はピルの tint ひとつのまま——チップの地はピルの文字色（濃色）、数字はピルの地色。
+    expect(marker.style.backgroundColor).toBe(shown.style.color);
+    expect(marker.style.color).toBe(shown.style.backgroundColor);
   });
 
   it("走行中：卓を持たない品目は品名だけ（Table の語を出さない）", () => {
     render(cardElement(running(1, { ...ITEM, tableId: null })));
 
     expect(badge().getAttribute("aria-label")).toBe("Boiling 1: プレ塩 中盛");
-    expect(badge().textContent).not.toContain("Table");
+    expect(badge().textContent).toBe("1プレ塩 中盛");
   });
 
   it("走行中：参照先が無ければ（アドホック・v12 由来）語は麺種だけで、番号は出る", () => {
@@ -472,7 +479,8 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
     const shown = badge();
     expect(shown.getAttribute("aria-label")).toBe("Ready: プレ塩 中盛 · Table 12");
     expect(shown.querySelector("[aria-hidden]")?.textContent).toBe("✓");
-    expect(shown.textContent).toBe("✓プレ塩 中盛 · Table 12");
+    // 可視の語は走行中と同じ規則で卓を数だけにする（読み上げは `Table 12` のまま）。
+    expect(shown.textContent).toBe("✓プレ塩 中盛 · 12");
   });
 
   it("茹で上がり：参照先が無ければ ✓ と麺種だけ（従来どおり）", () => {
