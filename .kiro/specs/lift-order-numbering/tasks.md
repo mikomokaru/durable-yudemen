@@ -4,9 +4,11 @@
 
 - [x] 0. naming ゲート（design の表）をユーザーが承認する（2026-09-08 承認：店舗全体・同じ実効 endTime かつ同じ注文・未確定も数える。名は `liftOrderOf` / `SlotDisplay.running.liftOrder` / `BadgeMarker "order"`）
 
-- [ ] 1. domain：`liftOrderOf`
-  - [ ] 1.1 `src/domain/lift-order.ts`：走行中（`endTime > now`）の Timer を「同じ実効 endTime かつ同じ注文」の単位に束ね、`endTime` → 単位内の最早 `startTime` → `externalOrderId` の順で密な番号を振る。アドホック（`orderItem` null）は 1 本 1 単位。返り値は Timer id → 番号
-  - [ ] 1.2 `tests/domain/lift-order.example` / `lift-order.property`：性質 3.1〜3.5・アドホック・boiled は番号なし・決定性
+- [x] 1. domain：`liftOrderOf`
+  - [x] 1.1 `src/domain/lift-order.ts`：走行中（`endTime > now`）の Timer を「同じ実効 endTime かつ同じ注文」の単位に束ね、`endTime` → 単位内の最早 `startTime` → `externalOrderId` の順で密な番号を振る。アドホック（`orderItem` null）は 1 本 1 単位。返り値は Timer id → 番号
+    - 実測（2026-09-08）：`src/domain/lift-order.ts` に `LiftTimer`（`id` / `startTime` / `endTime` / `orderItem: { externalOrderId } | null`——engine の `Timer` も wire の `TimerFact` / `ClientTimer` も満たす構造型・`slotIds` は読まない）と `liftOrderOf(timers, now): ReadonlyMap<string, number>`。単位の鍵は `endTime` と注文の識別子（アドホックは `\u0000` ＋ id）、並びは `endTime` → 単位内の最早 `startTime` → `compareText`（`order.ts` の符号単位順を export して共有）、番号は並びの index + 1。domain の import は `./order` だけ（`domain-imports` 静的検査は変更なし）。`offline-degradation.static` の確定集合は `src/engine` だけなので domain の新規ファイルは列挙不要
+  - [x] 1.2 `tests/domain/lift-order.example` / `lift-order.property`：性質 3.1〜3.5・アドホック・boiled は番号なし・決定性
+    - 実測（2026-09-08）：example 11 件（endTime 昇順と入力順非依存・空・同じ endTime で注文違いは別番号・同じ注文の同じ endTime は同番で密・同じ注文でも endTime 違いは別単位・アドホック 1 本 1 単位・最早 startTime の順・同値は externalOrderId で決定的・boiled は Map に無く走行中だけ詰める・時間が進むと繰り上がる・engine の `createTimer` で作った 2 釜の Timer を 1 本と数える）、property 7 件（3.1 順序・3.2 同単位 ⇔ 同番・3.2′ 最早 startTime の順・3.3 密 1..k・3.4 入力順非依存かつ単位を丸ごと落とした部分集合では番号が減るだけで相対順序不変——単位を割って落とすと最早 startTime が変わり同じ endTime の中の順が入れ替わりうるので単位単位で落とす・3.5 鍵集合＝走行中の id かつ slotIds 非依存・決定性と時間経過で相対順序不変・各 300 runs）。`pnpm typecheck` 0 error・`pnpm lint` 0 error（警告は既存のみ）・`pnpm test` 255 files / 1889 tests 全通過・`pnpm fmt:check` 通過・`lift-order.property` の 3 回再実行はいずれも 7 / 7
   - _Requirements: 1.1〜1.4, 3.1〜3.5_
 
 - [ ] 2. client
