@@ -12,6 +12,14 @@ import { ORDER_ITEM_LIMIT, truncateOrderItems } from "../../src/engine/pending";
 import { itemKeyOf, orderItemOf, type OrderItem } from "../../src/domain/order";
 import { uniqueOrderItems } from "./generators";
 
+/** `uniqueOrderItems` を、より新しい起点へずらして組む（「これらは全部あの 1 件より新しい」を作るため）。 */
+function newerThan(count: number, shiftMs: number): readonly OrderItem[] {
+  const base = uniqueOrderItems(count);
+  return Array.from({ length: count }, (_unused, index) =>
+    item(base[index]!.externalOrderId, base[index]!.itemIndex, base[index]!.arrivalTime + shiftMs),
+  );
+}
+
 /** 素の 1 品目（鍵と arrivalTime 以外は主張に関与しない）。 */
 function item(externalOrderId: string, itemIndex: number, arrivalTime: number): OrderItem {
   return {
@@ -70,10 +78,7 @@ describe("truncateOrderItems — 断ち方と守らないこと", () => {
 
   it("並びが到着順でなくても、落ちるのは最も古い側で、残りの並びは入力のまま", () => {
     const oldest = item("o-old", 0, 1_000);
-    const rest = uniqueOrderItems(ORDER_ITEM_LIMIT).map((each) => ({
-      ...each,
-      arrivalTime: each.arrivalTime + 10_000,
-    }));
+    const rest = newerThan(ORDER_ITEM_LIMIT, 10_000);
     // 最も古い品目を**末尾**に置く。集合の並びは到着順ではない（upsertOrder は位置を保つ）。
     const items = [...rest, oldest];
     const kept = truncateOrderItems(items);
@@ -82,13 +87,7 @@ describe("truncateOrderItems — 断ち方と守らないこと", () => {
 
   it("生きた Timer の参照先でも落ちる——何も守らない（判断 3）", () => {
     const cooking = item("o-cooking", 0, 0); // 最も古い
-    const items = [
-      cooking,
-      ...uniqueOrderItems(ORDER_ITEM_LIMIT).map((each) => ({
-        ...each,
-        arrivalTime: each.arrivalTime + 10_000,
-      })),
-    ];
+    const items = [cooking, ...newerThan(ORDER_ITEM_LIMIT, 10_000)];
     const timer = { orderItem: { externalOrderId: "o-cooking", itemIndex: 0 } };
 
     expect(orderItemOf(timer, items)).toBe(cooking);

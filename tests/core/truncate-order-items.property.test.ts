@@ -41,16 +41,25 @@ const keysOf = (items: readonly OrderItem[]): ReadonlySet<ItemKey> =>
  *
  * 期待値を「呼び出し**後**の `items`」から組んではならない——実装が入力を in-place で整列しても、
  * 期待値も同じ順に並び替わって一致してしまう（実際、`[...items].sort` を `items.sort` にした変異体は
- * この関門を入れる前の 7 件をすべて通過した）。ゆえに呼び出し前に要素の参照列を控え、
- * 呼び出し後に長さ・各位置の**参照の同一性**を突き合わせる。
+ * この関門を入れる前の 7 件をすべて通過した）。
+ *
+ * 控えるものは 2 つで、**壊れ方が 2 通りあるから**である。
+ *   - 参照列（`before`）——配列そのものの並べ替えを捕まえる。
+ *   - 値の複製（`beforeValues`）——**要素の中身**の書き換えを捕まえる。参照列だけでは足りない：
+ *     `[...items]` は同じ要素参照を持つので、`item.arrivalTime = …` のような in-place の書き換えは
+ *     控えた側にも同時に反映されて一致してしまう。
  */
 function truncateGuarded(items: readonly OrderItem[]): readonly OrderItem[] {
   const before = [...items];
+  // `OrderItem` は原始値だけの平坦な形なので、浅い複製がそのまま値の複製になる
+  // （`structuredClone` は同じ主張に対して 3 倍近く遅い）。
+  const beforeValues = before.map((item) => ({ ...item }));
   const result = truncateOrderItems(items);
   expect(items.length).toBe(before.length);
   items.forEach((item, index) => {
     expect(item).toBe(before[index]);
   });
+  expect(items).toEqual(beforeValues);
   return result;
 }
 
