@@ -15,6 +15,10 @@
 // スロットカードとの重畳は作らない。ある釜が茹で上がり（boiled）表示のまま同じ釜へ提案が付くことは
 // あるが（湯切りで釜は空くため物理的に正しい）、カードの表示状態は既存の規律（running > boiled > idle）が
 // 決めたままにし、提案はこのレールの中だけに現れる。新しい重畳規則を持ち込まない。
+//
+// 一度戻された品目（厨房 Cancel で中断され未調理に戻った・`order.interruptedAt !== null`）は、行の先頭に記号 ↩ を
+// 付け名称を淡くする（lift-order-numbering design Component 4）。識別は色・状態は記号の規律に沿い、麺種色は保つ
+// （淡さは不透明度）。並びと語は変えない——戻された品目は到着順の元の位置に、同じ語で並ぶ。
 
 import type { NonEmptyArray } from "../../domain/timer";
 import { displayName, type QueueEntry } from "./queueDisplay";
@@ -72,6 +76,8 @@ function OrderRow({
   readonly noodleColor: NoodleColor;
 }) {
   const { order } = entry;
+  // 一度戻された品目（中断の事実・状態には効かない）。色分けだけに読む（order-lifecycle 判断 3′）。
+  const returned = order.interruptedAt !== null;
   return (
     <li
       className={cn(
@@ -80,11 +86,17 @@ function OrderRow({
       )}
     >
       {/* 麺種色はインライン style で与える。これがこのレール唯一のインラインスタイルであり、
-          色の出所はスロットカードと共有する resolver（noodleColor prop）だけである。 */}
+          色の出所はスロットカードと共有する resolver（noodleColor prop）だけである。
+          戻された行は麺種色を保ったまま淡くする（opacity）——インライン色を差し替えれば色の出所が二つになる。 */}
       <span
-        className="truncate text-sm leading-tight font-bold"
+        className={cn("truncate text-sm leading-tight font-bold", returned && "opacity-60")}
         style={{ color: noodleColor(order.noodleType) }}
       >
+        {returned && (
+          <span role="img" aria-label="Returned" className="mr-1 text-muted">
+            ↩
+          </span>
+        )}
         {displayName(order)}
       </span>
       {/* 左群（茹で加減 + 卓番）と待ち時間を justify-between で両端へ固定する。左寄せの連結では
