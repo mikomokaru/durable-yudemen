@@ -91,6 +91,13 @@ export function liftOrderOf(
 2. **可視の語では卓の `Table` を省く。** 釜のバッジは品名と麺量で既に長く、前に番号のチップも付くため、卓は数だけにする（`品名 麺量 · 12`）。**読み上げの語（accessible name）は `Table {n}` のまま**——文脈を持たない読み上げでは裸の数が何の数か分からなくなるため、ここは可視と読み上げを分ける。`NoodleBadge` に `spoken`（既定は可視の語）を足し、釜のバッジだけが両者を分ける。
 3. 卓を数だけにするのは**釜のバッジに限る**。左レールと提案の語（`suggestionOf`）は `Table {n}` のまま——狭いのはバッジであって、レールの行や提案のラベルではない。したがって「提案の語と同じ規則」は品名（`displayName`）についてのみ成り立ち、卓の書き方は釜のバッジだけ異なる。
 
+4. **番号を 2 段にする**（要件の改訂・ユーザー指示）。`liftOrderOf` は `ReadonlyMap<string, LiftOrder>` を返し、`LiftOrder = { cluster: number; branch: number }`——`cluster` は走行中の相異なる実効 endTime を昇順に並べた密な順位（店舗全体）、`branch` はクラスタ内の注文の密な順位（並びは枝内の最早 `startTime` → `externalOrderId`）。表記は `liftOrderLabel(order)` が `4a` の形に組む（枝は小文字のアルファベット・26 を超えたら `aa`）。単独のクラスタでも枝を出す。`SlotDisplay.running.liftOrder` の型は `number` から `LiftOrder` へ、`BadgeMarker` は `{ kind: "order"; order: LiftOrder }` へ、aria の接頭辞は `Boiling 4b: ` へ。表記の規則は `liftOrderLabel` の 1 箇所に置く（描画側に式を書かない）。
+
+| 名 | 場所 | 表明する概念境界 |
+| --- | --- | --- |
+| `LiftOrder { cluster, branch }` | `src/domain/lift-order.ts` | 上がり順（クラスタの順位とクラスタ内の枝） |
+| `liftOrderLabel(order)` | 同上 | 上がり順の表記（`4a`）——表記の規則の唯一の所在 |
+
 ## naming ゲート（実装前にユーザー確認）
 
 | 候補名 | 場所 | 表明する概念境界 |

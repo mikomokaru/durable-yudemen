@@ -5,7 +5,7 @@
 
 import type { TimerFact } from "../../domain/timer";
 import { orderItemOf, type OrderItem } from "../../domain/order";
-import { liftOrderOf } from "../../domain/lift-order";
+import { liftOrderOf, type LiftOrder } from "../../domain/lift-order";
 import type { ClientTimer, ClientView } from "../connection";
 import { correctedNow, remainingMs } from "../clock";
 import { assignedTimers, slotsOfUnits } from "../assignment";
@@ -21,7 +21,7 @@ import type { SlotSuggestion } from "./liftGroups";
  *               ユーザーが消し込むべき状態。Complete 操作の対象として timer を保持する。
  * running / boiled は `orderItem`（Timer が指す注文品目・`orderItemOf(timer, view.orderItems)` の結果）を持つ。
  * null は注文なし（アドホック開始・v12 由来で参照先の無い Timer）で、参照先の無い Timer を扱う経路は一つ
- * （order-lifecycle AC 4.6・判断 13）。running はさらに `liftOrder`（上がり順の番号・1 始まり）を持つ——
+ * （order-lifecycle AC 4.6・判断 13）。running はさらに `liftOrder`（上がり順——クラスタ番号と枝番の組）を持つ——
  * `liftOrderOf(view.timers, correctedNow)` を担当外を含む店舗全体で一度導き、担当分の釜が自分の Timer の id で
  * 引いた値である（lift-order-numbering 判断 1・6・AC 1.5）。boiled は持たない（もう上がっている・判断 3）。
  * - idle      : 同期済みだが担当スロットに Timer が無い。開始操作と次の提案を提示できる（直前結果の表示は UI 層）。
@@ -35,8 +35,11 @@ export type SlotDisplay =
       readonly orderItem: OrderItem | null;
       readonly remainingMs: number;
       readonly unconfirmed: boolean;
-      /** 上がり順の番号（Lift_Order・1 始まり・店舗全体で密）。同じ Timer が駆動する釜は同じ番号（判断 5）。 */
-      readonly liftOrder: number;
+      /**
+       * 上がり順（Lift_Order）。`cluster` は店舗全体で密な上がる順の番号、`branch` はそのクラスタ内で密な注文の
+       * 枝番（表記は `liftOrderLabel` が `4a` の形に組む）。同じ Timer が駆動する釜は同じ値（判断 5）。
+       */
+      readonly liftOrder: LiftOrder;
     }
   | {
       readonly kind: "boiled";
@@ -86,6 +89,8 @@ export function assignedSlotDisplays(
   // 上がり順は担当外を含む店舗全体の Timer から一度だけ導く（判断 1）。担当範囲で絞るのは表示だけで、群・先頭と同じ
   // 規律——担当ユニットの内側で振れば、別ユニットの釜が先に上がるのに 1 番と出る。未確定（provisional）も数える。
   const liftOrder = liftOrderOf(view.timers, corrected);
+  // 引けなかったときの逃げ道に使うクラスタ数（下の `??` の右辺・実行時には通らない）。
+  const clusterCount = new Set([...liftOrder.values()].map((order) => order.cluster)).size;
   // 担当分の Timer をスロット番号で引けるよう束ねる。表示はスロット単位の事象である。
   // ClientTimer のまま束ね、origin（未確定タグ）を失わない（unconfirmed の導出元・要件6.4）。
   // 1 Timer は複数スロットを駆動しうるため、その駆動スロットそれぞれ（担当範囲内のもの）へ束ねる。
@@ -108,8 +113,9 @@ export function assignedSlotDisplays(
       const earliest = running.reduce((a, b) => (b.endTime < a.endTime ? b : a));
       const remaining = remainingMs(earliest.endTime, view.offset, now);
       // unconfirmed は origin === "local"（Provisional_Timer）からの導出値。状態には昇格させない（要件6.4）。
-      // 走行中（remaining > 0 ⇔ endTime > corrected）は liftOrderOf の対象と同じ線なので、番号は必ず在る。
-      // `??` の右辺は型の関門にすぎない（実行時には通らない）。通ったとしても先頭（1）を偽らず末尾に置く。
+      // 走行中（remaining > 0 ⇔ endTime > corrected）は liftOrderOf の対象と同じ線なので、上がり順は必ず在る。
+      // `??` の右辺は型の関門にすぎない（実行時には通らない）。通ったとしても先頭（1）を偽らず末尾に置く——
+      // クラスタは在る数より 1 つ後ろ、枝はその先頭。
       return {
         kind: "running",
         slot,
@@ -117,7 +123,7 @@ export function assignedSlotDisplays(
         orderItem: orderItemOf(earliest, view.orderItems),
         remainingMs: remaining,
         unconfirmed: earliest.origin === "local",
-        liftOrder: liftOrder.get(earliest.id) ?? liftOrder.size + 1,
+        liftOrder: liftOrder.get(earliest.id) ?? { cluster: clusterCount + 1, branch: 1 },
       };
     }
     if (bucket.length > 0) {

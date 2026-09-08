@@ -2,13 +2,15 @@
 //
 // tests/domain/lift-order.property.test.ts — 上がり順（Lift_Order）の性質。
 //
-// 生成器は endTime と startTime を少数の値から引き、注文の識別子も少数（＋ null）から引く——同じ endTime・同じ注文・
-// 同じ startTime の衝突を高い頻度で作り、単位の束ねと断ち方（3.2 / 3.2′）を踏ませるため。id は位置から振り、
-// 一意である。slotIds は導出が読まない事実として同乗させ、複数釜でも 1 本として数えることを鍵の集合で問う（3.5）。
+// 上がり順は 2 段である（2026-09-08 の改訂）。クラスタ（同じ実効 endTime）に上がる順の番号、クラスタ内の注文に
+// 枝番。生成器は endTime と startTime を少数の値から引き、注文の識別子も少数（＋ null）から引く——同じ endTime・
+// 同じ注文・同じ startTime の衝突を高い頻度で作り、クラスタの束ねと枝の断ち方（3.2 / 3.2′）を踏ませるため。
+// id は位置から振り、一意である。slotIds は導出が読まない事実として同乗させ、複数釜でも 1 本として数えることを
+// 鍵の集合で問う（3.5）。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { liftOrderOf } from "../../src/domain/lift-order";
+import { liftOrderOf, type LiftOrder } from "../../src/domain/lift-order";
 
 const NOW = 1_700_000_000_000;
 const SECOND = 1000;
@@ -57,29 +59,42 @@ function runningOf(timers: readonly SceneTimer[], now: number): readonly SceneTi
   return timers.filter((timer) => timer.endTime > now);
 }
 
-/** 単位の鍵（テスト側の独立な定義——同じ endTime かつ同じ注文。アドホックは id）。 */
-function unitKeyOf(timer: SceneTimer): string {
+/** 枝の鍵（テスト側の独立な定義——同じ endTime かつ同じ注文。アドホックは id）。 */
+function branchKeyOf(timer: SceneTimer): string {
   const order = timer.orderItem === null ? `#${timer.id}` : timer.orderItem.externalOrderId;
   return `${timer.endTime}|${order}`;
 }
 
-function numberOf(order: ReadonlyMap<string, number>, id: string): number {
-  const n = order.get(id);
-  if (n === undefined) throw new Error(`走行中の Timer ${id} に番号が無い`);
-  return n;
+function orderOf(order: ReadonlyMap<string, LiftOrder>, id: string): LiftOrder {
+  const found = order.get(id);
+  if (found === undefined) throw new Error(`走行中の Timer ${id} に上がり順が無い`);
+  return found;
+}
+
+/** `key` の集合へ値を足す（無ければ作る）。 */
+function addTo<K, V>(groups: Map<K, Set<V>>, key: K, value: V): void {
+  const found = groups.get(key);
+  if (found === undefined) groups.set(key, new Set([value]));
+  else found.add(value);
+}
+
+/** 上がり順の全順序（クラスタ → 枝）。番号そのものではなく順序を問うために使う。 */
+function compareOrder(a: LiftOrder, b: LiftOrder): number {
+  return a.cluster - b.cluster || a.branch - b.branch;
 }
 
 describe("Feature: lift-order-numbering — 上がり順の性質（Requirement 3）", () => {
-  it("3.1 順序：番号 i < j なら実効 endTime(i) ≤ endTime(j)", () => {
+  it("3.1 順序：クラスタ番号の大小は実効 endTime の大小と一致し、同じ endTime は同じクラスタ番号", () => {
     fc.assert(
       fc.property(genTimers, (timers) => {
         const order = liftOrderOf(timers, NOW);
         const running = runningOf(timers, NOW);
         for (const a of running) {
           for (const b of running) {
-            if (numberOf(order, a.id) < numberOf(order, b.id)) {
-              expect(a.endTime).toBeLessThanOrEqual(b.endTime);
-            }
+            const clusterA = orderOf(order, a.id).cluster;
+            const clusterB = orderOf(order, b.id).cluster;
+            // クラスタ番号は endTime の順序をそのまま写す（同値も含めて）。
+            expect(Math.sign(clusterA - clusterB)).toBe(Math.sign(a.endTime - b.endTime));
           }
         }
       }),
@@ -87,7 +102,7 @@ describe("Feature: lift-order-numbering — 上がり順の性質（Requirement 
     );
   });
 
-  it("3.2 同時・同注文：同じ endTime かつ同じ注文は同じ番号、同じ endTime でも注文が違えば（アドホック同士も）別の番号", () => {
+  it("3.2 同時・同注文：同じ endTime かつ同じ注文 ⇔ 同じ（クラスタ・枝）。同じ endTime で注文が違えばクラスタは同じで枝が違う", () => {
     fc.assert(
       fc.property(genTimers, (timers) => {
         const order = liftOrderOf(timers, NOW);
@@ -95,33 +110,14 @@ describe("Feature: lift-order-numbering — 上がり順の性質（Requirement 
         for (const a of running) {
           for (const b of running) {
             if (a.id === b.id) continue;
-            const sameUnit = unitKeyOf(a) === unitKeyOf(b);
-            expect(numberOf(order, a.id) === numberOf(order, b.id)).toBe(sameUnit);
-          }
-        }
-      }),
-      { numRuns: 300 },
-    );
-  });
-
-  it("3.2′ 注文の順：同じ endTime の中では、単位内の最早 startTime が早い注文が小さい番号", () => {
-    fc.assert(
-      fc.property(genTimers, (timers) => {
-        const order = liftOrderOf(timers, NOW);
-        const running = runningOf(timers, NOW);
-        // 単位ごとの最早 startTime。
-        const earliest = new Map<string, number>();
-        for (const timer of running) {
-          const key = unitKeyOf(timer);
-          earliest.set(key, Math.min(earliest.get(key) ?? Infinity, timer.startTime));
-        }
-        for (const a of running) {
-          for (const b of running) {
-            if (a.endTime !== b.endTime || unitKeyOf(a) === unitKeyOf(b)) continue;
-            const startA = earliest.get(unitKeyOf(a)) ?? Infinity;
-            const startB = earliest.get(unitKeyOf(b)) ?? Infinity;
-            if (startA < startB) {
-              expect(numberOf(order, a.id)).toBeLessThan(numberOf(order, b.id));
+            const orderA = orderOf(order, a.id);
+            const orderB = orderOf(order, b.id);
+            const sameBranch = branchKeyOf(a) === branchKeyOf(b);
+            expect(compareOrder(orderA, orderB) === 0).toBe(sameBranch);
+            if (a.endTime === b.endTime && !sameBranch) {
+              // 一括で上がる（クラスタを共有する）が、盛り付けの単位は分かれる。
+              expect(orderA.cluster).toBe(orderB.cluster);
+              expect(orderA.branch).not.toBe(orderB.branch);
             }
           }
         }
@@ -130,24 +126,66 @@ describe("Feature: lift-order-numbering — 上がり順の性質（Requirement 
     );
   });
 
-  it("3.3 密：出ている番号の集合は 1..k の連続（k は Lift_Unit の数）", () => {
+  it("3.2′ 枝の順：同じクラスタの中では、枝内の最早 startTime が早い注文が小さい枝番", () => {
     fc.assert(
       fc.property(genTimers, (timers) => {
         const order = liftOrderOf(timers, NOW);
-        const units = new Set(runningOf(timers, NOW).map(unitKeyOf));
-        const numbers = [...new Set(order.values())].sort((a, b) => a - b);
-        expect(numbers).toEqual(Array.from({ length: units.size }, (_, index) => index + 1));
+        const running = runningOf(timers, NOW);
+        // 枝ごとの最早 startTime。
+        const earliest = new Map<string, number>();
+        for (const timer of running) {
+          const key = branchKeyOf(timer);
+          earliest.set(key, Math.min(earliest.get(key) ?? Infinity, timer.startTime));
+        }
+        for (const a of running) {
+          for (const b of running) {
+            if (a.endTime !== b.endTime || branchKeyOf(a) === branchKeyOf(b)) continue;
+            const startA = earliest.get(branchKeyOf(a)) ?? Infinity;
+            const startB = earliest.get(branchKeyOf(b)) ?? Infinity;
+            if (startA < startB) {
+              expect(orderOf(order, a.id).branch).toBeLessThan(orderOf(order, b.id).branch);
+            }
+          }
+        }
       }),
       { numRuns: 300 },
     );
   });
 
-  it("3.4 店舗全体：番号は Timer 集合全体の関数——入力の並びに依らず、単位を丸ごと落として導き直せば番号は押し上がるだけで相対順序は変わらない", () => {
-    // 担当ユニットを変えても同じ Timer の番号が変わらないのは、読む側が常に店舗全体の Map から引くからである
+  it("3.3 密：クラスタ番号の集合は 1..k（k は走行中の相異なる endTime の数）、各クラスタの枝番の集合は 1..m（m はその中の注文の数）", () => {
+    fc.assert(
+      fc.property(genTimers, (timers) => {
+        const order = liftOrderOf(timers, NOW);
+        const running = runningOf(timers, NOW);
+        const clusters = new Set(running.map((timer) => timer.endTime));
+        const shown = [...new Set([...order.values()].map((o) => o.cluster))].sort((a, b) => a - b);
+        expect(shown).toEqual(Array.from({ length: clusters.size }, (_, index) => index + 1));
+
+        // クラスタごとに、枝番の集合はその中の注文の数だけ 1 から詰まっている。
+        const branchesByCluster = new Map<number, Set<number>>();
+        const keysByCluster = new Map<number, Set<string>>();
+        for (const timer of running) {
+          const { cluster, branch } = orderOf(order, timer.id);
+          addTo(branchesByCluster, cluster, branch);
+          addTo(keysByCluster, cluster, branchKeyOf(timer));
+        }
+        for (const [cluster, branches] of branchesByCluster) {
+          const orders = keysByCluster.get(cluster)?.size ?? 0;
+          expect([...branches].sort((a, b) => a - b)).toEqual(
+            Array.from({ length: orders }, (_, index) => index + 1),
+          );
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("3.4 店舗全体：上がり順は Timer 集合全体の関数——入力の並びに依らず、クラスタを丸ごと落として導き直せばクラスタ番号は押し上がるだけで枝と相対順序は変わらない", () => {
+    // 担当ユニットを変えても同じ Timer の上がり順が変わらないのは、読む側が常に店舗全体の Map から引くからである
     // （client の slotDisplay.example が担当外の Timer による押し上げを固定する）。ここで問うのは、その Map が
-    // 集合全体の関数であること——(a) 入力の並びに依らない、(b) 単位（同じ endTime かつ同じ注文）を丸ごと落とした
-    // 部分集合で導き直しても、残った単位の相対順序は同じで番号は減るだけ。単位を割って落とせば最早 startTime が
-    // 変わり同じ endTime の中の順が入れ替わりうるので、丸ごと落とす（担当分の表示は店舗全体から引くのが規律）。
+    // 集合全体の関数であること——(a) 入力の並びに依らない、(b) クラスタ（同じ endTime の集合）を丸ごと落とした
+    // 部分集合で導き直しても、残ったクラスタの中身は変わらないので枝番は不変・クラスタ番号は減るだけ・相対順序は
+    // 同じ。クラスタを割って落とせば枝の最早 startTime が変わり枝の順が入れ替わりうるので、丸ごと落とす。
     fc.assert(
       fc.property(
         genTimers,
@@ -155,15 +193,16 @@ describe("Feature: lift-order-numbering — 上がり順の性質（Requirement 
         (timers, mask) => {
           const full = liftOrderOf(timers, NOW);
           expect(liftOrderOf([...timers].reverse(), NOW)).toEqual(full);
-          const unitKeys = [...new Set(timers.map(unitKeyOf))];
-          const kept = timers.filter((timer) => mask[unitKeys.indexOf(unitKeyOf(timer))] ?? false);
+          const endTimes = [...new Set(timers.map((timer) => timer.endTime))];
+          const kept = timers.filter((timer) => mask[endTimes.indexOf(timer.endTime)] ?? false);
           const partial = liftOrderOf(kept, NOW);
           const running = runningOf(kept, NOW);
           for (const a of running) {
-            expect(numberOf(partial, a.id)).toBeLessThanOrEqual(numberOf(full, a.id));
+            expect(orderOf(partial, a.id).cluster).toBeLessThanOrEqual(orderOf(full, a.id).cluster);
+            expect(orderOf(partial, a.id).branch).toBe(orderOf(full, a.id).branch);
             for (const b of running) {
-              expect(Math.sign(numberOf(partial, a.id) - numberOf(partial, b.id))).toBe(
-                Math.sign(numberOf(full, a.id) - numberOf(full, b.id)),
+              expect(Math.sign(compareOrder(orderOf(partial, a.id), orderOf(partial, b.id)))).toBe(
+                Math.sign(compareOrder(orderOf(full, a.id), orderOf(full, b.id))),
               );
             }
           }
@@ -189,17 +228,18 @@ describe("Feature: lift-order-numbering — 上がり順の性質（Requirement 
     );
   });
 
-  it("決定性：同じ入力から同じ Map。時間が進んでも走行中の相対順序は変わらない（先頭が上がると繰り上がるだけ）", () => {
+  it("決定性：同じ入力から同じ Map。時間が進んでもクラスタは丸ごと上がるので、枝は不変で相対順序も変わらない", () => {
     fc.assert(
       fc.property(genTimers, fc.integer({ min: 0, max: 200 * SECOND }), (timers, elapsed) => {
         const before = liftOrderOf(timers, NOW);
         expect(liftOrderOf(timers, NOW)).toEqual(before);
         const after = liftOrderOf(timers, NOW + elapsed);
         for (const a of runningOf(timers, NOW + elapsed)) {
-          expect(numberOf(after, a.id)).toBeLessThanOrEqual(numberOf(before, a.id));
+          expect(orderOf(after, a.id).cluster).toBeLessThanOrEqual(orderOf(before, a.id).cluster);
+          expect(orderOf(after, a.id).branch).toBe(orderOf(before, a.id).branch);
           for (const b of runningOf(timers, NOW + elapsed)) {
-            expect(Math.sign(numberOf(after, a.id) - numberOf(after, b.id))).toBe(
-              Math.sign(numberOf(before, a.id) - numberOf(before, b.id)),
+            expect(Math.sign(compareOrder(orderOf(after, a.id), orderOf(after, b.id)))).toBe(
+              Math.sign(compareOrder(orderOf(before, a.id), orderOf(before, b.id))),
             );
           }
         }

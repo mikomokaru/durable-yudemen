@@ -76,7 +76,7 @@ describe("SlotCard — Complete の実描画境界", () => {
       orderItem: null,
       remainingMs: 30_000,
       unconfirmed: false,
-      liftOrder: 1,
+      liftOrder: { cluster: 1, branch: 1 },
     });
     const idle = slotCardMarkup({ kind: "idle", slot: 0, next: [] });
 
