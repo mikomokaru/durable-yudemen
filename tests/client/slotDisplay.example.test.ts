@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_VIEW, type ClientTimer, type ClientView } from "../../src/client/connection";
 import { assignedSlotDisplays } from "../../src/client/components/slotDisplay";
 import type { OrderItem } from "../../src/domain/order";
+import { liftOrderLabel } from "../../src/domain/lift-order";
 
 const NOW = 1_700_000_000_000;
 
@@ -106,10 +107,11 @@ describe("Feature: lift-order-numbering — running は店舗全体の上がり�
     return assignedSlotDisplays(view, units, NOW);
   }
 
-  function liftOrderAt(view: ClientView, units: readonly number[], slot: number): number | null {
+  /** 釜のカードが持つ上がり順を表記（`4a` の形）で読む。走行中でなければ null。 */
+  function liftOrderAt(view: ClientView, units: readonly number[], slot: number): string | null {
     const display = displaysOf(view, units).find((each) => each.slot === slot);
     if (display === undefined) throw new Error(`釜 ${slot} が担当に無い`);
-    return display.kind === "running" ? display.liftOrder : null;
+    return display.kind === "running" ? liftOrderLabel(display.liftOrder) : null;
   }
 
   it("担当外（別ユニット）の Timer が先に上がれば、担当の釜の番号は押し上げられる（担当内で振らない・判断 1）", () => {
@@ -132,10 +134,10 @@ describe("Feature: lift-order-numbering — running は店舗全体の上がり�
         }),
       ],
     };
-    expect(liftOrderAt(view, [0], 0)).toBe(2);
+    expect(liftOrderAt(view, [0], 0)).toBe("2a");
     // 担当を両ユニットに広げても番号は変わらない（性質 3.4）。担当外の釜は表示に現れないだけ。
-    expect(liftOrderAt(view, [0, 1], 0)).toBe(2);
-    expect(liftOrderAt(view, [0, 1], 6)).toBe(1);
+    expect(liftOrderAt(view, [0, 1], 0)).toBe("2a");
+    expect(liftOrderAt(view, [0, 1], 6)).toBe("1a");
     expect(displaysOf(view, [0]).some((each) => each.slot === 6)).toBe(false);
   });
 
@@ -157,21 +159,22 @@ describe("Feature: lift-order-numbering — running は店舗全体の上がり�
         }),
       ],
     };
-    expect(liftOrderAt(view, [0], 0)).toBe(1);
-    expect(liftOrderAt(view, [0], 1)).toBe(1);
-    expect(liftOrderAt(view, [0], 2)).toBe(2);
+    expect(liftOrderAt(view, [0], 0)).toBe("1a");
+    expect(liftOrderAt(view, [0], 1)).toBe("1a");
+    expect(liftOrderAt(view, [0], 2)).toBe("2a");
   });
 
-  it("boiled は番号を持たず、走行中だけが 1 から詰めて振られる。単位は Timer の参照する注文（参照先が集合に無くても同じ注文なら同番）（判断 2・3）", () => {
+  it("boiled は上がり順を持たず、走行中だけが 1 から詰めて振られる。枝は Timer の参照する注文（参照先が集合に無くても同じ注文なら同じ枝）（判断 2・3）", () => {
     // VIEW：釜 0 走行中（o-1 の品目 1）・釜 1 boiled・釜 2 アドホック走行中・釜 3 参照先なし走行中（o-1 の品目 0・v12 由来）。
-    // すべて同じ endTime。釜 0 と釜 3 は同じ注文 o-1 を指すので同じ単位（品目が集合に無いことは番号の単位に効かない）。
+    // すべて同じ endTime＝同じクラスタ。釜 0 と釜 3 は同じ注文 o-1 を指すので同じ枝（品目が集合に無いことは枝に効かない）。
+    // 釜 2 のアドホックは 1 本で 1 つの枝なので、同じクラスタの中で枝が分かれる（1a と 1b）。
     const displays = displaysOf(VIEW, [0]);
     const boiled = displays.find((each) => each.slot === 1);
     expect(boiled?.kind).toBe("boiled");
     expect(boiled !== undefined && "liftOrder" in boiled).toBe(false);
     const [slot0, slot2, slot3] = [0, 2, 3].map((slot) => liftOrderAt(VIEW, [0], slot));
     expect(slot0).toBe(slot3);
-    expect(new Set([slot0, slot2])).toEqual(new Set([1, 2]));
+    expect(new Set([slot0, slot2])).toEqual(new Set(["1a", "1b"]));
   });
 
   it("走行中の判定と番号の対象は同じ線（補正後現在時刻）——offset を足せば上がっている Timer は番号から外れ、残りが繰り上がる", () => {
@@ -195,7 +198,7 @@ describe("Feature: lift-order-numbering — running は店舗全体の上がり�
       ],
     };
     expect(liftOrderAt(view, [0], 0)).toBeNull();
-    expect(liftOrderAt(view, [0], 1)).toBe(1);
+    expect(liftOrderAt(view, [0], 1)).toBe("1a");
   });
 
   it("未確定（provisional・origin local）の Timer も同じ規則で数える（best effort・判断 6）", () => {
@@ -211,7 +214,7 @@ describe("Feature: lift-order-numbering — running は店舗全体の上がり�
         }),
       ],
     };
-    expect(liftOrderAt(view, [0], 0)).toBe(1);
-    expect(liftOrderAt(view, [0], 1)).toBe(2);
+    expect(liftOrderAt(view, [0], 0)).toBe("1a");
+    expect(liftOrderAt(view, [0], 1)).toBe("2a");
   });
 });

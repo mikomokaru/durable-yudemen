@@ -30,6 +30,7 @@ import {
   CANCEL_GUARD_THRESHOLD_MS,
 } from "../../src/client/components/cancelGuard";
 import type { OrderItem } from "../../src/domain/order";
+import type { LiftOrder } from "../../src/domain/lift-order";
 import type { TimerFact } from "../../src/domain/timer";
 import { nonEmpty } from "../nonEmpty";
 
@@ -334,7 +335,7 @@ describe("走行中カードの停止ボタン——残り < 60 秒は complete�
       orderItem: null,
       remainingMs,
       unconfirmed: false,
-      liftOrder: 1,
+      liftOrder: { cluster: 1, branch: 1 },
     };
   }
 
@@ -404,7 +405,7 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
   };
   const ITEM: OrderItem = item("o-badge").order;
 
-  function running(liftOrder: number, orderItem: OrderItem | null): SlotDisplay {
+  function running(liftOrder: LiftOrder, orderItem: OrderItem | null): SlotDisplay {
     return {
       kind: "running",
       slot: 0,
@@ -428,24 +429,32 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
 
   /** 左上のバッジ（aria-label が `Boiling` / `Ready` で始まる要素）。 */
   function badge(): HTMLElement {
-    return screen.getByLabelText(/^(Boiling \d+|Ready): /) as HTMLElement;
+    return screen.getByLabelText(/^(Boiling \d+[a-z]+|Ready): /) as HTMLElement;
   }
 
-  it("走行中：マーカーは番号（aria-hidden のチップ）、可視の語は卓を数だけにし、読み上げは `Table 卓` を残す", () => {
-    render(cardElement(running(2, ITEM)));
+  it("走行中：マーカーは上がり順（クラスタ番号＋枝・aria-hidden のチップ）、可視の語は卓を数だけにし、読み上げは `Table 卓` を残す", () => {
+    render(cardElement(running({ cluster: 4, branch: 2 }, ITEM)));
 
     const shown = badge();
     // 読み上げ（accessible name）は卓を `Table {n}` と語る——文脈の無い読み上げで裸の数が何の数か分からなくなるため。
-    expect(shown.getAttribute("aria-label")).toBe("Boiling 2: プレ塩 中盛 · Table 12");
-    // 番号は記号として先頭に置き（aria-hidden）、語がそれに続く。可視の語からは `Table` を省く。
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 4b: プレ塩 中盛 · Table 12");
+    // 上がり順は記号として先頭に置き（aria-hidden）、語がそれに続く。可視の語からは `Table` を省く。
     const marker = shown.querySelector("[aria-hidden]");
-    expect(marker?.textContent).toBe("2");
-    expect(shown.textContent).toBe("2プレ塩 中盛 · 12");
+    expect(marker?.textContent).toBe("4b");
+    expect(shown.textContent).toBe("4bプレ塩 中盛 · 12");
     expect(shown.textContent).not.toContain("Table");
   });
 
+  it("走行中：同時に上がる注文が 1 つでも枝は出す（単独のクラスタは `3a`・表記の形を揃える）", () => {
+    render(cardElement(running({ cluster: 3, branch: 1 }, ITEM)));
+
+    const shown = badge();
+    expect(shown.querySelector("[aria-hidden]")?.textContent).toBe("3a");
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 3a: プレ塩 中盛 · Table 12");
+  });
+
   it("走行中：番号はバッジらしい丸チップ（濃色の地にピルと同じ tint を白抜き）で、点滅しない", () => {
-    render(cardElement(running(7, ITEM)));
+    render(cardElement(running({ cluster: 7, branch: 1 }, ITEM)));
 
     const shown = badge();
     expect(shown.className).not.toContain("animate-pulse");
@@ -460,17 +469,17 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
   });
 
   it("走行中：卓を持たない品目は品名だけ（Table の語を出さない）", () => {
-    render(cardElement(running(1, { ...ITEM, tableId: null })));
+    render(cardElement(running({ cluster: 1, branch: 1 }, { ...ITEM, tableId: null })));
 
-    expect(badge().getAttribute("aria-label")).toBe("Boiling 1: プレ塩 中盛");
-    expect(badge().textContent).toBe("1プレ塩 中盛");
+    expect(badge().getAttribute("aria-label")).toBe("Boiling 1a: プレ塩 中盛");
+    expect(badge().textContent).toBe("1aプレ塩 中盛");
   });
 
   it("走行中：参照先が無ければ（アドホック・v12 由来）語は麺種だけで、番号は出る", () => {
-    render(cardElement(running(3, null)));
+    render(cardElement(running({ cluster: 3, branch: 1 }, null)));
 
-    expect(badge().getAttribute("aria-label")).toBe("Boiling 3: Thin");
-    expect(badge().textContent).toBe("3Thin");
+    expect(badge().getAttribute("aria-label")).toBe("Boiling 3a: Thin");
+    expect(badge().textContent).toBe("3aThin");
   });
 
   it("茹で上がり：マーカーは ✓ のまま（番号は無い）、語は品名と卓", () => {

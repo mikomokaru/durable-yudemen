@@ -16,6 +16,7 @@ import type { TimerFact } from "../../domain/timer";
 import type { SlotDisplay } from "./slotDisplay";
 import type { GroupItem, SlotSuggestion } from "./liftGroups";
 import { fadedTint, type NoodleColor } from "./noodleColor";
+import { liftOrderLabel, type LiftOrder } from "../../domain/lift-order";
 import { PlayIcon, StopIcon, LiftIcon } from "./icons";
 import { FirmnessCornerControl } from "./FirmnessCornerControl";
 import {
@@ -236,14 +237,18 @@ function ProgressRing({
  * - last   : idle の直前結果（過去・best-effort）＝✓。
  * - none   : マーカーなし。
  */
-type BadgeMarker = "none" | "ready" | "last" | { readonly kind: "order"; readonly n: number };
+type BadgeMarker =
+  | "none"
+  | "ready"
+  | "last"
+  | { readonly kind: "order"; readonly order: LiftOrder };
 
-/** バッジの aria-label の接頭辞。走行中は `Boiling {n}: `（AC 2.3）。 */
+/** バッジの aria-label の接頭辞。走行中は `Boiling {表記}: `（AC 2.3・表記は `4a` の形）。 */
 function ariaPrefixOf(marker: BadgeMarker): string {
   if (marker === "last") return "Last: ";
   if (marker === "ready") return "Ready: ";
   if (marker === "none") return "";
-  return `Boiling ${marker.n}: `;
+  return `Boiling ${liftOrderLabel(marker.order)}: `;
 }
 
 function NoodleBadge({
@@ -283,10 +288,10 @@ function NoodleBadge({
       // 残滓（faded）は色相だけ残して彩度を落とす（稼働中のピルと遠目に見分けるため・fadedTint）。
       style={{ backgroundColor: faded ? fadedTint(tint) : tint, color: "#15120c" }}
     >
-      {/* 走行中は上がり順の番号、上がり/前回結果は ✓。いずれも色＝種類とは独立の状態記号（点滅しない）。 */}
+      {/* 走行中は上がり順（クラスタ番号＋枝）、上がり/前回結果は ✓。いずれも色＝種類とは独立の状態記号（点滅しない）。 */}
       {typeof marker === "object" && (
-        // 番号は濃色の丸チップに白抜き（＝ピルの塗りと同じ tint）で置く。塗りの出所はバッジの tint 一つの
-        // ままで、番号が新しい色を持ち込むことはない。2 桁は横に伸びて角丸のまま（min-w + px）。
+        // 上がり順は濃色の丸チップに白抜き（＝ピルの塗りと同じ tint）で置く。塗りの出所はバッジの tint 一つの
+        // ままで、番号が新しい色を持ち込むことはない。桁が増えれば横に伸びて角丸のまま（min-w + px）。
         <span
           aria-hidden="true"
           className={cn(
@@ -295,7 +300,7 @@ function NoodleBadge({
           )}
           style={{ backgroundColor: "#15120c", color: faded ? fadedTint(tint) : tint }}
         >
-          {marker.n}
+          {liftOrderLabel(marker.order)}
         </span>
       )}
       {(marker === "ready" || marker === "last") && (
@@ -549,7 +554,7 @@ export function SlotCard({
           label={badgeLabel}
           spoken={badgeSpoken}
           tint={tint}
-          marker={isBoiled ? "ready" : { kind: "order", n: display.liftOrder }}
+          marker={isBoiled ? "ready" : { kind: "order", order: display.liftOrder }}
           className={
             firmnessMenuOpen ? "@max-[240px]:w-auto @max-[240px]:min-w-0 @max-[240px]:flex-1" : ""
           }
