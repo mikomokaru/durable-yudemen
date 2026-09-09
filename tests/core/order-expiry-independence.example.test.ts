@@ -24,7 +24,6 @@ import {
   PLAN_NOW,
   PLAN_SECOND,
   PLAN_SHORT_ITEM,
-  planSceneEndSeconds,
   planSceneState,
   UNSYNCED_PLAN_TIMERS,
 } from "./adoptedPlanScene";
@@ -48,7 +47,9 @@ function expiredOf(pending: readonly OrderItem[]): readonly OrderItem[] {
   }));
 }
 
-const endSeconds = (timers: readonly Timer[]) => planSceneEndSeconds(timers, adjustedEndTime);
+/** 走行中 2 本の実効終了（`NOW` からの秒）。同期の有無を読むための射影——主張はここが持つ。 */
+const endSeconds = (timers: readonly Timer[]) =>
+  timers.slice(0, 2).map((each) => (adjustedEndTime(each) - NOW) / SECOND);
 
 describe("性質 5.9 の前提——Timer は現在の設定で同期済み（pending-order-expiry Requirement 4）", () => {
   it("未同期の Timer では成り立たない：採用側だけが再同期し（+1031.5 秒 × 2）、全棄却側は元の状態のまま（+1030 / +1033 秒）", () => {

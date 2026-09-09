@@ -141,11 +141,12 @@ const genScene = fc
 /**
  * 両状態で同じに成立する操作。**除くのは `StartOrderItem` だけ**（ヘッダの理由）。
  *
- * `PlanArrived` は落ちた品目を指すので、**`isStale` で棄却されるのは `forgotten` 側だけ**である。
- * ただし `full` 側も採用はされない——実測で 945 scene の採用 0 件であり、`isStale` を通った後の別のゲート
- * （総費用の比較など）で落ちている。**つまり両側とも最終的には no-op** であり、ここで踏めているのは
- * 「stale による棄却が片側にだけ起きても走行中 Timer は動かない」までである。
- * **採用と全棄却が同時に起きる非対称そのものは `order-item-forgotten.example` が別に固定する**
+ * `PlanArrived` は落ちた品目を指すが、**両側とも `isStale` で落ちて no-op になる**（実測）。落ちた品目は
+ * この生成器では必ず走行中 Timer の参照先であり、`pendingOrders` は `cooking` を除くので、**`full` 側でも
+ * その品目は計画対象に入らない**——`forgotten` 側だけが stale なのではなく、`full` 側も同じ理由で stale で
+ * ある。ゆえに `PlanArrived` がここで踏んでいるのは「受領という遷移が走行中 Timer を動かさない」までで、
+ * 採否の非対称は一切踏んでいない。
+ * **採用と全棄却が同時に起きる非対称は `order-item-forgotten.example` が別に固定する**
  * （`adoptedPlanScene.ts` の採用実績のある場面で、`acceptedSlices` の変化と状態不変を直接主張する）。
  */
 function genEventFor(

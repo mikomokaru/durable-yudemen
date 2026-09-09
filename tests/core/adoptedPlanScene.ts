@@ -12,7 +12,8 @@
 // 「何も起きないもの同士が等しい」に痩せても気づけない（実際 `order-item-forgotten.property` の無作為な
 // `PlanArrived` は 945 scene で採用 0 件だった）。
 //
-// 共有するのは**場面**だけで、主張は各テストが持つ。ここに `expect` は書かない。
+// 共有するのは**場面**だけで、主張は各テストが持つ。ここに `expect` は書かないし、主張のための射影も置かない
+// （実効終了の秒への変換は、それを読む一方のテストが持つ）。
 
 import type { CookSchedule } from "../../src/engine/schedule";
 import type { SettleParams } from "../../src/engine/settle";
@@ -27,8 +28,8 @@ import { nonEmpty } from "../nonEmpty";
 export const PLAN_NOW = 1_700_000_000_000 as EpochMillis;
 export const PLAN_SECOND = 1_000;
 
-/** 茹で時間 600 秒と 60 秒の 2 種だけを持つ店（`plan.example` と同じ）。 */
-export const ADOPTED_PLAN_PRESETS: readonly NoodlePreset[] = [
+/** 茹で時間 600 秒と 60 秒の 2 種だけを持つ店（`plan.example` と同じ）。パラメータ経由でだけ使う。 */
+const ADOPTED_PLAN_PRESETS: readonly NoodlePreset[] = [
   { noodleType: "Long", boilSeconds: { extraHard: 600, hard: 600, normal: 600, soft: 600 } },
   { noodleType: "Short", boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 } },
 ];
@@ -41,7 +42,7 @@ export const ADOPTED_PLAN_PARAMS: SettleParams = {
   arms: 2,
 };
 
-export function planSceneTimer(
+function planSceneTimer(
   id: string,
   slot: number,
   startOffsetSeconds: number,
@@ -122,12 +123,4 @@ export function planSceneState(
   orderItems: readonly OrderItem[],
 ): TimerState {
   return { ...EMPTY_STATE, timers, nextSeq: timers.length, orderItems };
-}
-
-/** 走行中 2 本の実効終了（`PLAN_NOW` からの秒）。同期の有無を読むための射影。 */
-export function planSceneEndSeconds(
-  timers: readonly Timer[],
-  effectiveEndTime: (timer: Timer) => number,
-): readonly number[] {
-  return timers.slice(0, 2).map((each) => (effectiveEndTime(each) - PLAN_NOW) / PLAN_SECOND);
 }

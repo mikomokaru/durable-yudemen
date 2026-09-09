@@ -240,22 +240,12 @@ describe("忘れられた品目は Broadcast にも wire にも現れない（AC
  * 両側とも不採用の no-op なら、主張は「何も起きないもの同士が等しい」に痩せる。ゆえに**採用が確実に
  * 起きる場面**をここで別に組み、非対称そのものを直接主張する。
  *
- * フィクスチャは `order-expiry-independence.example` の採用実績のある形に倣う——茹で 600 秒と 60 秒の
- * 2 種だけを持つ店で、短い方（`SHORT`）を先に入れる計画は自前解（`LONG` → `SHORT`・総和 1260 秒）より
- * 総費用が小さく、採用される。その `SHORT` を忘れた側では、卓 `t-b` の計画対象が空になって一片が
- * `isStale` で落ち、全棄却＝状態不変になる。
+ * 場面は `adoptedPlanScene.ts` を共有する（`order-expiry-independence.example` と同じ一組）——茹で 600 秒と
+ * 60 秒の 2 種だけを持つ店で、短い方（`PLAN_SHORT_ITEM`）を先に入れる計画は自前解（総和 1260 秒）より
+ * 総費用が小さく、採用される。その品目を忘れた側では、卓 `t-b` の計画対象が空になって一片が `isStale` で
+ * 落ち、全棄却＝状態不変になる。
  */
 describe("外部計画の非対称経路——full 側は採用され、forgotten 側は stale（性質 5.11 の前提）", () => {
-  /**
-   * `order-item-forgotten.property` は「忘却に依らず走行中 Timer は等しい」を主張するが、そこで生成する
-   * `PlanArrived` は実測で一度も採用されなかった（945 scene で採用 0 件・レビュー指摘）。両側とも不採用の
-   * no-op なら、主張は「何も起きないもの同士が等しい」に痩せる。ゆえに**採用が確実に起きる場面**をここで
-   * 別に組み、非対称そのものを直接主張する。
-   *
-   * 場面は `adoptedPlanScene.ts` を共有する（`order-expiry-independence.example` と同じ一組）——短い方
-   * （`PLAN_SHORT_ITEM`）を先に入れる計画は自前解より総費用が小さく採用される。その品目を忘れた側では
-   * 卓 `t-b` の計画対象が空になり、一片が `isStale` で落ちて全棄却になる。
-   */
   const RUNNING = synchronize(UNSYNCED_PLAN_TIMERS, ADOPTED_PLAN_PARAMS);
 
   it("full は採用して acceptedSlices が変わり、forgotten は全棄却で状態不変。それでも走行中 Timer は等しい", () => {
