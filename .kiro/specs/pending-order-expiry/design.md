@@ -30,6 +30,8 @@ domain/order.ts      liveOrders(pending, now)          ← 述語はここ一つ
 2. **`now` は各入口が既に持つものを使う。** 遷移は `args.now` / `settle` の `now`、hydration は `toWireSnapshot` の `now`、client は `correctedNow`。新しい時計は足さない。
 3. **正本と no-op 検出は触らない。** `isSamePending` は正本を比べたままにする。期限切れは遷移でも状態変化でもない。
 
+> **改訂（`order-item-truncation` ADR-0014・2026-09-09）:** 本 spec の未決 1「正本の整理」への答えが出た。推奨は (a)「残す」で始め、実機で `Persist` のサイズが問題になったら (b) と書いたが、**実際に採ったのは (b) を期限ではなく件数で、しかも別の遷移としてではなく集合の構築点で行う形**である——`ORDER_ITEM_LIMIT` = 4096 件を超えた分を `compareArrival` の古い順に落とす（ADR-0014）。**期限と保持は別の軸のまま**であり、本 spec の判断 1（期限は状態を書き換える出来事ではなく `now` から導く述語）は変わらない——`truncateOrderItems` は `now` も Timer も設定も受けず、`isLive` を一度も呼ばない。「正本の集合は伸び続ける」という Consequences の記述だけが、ここで置き換わる。
+
 ## Data Models
 
 変更なし。`PendingOrder` / `TimerState` / `StoreSnapshot` / wire の `snapshot` の形は同じ（永続の版は 12 のまま）。加わるのは定数と純粋関数だけ。

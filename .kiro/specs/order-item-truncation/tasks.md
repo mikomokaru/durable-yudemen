@@ -80,10 +80,13 @@
       拒否は WS へエラーを返すので、accept 済みのサーバ側ソケットを渡す必要がある（最初は client 側を渡して `You must call one of accept()...` で落ちた）。変異体 2 つで確認：`migrate` の上限を外すと (1) の Working_Copy が 4133 のままで落ち、hydration に `put` を足すと (1) の「`put` は起きない」と (2) の「そこで初めて縮む」が両方落ちる
   - _Requirements: 2.5, 2.6, 3.1, 3.2, 3.4, 3.5, 4.3, 4.6, 5.10, 5.11_
 
-- [ ] 6. 文書
-  - [ ] 6.1 `docs/adr/0014-order-item-set-is-bounded-not-swept.md`：注文品目の正本は有界であり、上限は掃除の出来事ではなく集合の構築点に作り込む。ADR-0013（品目は生涯を通じて残る）と ADR-0011（期限は絞るのであって除かない）の両方に条件を付ける横断的な判断として記す。**忘却は不可逆**であること、容量とのトレードオフ（4096 の根拠と、件数がバイト上界を与えないこと）を含める
-  - [ ] 6.2 `yude-men-timer/design.md:523` に改訂注記：backend は SQLite（`new_sqlite_classes`）、上限は key + value 合わせて 2 MB、状態は Timer だけではない（`orderItems` / `acceptedSlices` / `shownPlan`）。**事実の更新に限る**（判断は ADR-0014 側）
-  - [ ] 6.3 `order-lifecycle` と `pending-order-expiry` に改訂注記：前者には「品目は生涯を通じて残る**が、件数の上限で最も古いものから忘れられる**」、後者にはその未決 1 への答え（期限ではなく件数で、別の遷移としてではなく構築点で）
+- [x] 6. 文書
+  - [x] 6.1 `docs/adr/0014-order-item-set-is-bounded-not-swept.md`：注文品目の正本は有界であり、上限は掃除の出来事ではなく集合の構築点に作り込む。ADR-0013（品目は生涯を通じて残る）と ADR-0011（期限は絞るのであって除かない）の両方に条件を付ける横断的な判断として記す。**忘却は不可逆**であること、容量とのトレードオフ（4096 の根拠と、件数がバイト上界を与えないこと）を含める
+    - 実測（2026-09-09）：`docs/adr/0014-order-item-set-is-bounded-not-swept.md`（ADR-0011 と同じ形——本文・Considered Options・Consequences）。本文は 5 段——(1) ADR-0013 以降 `orderItems` が減らなくなった事実と単一キーの `put` に効く 2 つの形、(2) **上限は集合の性質であって出来事ではない**（構築点は 2 箇所・第 2 の状態を作らない）、(3) **truncate はストレージ操作ではなく配列を短くすること**（KV API のみ・行は存在しない・shell は変えない）、(4) 件数だけ・古い順だけ・何も守らない（`now` を受けないことが期限との線）、(5) **忘却の不可逆性**と「到着は拒否しない」（`MAX_TIMERS` との立場の違い）。Considered Options は 5 件（時間窓で正本も切る／`cooking` を守る／掃除を別の遷移や Alarm にする／バイト予算／hydration で確定する）。Consequences には 4096 の根拠と実測（1 件 279.7 B・満杯で品目集合 1.093 MiB・全体 1.137 MiB・96.1%）、2 MB の上限、hydration では縮まないこと、鍵の重複が移行失敗になること、後着が生き返ること、版を上げないこと、有界性の検査が列挙であること、`lastSequenceByTerminal` が対象外であることを書いた
+  - [x] 6.2 `yude-men-timer/design.md:523` に改訂注記：backend は SQLite（`new_sqlite_classes`）、上限は key + value 合わせて 2 MB、状態は Timer だけではない（`orderItems` / `acceptedSlices` / `shownPlan`）。**事実の更新に限る**（判断は ADR-0014 側）
+    - 実測（2026-09-09）：`yude-men-timer/design.md` の「サイズ見積り」節に改訂注記を足した（本文は消さず、後ろに注記を置く既存の形）。訂正は 3 点——(1) backend は SQLite（`new_sqlite_classes`）で上限は key + value 合わせて 2 MB、「KV バックエンドで 128 KiB」は backend を移した時点で更新されないまま残った記述、(2) 状態に載るのは Timer だけではなく大きさを支配するのは `orderItems`（実測つき）、(3) 4096 件で有界化した（ただし件数はバイト上界ではない）。「単一キー丸ごと put / get」という形そのものは変わらないことも明記した
+  - [x] 6.3 `order-lifecycle` と `pending-order-expiry` に改訂注記：前者には「品目は生涯を通じて残る**が、件数の上限で最も古いものから忘れられる**」、後者にはその未決 1 への答え（期限ではなく件数で、別の遷移としてではなく構築点で）
+    - 実測（2026-09-09）：`order-lifecycle/design.md` と `pending-order-expiry/design.md` の `## Data Models` の前に改訂注記を置いた（両 spec の既存の注記と同じ形）。前者には「生涯を通じて残るが**無限には残らない**」と、**何も守らないので参照が解けない Timer が判断 13 / 14 の想定より広く起こる**こと（ただし通る経路は既存のまま）。後者には未決 1 への答えと、**期限と保持は別の軸のまま**である（`truncateOrderItems` は `isLive` を呼ばない）こと。あわせて **ADR-0011 の Consequences**「正本の集合は伸び続ける」に取り消し線と後継の指示を入れた——spec 側だけ直して ADR に古い帰結が残れば、後から読む人がそこで止まる
   - _Requirements: 4.1, 判断 6・8_
 
 - [ ] 7. 全数チェックポイント（`pnpm typecheck` / `pnpm lint` 0 errors / `pnpm test` / `pnpm fmt:check`）。property は数回再実行する
