@@ -40,7 +40,7 @@
 ### スコープ外
 
 - **時間窓による正本の整理**（判断 2）。期限は読む側の述語のまま。
-- **落とした品目の外部保存。** Operation History は Timer の操作（`boil-started` / `boiled` / `adjusted` / `completed` / `cancelled`）を既に tail から出しており、調理の履歴はそちらに在る。注文品目そのものを別の保管先へ流すことは本 spec では扱わない（未決 2）。
+- **落とした品目の外部保存。** Operation History は Timer の操作（`boil-started` / `boiled` / `adjusted` / `completed` / `cancelled`）を既に tail から出しているので、**観測できた操作はそちらに残りうる**。ただしあれは best-effort の telemetry であって「完全な権威履歴ではない」と定義されており（`operation-history-log` Requirement・既存作用が例外終了した場合は欠落を許容する）、**忘却で失った厨房の事実の代替にはならない**。注文品目そのものを別の保管先へ流すことは本 spec では扱わない（未決 2）。
 - **文字列長の検証**（観測事実 9）。バイト数を厳密に有界にするなら `itemName` 等に長さの上限を置くか、件数ではなくバイト予算で切ることになるが、いずれも別の関心である（未決 1）。
 - **状態の他の成員**（観測事実 5〜6）。`timers` / `acceptedSlices` / `shownPlan` は構造的に有界なので触る理由がない。`lastSequenceByTerminal` は構造的には有界でないが、その有界化は外部契約（端末集合の有限性・識別子の長さ）に関わる別の関心であり、本 spec は前提として明示するに留める（未決 4）。
 - **上限に達したことの通知・UI。**
@@ -49,7 +49,7 @@
 
 - **Order_Item_Limit（品目の上限）**: 正本 `TimerState.orderItems` が持てる件数の上限。4096 の定数。
 - **Truncation（忘れる）**: 上限を超えた分を、`compareArrival` で最も古いものから落とすこと。正本を書き換える操作であり、`pending-order-expiry` の期限（読む側の述語）とは別の機構である。
-- **Forgotten_Item（忘れられた品目）**: 上限超過で正本から落ちた品目。永続にも snapshot にも現れず、それを指す Timer は「参照先なし」として扱われる。
+- **Forgotten_Item（忘れられた品目）**: 上限超過で正本から落ちた品目。**忘れられている間は**永続にも snapshot にも現れず、それを指す Timer は「参照先なし」として扱われる。**永久に現れないという意味ではない**——同じ鍵（`externalOrderId` + `itemIndex`）の品目は POS の後着で再登録されうる（Requirement 3.4）。そのとき戻るのは鍵と POS 由来の注文属性だけで、**以前の厨房の事実（`completedAt` / `interruptedAt`）と元の `arrivalTime` は復元されない**。
 
 ## Requirements
 
