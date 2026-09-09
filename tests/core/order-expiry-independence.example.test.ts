@@ -14,105 +14,31 @@
 import { describe, expect, it } from "vitest";
 import { receivePlan } from "../../src/engine/plan";
 import { adjustedEndTime } from "../../src/engine/project";
-import type { CookSchedule } from "../../src/engine/schedule";
-import type { SettleParams } from "../../src/engine/settle";
-import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import { synchronize } from "../../src/engine/sync";
-import { createTimer, type Timer } from "../../src/engine/timer";
-import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
+import type { Timer } from "../../src/engine/timer";
 import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
-import type { NoodlePreset } from "../../src/domain/store";
-import { schedulingDefaults } from "../storeConfigDefaults";
-import { nonEmpty } from "../nonEmpty";
+import {
+  ADOPTED_PLAN_PARAMS,
+  IMPROVING_PLAN,
+  PLAN_LONG_ITEM,
+  PLAN_NOW,
+  PLAN_SECOND,
+  PLAN_SHORT_ITEM,
+  planSceneEndSeconds,
+  planSceneState,
+  UNSYNCED_PLAN_TIMERS,
+} from "./adoptedPlanScene";
 
-const NOW = 1_700_000_000_000 as EpochMillis;
-const SECOND = 1_000;
-
-/** 茹で時間 600 秒と 60 秒の 2 種だけを持つ店（`plan.example` と同じ）。 */
-const PRESETS: readonly NoodlePreset[] = [
-  { noodleType: "Long", boilSeconds: { extraHard: 600, hard: 600, normal: 600, soft: 600 } },
-  { noodleType: "Short", boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 } },
-];
-
-/** 1 ユニット・arms 2・許容 1%。近い 2 本は一つの Sync_Set に入り、遠い塞ぎ Timer は入らない。 */
-const PARAMS: SettleParams = {
-  noodlePresets: PRESETS,
-  ...schedulingDefaults(1),
-  toleranceRatio: 1,
-  arms: 2,
-};
-
-function timer(
-  id: string,
-  slot: number,
-  startOffsetSeconds: number,
-  endOffsetSeconds: number,
-  seq: number,
-): Timer {
-  return createTimer({
-    id: id as TimerId,
-    slotIds: nonEmpty([String(slot) as SlotId]),
-    noodleType: "Long" as NoodleType,
-    firmness: "normal",
-    startTime: (NOW + startOffsetSeconds * SECOND) as EpochMillis,
-    endTime: (NOW + endOffsetSeconds * SECOND) as EpochMillis,
-    seq,
-  });
-}
-
-/**
- * 未同期の 2 本（釜 1・2、茹で 1200 秒、上がりが +1030 秒と +1033 秒——窓は各 ±12 秒で重なる）と、遠い未来まで釜 3〜5 を
- * 塞ぐ 3 本（上がりが 2000 秒ずつ離れ、同期の対象にならない）。釜 0 だけが空いている。
- */
-const UNSYNCED: readonly Timer[] = [
-  timer("t-near-1", 1, -170, 1030, 1),
-  timer("t-near-2", 2, -167, 1033, 2),
-  ...[3, 4, 5].map((slot) => timer(`t-blocked-${slot}`, slot, 0, 10_000 + 2_000 * slot, slot)),
-];
-
-/** 長い麺の A（卓 t-a）と短い麺の B（卓 t-b）。同時到着ゆえ自前解は A → B と置く（総和 1260 秒）。 */
-const LONG: OrderItem = {
-  externalOrderId: "o-long",
-  itemIndex: 0,
-  noodleType: "Long",
-  firmness: "normal",
-  tableId: "t-a",
-  arrivalTime: NOW,
-  slotSpan: 1,
-  itemName: null,
-  sizeName: null,
-  completedAt: null,
-  interruptedAt: null,
-};
-const SHORT: OrderItem = {
-  ...LONG,
-  externalOrderId: "o-short",
-  noodleType: "Short",
-  tableId: "t-b",
-};
-
-/** B を先に入れる計画（総和 720 秒）。生きている待ち行列では採用される。 */
-const IMPROVING: CookSchedule = {
-  slices: [
-    {
-      tableKey: "t-b",
-      placements: [
-        {
-          externalOrderId: SHORT.externalOrderId,
-          itemIndex: 0,
-          slotIds: nonEmpty(["0" as SlotId]),
-          startAt: NOW,
-          serveAt: (NOW + 60 * SECOND) as EpochMillis,
-          anchor: null,
-        },
-      ],
-    },
-  ],
-};
-
-function stateWith(timers: readonly Timer[], pending: readonly OrderItem[]): TimerState {
-  return { ...EMPTY_STATE, timers, nextSeq: timers.length, orderItems: pending };
-}
+// 場面（プリセット・パラメータ・塞ぎ Timer・LONG / SHORT・改善計画）は `adoptedPlanScene.ts` を共有する
+// ——`order-item-truncation` 性質 5.11 の前提も同じ形を要るためで、採用が起きる場面を各テストが自前に
+// 組めば、片方だけが黙って採用されなくなっても気づけない。ここが持つのは主張だけである。
+const NOW = PLAN_NOW;
+const SECOND = PLAN_SECOND;
+const PARAMS = ADOPTED_PLAN_PARAMS;
+const UNSYNCED = UNSYNCED_PLAN_TIMERS;
+const LONG = PLAN_LONG_ITEM;
+const SHORT = PLAN_SHORT_ITEM;
+const IMPROVING = IMPROVING_PLAN;
 
 /** 待ち行列の arrivalTime だけを寿命以上過去へ動かす（Timer・設定・時刻・計画は同じ）。 */
 function expiredOf(pending: readonly OrderItem[]): readonly OrderItem[] {
@@ -122,20 +48,19 @@ function expiredOf(pending: readonly OrderItem[]): readonly OrderItem[] {
   }));
 }
 
-const endSeconds = (timers: readonly Timer[]) =>
-  timers.slice(0, 2).map((t) => (adjustedEndTime(t) - NOW) / SECOND);
+const endSeconds = (timers: readonly Timer[]) => planSceneEndSeconds(timers, adjustedEndTime);
 
 describe("性質 5.9 の前提——Timer は現在の設定で同期済み（pending-order-expiry Requirement 4）", () => {
   it("未同期の Timer では成り立たない：採用側だけが再同期し（+1031.5 秒 × 2）、全棄却側は元の状態のまま（+1030 / +1033 秒）", () => {
     expect(endSeconds(UNSYNCED)).toEqual([1030, 1033]);
 
     const alive = receivePlan(
-      stateWith(UNSYNCED, [LONG, SHORT]),
+      planSceneState(UNSYNCED, [LONG, SHORT]),
       { type: "PlanArrived", plan: IMPROVING, now: NOW },
       PARAMS,
     );
     const expired = receivePlan(
-      stateWith(UNSYNCED, expiredOf([LONG, SHORT])),
+      planSceneState(UNSYNCED, expiredOf([LONG, SHORT])),
       { type: "PlanArrived", plan: IMPROVING, now: NOW },
       PARAMS,
     );
@@ -155,12 +80,12 @@ describe("性質 5.9 の前提——Timer は現在の設定で同期済み（pe
     expect(endSeconds(synced)).toEqual([1031.5, 1031.5]);
 
     const alive = receivePlan(
-      stateWith(synced, [LONG, SHORT]),
+      planSceneState(synced, [LONG, SHORT]),
       { type: "PlanArrived", plan: IMPROVING, now: NOW },
       PARAMS,
     );
     const expired = receivePlan(
-      stateWith(synced, expiredOf([LONG, SHORT])),
+      planSceneState(synced, expiredOf([LONG, SHORT])),
       { type: "PlanArrived", plan: IMPROVING, now: NOW },
       PARAMS,
     );

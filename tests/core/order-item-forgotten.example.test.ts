@@ -1,15 +1,21 @@
-// tests/core/order-item-forgotten.example.test.ts — 忘れられた品目の帰結（Requirement 3）。
+// tests/core/order-item-forgotten.example.test.ts — 忘れられた品目の帰結（Requirement 3）と、
+// 性質 5.11 の前提（外部計画の採用と全棄却が同時に起きる非対称）。
 //
-// Feature: order-item-truncation, Requirement 3
-// **Validates: Requirements 3.1, 3.2, 3.4, 3.5, 4.6**
+// Feature: order-item-truncation, Requirement 3 / Property 5.11
+// **Validates: Requirements 3.1, 3.2, 3.4, 3.5, 4.6, 5.11**
 //
 // **新しいコードは無い。** 上限で品目が落ちたとき、engine が通るのは既に在る経路である——参照先の無い Timer
 // （アドホック開始・v12 由来の Timer が既に通っている道・order-lifecycle 判断 13）と、集合に無い品目への開始
 // （`OrderItemNotFound`）。ここはそれを回帰として固定する。
 //
-// 場面は**実際に truncation を通して**作る。状態を手で組んで「参照先が無い」形を置くのではなく、満杯の集合へ
-// 新しい注文が届いて最も古い品目が落ちる、という本物の経路で作る——手で組めば「上限がその状態を生む」ことは
-// 検査されない。
+// **場面の作り方は節によって違う。**
+//   - Requirement 3 の 4 節（参照先の消失・開始の拒否・後着・配信）は**実際に truncation を通して**作る。
+//     状態を手で組んで「参照先が無い」形を置くのではなく、満杯の集合へ新しい注文が届いて最も古い品目が
+//     落ちる、という本物の経路を通す——手で組めば「上限がその状態を生む」ことが検査されない。
+//   - 最後の節（性質 5.11 の前提・外部計画の非対称）は**手で組んだ場面**である。ここで要るのは「上限が
+//     その状態を生む」ことではなく「品目が在る／無いで採否が分かれる」ことであり、しかも採用が起きる
+//     場面は自前解に総費用で勝つ計画でなければ成立しない。ゆえに `adoptedPlanScene.ts` の共有場面
+//     （通ることが確かめられた一組）を使い、忘却は品目集合から外すことで表す。
 
 import { describe, expect, it } from "vitest";
 import { decide } from "../../src/engine/decide";
@@ -25,10 +31,15 @@ import { DEFAULT_NOODLE_PRESETS } from "../../src/domain/store";
 import { receivePlan } from "../../src/engine/plan";
 import { adjustedEndTime } from "../../src/engine/project";
 import { synchronize } from "../../src/engine/sync";
-import type { CookSchedule } from "../../src/engine/schedule";
-import type { SettleParams } from "../../src/engine/settle";
-import type { NoodlePreset } from "../../src/domain/store";
-import { schedulingDefaults } from "../storeConfigDefaults";
+import {
+  ADOPTED_PLAN_PARAMS,
+  IMPROVING_PLAN,
+  PLAN_LONG_ITEM,
+  PLAN_NOW,
+  PLAN_SHORT_ITEM,
+  planSceneState,
+  UNSYNCED_PLAN_TIMERS,
+} from "./adoptedPlanScene";
 import { settleParams } from "../settleParams";
 import { nonEmpty } from "../nonEmpty";
 
@@ -235,94 +246,34 @@ describe("忘れられた品目は Broadcast にも wire にも現れない（AC
  * `isStale` で落ち、全棄却＝状態不変になる。
  */
 describe("外部計画の非対称経路——full 側は採用され、forgotten 側は stale（性質 5.11 の前提）", () => {
-  const SECOND = 1_000;
-  const PLAN_PRESETS: readonly NoodlePreset[] = [
-    { noodleType: "Long", boilSeconds: { extraHard: 600, hard: 600, normal: 600, soft: 600 } },
-    { noodleType: "Short", boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 } },
-  ];
-  const PLAN_PARAMS: SettleParams = {
-    noodlePresets: PLAN_PRESETS,
-    ...schedulingDefaults(1),
-    toleranceRatio: 1,
-    arms: 2,
-  };
-
-  function blockingTimer(id: string, slot: number, endOffsetSeconds: number, seq: number): Timer {
-    return createTimer({
-      id: id as TimerId,
-      slotIds: nonEmpty([String(slot) as SlotId]),
-      noodleType: "Long" as NoodleType,
-      firmness: "normal",
-      startTime: NOW,
-      endTime: (NOW + endOffsetSeconds * SECOND) as EpochMillis,
-      seq,
-    });
-  }
-
-  /** 釜 0 だけを空け、近い 2 本は一つの Sync_Set に入る（同期済みで与える）。 */
-  const RUNNING: readonly Timer[] = synchronize(
-    [
-      blockingTimer("t-near-1", 1, 1030, 1),
-      blockingTimer("t-near-2", 2, 1033, 2),
-      ...[3, 4, 5].map((slot) =>
-        blockingTimer(`t-blocked-${slot}`, slot, 10_000 + 2_000 * slot, slot),
-      ),
-    ],
-    PLAN_PARAMS,
-  );
-
-  const LONG: OrderItem = { ...item("o-long", 0, NOW), noodleType: "Long", tableId: "t-a" };
-  const SHORT: OrderItem = { ...item("o-short", 0, NOW), noodleType: "Short", tableId: "t-b" };
-
-  /** `SHORT` を先に入れる計画（総和 720 秒）。品目が在る側では採用される。 */
-  const IMPROVING: CookSchedule = {
-    slices: [
-      {
-        tableKey: "t-b",
-        placements: [
-          {
-            externalOrderId: SHORT.externalOrderId,
-            itemIndex: 0,
-            slotIds: nonEmpty(["0" as SlotId]),
-            startAt: NOW,
-            serveAt: (NOW + 60 * SECOND) as EpochMillis,
-            anchor: null,
-          },
-        ],
-      },
-    ],
-  };
-
-  const stateWith = (orderItems: readonly OrderItem[]): TimerState => ({
-    ...EMPTY_STATE,
-    timers: RUNNING,
-    nextSeq: RUNNING.length,
-    orderItems,
-  });
+  /**
+   * `order-item-forgotten.property` は「忘却に依らず走行中 Timer は等しい」を主張するが、そこで生成する
+   * `PlanArrived` は実測で一度も採用されなかった（945 scene で採用 0 件・レビュー指摘）。両側とも不採用の
+   * no-op なら、主張は「何も起きないもの同士が等しい」に痩せる。ゆえに**採用が確実に起きる場面**をここで
+   * 別に組み、非対称そのものを直接主張する。
+   *
+   * 場面は `adoptedPlanScene.ts` を共有する（`order-expiry-independence.example` と同じ一組）——短い方
+   * （`PLAN_SHORT_ITEM`）を先に入れる計画は自前解より総費用が小さく採用される。その品目を忘れた側では
+   * 卓 `t-b` の計画対象が空になり、一片が `isStale` で落ちて全棄却になる。
+   */
+  const RUNNING = synchronize(UNSYNCED_PLAN_TIMERS, ADOPTED_PLAN_PARAMS);
 
   it("full は採用して acceptedSlices が変わり、forgotten は全棄却で状態不変。それでも走行中 Timer は等しい", () => {
-    const full = stateWith([LONG, SHORT]);
-    // `SHORT` を忘れた側。卓 t-b の計画対象が空になるので、IMPROVING の一片は isStale で落ちる。
-    const forgotten = stateWith([LONG]);
+    const full = planSceneState(RUNNING, [PLAN_LONG_ITEM, PLAN_SHORT_ITEM]);
+    // 短い方を忘れた側。卓 t-b の計画対象が空になるので、改善計画の一片は isStale で落ちる。
+    const forgotten = planSceneState(RUNNING, [PLAN_LONG_ITEM]);
+    const event = { type: "PlanArrived", plan: IMPROVING_PLAN, now: PLAN_NOW } as const;
 
-    const fromFull = receivePlan(
-      full,
-      { type: "PlanArrived", plan: IMPROVING, now: NOW },
-      PLAN_PARAMS,
-    );
-    const fromForgotten = receivePlan(
-      forgotten,
-      { type: "PlanArrived", plan: IMPROVING, now: NOW },
-      PLAN_PARAMS,
-    );
+    const fromFull = receivePlan(full, event, ADOPTED_PLAN_PARAMS);
+    const fromForgotten = receivePlan(forgotten, event, ADOPTED_PLAN_PARAMS);
 
     expect(fromFull.ok).toBe(true);
     expect(fromForgotten.ok).toBe(true);
     if (!fromFull.ok || !fromForgotten.ok) return;
 
-    // (1) full 側は**採用される**——acceptedSlices が空から IMPROVING の一片へ変わり、Effect が立つ。
+    // (1) full 側は**採用される**——acceptedSlices が空から計画の一片へ変わり、Effect が立つ。
     expect(full.acceptedSlices).toEqual([]);
-    expect(fromFull.state.acceptedSlices).toEqual(IMPROVING.slices);
+    expect(fromFull.state.acceptedSlices).toEqual(IMPROVING_PLAN.slices);
     expect(fromFull.effects.length).toBeGreaterThan(0);
 
     // (2) forgotten 側は**採用されない**——一片が stale で全棄却され、状態も Effect も動かない。
