@@ -1,6 +1,8 @@
 // domain/order.ts — 注文品目（Order_Item）という事実の契約と、その状態の導出。同じ domain 内の語彙（firmness・timer・store）だけを取り込む。
 //
-// Order_Item は「POS 由来の 1 品目」であり、**生涯を通じて一つの事実として残る**（order-lifecycle 判断 1）。正本は DO の
+// Order_Item は「POS 由来の 1 品目」であり、**開始で消費されず一つの事実として扱われる**（order-lifecycle 判断 1）。
+// ただし**永久に残るわけではない**——正本は `ORDER_ITEM_LIMIT` = 4096 件で有界化され、超えた分は到着順の古い側から
+// 忘れられる（`truncateOrderItems`・`src/engine/pending.ts`・order-item-truncation ADR-0014）。正本は DO の
 // 永続層に置く（AC 2.1）。POS の状態を正本として参照しない——外部の可用性に待ち行列の真実を委ねると、瞬断のたびに
 // 現場の見え方が揺れる。届いた事実をこちらで確定させ、確定した事実だけを配る。
 //
@@ -23,7 +25,9 @@ import { isNonEmpty, type NonEmptyArray } from "./timer";
 import { SLOT_SPAN_MAX, SLOT_SPAN_MIN, type NoodlePreset } from "./store";
 
 /**
- * OrderItem — 注文品目（旧 PendingOrder）。生涯を通じて一つの事実として残り、状態は `itemStatusOf` で導く。
+ * OrderItem — 注文品目（旧 PendingOrder）。開始で消費されず一つの事実として扱われ、状態は `itemStatusOf` で導く。
+ * 保持は `ORDER_ITEM_LIMIT` = 4096 件までで、超えた分は古い側から忘れられる（ADR-0014）——`cooking` の参照先も守らないので、
+ * 参照が解けない Timer（`orderItemOf` が null）は旧版由来・アドホックに限らず起こりうる。
  *
  * 茹で秒（boilSeconds）は持たない。StoreConfig.noodlePresets から noodleType × firmness で引ける導出値であり、
  * 持てば同じ真実が二箇所に生まれて必ずズレる（麺の設定変更が既存の待ち行列に反映されない、という形で現れる）。

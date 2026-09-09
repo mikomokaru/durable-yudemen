@@ -1,7 +1,7 @@
 // tests/shell/store-timer-rehydrate.integration.test.ts — rehydrate 配線のうち、他所で覆われていない
-// 2 節だけを受け持つ統合テスト（Workers pool）。
+// 3 節を受け持つ統合テスト（Workers pool）。
 //
-// _Validates: Requirements 7.4, 7.5, 8.6_
+// _Validates: Requirements 7.4, 7.5, 8.6・order-item-truncation Requirements 2.5, 2.6, 4.3_
 //
 // **本ファイルが主張しないこと（既に他所が固めているため、ここでは繰り返さない）。**
 //   - `get → migrate → fromSnapshot` の順序そのもの：
@@ -13,11 +13,15 @@
 //       `tests/shell/hot-path.integration.test.ts` / `tests/shell/autonomy.integration.test.ts`
 //       （接続直後の hydration snapshot が timers 0 件）
 //
-// **ゆえに本ファイルの関心は 2 節に絞る。**
+// **ゆえに本ファイルの関心は 3 節に絞る。**
 //   (1) `storage.get` の失敗で Working_Copy を確定せず throw する（要件7.5 / 8.6）。永続層への注入は
 //       これまで `put` にしか行われておらず、読み出し側の失敗経路は suite 全体で未到達だった。
 //   (2) snapshot 不在の新規起動で Alarm を設定しない（要件7.4）。空 snapshot の配信は既存が主張済みだが、
 //       「Alarm が張られていないこと」は誰も観測していない。
+//   (3) 上限を超える永続値を持つ DO の振る舞い（order-item-truncation 判断 8・Requirements 2.5 / 2.6 / 4.3）。
+//       hydration では永続値が変わらず、次の確定変化で既存キーへ 1 回だけ書かれて上限へ縮む——この 2 つを
+//       分けて固定する。純粋関数の側（migrate が上限を当てること）は `tests/core/migrate.example` が持つが、
+//       「hydration が put を起こさない」は shell の配線でしか観測できない。
 //
 // **(1) で用いる継ぎ目と、それが誠実である理由。** 注入先は `runInDurableObject` が渡す実 instance の
 // `ctx.storage`（既存の `put` 注入と同一の storage）で、起点は **エントリポイントの前段 `ensureLoaded`**
@@ -39,6 +43,8 @@ import type { NoodlePreset, StoreConfig } from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import type { TimerState } from "../../src/engine/state";
 import { configResidualDefaults } from "../storeConfigDefaults";
+import { ORDER_ITEM_LIMIT } from "../../src/engine/pending";
+import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
 
 // cloudflare:test の env を本 Worker の Env 型で解決する（STORE_TIMER_DO バインディングを型付きで引く）。
 declare module "cloudflare:test" {
@@ -198,5 +204,119 @@ describe("rehydrate 配線の未到達節（要件7.4 / 7.5 / 8.6）", () => {
     expect(observed.snapshot).toBeUndefined();
     // 要件7.4 の核：不在からの空初期化では Alarm を張らない。
     expect(observed.alarm).toBeNull();
+  });
+});
+
+/**
+ * order-item-truncation Requirement 4.3 / AC 2.5 / 2.6 —— 上限超過の永続値を持つ DO の振る舞い。
+ *
+ * 判断 8：**hydration は縮めた集合を確定しない。** `ensureLoaded` は `migrate` → `fromSnapshot` で
+ * Working_Copy を組むだけで、そのために `put` を起こさない。永続が縮むのは次に `Persist` が立つ
+ * 任意の確定変化のときである。
+ *
+ * ここは 2 つを**分けて**固定する。
+ *   (1) hydration の直後：Working_Copy は上限以下に縮んでいるが、**永続値は元のまま**（`put` は 1 度も起きない）。
+ *   (2) 次の確定変化：**既存キーへ 1 回だけ** `put` が立ち、そこで初めて永続値が上限へ縮む。
+ *
+ * あわせて AC 2.5 / 2.6——掃除のための専用の鍵も遷移も増えていないこと（storage のキー集合が不変で、
+ * 確定変化 1 回あたりの `put` が 1 回のままであること）を同じテストで見る。
+ */
+describe("上限超過の永続値（order-item-truncation Requirement 4.3 / AC 2.5 / 2.6）", () => {
+  afterEach(async () => {
+    await reset();
+  });
+
+  /** v13 の素の 1 品目（永続値の形）。 */
+  function rawItem(index: number) {
+    return {
+      externalOrderId: `o-${String(index).padStart(6, "0")}`,
+      itemIndex: 0,
+      noodleType: NOODLE,
+      firmness: "normal",
+      tableId: null,
+      arrivalTime: 1_700_000_000_000 + index * 1000,
+      slotSpan: 1,
+      itemName: null,
+      sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
+    };
+  }
+
+  it("hydration では永続値が変わらず、次の確定変化で既存キーへ 1 回だけ書かれて上限へ縮む", async () => {
+    const storeId = freshStoreId("over-limit-hydration");
+    const stub = await provision(storeId);
+    const OVER_LIMIT_ITEM_COUNT = ORDER_ITEM_LIMIT + 37;
+
+    const observed = await runInDurableObject(stub, async (instance, state) => {
+      // (0) 上限を超える永続値を直に置く（旧版の DO が積み上げた状態の再現）。
+      await state.storage.put(SNAPSHOT_KEY, {
+        version: CURRENT_SCHEMA_VERSION,
+        timers: [],
+        nextSeq: 0,
+        orderItems: Array.from({ length: OVER_LIMIT_ITEM_COUNT }, (_unused, index) =>
+          rawItem(index),
+        ),
+        acceptedSlices: [],
+        requestedDigest: null,
+        lastSequenceByTerminal: {},
+        shownPlan: [],
+      });
+      const keysBefore = [...(await state.storage.list()).keys()].sort();
+
+      // put を数える（掃除のための余分な書き込みが増えていないことを見る）。
+      const runtime = instance as unknown as RehydrateRuntime;
+      const originalPut = state.storage.put.bind(state.storage);
+      const putKeys: string[] = [];
+      (state.storage as { put: unknown }).put = (key: unknown, value: unknown) => {
+        putKeys.push(String(key));
+        return (originalPut as (k: unknown, v: unknown) => Promise<void>)(key, value);
+      };
+
+      // (1) hydration だけを起こす。未ロードへ戻し、**確定変化にならない**入口を通す
+      //     （存在しない Timer への complete は TimerNotFound で拒否され、Persist が立たない）。
+      runtime.loaded = false;
+      // 拒否は WS へエラーを返すので、受け取れるソケット（accept 済みのサーバ側）を渡す。
+      const pair = new WebSocketPair();
+      const server = pair[1];
+      server.accept();
+      await instance.webSocketMessage(
+        server,
+        JSON.stringify({ type: "complete", timerId: "absent" }),
+      );
+
+      const afterHydration = {
+        working: runtime.workingCopy.orderItems.length,
+        persisted: ((await state.storage.get(SNAPSHOT_KEY)) as { orderItems: readonly unknown[] })
+          .orderItems.length,
+        puts: [...putKeys],
+      };
+
+      // (2) 確定変化を 1 つ起こす（Timer の開始）。
+      putKeys.length = 0;
+      await startTimer(instance, "1");
+
+      const afterChange = {
+        persisted: ((await state.storage.get(SNAPSHOT_KEY)) as { orderItems: readonly unknown[] })
+          .orderItems.length,
+        puts: [...putKeys],
+      };
+
+      (state.storage as { put: unknown }).put = originalPut;
+      const keysAfter = [...(await state.storage.list()).keys()].sort();
+      return { afterHydration, afterChange, keysBefore, keysAfter };
+    });
+
+    // (1) hydration：Working_Copy は縮むが、**永続値は元のまま**で put は 1 度も起きない。
+    expect(observed.afterHydration.working).toBe(ORDER_ITEM_LIMIT);
+    expect(observed.afterHydration.persisted).toBe(OVER_LIMIT_ITEM_COUNT);
+    expect(observed.afterHydration.puts).toEqual([]);
+
+    // (2) 次の確定変化：**既存キーへ 1 回だけ**書かれ、そこで初めて永続値が上限へ縮む。
+    expect(observed.afterChange.puts).toEqual([SNAPSHOT_KEY]);
+    expect(observed.afterChange.persisted).toBe(ORDER_ITEM_LIMIT);
+
+    // AC 2.5 / 2.6：掃除のための鍵は増えていない（storage のキー集合が不変）。
+    expect(observed.keysAfter).toEqual(observed.keysBefore);
   });
 });

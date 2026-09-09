@@ -1,4 +1,5 @@
-// engine/pending.ts — Order_Item 集合の 2 つの変換（到着の upsert・注文単位の除去）と集合の同一性。
+// engine/pending.ts — Order_Item 集合の 3 つの変換（到着の upsert・注文単位の除去・上限による truncation）と
+// 集合の同一性、および件数の上限（ORDER_ITEM_LIMIT）。
 // cloudflare:workers にも storage にも触れない純粋モジュール。
 //
 // 到着の意味論は **upsert ひとつ**で足りる。同一 External_Order_Id の再送は冪等（AC 1.3）であり、
@@ -10,13 +11,66 @@
 // 「生きた Timer を持つ品目は置換の結果から除く」規則は撤去した。前者は品目を事実として残すモデルと相容れず、後者は
 // A を調理中に同じ注文 {A, B} が再送されるだけで正本が {B} に置き換わり、A の参照先が消える（判断 8）。
 //
-// 2 つの関数はいずれも「変わらないなら入力の配列インスタンスをそのまま返す」。settle の確定結果の
-// 同一性判定が空振りの Persist / Broadcast を落とす前段として、ここで no-op を構造的に見えるように
-// しておく（呼び出し側が差分を再計算しなくても === で分かる）。
+// 3 つの変換はいずれも「変わらないなら**引数として受け取った配列インスタンスそのもの**を返す」——`upsertOrder` は
+// 結果が現在の集合と同一なら `items`、`removeOrder` は除く対象が無ければ `items`、`truncateOrderItems` は
+// 上限以下なら `items`。settle の確定結果の同一性判定が空振りの Persist / Broadcast を落とす前段として、
+// ここで no-op を構造的に見えるようにしておく（呼び出し側が差分を再計算しなくても === で分かる）。
 
-import { itemKeyOf, itemStatusOf, type ItemKey, type OrderItem } from "../domain/order";
+import {
+  compareArrival,
+  itemKeyOf,
+  itemStatusOf,
+  type ItemKey,
+  type OrderItem,
+} from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { Timer } from "./timer";
+
+/**
+ * Order_Item_Limit — 正本（`TimerState.orderItems`）が持てる品目の件数の上限（order-item-truncation AC 1.5）。
+ *
+ * 4096。永続の値の上限（SQLite バックエンドで key + value 合わせて 2 MB）に対し、代表的な品目 279 バイトで
+ * 1.09 MB、長めの商品名（400 バイト）でも 1.56 MB に収まる最大の 2 冪である。`MAX_TIMERS`（100）と同じ立場の
+ * 定数で、店舗設定・ワイヤ・環境変数のいずれからも読まない。
+ *
+ * **件数はバイト数の厳密な上界ではない。** `itemName` / `sizeName` / `externalOrderId` は長さを検証しない
+ * （`toDeclaredName` は「空でない文字列か」だけを見る）ので、1 件あたりのバイト数に上限は無い。ここが与えるのは
+ * 「代表的な入力で桁が変わらない」ことであって、`put` が必ず通る保証ではない（ADR-0014）。
+ */
+export const ORDER_ITEM_LIMIT = 4096;
+
+/**
+ * Truncation — 上限を超えた分を、`compareArrival` の古い順に落とす（order-item-truncation Requirement 1）。
+ *
+ * **`now` も Timer も設定も受けない。** 期限（`isLive`・読む側の述語）が `now` から導く関心であるのに対し、
+ * 保持は正本そのものの性質である。同じ「古いものを外す」でも軸が違うので、入力を分けることで混ざらないようにする。
+ *
+ * 何も守らない——`cooking`（生きた Timer の参照先）も落ちうる（判断 3）。守る述語を一つ入れれば「上限を超えて
+ * いるのに落とせない」場面が生まれ、上限が上限でなくなる。落ちた参照先は既に在る「参照先なし」の経路
+ * （`orderItemOf` が null）へ落ちるだけで、新しい経路も新しい拒否事由も要らない。
+ *
+ * 手順は 2 段。**選定にだけ全順序を使い、残る品目の相対順序は入力のまま**（判断 5）——並べ替えれば内容の同じ
+ * 再送が差分に見えて空振りの `Persist` / `Broadcast` を呼ぶ（`upsertOrder` が位置を保つのと同じ理由）。
+ *
+ * `compareArrival` が全順序になるのは**鍵が一意なとき**に限る（AC 1.6）。それが本関数の事前条件であり、
+ * engine 側では成立している（`upsertOrder` は `itemKeyOf` を鍵に upsert し、一つの到着の中の重複は
+ * `arrivalsOf` の Map が畳む）。破れうるのは永続からの復元だけなので、関門は `migrate` に置く。
+ *
+ * 上限以下なら**入力と同じ配列を返す**（`liveOrders` と同じ理由・参照同値で空振りの差分を作らない）。
+ * ただし**この即時脱出が効くのは上限に達するまでの間だけである**——満杯になった後は新規品目を含む
+ * あらゆる到着が上限を超えさせるので、到着のたびに整列を払う。
+ */
+export function truncateOrderItems(items: readonly OrderItem[]): readonly OrderItem[] {
+  if (items.length <= ORDER_ITEM_LIMIT) return items;
+  // 整列は入力の複製に対して行う（入力を変えない）。落とす対象は鍵の集合として持つ。
+  const dropped = new Set<ItemKey>(
+    [...items]
+      .sort(compareArrival)
+      .slice(0, items.length - ORDER_ITEM_LIMIT)
+      .map((item) => itemKeyOf(item)),
+  );
+  return items.filter((item) => !dropped.has(itemKeyOf(item)));
+}
 
 /**
  * 到着の upsert（AC 1.2 / 1.3 / 1.8・order-lifecycle Requirement 2）。
@@ -39,6 +93,10 @@ import type { Timer } from "./timer";
  *   4. 集合に無かった品目は `completedAt: null, interruptedAt: null` で加わる（AC 2.4）。v12 由来で参照先の無い Timer が
  *      残る中で POS がその品目を再送すれば、状態は `itemStatusOf` が cooking と導く——実際の入力で参照先が補われる。
  *   5. 結果が現在の集合と同一なら、現在の集合（同じ配列インスタンス）を返す（冪等）。
+ *   6. 組み上がった集合に**件数の上限を当てる**（`truncateOrderItems`・order-item-truncation AC 2.1）。
+ *      ここが件数を増やしうる唯一の経路なので、出口で上限を効かせれば上限を超えた集合は構造的に存在しない。
+ *      上限以下の通常の到着では `truncateOrderItems` が `next` をそのまま返すので、戻り値も参照同値の判定も
+ *      従来と完全に同じである。
  *
  * 「同一」は全フィールドの一致で判定する。規則 2 が既存の arrivalTime を引き継いだ後だから、これは
  * 「受理時刻を除く内容の一致」と同義になる——除外を判定側に書かずに済む。
@@ -86,7 +144,12 @@ export function upsertOrder(
     next.splice(last + 1, 0, ...fresh);
   }
 
-  return isSameOrderItems(items, next) ? items : next;
+  // **truncate してから同一性を判定する**（逆にしない・order-item-truncation Component 2）。
+  // 「新しく来た品目が全体の中で最も古く、そのまま落ちる」場合、next は items と違うが bounded は
+  // items と内容が一致する。先に判定すれば内容の同じ別インスタンスを返し、settle が空振りの
+  // Persist / Broadcast を出す。後に判定すれば元の参照へ畳める。
+  const bounded = truncateOrderItems(next);
+  return isSameOrderItems(items, bounded) ? items : bounded;
 }
 
 /**

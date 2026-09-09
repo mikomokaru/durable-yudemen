@@ -40,6 +40,8 @@ client             ClientView.orderItems（wire のまま）・左レール = pe
 3. **読む集合は二つで、期限判定は一つ。** 計画・左レール＝`pendingOrders`、snapshot＝`orderItemsToBroadcast`。どちらも `liveOrders` を内側に持つ。
 4. **厨房の事実は後着で消えない。** `completedAt` / `interruptedAt` は `complete` / `cancel` だけが書き、`upsertOrder` は触らない。
 
+> **改訂（`order-item-truncation` 判断 1・ADR-0014・2026-09-09）:** 品目が「生涯を通じて一つの事実として残る」という本 spec の規律は変わらないが、**無限には残らない**。正本 `TimerState.orderItems` は `ORDER_ITEM_LIMIT` = 4096 件で有界化され、超えた分は `compareArrival` の古い順に忘れられる（`truncateOrderItems`・`src/engine/pending.ts`）。上限を当てるのは件数を増やしうる唯一の経路（`upsertOrder` の出口）と永続から値が入ってくる口（`migrate`）の 2 箇所で、掃除のための遷移も Alarm も永続の鍵も足さない。**何も守らない**——`cooking`（生きた Timer の参照先）も落ちうるので、参照が解けない Timer は判断 13 / 14 が想定した v12 由来・アドホックの場合より広く起こる。落ちた参照先が通るのは既存の経路そのもの（`orderItemOf` が null・`complete` / `cancel` は品目に何も書かず Timer を閉じる）であり、新しい経路も新しい拒否事由も足していない。忘却は不可逆で、`completedAt` を持つ品目の履歴もそこで失われる。
+
 ## Data Models
 
 ```ts

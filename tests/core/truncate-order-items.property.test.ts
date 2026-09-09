@@ -1,0 +1,151 @@
+// tests/core/truncate-order-items.property.test.ts — order-item-truncation の性質 5.1〜5.7。
+//
+// Feature: order-item-truncation, Properties 5.1〜5.7
+// **Validates: Requirements 1.1〜1.6, 5.1〜5.7**
+//
+// 対象は engine/pending の truncateOrderItems。`items` だけに依存する純粋関数ゆえ、時刻も Timer も
+// 設定も渡さない——それが期限（読む側の述語・now に依存する）と保持（正本の性質・now に依存しない）を
+// 分ける線である（design 原則 2）。
+//
+// 入力は 2 帯に分ける。**上限以下**（即時脱出の経路）と**上限超過**（整列して落とす経路）で、
+// 通る道が違うためである。上限超過の帯は 1 件あたり 4096 件超の配列を組むので、runs を絞る代わりに
+// 超過分 k を 1〜8 で振る——定常状態の k は一つの到着の品目数に留まる（design Component 1）ので、
+// そこが実際に踏まれる範囲である。
+//
+// 生成器（genUniqueOrderItems）は鍵の一意性を尊重する。これは truncateOrderItems の**事前条件**であり
+// （AC 1.6）、破れうるのは永続からの復元だけなので、そこには別に関門が要る（migrate・task 3）。
+
+import * as fc from "fast-check";
+import { describe, expect, it } from "vitest";
+import { ORDER_ITEM_LIMIT, truncateOrderItems } from "../../src/engine/pending";
+import { compareArrival, itemKeyOf, type ItemKey, type OrderItem } from "../../src/domain/order";
+import { genUniqueOrderItems, shuffleBySeed } from "./generators";
+
+/** 上限以下の帯（即時脱出）。空・単独・上限ちょうどを含む。 */
+const genUnderLimit = fc.oneof(
+  genUniqueOrderItems({ minLength: 0, maxLength: 40 }),
+  genUniqueOrderItems({ minLength: ORDER_ITEM_LIMIT, maxLength: ORDER_ITEM_LIMIT }),
+);
+
+/** 上限超過の帯（整列して落とす）。超過分 k は 1〜8。 */
+const genOverLimit = genUniqueOrderItems({
+  minLength: ORDER_ITEM_LIMIT + 1,
+  maxLength: ORDER_ITEM_LIMIT + 8,
+});
+
+const keysOf = (items: readonly OrderItem[]): ReadonlySet<ItemKey> =>
+  new Set(items.map((item) => itemKeyOf(item)));
+
+/**
+ * SUT を呼び、**入力が一切変わっていないこと**を毎回検査してから結果を返す（AC 1.2）。
+ *
+ * 期待値を「呼び出し**後**の `items`」から組んではならない——実装が入力を in-place で整列しても、
+ * 期待値も同じ順に並び替わって一致してしまう（実際、`[...items].sort` を `items.sort` にした変異体は
+ * この関門を入れる前の 7 件をすべて通過した）。
+ *
+ * 控えるものは 2 つで、**壊れ方が 2 通りあるから**である。
+ *   - 参照列（`before`）——配列そのものの並べ替えを捕まえる。
+ *   - 値の複製（`beforeValues`）——**要素の中身**の書き換えを捕まえる。参照列だけでは足りない：
+ *     `[...items]` は同じ要素参照を持つので、`item.arrivalTime = …` のような in-place の書き換えは
+ *     控えた側にも同時に反映されて一致してしまう。
+ */
+function truncateGuarded(items: readonly OrderItem[]): readonly OrderItem[] {
+  const before = [...items];
+  // `OrderItem` は原始値だけの平坦な形なので、浅い複製がそのまま値の複製になる
+  // （`structuredClone` は同じ主張に対して 3 倍近く遅い）。
+  const beforeValues = before.map((item) => ({ ...item }));
+  const result = truncateOrderItems(items);
+  expect(items.length).toBe(before.length);
+  // **要素ごとに `expect` を呼ばない。** 4096 件 × 100 runs では expect の呼び出し自体が支配的になる
+  // （実測：5.6 の二重ループは 1 run で最大 32,768 回）。述語に畳んで 1 回にする——主張は同じである。
+  expect(items.every((item, index) => item === before[index])).toBe(true);
+  expect(items).toEqual(beforeValues);
+  return result;
+}
+
+/** 上限超過の帯は 1 件が 4096 件超の配列ゆえ runs を絞る（k の範囲は 8 通りしかない）。 */
+const OVER_LIMIT_ASSERT_OPTIONS = { numRuns: 100 };
+
+describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", () => {
+  it("5.1 有界：どの入力でも結果は ORDER_ITEM_LIMIT 以下", () => {
+    fc.assert(
+      fc.property(fc.oneof(genUnderLimit, genOverLimit), (items) => {
+        expect(truncateGuarded(items).length).toBeLessThanOrEqual(ORDER_ITEM_LIMIT);
+      }),
+      OVER_LIMIT_ASSERT_OPTIONS,
+    );
+  });
+
+  it("5.2 冪等：二度当てても一度と同じ", () => {
+    fc.assert(
+      fc.property(genOverLimit, (items) => {
+        const once = truncateGuarded(items);
+        expect(truncateGuarded(once)).toBe(once);
+      }),
+      OVER_LIMIT_ASSERT_OPTIONS,
+    );
+  });
+
+  it("5.3 部分集合：要素の内容を変えず、入力に在るものだけを返す", () => {
+    fc.assert(
+      fc.property(genOverLimit, (items) => {
+        const kept = truncateGuarded(items);
+        const source = new Map(items.map((item) => [itemKeyOf(item), item] as const));
+        expect(kept.every((item) => source.get(itemKeyOf(item)) === item)).toBe(true);
+        expect(new Set(kept.map((item) => itemKeyOf(item))).size).toBe(kept.length);
+      }),
+      OVER_LIMIT_ASSERT_OPTIONS,
+    );
+  });
+
+  it("5.4 並び保存：生き残った品目の相対順序は入力のまま", () => {
+    fc.assert(
+      fc.property(genOverLimit, (items) => {
+        // 期待値は呼び出し**前**の並びから組む（呼び出し後の items から組めば in-place 整列を見逃す）。
+        const before = [...items];
+        const kept = truncateGuarded(items);
+        const keys = keysOf(kept);
+        expect(kept).toEqual(before.filter((item) => keys.has(itemKeyOf(item))));
+      }),
+      OVER_LIMIT_ASSERT_OPTIONS,
+    );
+  });
+
+  it("5.5 恒等：上限以下なら入力と同じ参照", () => {
+    fc.assert(
+      fc.property(genUnderLimit, (items) => {
+        expect(truncateGuarded(items)).toBe(items);
+      }),
+      OVER_LIMIT_ASSERT_OPTIONS,
+    );
+  });
+
+  it("5.6 落ちるのは最も古い k 件：落ちた品目はいずれも残った品目のすべてより真に古い", () => {
+    fc.assert(
+      fc.property(genOverLimit, (items) => {
+        const before = [...items];
+        const kept = truncateGuarded(items);
+        const keys = keysOf(kept);
+        const dropped = before.filter((item) => !keys.has(itemKeyOf(item)));
+        expect(dropped.length).toBe(before.length - ORDER_ITEM_LIMIT);
+        // 「落ちた品目はいずれも残った品目のすべてより真に古い」は、**全順序の下では**
+        // 「落ちた中の最も新しい < 残った中の最も古い」と同値である（k × 4096 の二重ループを畳む）。
+        const newestDropped = dropped.reduce((a, b) => (compareArrival(a, b) >= 0 ? a : b));
+        const oldestKept = kept.reduce((a, b) => (compareArrival(a, b) <= 0 ? a : b));
+        expect(compareArrival(newestDropped, oldestKept)).toBeLessThan(0);
+      }),
+      OVER_LIMIT_ASSERT_OPTIONS,
+    );
+  });
+
+  it("5.7 決定性：入力の並びを変えても落ちる集合は同じ（鍵が一意な入力に対して）", () => {
+    fc.assert(
+      fc.property(genOverLimit, fc.integer({ min: 0, max: 0x7fff_ffff }), (items, seed) => {
+        const kept = keysOf(truncateGuarded(items));
+        const reordered = keysOf(truncateGuarded(shuffleBySeed(items, seed)));
+        expect([...reordered].sort()).toEqual([...kept].sort());
+      }),
+      OVER_LIMIT_ASSERT_OPTIONS,
+    );
+  });
+});

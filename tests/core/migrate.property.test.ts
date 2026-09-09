@@ -1,7 +1,12 @@
-// tests/core/migrate.property.test.ts — migrate と永続境界の 3 つの Property。
-//   yude-men-timer Property 13: version 不整合・移行失敗で元データ不変。
-//   pos-order-ingress Property 12: 移行は既存の挙動を保つ（v7 → v8 の欠如の埋め方）。
-//   synchronized-boil-adjustment: 現行 snapshot 往復で符号付き Adjustment を保存。
+// tests/core/migrate.property.test.ts — migrate と永続境界の Property。
+//
+// **どの spec のどの面を守るかは、各 describe の見出しが正本である。** ここに一覧を写さないのは、
+// 版が上がるたびに面が増える場所であり、写しは必ず古くなるからである（実際、v9 → v12 の 3 面が
+// 抜けたまま「3 つの Property」と名乗っていた）。ファイル全体に共通する前提だけをここに書く。
+//
+// **品目集合を組む生成器は鍵一意（`fc.uniqueArray(..., { selector: itemKeyOf })`）である。** 重複鍵は
+// `MigrationFailed` になる契約（order-item-truncation AC 4.5）なので、移行の成功を要求する面に重複を
+// 与えれば偽陽性で落ちる。重複を与える面は専用の property が別に持つ。
 
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -13,6 +18,9 @@ import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
 import { SLOT_SPAN_MIN } from "../../src/domain/store";
+import { compareArrival, itemKeyOf } from "../../src/domain/order";
+import { ORDER_ITEM_LIMIT } from "../../src/engine/pending";
+import { shuffleBySeed } from "./generators";
 
 /** version > 現行スキーマの永続データ。timers/nextSeq の妥当性に関わらず UnsupportedSchemaVersion になる。 */
 const genUnsupported = fc
@@ -125,7 +133,9 @@ const genV7Snapshot = fc.record({
   version: fc.constant(7),
   timers: fc.array(genV7Timer, { maxLength: 3 }),
   nextSeq: fc.nat({ max: 1000 }),
-  pendingOrders: fc.array(genV7PendingOrder, { maxLength: 4 }),
+  // 鍵が重複すれば移行失敗になる（order-item-truncation AC 4.5）ので、成功を要求する面では
+  // 鍵一意な集合だけを生成する。重複を与える面は専用の property で別に持つ。
+  pendingOrders: fc.uniqueArray(genV7PendingOrder, { maxLength: 4, selector: itemKeyOf }),
   acceptedSlices: fc.array(genV7AcceptedSlice, { maxLength: 2 }),
   requestedDigest: fc.option(fc.integer({ min: 0, max: 1_000_000 }), { nil: null }),
 });
@@ -304,29 +314,35 @@ describe("Feature: order-lifecycle, Requirement 6.1 / 性質 7.9: v12 → v13 �
 
   it("v12 の pendingOrders は同じ件数・同じ並びで orderItems に読み替えられ、厨房の事実は null になる", () => {
     fc.assert(
-      fc.property(fc.array(genV12Order, { maxLength: 5 }), (pendingOrders) => {
-        const result = migrate({ version: 12, timers: [], nextSeq: 0, pendingOrders });
-        expect(result.ok).toBe(true);
-        if (!result.ok) return;
-        expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
-        expect(result.snapshot.orderItems).toEqual(
-          pendingOrders.map((order) => ({ ...order, completedAt: null, interruptedAt: null })),
-        );
-        expect(result.snapshot).not.toHaveProperty("pendingOrders");
-      }),
+      fc.property(
+        fc.uniqueArray(genV12Order, { maxLength: 5, selector: itemKeyOf }),
+        (pendingOrders) => {
+          const result = migrate({ version: 12, timers: [], nextSeq: 0, pendingOrders });
+          expect(result.ok).toBe(true);
+          if (!result.ok) return;
+          expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+          expect(result.snapshot.orderItems).toEqual(
+            pendingOrders.map((order) => ({ ...order, completedAt: null, interruptedAt: null })),
+          );
+          expect(result.snapshot).not.toHaveProperty("pendingOrders");
+        },
+      ),
       { numRuns: 200 },
     );
   });
 
   it("現行 snapshot の往復（toSnapshot → migrate → fromSnapshot）は品目の厨房の事実を含めて同一", () => {
     fc.assert(
-      fc.property(fc.array(genV13Order, { maxLength: 5 }), (orderItems) => {
-        const state: TimerState = { ...EMPTY_STATE, orderItems };
-        const result = migrate(structuredClone(toSnapshot(state)));
-        expect(result.ok).toBe(true);
-        if (!result.ok) return;
-        expect(fromSnapshot(result.snapshot)).toEqual(state);
-      }),
+      fc.property(
+        fc.uniqueArray(genV13Order, { maxLength: 5, selector: itemKeyOf }),
+        (orderItems) => {
+          const state: TimerState = { ...EMPTY_STATE, orderItems };
+          const result = migrate(structuredClone(toSnapshot(state)));
+          expect(result.ok).toBe(true);
+          if (!result.ok) return;
+          expect(fromSnapshot(result.snapshot)).toEqual(state);
+        },
+      ),
       { numRuns: 200 },
     );
   });
@@ -346,34 +362,37 @@ describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさ
 
   it("版 8 の永続値は 2 項目が null になり、件数と他の事実は保たれる", () => {
     fc.assert(
-      fc.property(fc.array(genV8Order, { maxLength: 5 }), (pendingOrders) => {
-        const v8 = {
-          version: 8,
-          timers: [],
-          nextSeq: 0,
-          pendingOrders,
-          lastSequenceByTerminal: {},
-        };
-        const result = migrate(structuredClone(v8));
-        expect(result.ok).toBe(true);
-        if (!result.ok) return;
-        // 件数は変わらない——名前が読めないことは品目を落とす理由にならない。
-        expect(result.snapshot.orderItems).toHaveLength(pendingOrders.length);
-        for (const [index, order] of result.snapshot.orderItems.entries()) {
-          expect(order.itemName).toBeNull();
-          expect(order.sizeName).toBeNull();
-          // 埋めた 2 つ（と v13 の厨房の事実 2 つ）以外は写しである。
-          const {
-            itemName: _item,
-            sizeName: _size,
-            completedAt: _completed,
-            interruptedAt: _interrupted,
-            ...rest
-          } = order;
-          expect(rest).toEqual(pendingOrders[index]);
-        }
-        expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
-      }),
+      fc.property(
+        fc.uniqueArray(genV8Order, { maxLength: 5, selector: itemKeyOf }),
+        (pendingOrders) => {
+          const v8 = {
+            version: 8,
+            timers: [],
+            nextSeq: 0,
+            pendingOrders,
+            lastSequenceByTerminal: {},
+          };
+          const result = migrate(structuredClone(v8));
+          expect(result.ok).toBe(true);
+          if (!result.ok) return;
+          // 件数は変わらない——名前が読めないことは品目を落とす理由にならない。
+          expect(result.snapshot.orderItems).toHaveLength(pendingOrders.length);
+          for (const [index, order] of result.snapshot.orderItems.entries()) {
+            expect(order.itemName).toBeNull();
+            expect(order.sizeName).toBeNull();
+            // 埋めた 2 つ（と v13 の厨房の事実 2 つ）以外は写しである。
+            const {
+              itemName: _item,
+              sizeName: _size,
+              completedAt: _completed,
+              interruptedAt: _interrupted,
+              ...rest
+            } = order;
+            expect(rest).toEqual(pendingOrders[index]);
+          }
+          expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+        },
+      ),
       { numRuns: 200 },
     );
   });
@@ -738,6 +757,121 @@ describe("core/migrate — v11 → v12 の面（plan-stability 判断 1・AC 1.3
         expect(result.snapshot.acceptedSlices).toEqual(v11.acceptedSlices);
       }),
       { numRuns: 200 },
+    );
+  });
+});
+
+describe("Feature: order-item-truncation, Requirement 4: 上限と鍵の一意性の面", () => {
+  /** v13 の素の 1 品目。鍵は呼び出し側が与える（一意にも重複にも組めるようにする）。 */
+  function order(externalOrderId: string, itemIndex: number, arrivalTime: number) {
+    return {
+      externalOrderId,
+      itemIndex,
+      noodleType: "Thin",
+      firmness: "normal" as const,
+      tableId: null,
+      arrivalTime,
+      slotSpan: 1,
+      itemName: null,
+      sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
+    };
+  }
+
+  const v13With = (orderItems: readonly unknown[]) => ({
+    version: 13,
+    timers: [],
+    nextSeq: 0,
+    orderItems,
+    acceptedSlices: [],
+    requestedDigest: null,
+    lastSequenceByTerminal: {},
+    shownPlan: [],
+  });
+
+  // 上限超過の集合は 1 件が 4096 件超の配列ゆえ、runs を絞る（振れ幅は超過分 k と並びの置換だけ）。
+  const OVER_LIMIT_ASSERT_OPTIONS = { numRuns: 100 };
+
+  it("鍵が一意な上限超過の集合は、移行に成功して上限以下になる（超過は移行が直せる欠陥）", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 6 }),
+        fc.integer({ min: 0, max: 0x7fff_ffff }),
+        (overflow, seed) => {
+          const length = ORDER_ITEM_LIMIT + overflow;
+          // 鍵は一意、arrivalTime は添字の順（＝ compareArrival の順）。並びは置換して与える。
+          const built = Array.from({ length }, (_unused, index) =>
+            order(`o-${String(index).padStart(6, "0")}`, index % 3, index * 1000),
+          );
+          const given = shuffleBySeed(built, seed);
+
+          const result = migrate(v13With(given));
+
+          expect(result.ok).toBe(true);
+          if (!result.ok) return;
+          const kept = result.snapshot.orderItems;
+          // 期待値は truncateOrderItems を使わずに組む——件数・鍵・並び・古さから独立に主張する。
+          expect(kept.length).toBe(ORDER_ITEM_LIMIT);
+          const givenKeys = new Set(given.map((item) => itemKeyOf(item)));
+          const keptKeys = new Set(kept.map((item) => itemKeyOf(item)));
+          // 1. 残ったものは与えたものの部分集合で、鍵は一意のまま。
+          expect(keptKeys.size).toBe(kept.length);
+          // 要素ごとに expect を呼ばない（4096 件 × 100 runs では呼び出し自体が支配的になる）。
+          expect([...keptKeys].every((key) => givenKeys.has(key))).toBe(true);
+          // 2. 残ったものの相対順序は与えた並びのまま。
+          expect(kept.map((item) => itemKeyOf(item))).toEqual(
+            given.filter((item) => keptKeys.has(itemKeyOf(item))).map((item) => itemKeyOf(item)),
+          );
+          // 3. 落ちたものはいずれも残ったもののすべてより真に古い。
+          const dropped = given.filter((item) => !keptKeys.has(itemKeyOf(item)));
+          expect(dropped.length).toBe(overflow);
+          // 全順序の下では「落ちた中の最も新しい < 残った中の最も古い」と同値（二重ループを畳む）。
+          const newestDropped = dropped.reduce((a, b) => (compareArrival(a, b) >= 0 ? a : b));
+          const oldestKept = kept.reduce((a, b) => (compareArrival(a, b) <= 0 ? a : b));
+          expect(compareArrival(newestDropped, oldestKept)).toBeLessThan(0);
+        },
+      ),
+      OVER_LIMIT_ASSERT_OPTIONS,
+    );
+  });
+
+  it("鍵が重複する集合は、上限以下でも上限超過でも MigrationFailed（部分受理しない）", () => {
+    /** 同じ鍵の 2 件（最も古い側に置く——上限を当てれば消えうる形）と、鍵一意な rest 件。 */
+    function withDuplicate(rest: number, seed: number): readonly unknown[] {
+      const built = [
+        order("dup", 0, 0),
+        order("dup", 0, 1),
+        ...Array.from({ length: rest }, (_unused, index) =>
+          order(`o-${String(index).padStart(6, "0")}`, index % 3, 10_000 + index * 1000),
+        ),
+      ];
+      return shuffleBySeed(built, seed);
+    }
+
+    function expectMigrationFailed(items: readonly unknown[]) {
+      const result = migrate(v13With(items));
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.failure.code).toBe("MigrationFailed");
+    }
+
+    fc.assert(
+      fc.property(
+        // **両帯を各 run で必ず生成する。** 一つの整数を 0..LIMIT+4 から抽選すると上限超過になるのは
+        // 6 / 4101 通りしかなく、12 runs では 1.7% しか踏まない——「上限以下でも上限超過でも」が
+        // 事実上「上限以下だけ」になる。帯ごとに引数を分ければ、どの run も両側を検査する。
+        fc.integer({ min: 0, max: ORDER_ITEM_LIMIT - 2 }), // + 重複 2 件で上限以下
+        fc.integer({ min: ORDER_ITEM_LIMIT - 1, max: ORDER_ITEM_LIMIT + 4 }), // + 2 件で上限超過
+        fc.integer({ min: 0, max: 0x7fff_ffff }),
+        (restBelow, restAbove, seed) => {
+          expect(restBelow + 2).toBeLessThanOrEqual(ORDER_ITEM_LIMIT);
+          expect(restAbove + 2).toBeGreaterThan(ORDER_ITEM_LIMIT);
+          expectMigrationFailed(withDuplicate(restBelow, seed));
+          expectMigrationFailed(withDuplicate(restAbove, seed));
+        },
+      ),
+      OVER_LIMIT_ASSERT_OPTIONS,
     );
   });
 });

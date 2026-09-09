@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { migrate } from "../../src/engine/migrate";
 import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
+import { ORDER_ITEM_LIMIT } from "../../src/engine/pending";
 
 /** v6 の永続値に載っていた Timer 一件（v6 は adjustment まで持ち、orderItem を持たない）。 */
 const v6Timer = {
@@ -608,5 +609,87 @@ describe("migrate — v11 → v12（plan-stability 判断 1・AC 1.3・性質 5.
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.snapshot.shownPlan).toEqual([]);
+  });
+});
+
+describe("migrate — 件数の上限と鍵の一意性（order-item-truncation Requirement 4）", () => {
+  /** v13 の素の 1 品目（永続値の形。engine の OrderItem と同じ形を JSON として持つ）。 */
+  function raw(externalOrderId: string, itemIndex: number, arrivalTime: number) {
+    return {
+      externalOrderId,
+      itemIndex,
+      noodleType: "Thin",
+      firmness: "normal",
+      tableId: null,
+      arrivalTime,
+      slotSpan: 1,
+      itemName: null,
+      sizeName: null,
+      completedAt: null,
+      interruptedAt: null,
+    };
+  }
+
+  function v13With(orderItems: readonly unknown[]) {
+    return {
+      version: 13,
+      timers: [],
+      nextSeq: 0,
+      orderItems,
+      acceptedSlices: [],
+      requestedDigest: null,
+      lastSequenceByTerminal: {},
+      shownPlan: [],
+    };
+  }
+
+  it("上限を超える v13 は移行に成功し、上限を当てた集合で復元する（超過は移行が直せる欠陥）", () => {
+    const over = Array.from({ length: ORDER_ITEM_LIMIT + 5 }, (_unused, index) =>
+      raw(`o-${String(index).padStart(6, "0")}`, 0, index * 1000),
+    );
+
+    const result = migrate(v13With(over));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.orderItems.length).toBe(ORDER_ITEM_LIMIT);
+    // 落ちるのは最も古い 5 件。
+    expect(result.snapshot.orderItems[0]!.externalOrderId).toBe("o-000005");
+  });
+
+  it("鍵が重複する v13 は MigrationFailed——部分受理しない", () => {
+    const duplicated = [raw("o-1", 0, 1000), raw("o-2", 0, 2000), raw("o-1", 0, 3000)];
+
+    const result = migrate(v13With(duplicated));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe("MigrationFailed");
+  });
+
+  it("上限超過 かつ 鍵の重複ありは、truncate が重複の片割れを落としうる場合でも先に MigrationFailed", () => {
+    // 重複の 2 件をいずれも**最も古い側**に置く。上限を当てれば片方（あるいは両方）が落ちて
+    // 一意になりうる——検証が上限より後ろなら、壊れた値がそのまま状態へ入る。
+    const items: unknown[] = [
+      raw("dup", 0, 0),
+      raw("dup", 0, 1),
+      ...Array.from({ length: ORDER_ITEM_LIMIT + 3 }, (_unused, index) =>
+        raw(`o-${String(index).padStart(6, "0")}`, 0, 10_000 + index * 1000),
+      ),
+    ];
+
+    const result = migrate(v13With(items));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe("MigrationFailed");
+  });
+
+  it("形の不正は従来どおり移行失敗（上限の導入で緩めない）", () => {
+    const result = migrate(v13With([raw("o-1", 0, 1000), { externalOrderId: "o-2" }]));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe("MigrationFailed");
   });
 });
