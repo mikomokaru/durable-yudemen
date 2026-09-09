@@ -522,7 +522,7 @@ export function fireDueTimers(state: TimerState, now: EpochMillis): Outcome {
 
 最大100 Timer。1 Timer ≒ `id`/`slotId`/`noodleType`/`endTime`/`seq` で概ね 150 バイト未満。スナップショット全体で約 15 KB 未満であり、KV 値サイズ制限（KV バックエンドで 128 KiB）に対し十分小さい。単一キー丸ごと put / get で問題ない。
 
-> **改訂（`order-item-truncation` ADR-0014・2026-09-09）:** 上の見積りは**上限も前提も現状と合わない**（事実の訂正）。(1) `StoreTimerDO` は SQLite バックエンド（`wrangler.jsonc` の `new_sqlite_classes`）であり、値の上限は **key と value 合わせて 2 MB**（1 オブジェクト 10 GB）である。「KV バックエンドで 128 KiB」は backend を移した時点で更新されないまま残った記述である。(2) 状態に載るのは Timer だけではない——`orderItems`（注文品目の正本・v13）・`acceptedSlices`・`shownPlan`・`lastSequenceByTerminal` が加わり、**大きさを支配するのは `orderItems`** である（満杯の実測：品目集合 1.093 MiB・全体 1.137 MiB・品目集合が全体の 96.1%）。(3) `orderItems` は `ORDER_ITEM_LIMIT` = 4096 件で有界化した（ADR-0014）。ただし文字列長は未検証なので、件数はバイト数の厳密な上界ではない。「単一キー丸ごと put / get」という形そのものは変わらない。
+> **改訂（`order-item-truncation` ADR-0014・2026-09-09）:** 上の見積りは**上限も前提も現状と合わない**（事実の訂正）。(1) `StoreTimerDO` は SQLite バックエンド（`wrangler.jsonc` の `new_sqlite_classes`）であり、値の上限は **key と value 合わせて 2 MB** である（本節の関心は値のサイズなので、1 オブジェクトあたりの総容量はここでは扱わない——プランで異なる）。「KV バックエンドで 128 KiB」は backend を移した時点で更新されないまま残った記述である。(2) 状態に載るのは Timer だけではない——`orderItems`（注文品目の正本・v13）・`acceptedSlices`・`shownPlan`・`lastSequenceByTerminal` が加わり、**大きさを支配するのは `orderItems`** である（満杯の実測：品目集合 1.093 MiB・全体 1.137 MiB・品目集合が全体の 96.1%）。(3) `orderItems` は `ORDER_ITEM_LIMIT` = 4096 件で有界化した（ADR-0014）。ただし文字列長は未検証なので、件数はバイト数の厳密な上界ではない。「単一キー丸ごと put / get」という形そのものは変わらない。
 
 ### put 成功 = 確定の規律
 
