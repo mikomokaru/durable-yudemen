@@ -132,7 +132,7 @@ const genScene = fc
       full,
       forgotten,
       gone,
-      // 落ちた品目の 1 つ（外部計画がこれを指す＝`forgotten` 側では必ず失効する）。
+      // 落ちた品目の 1 つ（外部計画がこれを指す。走行中の参照先ゆえ両側で `isStale` になる）。
       dropped: oldest[0]!,
       now: (T0 + seed.elapsed) as EpochMillis,
     };
@@ -206,7 +206,8 @@ function genEventFor(
       ],
       now,
     } satisfies Event),
-    // 外部計画の受領。**落ちた品目を指す**ので、`forgotten` 側では必ず失効する（非対称な経路）。
+    // 外部計画の受領。落ちた品目を指すが、その品目は走行中 Timer の参照先ゆえ `pendingOrders` が
+    // `cooking` として除くので、**両側とも `isStale` で落ちる**（採否の非対称は踏まない・ヘッダの理由）。
     fc.constant({
       type: "PlanArrived",
       plan: {
