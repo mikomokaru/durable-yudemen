@@ -56,15 +56,15 @@ function truncateGuarded(items: readonly OrderItem[]): readonly OrderItem[] {
   const beforeValues = before.map((item) => ({ ...item }));
   const result = truncateOrderItems(items);
   expect(items.length).toBe(before.length);
-  items.forEach((item, index) => {
-    expect(item).toBe(before[index]);
-  });
+  // **要素ごとに `expect` を呼ばない。** 4096 件 × 100 runs では expect の呼び出し自体が支配的になる
+  // （実測：5.6 の二重ループは 1 run で最大 32,768 回）。述語に畳んで 1 回にする——主張は同じである。
+  expect(items.every((item, index) => item === before[index])).toBe(true);
   expect(items).toEqual(beforeValues);
   return result;
 }
 
 /** 上限超過の帯は 1 件が 4096 件超の配列ゆえ runs を絞る（k の範囲は 8 通りしかない）。 */
-const OVER_LIMIT_ASSERT_OPTIONS = { numRuns: 40 };
+const OVER_LIMIT_ASSERT_OPTIONS = { numRuns: 100 };
 
 describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", () => {
   it("5.1 有界：どの入力でも結果は ORDER_ITEM_LIMIT 以下", () => {
@@ -91,7 +91,7 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
       fc.property(genOverLimit, (items) => {
         const kept = truncateGuarded(items);
         const source = new Map(items.map((item) => [itemKeyOf(item), item] as const));
-        for (const item of kept) expect(source.get(itemKeyOf(item))).toBe(item);
+        expect(kept.every((item) => source.get(itemKeyOf(item)) === item)).toBe(true);
         expect(new Set(kept.map((item) => itemKeyOf(item))).size).toBe(kept.length);
       }),
       OVER_LIMIT_ASSERT_OPTIONS,
@@ -128,9 +128,11 @@ describe("truncateOrderItems の性質（order-item-truncation 5.1〜5.7）", ()
         const keys = keysOf(kept);
         const dropped = before.filter((item) => !keys.has(itemKeyOf(item)));
         expect(dropped.length).toBe(before.length - ORDER_ITEM_LIMIT);
-        for (const gone of dropped) {
-          for (const stay of kept) expect(compareArrival(gone, stay)).toBeLessThan(0);
-        }
+        // 「落ちた品目はいずれも残った品目のすべてより真に古い」は、**全順序の下では**
+        // 「落ちた中の最も新しい < 残った中の最も古い」と同値である（k × 4096 の二重ループを畳む）。
+        const newestDropped = dropped.reduce((a, b) => (compareArrival(a, b) >= 0 ? a : b));
+        const oldestKept = kept.reduce((a, b) => (compareArrival(a, b) <= 0 ? a : b));
+        expect(compareArrival(newestDropped, oldestKept)).toBeLessThan(0);
       }),
       OVER_LIMIT_ASSERT_OPTIONS,
     );

@@ -152,8 +152,9 @@ describe("永続サイズの代表値（order-item-truncation 性質 5.10）", (
     const items = utf8Bytes(snapshot.orderItems);
     const total = utf8Bytes(snapshot);
 
-    // **無条件に**伸び続けるのは orderItems だけ（観測事実 5〜6——`lastSequenceByTerminal` は構造的には
-    // 有界でなく、有界性は外部契約への前提である）。他の成員を足しても全体は品目集合に支配される
+    // **本 spec の導入前に**無条件で伸び続けていたのは orderItems だけである（観測事実 5〜6——
+    // `lastSequenceByTerminal` は構造的には有界でなく、有界性は外部契約への前提）。有界化した後も、
+    // 他の成員を足して全体が品目集合に支配されることは変わらない
     // （実測 2026-09-08：96.1%）。
     expect(items / total).toBeGreaterThan(0.9);
   });

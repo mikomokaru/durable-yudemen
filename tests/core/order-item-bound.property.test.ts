@@ -71,7 +71,7 @@ const genLarge = genUniqueOrderItems({
   maxLength: ORDER_ITEM_LIMIT + 4,
 });
 
-const BOUND_ASSERT_OPTIONS = { numRuns: 25 };
+const BOUND_ASSERT_OPTIONS = { numRuns: 100 };
 
 /**
  * **両帯を各 run で必ず検査する。** `fc.oneof` で 1 つ選ぶ形にすると、どの run がどちらの帯を踏んだかが

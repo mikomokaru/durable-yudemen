@@ -791,7 +791,7 @@ describe("Feature: order-item-truncation, Requirement 4: 上限と鍵の一意�
   });
 
   // 上限超過の集合は 1 件が 4096 件超の配列ゆえ、runs を絞る（振れ幅は超過分 k と並びの置換だけ）。
-  const OVER_LIMIT_ASSERT_OPTIONS = { numRuns: 12 };
+  const OVER_LIMIT_ASSERT_OPTIONS = { numRuns: 100 };
 
   it("鍵が一意な上限超過の集合は、移行に成功して上限以下になる（超過は移行が直せる欠陥）", () => {
     fc.assert(
@@ -817,7 +817,8 @@ describe("Feature: order-item-truncation, Requirement 4: 上限と鍵の一意�
           const keptKeys = new Set(kept.map((item) => itemKeyOf(item)));
           // 1. 残ったものは与えたものの部分集合で、鍵は一意のまま。
           expect(keptKeys.size).toBe(kept.length);
-          for (const key of keptKeys) expect(givenKeys.has(key)).toBe(true);
+          // 要素ごとに expect を呼ばない（4096 件 × 100 runs では呼び出し自体が支配的になる）。
+          expect([...keptKeys].every((key) => givenKeys.has(key))).toBe(true);
           // 2. 残ったものの相対順序は与えた並びのまま。
           expect(kept.map((item) => itemKeyOf(item))).toEqual(
             given.filter((item) => keptKeys.has(itemKeyOf(item))).map((item) => itemKeyOf(item)),
@@ -825,9 +826,10 @@ describe("Feature: order-item-truncation, Requirement 4: 上限と鍵の一意�
           // 3. 落ちたものはいずれも残ったもののすべてより真に古い。
           const dropped = given.filter((item) => !keptKeys.has(itemKeyOf(item)));
           expect(dropped.length).toBe(overflow);
-          for (const gone of dropped) {
-            for (const stay of kept) expect(compareArrival(gone, stay)).toBeLessThan(0);
-          }
+          // 全順序の下では「落ちた中の最も新しい < 残った中の最も古い」と同値（二重ループを畳む）。
+          const newestDropped = dropped.reduce((a, b) => (compareArrival(a, b) >= 0 ? a : b));
+          const oldestKept = kept.reduce((a, b) => (compareArrival(a, b) <= 0 ? a : b));
+          expect(compareArrival(newestDropped, oldestKept)).toBeLessThan(0);
         },
       ),
       OVER_LIMIT_ASSERT_OPTIONS,
