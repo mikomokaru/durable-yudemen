@@ -113,6 +113,7 @@ function planForTable(
 }
 
 describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
+  // 上限に達するまで実走させる性質ゆえ、既定の 20 秒では並列負荷の下で足りないことがある。
   it("到着・開始・完了・キャンセル・後着・取消・外部計画・hydration のどの直後でも上限を超えない", () => {
     const succeeded = new Set<EventKind>();
     let state: TimerState = EMPTY_STATE;
@@ -152,7 +153,11 @@ describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
     // 上限の 2 倍以上を投入して、上限に達した後の定常状態を十分に踏む。到着は 1 遷移に BATCH 件を
     // まとめる——1 品ずつだと遷移が 8000 回を超え、1 遷移 25〜40ms（実測）なので数分に伸びる。
     // 検査したいのは遷移の細かさではなく「何度通しても件数が上限を超えない」ことである。
-    const BATCH = 64;
+    //
+    // **BATCH は 128。** 64 だと全数実行の並列負荷（14 threads）の下で既定の 20 秒を超えて落ちることが
+    // あった（単独では約 10 秒・実測）。半分の遷移数でも上限には round 32 で達し、その後 33 round を
+    // 定常状態で回すので、踏む場面は変わらない。長く走るテストであることは明示して timeout も与える。
+    const BATCH = 128;
     const ROUNDS = Math.ceil((ORDER_ITEM_LIMIT * 2 + 50) / BATCH);
 
     for (let round = 0; round < ROUNDS; round++) {
@@ -244,5 +249,5 @@ describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
     expect(state.orderItems.length).toBe(ORDER_ITEM_LIMIT);
     // 非 stale な一片を実際に届けたこと（stale で素通りしていないことの証拠）。
     expect(nonStalePlans).toBeGreaterThan(0);
-  });
+  }, 60_000);
 });

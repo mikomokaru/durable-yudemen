@@ -91,4 +91,9 @@
       あわせて ADR-0014 の 3 点を訂正した——(1)「落ちた品目は永続にも snapshot にも二度と現れず」は Requirement 3.4（後着による再登録）と衝突するので「**失われるのは厨房の事実**（`completedAt` / `interruptedAt` と元の `arrivalTime`）**であって鍵の再登場ではない**」に、(2)「すべての遷移が直列化を払う」は広すぎるので「`Persist` が立つ確定変化のたび」に（拒否と no-op は払わない）、(3)「無条件に伸び続けるのは `orderItems` だけ」は有界化後と矛盾するので「**本 ADR の導入前に**無条件で伸び続けていたのは」に時制を限定した。`yude-men-timer` の注記からは「1 オブジェクト 10 GB」を外した——本節の関心は値のサイズであり、総容量はプランで異なる（無条件の数値は事実として不正確）
   - _Requirements: 4.1, 判断 6・8_
 
-- [ ] 7. 全数チェックポイント（`pnpm typecheck` / `pnpm lint` 0 errors / `pnpm test` / `pnpm fmt:check`）。property は数回再実行する
+- [x] 7. 全数チェックポイント（`pnpm typecheck` / `pnpm lint` 0 errors / `pnpm test` / `pnpm fmt:check`）。property は数回再実行する
+  - 実測（2026-09-09）：`pnpm typecheck` 0 error。`pnpm lint` **0 error / 警告 76 件で、警告数は main と同一**（別 worktree で main を計測して突き合わせた——本ブランチで新規警告なし。本ブランチが触った `migrate.example` / `migrate.property` の `no-map-spread` 2 件も `ab05107` 由来の既存分）。`pnpm fmt:check` 448 files 通過。`git diff --check` 通過。本 spec の property 5 ファイル（37 件）の 3 回再実行はいずれも通過。
+  - **`pnpm test` の断続的失敗を 2 件見つけ、原因を切り分けた（実測）。**
+    1. **`order-item-bound.example` が 20 秒の既定 timeout を超える（本ブランチ由来）。** 単独では 10.4 秒だが、全数実行の並列負荷（14 threads）の下で超えることがあった。`BATCH` を 64 → 128 にして遷移数を半分にし（上限には round 32 で達し、その後 33 round を定常状態で回すので踏む場面は変わらない）**5.5 秒**に短縮、あわせて「長く走ることが設計上の性質」であることを明示して `it` に 60 秒の timeout を与えた。
+    2. **`wire-decode-failure.integration` の「記録に Wire_Text の中身が入らない」（既存の脆さ）。** `setTimeout(50)` の固定待ちの後に `toHaveLength(1)` を主張しており、負荷が高いとログが間に合わない。本 spec の変更領域（`pending.ts` / `migrate.ts`）とは無関係で、**main では全数 4 回とも再現しない**——本ブランチがテストを 44 件増やして並列負荷を上げたことで顕在化したものである。1 の短縮後は再現しなくなった。
+  - 上の 1 を直した後、**全数を 10 回連続で実行して 262 files / 1948 tests がすべて通過**（失敗 0 回）。2 は潜在的な脆さとして残る（固定待ちを待ち合わせに変えるのが本筋だが、別 spec のテストなので本 spec では触らない）
