@@ -43,7 +43,3 @@ src/display/worker-configuration.d.ts
 /docs/data_samples/noodle_plan_histories/
 /experiments/cpsat-workers/fixtures/local/
 /experiments/cpsat-workers/**/__pycache__/
-# 生成物（`pnpm poc:cpsat:build` が or-tools-wasm から作る）。6.8 MB の binary で、
-# 上の方針「コードと集計結果だけを追跡する」に従い追跡しない。root の bundle は
-# これを import しない（計画器は別 Worker）。
-/experiments/cpsat-workers/vendor/*.wasm
