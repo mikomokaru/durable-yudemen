@@ -23,7 +23,7 @@ import type { QueueEntry, QueueSuggestion } from "../../src/client/components/qu
 import { noodleColors } from "../../src/client/components/noodleColor";
 import { FIRMNESS_LABEL } from "../../src/client/components/firmness";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
-import type { OrderItem, WireOrderItem } from "../../src/domain/order";
+import type { WireOrderItem } from "../../src/domain/order";
 import { isNonEmpty, type NonEmptyArray } from "../../src/domain/timer";
 
 // globals を有効にしていないため、自動 cleanup は働かない。描画を明示的に畳む

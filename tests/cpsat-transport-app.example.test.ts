@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
 import { parseConfigFileTextToJson } from "typescript";
-import { expect, expectTypeOf, it } from "vitest";
+import { expect, it } from "vitest";
 import { isRecord } from "../src/domain/predicate";
 import { parseCpsatObservation } from "../src/cpsat/observation";
 import provenance from "./observe/fixtures/cpsat-transport-provenance.json";

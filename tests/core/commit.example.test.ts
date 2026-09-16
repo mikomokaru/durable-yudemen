@@ -10,7 +10,6 @@
 import { describe, expect, it } from "vitest";
 import { committedSchedule } from "../../src/engine/commit";
 import type { AcceptedSlice } from "../../src/engine/schedule";
-import type { ScheduleParams } from "../../src/engine/objective";
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import type { OrderItem } from "../../src/domain/order";
