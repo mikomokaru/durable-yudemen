@@ -1,7 +1,7 @@
 // tests/core/lift.property.test.ts — 上げ窓（src/engine/lift.ts）の property test。
 //
 // 対象は lift-group-planning の Requirement 7.8（上げ窓の上限）と AC 9.3・9.4・9.6・9.12。窓の数え方も置き場所も
-// 純粋関数ゆえ既定 pool で走る。時刻は整数秒で振る——上がりも候補も窓の長さも整数秒なら、firstFit が飛ぶ先
+// 純粋関数ゆえ既定 pool で走る。負荷の差分検査はミリ秒で振る。最小性の総当たりは整数秒で振る——上がりも候補も窓の長さも整数秒なら、firstFit が飛ぶ先
 // （e + L）も整数秒に閉じるので、総当たりの参照実装が整数秒だけを走査して最小性を裁定できる。
 
 import * as fc from "fast-check";
@@ -62,7 +62,7 @@ const genCandidate: fc.Arbitrary<EpochMillis> = fc
   .integer({ min: -LIFT_INTERVAL_SECONDS_MAX, max: AT_SECONDS_MAX + LIFT_INTERVAL_SECONDS_MAX })
   .map(sec);
 
-/** 参照実装：t から整数秒ずつ進め、loadWith が上限以下になる最初の時刻。表の最後の上がり + L で必ず止まる。 */
+/** 参照実装：t から整数秒ずつ進め、独立に数えた負荷が上限以下になる最初の時刻。表の最後の上がり + L で必ず止まる。 */
 function bruteForceFirstFit(
   lifts: LiftTable,
   t: EpochMillis,
@@ -73,10 +73,71 @@ function bruteForceFirstFit(
   const last = lifts.length === 0 ? t : Math.max(t, lifts[lifts.length - 1]?.at ?? t);
   const bound = last + params.liftIntervalSeconds * MILLIS_PER_SECOND;
   for (let u = t; u <= bound; u = (u + MILLIS_PER_SECOND) as EpochMillis) {
-    if (loadWith(lifts, u, span, params) <= cap) return u;
+    if (referenceLoad(lifts, u, span, params) <= cap) return u;
   }
   throw new Error("参照実装が止まらない（表の最後の上がり + L では窓に既存の上がりが無いはず）");
 }
+
+/** 各窓を独立に数える参照。firstFit の検査に本体の loadWith を使って同じ誤りを共有しない。 */
+function referenceLoad(lifts: LiftTable, t: EpochMillis, span: number, params: LiftParams): number {
+  const length = params.liftIntervalSeconds * MILLIS_PER_SECOND;
+  const origins = [
+    t,
+    ...lifts.filter((lift) => lift.at <= t && t < lift.at + length).map((lift) => lift.at),
+  ];
+  return Math.max(
+    ...origins.map(
+      (origin) =>
+        span +
+        lifts
+          .filter((lift) => origin <= lift.at && lift.at < origin + length)
+          .reduce((sum, lift) => sum + lift.span, 0),
+    ),
+  );
+}
+
+it("ミリ秒の時刻・重複する上がりでも、独立に列挙した窓の最大負荷と一致する", () => {
+  fc.assert(
+    fc.property(
+      fc.array(
+        fc.record({
+          at: fc.integer({ min: -120_000, max: 120_000 }),
+          span: fc.integer({ min: 1, max: 4 }),
+        }),
+        { maxLength: 80 },
+      ),
+      fc.integer({ min: -120_000, max: 120_000 }),
+      genParams,
+      fc.integer({ min: 0, max: 5 }),
+      (entries, at, params, span) => {
+        const epoch = 1_700_000_000_123;
+        const lifts = advanceLifts(
+          [],
+          entries.map((lift) => ({ ...lift, at: (epoch + lift.at) as EpochMillis })),
+        );
+        const candidate = (epoch + at) as EpochMillis;
+        expect(loadWith(lifts, candidate, span, params)).toBe(
+          referenceLoad(lifts, candidate, span, params),
+        );
+      },
+    ),
+    { seed: 20260915, numRuns: 1000 },
+  );
+});
+
+it("密な上げ窓の検査で、候補窓ごとの全件再走査をしない", () => {
+  let reads = 0;
+  const count = 128;
+  const lifts: LiftTable = Array.from({ length: count }, (_, at) => ({
+    get at() {
+      reads += 1;
+      return at as EpochMillis;
+    },
+    span: 1,
+  }));
+  expect(loadWith(lifts, 64 as EpochMillis, 1, { arms: 2, liftIntervalSeconds: 45 })).toBe(129);
+  expect(reads).toBeLessThanOrEqual(16 * count);
+});
 
 /**
  * 参照実装：Lift_Overflow の定義（AC 9.6）を、貪欲の割当をそのまま再帰で書いた形。

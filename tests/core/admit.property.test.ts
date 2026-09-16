@@ -82,7 +82,8 @@ interface AdmitScene {
   readonly running: readonly Timer[];
   readonly now: EpochMillis;
   readonly slotCount: number;
-  readonly params: ScheduleParams;
+  /** 採点パラメータ ＋ 計画器。**この性質試験は TS 側（改善判定が効く側）を主張する。** */
+  readonly params: ScheduleParams & { readonly planner: "ts" | "cpsat" };
   /** 外部から順に届く計画（2〜12 本）。 */
   readonly arrivals: readonly CookSchedule[];
 }
@@ -98,7 +99,8 @@ const genAdmitScene: fc.Arbitrary<AdmitScene> = fc
     const slotCount = unitCount * SLOTS_PER_UNIT;
     return fc.record({
       slotCount: fc.constant(slotCount),
-      params: genParams(unitCount),
+      // **TS 側（改善判定が効く側）を主張する性質試験である。** CP-SAT 側は別の試験が受け持つ。
+      params: genParams(unitCount).map((value) => ({ ...value, planner: "ts" as const })),
       // 開始済み Timer は釜を塞ぐ。計画対象が釜を取り合う場面（改善の余地がある場面）を作る主要な手ゆえ
       // 1 本以上を必ず置く。
       running: fc.array(genRunning(slotCount), { minLength: 1, maxLength: 5 }),
@@ -109,7 +111,8 @@ const genAdmitScene: fc.Arbitrary<AdmitScene> = fc
       // 落とす）流し、そこから派生させた版を足す。
       seeds: fc.array(
         fc.record({
-          params: genParams(unitCount),
+          // **TS 側（改善判定が効く側）を主張する性質試験である。** CP-SAT 側は別の試験が受け持つ。
+          params: genParams(unitCount).map((value) => ({ ...value, planner: "ts" as const })),
           /**
            * 派生版（ずらした計画・継ぎ接ぎ）の素にどちらを採るか。**茹で時間の短い順**は段 2 まで通る
            * 改善を生み、**Table_Group を 1 つ落とす**手は部分和だけが改善して段 2 で落ちる計画を生む。

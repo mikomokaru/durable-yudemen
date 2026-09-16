@@ -1,0 +1,34 @@
+{
+  "startedAt": "2026-09-10T11:22:33.520Z",
+  "phase": "disabled-planner-bootstrap",
+  "worker": "yude-men-cpsat-planner-dev",
+  "path": "/plan",
+  "method": "GET",
+  "expectedStatus": 503,
+  "route": "Wrangler getPlatformProxy, remote service binding; no public URL",
+  "request": {
+    "reservation": "3aba7566-26fb-41e3-8315-7b87d3fca12a",
+    "started": 1789039355945,
+    "returnedAt": 1789039356497,
+    "status": 503
+  },
+  "ledger": {
+    "dispatch": 1,
+    "operation": 0,
+    "connection": 0,
+    "inFlight": 0,
+    "openConnections": 0,
+    "unconfirmedConnections": 0,
+    "unsettledFromEarlierRuns": {
+      "dispatch": 0,
+      "operation": 0,
+      "connection": 0
+    },
+    "observedDispatches": 0,
+    "stopIsRederivable": null,
+    "unattributedDispatches": 0,
+    "stopped": null
+  },
+  "error": null,
+  "claim": "Disabled-entry refusal only; not Wasm execution, callback or acceptance/solve separation"
+}

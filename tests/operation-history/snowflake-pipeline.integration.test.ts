@@ -33,6 +33,7 @@ import {
   timerStateOf,
 } from "./support/tail-to-r2";
 import { arrivalEvidence, snowpipeIngest, type RawArrival } from "./support/snowpipe";
+import { canonicalLinesOf } from "./support/canonical-capture";
 
 const STORE_ID = "store-1";
 /** producerTimer の endTime。boiled の Event Time と、復元できる期待記録の Event Time でもある。 */
@@ -148,7 +149,7 @@ async function stagedArrivals(): Promise<{
 }> {
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
   for (const observation of observations) tryWriteOperationLines(true, observation);
-  const producedLines = log.mock.calls.map((call) => call[0] as string);
+  const producedLines = canonicalLinesOf(log.mock.calls);
   // 一件目（arrived の boil-started）だけ二度観測された。
   const observedLines = [producedLines[0]!, ...producedLines];
 

@@ -1,0 +1,55 @@
+{
+  "measuredAt": "2026-09-08T11:50:11.546Z",
+  "url": "https://yude-men-cpsat-wasm-poc.yamaokaya.workers.dev",
+  "checks": [
+    {
+      "path": "/health",
+      "method": "GET",
+      "authenticated": false,
+      "expectedStatus": 401,
+      "status": 401,
+      "cfRay": "a37dbbf2eda6d4c3-NRT",
+      "body": {
+        "error": "unauthorized"
+      },
+      "passed": true
+    },
+    {
+      "path": "/run?case=hard-search&repeat=5&deterministicLimit=0.05",
+      "method": "GET",
+      "authenticated": true,
+      "expectedStatus": 400,
+      "status": 400,
+      "cfRay": "a37dbbf3ce78d4c3-NRT",
+      "body": {
+        "error": "hard-case work budget per request must not exceed 0.2"
+      },
+      "passed": true
+    },
+    {
+      "path": "/run",
+      "method": "POST",
+      "authenticated": true,
+      "expectedStatus": 405,
+      "status": 405,
+      "cfRay": "a37dbbf3ee9dd4c3-NRT",
+      "body": {
+        "error": "expected GET"
+      },
+      "passed": true
+    },
+    {
+      "path": "/missing",
+      "method": "GET",
+      "authenticated": true,
+      "expectedStatus": 404,
+      "status": 404,
+      "cfRay": "a37dbbf40ebfd4c3-NRT",
+      "body": {
+        "error": "not found"
+      },
+      "passed": true
+    }
+  ],
+  "passed": true
+}

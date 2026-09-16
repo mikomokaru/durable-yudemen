@@ -23,7 +23,8 @@ const SECOND = 1_000;
 const PRESETS: readonly NoodlePreset[] = [
   { noodleType: "Thin", boilSeconds: { extraHard: 60, hard: 60, normal: 60, soft: 60 } },
 ];
-const PARAMS: ScheduleParams = schedulingDefaults(1);
+/** 1 ユニット（6 釜）。**計画器は TS**——この試験は尾部を自前解で埋める側を主張する。 */
+const PARAMS = { ...schedulingDefaults(1), planner: "ts" as const };
 
 /** 大盛（2 釜）の 1 品目。 */
 const WIDE: OrderItem = {

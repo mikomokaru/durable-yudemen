@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  // getPlatformProxy only: no executable Worker, routes or deployment name.
+  "account_id": "305d89a643ac689b4204454c5493cbde",
+  "compatibility_date": "2026-09-09",
+  "services": [
+    // 求解 Worker への直接 binding は置かない（2026-09-12・Queue 方式）。ドライバから
+    // CP-SAT へ到達する手段は、shim を叩くか試験入口を叩くかのどちらかである。
+    { "binding": "SOLVER", "service": "yude-men-cpsat-transport-shim-dev", "remote": true },
+    // The driver's own way in. Named entrypoints have no URL, so this binding
+    // is the only path to them — which is also why they are not public.
+    {
+      "binding": "CPSAT_TRANSPORT_PROBE",
+      "service": "yude-men-timer",
+      "entrypoint": "CpsatTransportProbe",
+      "remote": true,
+    },
+    {
+      "binding": "CPSAT_TRANSPORT_OPERATIONS",
+      "service": "yude-men-timer",
+      "entrypoint": "CpsatTransportOperations",
+      "remote": true,
+    },
+  ],
+}

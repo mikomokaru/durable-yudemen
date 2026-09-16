@@ -13,12 +13,19 @@
     "fmt:check": "oxfmt --check",
     "test": "vitest --run",
     "cf-typegen": "wrangler types",
-    "access-preflight": "vite-node --config tools/preflight.vite.config.ts tools/check-access-enablement.ts"
+    "short-names:types": "wrangler types --config=wrangler.short-names.jsonc --include-runtime=false --env-interface=ShortNamesEnv src/display/worker-configuration.d.ts",
+    "access-preflight": "vite-node --config tools/preflight.vite.config.ts tools/check-access-enablement.ts",
+    "poc:cpsat:build": "bash experiments/cpsat-workers/scripts/build-wasm.sh",
+    "poc:cpsat:bench": "node experiments/cpsat-workers/scripts/benchmark.mjs",
+    "poc:cpsat:inspect": "node experiments/cpsat-workers/scripts/inspect-wasm.mjs",
+    "poc:cpsat:typecheck": "tsc --noEmit --project experiments/cpsat-workers/tsconfig.json",
+    "poc:cpsat:types": "wrangler types experiments/cpsat-workers/worker-configuration.d.ts --config experiments/cpsat-workers/wrangler.jsonc --env-interface CpsatPocEnv"
   },
   "dependencies": {
     "jose": "^6.2.3",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.42.3",

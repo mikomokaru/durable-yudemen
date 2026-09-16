@@ -245,6 +245,7 @@ const genScene: fc.Arbitrary<IndependenceScene> = fc
   .chain((seed) => {
     const params: SettleParams = {
       noodlePresets: DEFAULT_NOODLE_PRESETS,
+      planner: "ts" as const,
       ...seed.schedule,
       toleranceRatio: seed.toleranceRatio,
       arms: seed.arms,

@@ -230,9 +230,10 @@ describe("実走での有界性（order-item-truncation 性質 5.9）", () => {
         const plan = planForTable(members, planTable, planSlots, now);
         // **届ける計画が非 stale であることを検証してから送る。** stale な計画は採否を語る前に土俵から
         // 落ちるので、それを送っていては「受領の遷移を踏んだ」以上のことを主張できない。
-        expect(isStale(plan.slices[0]!, targets), "届ける一片が stale では検査にならない").toBe(
-          false,
-        );
+        expect(
+          isStale(plan.slices[0]!, targets, true),
+          "届ける一片が stale では検査にならない",
+        ).toBe(false);
         nonStalePlans++;
         step({ type: "PlanArrived", plan, now });
       }

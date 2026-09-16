@@ -1,0 +1,3700 @@
+{
+  "measuredAt": "2026-09-10T09:04:22.748Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "appEffectPathTested": true,
+  "engineGeneration": {
+    "measured": false,
+    "count": null,
+    "reason": "H1 is not wired in the real shell"
+  },
+  "shimReceipts": [
+    {
+      "transport": "shim",
+      "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "receivedAt": 1789031064055,
+      "pendingCount": 1,
+      "runningCount": 0
+    },
+    {
+      "transport": "shim",
+      "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "receivedAt": 1789031064081,
+      "pendingCount": 1,
+      "runningCount": 0
+    }
+  ],
+  "effectTrials": [
+    {
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+      "status": 200,
+      "problem": "small"
+    },
+    {
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+      "status": 200,
+      "problem": "hard"
+    }
+  ],
+  "transportCoverage": {
+    "boundary": "shim receipt after input/store/window validation",
+    "doToShimMeasured": false,
+    "preReceiptRefusalsMeasured": false,
+    "operationToDispatch": "inference only; not H1",
+    "durableLedgerImplemented": true
+  },
+  "ledger": {
+    "limits": {
+      "dispatch": 128,
+      "operation": 512,
+      "connection": 32,
+      "concurrent": 4,
+      "openConnections": 4
+    },
+    "totals": {
+      "dispatch": 11,
+      "operation": 3,
+      "connection": 4,
+      "inFlight": 0,
+      "openConnections": 2,
+      "unconfirmedConnections": 0,
+      "unsettledFromEarlierRuns": {
+        "dispatch": 0,
+        "operation": 0,
+        "connection": 0
+      },
+      "observedDispatches": 7,
+      "stopIsRederivable": null,
+      "unattributedDispatches": 0,
+      "stopped": null
+    },
+    "durable": "append-only journal, reservation flushed before the work it authorises",
+    "restartCrossingExercisedHere": false,
+    "restartCrossingCoveredBy": "tests/cpsat-transport-ledger.example.test.ts",
+    "operationAllowance": "one dispatch per operation; an unreserved observed dispatch stops the trial",
+    "connectionAllowance": "cumulative WebSocket attempts, charged one dispatch each: a connection that wakes a cold object runs the constructor's Reconcile through runEffects, which can emit a request",
+    "openConnectionsAtReport": "the two observing sockets were still open when this snapshot was taken; they are released in teardown, which returns the simultaneity slot but not the attempt",
+    "connectionsWereWarmHere": "this run connected to an already running object, so no connection caused a dispatch; that is a property of this run, not of connections"
+  },
+  "browserReachability": {
+    "measured": false,
+    "basis": "argued from the asserted loopback behaviour plus the Fetch standard, not from a browser run",
+    "specification": "https://fetch.spec.whatwg.org/#cors-preflight-fetch",
+    "serverFacts": [
+      "OPTIONS preflight answers 404 with no Access-Control-Allow-* headers",
+      "Content-Type is a single-value allowlist of application/json, so all three preflight-free types are refused with 415",
+      "no response carries Access-Control-Allow-Origin or Access-Control-Allow-Credentials",
+      "foreign, null and missing Origin are refused with 403; foreign Host and localhost aliases are refused with 403"
+    ],
+    "browserAssumptions": [
+      "a request carrying Authorization or Content-Type: application/json is not CORS-safelisted, so a cross-origin browser runs a preflight first and does not send the actual request when that preflight is refused",
+      "Host is a forbidden header name that script cannot set, so a page cannot forge a Host unrelated to the URL it requests; the browser still derives Host from the URL, so the localhost-alias refusal is reachable from a page and is refused there"
+    ],
+    "outOfScope": "environments where those assumptions do not hold, such as browser extensions or relaxed local policies"
+  },
+  "loopbackCases": [
+    {
+      "label": "foreign Host",
+      "status": 403,
+      "forwarded": 0,
+      "clientWallMs": 1.1997499999999945
+    },
+    {
+      "label": "localhost alias",
+      "status": 403,
+      "forwarded": 0,
+      "clientWallMs": 0.4772090000000162
+    },
+    {
+      "label": "foreign Origin with valid token",
+      "status": 403,
+      "forwarded": 0,
+      "clientWallMs": 0.3328749999999445
+    },
+    {
+      "label": "null Origin",
+      "status": 403,
+      "forwarded": 0,
+      "clientWallMs": 0.44195799999999963
+    },
+    {
+      "label": "missing Origin",
+      "status": 403,
+      "forwarded": 0,
+      "clientWallMs": 0.37112500000000637
+    },
+    {
+      "label": "missing token",
+      "status": 401,
+      "forwarded": 0,
+      "clientWallMs": 0.3861660000000029
+    },
+    {
+      "label": "wrong token",
+      "status": 401,
+      "forwarded": 0,
+      "clientWallMs": 0.4082500000000664
+    },
+    {
+      "label": "form content type",
+      "status": 415,
+      "forwarded": 0,
+      "clientWallMs": 0.36912500000005366
+    },
+    {
+      "label": "plain content type",
+      "status": 415,
+      "forwarded": 0,
+      "clientWallMs": 0.29070899999999256
+    },
+    {
+      "label": "preflight",
+      "status": 404,
+      "forwarded": 0,
+      "clientWallMs": 0.7939579999999751
+    },
+    {
+      "label": "GET",
+      "status": 404,
+      "forwarded": 0,
+      "clientWallMs": 0.38512500000001637
+    },
+    {
+      "label": "arbitrary destination",
+      "status": 404,
+      "forwarded": 0,
+      "clientWallMs": 0.27187499999990905
+    },
+    {
+      "label": "unrelated route",
+      "status": 404,
+      "forwarded": 0,
+      "clientWallMs": 0.22729200000003402
+    },
+    {
+      "label": "forged relay Origin",
+      "status": 403,
+      "forwarded": 0,
+      "clientWallMs": 0.23137500000007094
+    },
+    {
+      "label": "oversized body",
+      "status": 413,
+      "forwarded": 0,
+      "clientWallMs": 0.3036660000000211
+    },
+    {
+      "label": "fixed-0",
+      "status": 202,
+      "forwarded": 1,
+      "clientWallMs": 94.90483400000005
+    },
+    {
+      "label": "fixed-1",
+      "status": 202,
+      "forwarded": 1,
+      "clientWallMs": 389.1871249999999
+    }
+  ],
+  "callback": "unmodified real StoreTimerDO.deliverPlan",
+  "artifacts": {
+    "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1",
+    "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8"
+  },
+  "trial": {
+    "notBefore": 1789031061747,
+    "expiresAt": 1789031182747,
+    "stores": [
+      {
+        "id": "cpsat-transport-20260909-01",
+        "series": "direct",
+        "problem": "small",
+        "ref": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74"
+      },
+      {
+        "id": "cpsat-transport-20260909-02",
+        "series": "direct",
+        "problem": "hard",
+        "ref": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882"
+      },
+      {
+        "id": "cpsat-transport-20260909-03",
+        "series": "shim",
+        "problem": "small",
+        "ref": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068"
+      },
+      {
+        "id": "cpsat-transport-20260909-04",
+        "series": "shim",
+        "problem": "hard",
+        "ref": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90"
+      }
+    ],
+    "problems": [
+      {
+        "name": "small",
+        "sha256": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "budget": 0.01
+      },
+      {
+        "name": "hard",
+        "sha256": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "budget": 0.14
+      }
+    ],
+    "code": "transport-fixed-v1",
+    "codec": "ortools-9.15.6755-export",
+    "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+    "authorization": "per-run 256-bit random token, exact loopback Origin; secret not recorded"
+  },
+  "toolchain": {
+    "node": "v26.7.0",
+    "wrangler": "4.105.0",
+    "miniflare": "4.20260625.0",
+    "esbuild": "0.28.1",
+    "compatibilityDate": "2026-06-26"
+  },
+  "checks": {
+    "negativeInputsNeverDispatch": true,
+    "publicAuthAndTsPathUnchanged": true,
+    "sharedProvenanceAdmission": true,
+    "realLoopbackRefusalsNeverForward": true,
+    "realWasmCallsRealDoCallback": true,
+    "callbackDoesNotChangeBusinessFactsOrBroadcast": true,
+    "tsHydrationOnlyAdvancesImmediateProposal": true,
+    "watchIsSubscriptionOnly": true,
+    "storeInitiatedCloseReachesCaller": true,
+    "privateEntranceDrivesRealOperations": true,
+    "realEffectReachesOnlyFixedTransport": true,
+    "bindingFailuresAreBoundedAndNeverRetryOrFallback": true,
+    "seriesAreDisjointAggregateScopes": true,
+    "distinctCountersAndCausalLinks": true,
+    "realLoopbackReachesPrivateBinding": true
+  },
+  "requests": [
+    {
+      "label": "public handler has no solver route",
+      "status": 404,
+      "clientWallMs": 2.19241599999998
+    },
+    {
+      "label": "disabled",
+      "status": 503,
+      "clientWallMs": 3.456542000000013
+    },
+    {
+      "label": "expired",
+      "status": 503,
+      "clientWallMs": 3.431124999999952
+    },
+    {
+      "label": "future",
+      "status": 503,
+      "clientWallMs": 3.102416999999946
+    },
+    {
+      "label": "wide-window",
+      "status": 503,
+      "clientWallMs": 4.164499999999975
+    },
+    {
+      "label": "missing run-token configuration",
+      "status": 401,
+      "clientWallMs": 3.232167000000004
+    },
+    {
+      "label": "unauthorized",
+      "status": 401,
+      "clientWallMs": 1.0704170000000204
+    },
+    {
+      "label": "unauthorized",
+      "status": 401,
+      "clientWallMs": 0.936458000000016
+    },
+    {
+      "label": "unauthorized",
+      "status": 401,
+      "clientWallMs": 0.8219159999999874
+    },
+    {
+      "label": "unauthorized",
+      "status": 401,
+      "clientWallMs": 0.8753750000000764
+    },
+    {
+      "label": "unauthorized",
+      "status": 401,
+      "clientWallMs": 0.8156669999999622
+    },
+    {
+      "label": "wrong path",
+      "status": 404,
+      "clientWallMs": 1.263832999999977
+    },
+    {
+      "label": "arbitrary callback query",
+      "status": 404,
+      "clientWallMs": 1.459791999999993
+    },
+    {
+      "label": "wrong method",
+      "status": 404,
+      "clientWallMs": 1.09537499999999
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.13900000000001
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.0087919999999713
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 2.157542000000035
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.6191670000000613
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.3159580000000233
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.311083999999937
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.0445840000000999
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 0.8505830000000287
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 0.8162079999999605
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 0.8237500000000182
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.3664999999999736
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.49675000000002
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.0696249999999736
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 1.0609160000000202
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 0.841542000000004
+    },
+    {
+      "label": "invalid input",
+      "status": 400,
+      "clientWallMs": 0.834957999999915
+    },
+    {
+      "label": "provenance-1",
+      "status": 400,
+      "clientWallMs": 0.9794170000000122
+    },
+    {
+      "label": "provenance-2",
+      "status": 400,
+      "clientWallMs": 0.8054580000000442
+    },
+    {
+      "label": "provenance-3",
+      "status": 400,
+      "clientWallMs": 0.7367080000000215
+    },
+    {
+      "label": "provenance-4",
+      "status": 400,
+      "clientWallMs": 1.0050840000000107
+    },
+    {
+      "label": "provenance-5",
+      "status": 400,
+      "clientWallMs": 1.1485000000000127
+    },
+    {
+      "label": "provenance-6",
+      "status": 400,
+      "clientWallMs": 0.8795420000000149
+    },
+    {
+      "label": "provenance-8",
+      "status": 400,
+      "clientWallMs": 0.8881249999999454
+    },
+    {
+      "label": "provenance-9",
+      "status": 400,
+      "clientWallMs": 1.0709169999998949
+    },
+    {
+      "label": "provenance-10",
+      "status": 400,
+      "clientWallMs": 0.8186249999999973
+    },
+    {
+      "label": "provenance-11",
+      "status": 400,
+      "clientWallMs": 1.0036669999999503
+    },
+    {
+      "label": "direct probe rejects shim scope",
+      "status": 400,
+      "clientWallMs": 1.3562499999999318
+    },
+    {
+      "label": "direct probe rejects shim scope",
+      "status": 400,
+      "clientWallMs": 0.7378750000000309
+    },
+    {
+      "label": "fixed-0",
+      "status": 202,
+      "forwarded": 1,
+      "clientWallMs": 94.90483400000005
+    },
+    {
+      "label": "fixed-1",
+      "status": 202,
+      "forwarded": 1,
+      "clientWallMs": 389.1871249999999
+    },
+    {
+      "label": "ops unauthorized",
+      "status": 401,
+      "clientWallMs": 0
+    },
+    {
+      "label": "ops missing origin",
+      "status": 401,
+      "clientWallMs": 0
+    },
+    {
+      "label": "ops unknown store",
+      "status": 404,
+      "clientWallMs": 0
+    },
+    {
+      "label": "ops wrong method",
+      "status": 404,
+      "clientWallMs": 0
+    },
+    {
+      "label": "ops unknown path",
+      "status": 404,
+      "clientWallMs": 0
+    },
+    {
+      "label": "ops oversized",
+      "status": 413,
+      "clientWallMs": 0
+    },
+    {
+      "label": "injected-unavailable",
+      "status": 503,
+      "clientWallMs": 13.189041999999972
+    },
+    {
+      "label": "injected-busy",
+      "status": 429,
+      "clientWallMs": 13.105125000000044
+    },
+    {
+      "label": "injected-unreachable",
+      "status": 503,
+      "clientWallMs": 20.425292000000127
+    }
+  ],
+  "bundleInputs": {
+    "app.ts": [
+      "../../../src/worker-auth.ts",
+      "../../../src/engine/types.ts",
+      "../../../src/engine/timer.ts",
+      "../../../src/engine/sync.ts",
+      "../../../src/engine/snapshot.ts",
+      "../../../src/domain/timer.ts",
+      "../../../src/engine/project.ts",
+      "../../../src/engine/alarm.ts",
+      "../../../src/domain/firmness.ts",
+      "../../../src/domain/predicate.ts",
+      "../../../src/domain/store.ts",
+      "../../../src/engine/lift.ts",
+      "../../../src/engine/recommend.ts",
+      "../../../src/domain/messages.ts",
+      "../../../src/domain/order.ts",
+      "../../../src/domain/lift-group.ts",
+      "../../../src/engine/boil.ts",
+      "../../../src/engine/stability.ts",
+      "../../../src/engine/objective.ts",
+      "../../../src/engine/schedule.ts",
+      "../../../src/engine/commit.ts",
+      "../../../src/engine/pending.ts",
+      "../../../src/engine/digest.ts",
+      "../../../src/engine/settle.ts",
+      "../../../src/engine/start.ts",
+      "../../../src/engine/cancel.ts",
+      "../../../src/engine/complete.ts",
+      "../../../src/engine/adjust.ts",
+      "../../../src/engine/fire.ts",
+      "../../../src/engine/order.ts",
+      "../../../src/engine/admit.ts",
+      "../../../src/engine/plan.ts",
+      "../../../src/engine/state.ts",
+      "../../../src/engine/receive.ts",
+      "../../../src/engine/decide.ts",
+      "../../../src/engine/migrate.ts",
+      "../../../src/observe/log.ts",
+      "../../../src/transport/heartbeat.ts",
+      "../../../src/transport/rejection.ts",
+      "../../../src/domain/wire.ts",
+      "../../../src/ingress/declared-text.ts",
+      "../../../src/ingress/noodle-spec.ts",
+      "../../../src/ingress/unique-key.ts",
+      "../../../src/registry/authz.ts",
+      "../../../src/registry/slug.ts",
+      "../../../src/operation-history/codec.ts",
+      "../../../src/operation-history/derive.ts",
+      "../../../src/operation-history/producer.ts",
+      "../../../src/shell/store-timer-do.ts",
+      "manifest.json",
+      "../../../src/cpsat/observation.ts",
+      "../../../src/cpsat/observe.ts",
+      "request.ts",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/buffer_utils.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/base64.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/util/base64url.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/crypto_key.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/invalid_key_input.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/util/errors.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/is_key_like.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/content_encryption.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/helpers.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/type_checks.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/aeskw.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/ecdhes.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/pbes2kw.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/signing.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/rsaes.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/jwk_to_key.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/normalize_key.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/asn1.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/key/import.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/key_to_jwk.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/key/export.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/aesgcmkw.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/key_management.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/validate_crit.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/validate_algorithms.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/check_key_type.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/deflate.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwe/flattened/decrypt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwe/compact/decrypt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwe/general/decrypt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwe/flattened/encrypt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwe/general/encrypt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jws/flattened/verify.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jws/compact/verify.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jws/general/verify.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/lib/jwt_claims_set.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwt/verify.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwt/decrypt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwe/compact/encrypt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jws/flattened/sign.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jws/compact/sign.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jws/general/sign.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwt/sign.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwt/encrypt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwk/thumbprint.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwk/embedded.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwks/local.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwks/remote.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/jwt/unsecured.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/util/decode_protected_header.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/util/decode_jwt.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/key/generate_key_pair.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/key/generate_secret.js",
+      "../../../node_modules/.pnpm/jose@6.2.3/node_modules/jose/dist/webapi/index.js",
+      "../../../src/ingress/batch.ts",
+      "../../../src/ingress/arrival-window.ts",
+      "../../../src/ingress/outcome.ts",
+      "../../../src/ingress/store-code.ts",
+      "../../../src/worker-entry.ts",
+      "../../../src/registry/compose.ts",
+      "../../../src/registry/roster.ts",
+      "../../../src/registry/converge.ts",
+      "../../../src/registry/reverse-index.ts",
+      "../../../src/registry/code-index.ts",
+      "../../../src/registry/validate.ts",
+      "../../../src/registry/policy-conflict.ts",
+      "../../../src/registry/held-record.ts",
+      "../../../src/shell/store-registry-do.ts",
+      "../../../src/worker.ts",
+      "app.ts"
+    ],
+    "shim.ts": [
+      "../../../src/domain/predicate.ts",
+      "manifest.json",
+      "../../../src/cpsat/observation.ts",
+      "../../../src/cpsat/observe.ts",
+      "request.ts",
+      "shim.ts"
+    ],
+    "solver.ts": [
+      "../vendor/cpsat_workers_poc_runtime.js",
+      "../../../src/domain/predicate.ts",
+      "../../../src/cpsat/observation.ts",
+      "../../../src/cpsat/observe.ts",
+      "fixtures.json",
+      "manifest.json",
+      "solver.ts"
+    ]
+  },
+  "observations": [
+    {
+      "at": 1789031063549,
+      "backend": "cpsat",
+      "eventId": "57f3d772-dcda-4956-990c-1d718f8479be",
+      "fact": {
+        "origin": {
+          "kind": "probe"
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "sameInputRetry": false,
+        "type": "cpsat.request-dispatched"
+      },
+      "instanceId": "a3c11f50-311b-4ec3-8b6e-21e237868bfc",
+      "invocationId": "e7661abd-6b2d-4997-9d99-bf8698939975",
+      "mode": "probe",
+      "parentEventId": null,
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063551,
+      "backend": "cpsat",
+      "eventId": "da0c3469-b337-44a7-934b-bd1be0e7e1d4",
+      "fact": {
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.solver-accepted"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "57f3d772-dcda-4956-990c-1d718f8479be",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063562,
+      "backend": "cpsat",
+      "eventId": "15bbd380-f8ea-4ad3-b364-6760089555ab",
+      "fact": {
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.solve-started"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "da0c3469-b337-44a7-934b-bd1be0e7e1d4",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063635,
+      "backend": "cpsat",
+      "eventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "fact": {
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "status": "OPTIMAL",
+        "type": "cpsat.solve-finished"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "15bbd380-f8ea-4ad3-b364-6760089555ab",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063636,
+      "backend": "cpsat",
+      "eventId": "bf556e95-b77f-4325-babc-06e671dddc82",
+      "fact": {
+        "metric": "cpu-limit-ms",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "configuration",
+          "to": "checkpoint",
+          "value": 10000
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063636,
+      "backend": "cpsat",
+      "eventId": "1c52d883-ec9c-43b8-b306-9b697aee4699",
+      "fact": {
+        "metric": "budget-deterministic",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "configuration",
+          "to": "checkpoint",
+          "value": 0.01
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063636,
+      "backend": "cpsat",
+      "eventId": "d80399ac-be80-45de-b1e0-8f64e6ccef5f",
+      "fact": {
+        "metric": "consumed-deterministic",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "solver",
+          "to": "checkpoint",
+          "value": 0.0000307498
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063636,
+      "backend": "cpsat",
+      "eventId": "9abacbbd-362d-45b4-ac3e-df71e22f6b97",
+      "fact": {
+        "metric": "wasm-bytes",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "wasm",
+          "to": "checkpoint",
+          "value": 33554432
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063636,
+      "backend": "cpsat",
+      "eventId": "29190e42-cefb-4d27-a016-12efd1209c38",
+      "fact": {
+        "metric": "variables",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 3
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063636,
+      "backend": "cpsat",
+      "eventId": "50bc9946-c0a6-43f8-a8bd-5462464b3ec2",
+      "fact": {
+        "metric": "constraints",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 1
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063636,
+      "backend": "cpsat",
+      "eventId": "a63aee6a-2b3e-4c9d-b17e-e37606cbee1e",
+      "fact": {
+        "metric": "model-bytes",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 92
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063637,
+      "backend": "cpsat",
+      "eventId": "e6ca5455-5e7c-4bba-907e-b2dcf0d1d048",
+      "fact": {
+        "outcome": "accepted",
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.dispatch-result"
+      },
+      "instanceId": "a3c11f50-311b-4ec3-8b6e-21e237868bfc",
+      "invocationId": "e7661abd-6b2d-4997-9d99-bf8698939975",
+      "mode": "probe",
+      "parentEventId": "57f3d772-dcda-4956-990c-1d718f8479be",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063637,
+      "backend": "cpsat",
+      "eventId": "9bc8fdbf-1d2d-42a9-b407-f483ac1c9e10",
+      "fact": {
+        "outcome": "delivered",
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.callback-returned"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "b3d9a90d-8613-49fd-89e4-24c0cfe157c6",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063637,
+      "backend": "cpsat",
+      "eventId": "64a23800-d1bd-4359-9f87-93f5086ce6b4",
+      "fact": {
+        "metric": "solve-callback-wall-ms",
+        "reading": {
+          "bound": "exact",
+          "from": "solve-started",
+          "source": "host-clock",
+          "to": "callback-returned",
+          "value": 75
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "9bc8fdbf-1d2d-42a9-b407-f483ac1c9e10",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063637,
+      "backend": "cpsat",
+      "eventId": "0f3633bc-a279-4d7a-be29-96ed9874da66",
+      "fact": {
+        "metric": "cpu-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "da0c3469-b337-44a7-934b-bd1be0e7e1d4",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063637,
+      "backend": "cpsat",
+      "eventId": "a0994f8b-a0cc-4eba-9420-5f7350dfcb86",
+      "fact": {
+        "metric": "invocation-wall-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "da0c3469-b337-44a7-934b-bd1be0e7e1d4",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063637,
+      "backend": "cpsat",
+      "eventId": "ccbb51c8-e9e3-416f-87b0-900c4671317d",
+      "fact": {
+        "metric": "wait-until-wall-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "da0c3469-b337-44a7-934b-bd1be0e7e1d4",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063637,
+      "backend": "cpsat",
+      "eventId": "a20fd660-fa5d-4505-8b00-e073b9fd4d90",
+      "fact": {
+        "metric": "isolate-bytes",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "981a0d8d-87f7-481e-b656-13852b43d226",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "df102c63-a79e-4169-af5d-2b180c08b2a5",
+      "mode": "probe",
+      "parentEventId": "da0c3469-b337-44a7-934b-bd1be0e7e1d4",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063650,
+      "backend": "cpsat",
+      "eventId": "6b253385-e310-45f1-994e-156cef4f7aa4",
+      "fact": {
+        "origin": {
+          "kind": "probe"
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "sameInputRetry": false,
+        "type": "cpsat.request-dispatched"
+      },
+      "instanceId": "02cb352d-f937-47f2-a7d0-e8cda689bc88",
+      "invocationId": "4a1816d9-9303-49f2-bdb5-6c1ffeb35b5b",
+      "mode": "probe",
+      "parentEventId": null,
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063650,
+      "backend": "cpsat",
+      "eventId": "61b3590d-6543-4d6d-ad28-c866f2205b24",
+      "fact": {
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.solver-accepted"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "6b253385-e310-45f1-994e-156cef4f7aa4",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031063670,
+      "backend": "cpsat",
+      "eventId": "4f55d744-e45d-4d8f-90f6-67cce1cd668b",
+      "fact": {
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.solve-started"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "61b3590d-6543-4d6d-ad28-c866f2205b24",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "fact": {
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "status": "UNKNOWN",
+        "type": "cpsat.solve-finished"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "4f55d744-e45d-4d8f-90f6-67cce1cd668b",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "9dc5d01c-aa02-4b84-8ee7-a32f5853536c",
+      "fact": {
+        "metric": "cpu-limit-ms",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "configuration",
+          "to": "checkpoint",
+          "value": 10000
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "822ecc33-f48f-4664-9e6b-c05253abde1e",
+      "fact": {
+        "metric": "budget-deterministic",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "configuration",
+          "to": "checkpoint",
+          "value": 0.14
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "98517596-5d40-4fc1-9983-9c5db84049fb",
+      "fact": {
+        "metric": "consumed-deterministic",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "solver",
+          "to": "checkpoint",
+          "value": 0.140242550894
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "cf129cce-2ac7-4f56-81c3-dead9fa8badf",
+      "fact": {
+        "metric": "wasm-bytes",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "wasm",
+          "to": "checkpoint",
+          "value": 33554432
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "d866a9a8-65d0-479f-bf0c-d3747c655f47",
+      "fact": {
+        "metric": "variables",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 500
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "9f7247b4-0161-438a-9074-11f78f7bbb99",
+      "fact": {
+        "metric": "constraints",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 22495
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "060a5eab-9974-41cd-bf65-d2481f7064fa",
+      "fact": {
+        "metric": "model-bytes",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 604697
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064031,
+      "backend": "cpsat",
+      "eventId": "bc1e96c1-05b5-48f2-a713-0d692b65ca00",
+      "fact": {
+        "outcome": "accepted",
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.dispatch-result"
+      },
+      "instanceId": "02cb352d-f937-47f2-a7d0-e8cda689bc88",
+      "invocationId": "4a1816d9-9303-49f2-bdb5-6c1ffeb35b5b",
+      "mode": "probe",
+      "parentEventId": "6b253385-e310-45f1-994e-156cef4f7aa4",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064032,
+      "backend": "cpsat",
+      "eventId": "f014b00f-2773-431b-8468-6fbb931fac25",
+      "fact": {
+        "outcome": "delivered",
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.callback-returned"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "d38a0eef-4cb5-4b4b-8aa0-46b2902bd9de",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064032,
+      "backend": "cpsat",
+      "eventId": "0498f593-a6cb-4104-b5c7-4f9ab85329de",
+      "fact": {
+        "metric": "solve-callback-wall-ms",
+        "reading": {
+          "bound": "exact",
+          "from": "solve-started",
+          "source": "host-clock",
+          "to": "callback-returned",
+          "value": 362
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "f014b00f-2773-431b-8468-6fbb931fac25",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064032,
+      "backend": "cpsat",
+      "eventId": "9b8e3753-afdd-41f3-84c9-ddfd898998a7",
+      "fact": {
+        "metric": "cpu-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "61b3590d-6543-4d6d-ad28-c866f2205b24",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064032,
+      "backend": "cpsat",
+      "eventId": "a20a5c27-4f3f-42c3-b0b5-72e70994eddd",
+      "fact": {
+        "metric": "invocation-wall-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "61b3590d-6543-4d6d-ad28-c866f2205b24",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064032,
+      "backend": "cpsat",
+      "eventId": "764f1487-0dea-4bf0-a4e4-3519682c7302",
+      "fact": {
+        "metric": "wait-until-wall-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "61b3590d-6543-4d6d-ad28-c866f2205b24",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064032,
+      "backend": "cpsat",
+      "eventId": "b31e4a84-c517-4176-86bf-f7adf5568dd5",
+      "fact": {
+        "metric": "isolate-bytes",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "f2b747b1-5df2-4c76-b47b-d03f2ff3e532",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "4dd80f98-eeb3-4720-a129-48a990e3af55",
+      "mode": "probe",
+      "parentEventId": "61b3590d-6543-4d6d-ad28-c866f2205b24",
+      "schemaVersion": 1,
+      "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064056,
+      "backend": "cpsat",
+      "eventId": "36cb3222-8f13-48c5-811c-31c31e954020",
+      "fact": {
+        "origin": {
+          "kind": "probe"
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "sameInputRetry": false,
+        "type": "cpsat.request-dispatched"
+      },
+      "instanceId": "89cb128a-2d4c-4942-b124-bb86f5fa137e",
+      "invocationId": "215d6eb4-1b71-4fc0-8de2-5fa9d11b961e",
+      "mode": "probe",
+      "parentEventId": null,
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064056,
+      "backend": "cpsat",
+      "eventId": "186c4a79-0778-4625-bbdf-fdf6e333c318",
+      "fact": {
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.solver-accepted"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "36cb3222-8f13-48c5-811c-31c31e954020",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064056,
+      "backend": "cpsat",
+      "eventId": "93f9c2ea-34a7-41a7-a491-c5003cc7abe4",
+      "fact": {
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.solve-started"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "186c4a79-0778-4625-bbdf-fdf6e333c318",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "fact": {
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "status": "OPTIMAL",
+        "type": "cpsat.solve-finished"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "93f9c2ea-34a7-41a7-a491-c5003cc7abe4",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "d551ea36-13e3-4e1a-9765-736cefa9787d",
+      "fact": {
+        "metric": "cpu-limit-ms",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "configuration",
+          "to": "checkpoint",
+          "value": 10000
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "65c76d86-c8fe-4979-8fbc-116ab55227f2",
+      "fact": {
+        "metric": "budget-deterministic",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "configuration",
+          "to": "checkpoint",
+          "value": 0.01
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "98b141c6-bdf7-41dd-9b33-07a71cece664",
+      "fact": {
+        "metric": "consumed-deterministic",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "solver",
+          "to": "checkpoint",
+          "value": 0.0000307498
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "2f599e1b-8fdb-406c-8fa6-720b138dce39",
+      "fact": {
+        "metric": "wasm-bytes",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "wasm",
+          "to": "checkpoint",
+          "value": 33554432
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "80b57b19-7f4b-4ce3-943d-a723ec636025",
+      "fact": {
+        "metric": "variables",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 3
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "45d50e9f-cc97-439a-9d95-bfab1cf73ac3",
+      "fact": {
+        "metric": "constraints",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 1
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "cf8a77eb-3193-4b84-9c67-c4426dcb859c",
+      "fact": {
+        "metric": "model-bytes",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 92
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "af738576-ea72-48e8-aafa-c8fad7968674",
+      "fact": {
+        "outcome": "accepted",
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.dispatch-result"
+      },
+      "instanceId": "89cb128a-2d4c-4942-b124-bb86f5fa137e",
+      "invocationId": "215d6eb4-1b71-4fc0-8de2-5fa9d11b961e",
+      "mode": "probe",
+      "parentEventId": "36cb3222-8f13-48c5-811c-31c31e954020",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "e93cd62a-66b5-423d-acae-99fff843316d",
+      "fact": {
+        "outcome": "delivered",
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.callback-returned"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "7fb2dd21-f0bf-4fdb-8c0f-35bd07a970a1",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "b9fc7b3a-8a26-4577-ac49-78ee6ffd0dfd",
+      "fact": {
+        "metric": "solve-callback-wall-ms",
+        "reading": {
+          "bound": "exact",
+          "from": "solve-started",
+          "source": "host-clock",
+          "to": "callback-returned",
+          "value": 1
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "e93cd62a-66b5-423d-acae-99fff843316d",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "ed8aeea7-279f-4135-96d0-f6af3a822f18",
+      "fact": {
+        "metric": "cpu-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "186c4a79-0778-4625-bbdf-fdf6e333c318",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "0adcf65e-8004-461f-8875-74290b5375c3",
+      "fact": {
+        "metric": "invocation-wall-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "186c4a79-0778-4625-bbdf-fdf6e333c318",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "afb09b2e-dd01-4d91-8530-166d1aab7519",
+      "fact": {
+        "metric": "wait-until-wall-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "186c4a79-0778-4625-bbdf-fdf6e333c318",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064057,
+      "backend": "cpsat",
+      "eventId": "ce4cc0bd-0855-41de-8921-c4ec2acef8f8",
+      "fact": {
+        "metric": "isolate-bytes",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "a1cc0358-3407-4195-8344-f427a0b434ec",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "1bd0bd31-2d32-4968-bbff-fc995e405332",
+      "mode": "probe",
+      "parentEventId": "186c4a79-0778-4625-bbdf-fdf6e333c318",
+      "schemaVersion": 1,
+      "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064082,
+      "backend": "cpsat",
+      "eventId": "2bb5addc-aa6c-42f9-95db-2c2c68a17652",
+      "fact": {
+        "origin": {
+          "kind": "probe"
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "sameInputRetry": false,
+        "type": "cpsat.request-dispatched"
+      },
+      "instanceId": "65322d60-34e2-46e2-bc93-d3dd088177d4",
+      "invocationId": "4cc7ab6f-c5a9-43e1-b5ea-329226331c99",
+      "mode": "probe",
+      "parentEventId": null,
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064082,
+      "backend": "cpsat",
+      "eventId": "de06636d-0d72-4eb0-ac04-4aa78659a489",
+      "fact": {
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.solver-accepted"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "2bb5addc-aa6c-42f9-95db-2c2c68a17652",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064100,
+      "backend": "cpsat",
+      "eventId": "9ca4f7fb-4b05-4722-a682-12dcd4eecf05",
+      "fact": {
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.solve-started"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "de06636d-0d72-4eb0-ac04-4aa78659a489",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064343,
+      "backend": "cpsat",
+      "eventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "fact": {
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "status": "UNKNOWN",
+        "type": "cpsat.solve-finished"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "9ca4f7fb-4b05-4722-a682-12dcd4eecf05",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064343,
+      "backend": "cpsat",
+      "eventId": "636a9768-a974-4643-8510-bfb41d211e41",
+      "fact": {
+        "metric": "cpu-limit-ms",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "configuration",
+          "to": "checkpoint",
+          "value": 10000
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064343,
+      "backend": "cpsat",
+      "eventId": "edc0cd8d-09de-4ddf-9f14-d483dc390e62",
+      "fact": {
+        "metric": "budget-deterministic",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "configuration",
+          "to": "checkpoint",
+          "value": 0.14
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064343,
+      "backend": "cpsat",
+      "eventId": "b4bf5c16-0be7-4d37-9d14-6b01c2ca6509",
+      "fact": {
+        "metric": "consumed-deterministic",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "solver",
+          "to": "checkpoint",
+          "value": 0.140242550894
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064343,
+      "backend": "cpsat",
+      "eventId": "12e8eb56-db67-4513-9d58-beab0e0a900d",
+      "fact": {
+        "metric": "wasm-bytes",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "wasm",
+          "to": "checkpoint",
+          "value": 33554432
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064343,
+      "backend": "cpsat",
+      "eventId": "c67244fd-3616-49db-9c9f-75373e133d75",
+      "fact": {
+        "metric": "variables",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 500
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064343,
+      "backend": "cpsat",
+      "eventId": "2cdb514c-a661-490e-a8ab-8790cd80c0b6",
+      "fact": {
+        "metric": "constraints",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 22495
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064343,
+      "backend": "cpsat",
+      "eventId": "fc5f25e6-4813-4a40-8bf9-1cd617713586",
+      "fact": {
+        "metric": "model-bytes",
+        "reading": {
+          "bound": "exact",
+          "from": "checkpoint",
+          "source": "model",
+          "to": "checkpoint",
+          "value": 604697
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064344,
+      "backend": "cpsat",
+      "eventId": "12d5865c-5b24-4b13-84d6-b1985895fafa",
+      "fact": {
+        "outcome": "accepted",
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.dispatch-result"
+      },
+      "instanceId": "65322d60-34e2-46e2-bc93-d3dd088177d4",
+      "invocationId": "4cc7ab6f-c5a9-43e1-b5ea-329226331c99",
+      "mode": "probe",
+      "parentEventId": "2bb5addc-aa6c-42f9-95db-2c2c68a17652",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064344,
+      "backend": "cpsat",
+      "eventId": "998c61b4-98e3-47ad-b579-b4be14a60ffb",
+      "fact": {
+        "outcome": "delivered",
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.callback-returned"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "3c2cfb4a-56ce-4540-992c-beaedcabca5b",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064344,
+      "backend": "cpsat",
+      "eventId": "161aff0d-07d2-415e-9152-8f0b25e49813",
+      "fact": {
+        "metric": "solve-callback-wall-ms",
+        "reading": {
+          "bound": "exact",
+          "from": "solve-started",
+          "source": "host-clock",
+          "to": "callback-returned",
+          "value": 244
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "998c61b4-98e3-47ad-b579-b4be14a60ffb",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064344,
+      "backend": "cpsat",
+      "eventId": "53ead146-546d-43da-911d-26cbc2ae1baa",
+      "fact": {
+        "metric": "cpu-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "de06636d-0d72-4eb0-ac04-4aa78659a489",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064344,
+      "backend": "cpsat",
+      "eventId": "777e109e-c8aa-4c68-81ac-14155f2cc8cc",
+      "fact": {
+        "metric": "invocation-wall-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "de06636d-0d72-4eb0-ac04-4aa78659a489",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064344,
+      "backend": "cpsat",
+      "eventId": "56829186-3821-4e01-87aa-05aac02763a3",
+      "fact": {
+        "metric": "wait-until-wall-ms",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "de06636d-0d72-4eb0-ac04-4aa78659a489",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064344,
+      "backend": "cpsat",
+      "eventId": "f77fc5fb-bfbc-4c61-a9cf-77562b071524",
+      "fact": {
+        "metric": "isolate-bytes",
+        "reading": {
+          "reason": "unavailable",
+          "value": null
+        },
+        "requestId": "0bc44cca-32df-4c5d-9bd6-ad0787101ea3",
+        "type": "cpsat.measurement"
+      },
+      "instanceId": "f4a52fc1-9a64-4d6e-9e22-4c5c2e22b2d4",
+      "invocationId": "39f3d1f6-4184-4769-a677-6bc411ed4185",
+      "mode": "probe",
+      "parentEventId": "de06636d-0d72-4eb0-ac04-4aa78659a489",
+      "schemaVersion": 1,
+      "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+      "versions": {
+        "budget": "0.14",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064419,
+      "backend": "cpsat",
+      "eventId": "47fef501-f59d-4765-a653-bbc92b8c6712",
+      "fact": {
+        "origin": {
+          "kind": "probe"
+        },
+        "requestId": "391debc7-5ceb-43ed-9c6e-80d9d599969d",
+        "sameInputRetry": false,
+        "type": "cpsat.request-dispatched"
+      },
+      "instanceId": "89bfa468-0d48-428e-88d1-f79e04f25aa5",
+      "invocationId": "6130ceed-1dd0-42e6-b3e4-aef909297d66",
+      "mode": "probe",
+      "parentEventId": null,
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064421,
+      "backend": "cpsat",
+      "eventId": "cd3d4d0f-5cde-4cfa-92c9-bedd988745a9",
+      "fact": {
+        "outcome": "failed",
+        "requestId": "391debc7-5ceb-43ed-9c6e-80d9d599969d",
+        "type": "cpsat.dispatch-result"
+      },
+      "instanceId": "89bfa468-0d48-428e-88d1-f79e04f25aa5",
+      "invocationId": "6130ceed-1dd0-42e6-b3e4-aef909297d66",
+      "mode": "probe",
+      "parentEventId": "47fef501-f59d-4765-a653-bbc92b8c6712",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064434,
+      "backend": "cpsat",
+      "eventId": "109d359d-2729-4a29-b7d5-e47ea0e4105c",
+      "fact": {
+        "origin": {
+          "kind": "probe"
+        },
+        "requestId": "88a979e8-0d02-4ff3-8534-e83002b020dc",
+        "sameInputRetry": false,
+        "type": "cpsat.request-dispatched"
+      },
+      "instanceId": "7ca68f8e-3b9d-46a1-83a8-ea7561e65dfe",
+      "invocationId": "72868be3-bb61-4da3-97e5-8f813a57b465",
+      "mode": "probe",
+      "parentEventId": null,
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064435,
+      "backend": "cpsat",
+      "eventId": "227af6ba-d481-468f-90d6-8cc80e889359",
+      "fact": {
+        "outcome": "busy",
+        "requestId": "88a979e8-0d02-4ff3-8534-e83002b020dc",
+        "type": "cpsat.dispatch-result"
+      },
+      "instanceId": "7ca68f8e-3b9d-46a1-83a8-ea7561e65dfe",
+      "invocationId": "72868be3-bb61-4da3-97e5-8f813a57b465",
+      "mode": "probe",
+      "parentEventId": "109d359d-2729-4a29-b7d5-e47ea0e4105c",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064450,
+      "backend": "cpsat",
+      "eventId": "15ee22e2-09e4-451f-9e52-386b8c0cd10e",
+      "fact": {
+        "origin": {
+          "kind": "probe"
+        },
+        "requestId": "cb1432aa-ff46-45b0-9834-b57c72bef8a5",
+        "sameInputRetry": false,
+        "type": "cpsat.request-dispatched"
+      },
+      "instanceId": "1ea6deef-79fe-487f-a129-76c854c8b881",
+      "invocationId": "1c237a66-ddfc-43d1-9137-d9edce78feb3",
+      "mode": "probe",
+      "parentEventId": null,
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    },
+    {
+      "at": 1789031064457,
+      "backend": "cpsat",
+      "eventId": "5b75f218-7ee9-489c-8f0b-d07fc5f2c06e",
+      "fact": {
+        "outcome": "failed",
+        "requestId": "cb1432aa-ff46-45b0-9834-b57c72bef8a5",
+        "type": "cpsat.dispatch-result"
+      },
+      "instanceId": "1ea6deef-79fe-487f-a129-76c854c8b881",
+      "invocationId": "1c237a66-ddfc-43d1-9137-d9edce78feb3",
+      "mode": "probe",
+      "parentEventId": "15ee22e2-09e4-451f-9e52-386b8c0cd10e",
+      "schemaVersion": 1,
+      "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+      "versions": {
+        "budget": "0.01",
+        "code": "transport-fixed-v1",
+        "codec": "ortools-9.15.6755-export",
+        "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+        "missingReason": null,
+        "model": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+        "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+        "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+      }
+    }
+  ],
+  "provenanceCases": [
+    {
+      "mode": "probe",
+      "origin": "probe",
+      "parentEventId": null,
+      "codecAccepted": true,
+      "transportAccepted": true,
+      "solverStatus": 429
+    },
+    {
+      "mode": "probe",
+      "origin": "probe",
+      "parentEventId": "persist-1",
+      "codecAccepted": false,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "probe",
+      "origin": "engine",
+      "parentEventId": null,
+      "codecAccepted": false,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "probe",
+      "origin": "engine",
+      "parentEventId": "persist-1",
+      "codecAccepted": false,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "live",
+      "origin": "probe",
+      "parentEventId": null,
+      "codecAccepted": false,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "live",
+      "origin": "probe",
+      "parentEventId": "persist-1",
+      "codecAccepted": false,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "live",
+      "origin": "engine",
+      "parentEventId": null,
+      "codecAccepted": false,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "live",
+      "origin": "engine",
+      "parentEventId": "persist-1",
+      "codecAccepted": true,
+      "transportAccepted": true,
+      "solverStatus": 429
+    },
+    {
+      "mode": "fake",
+      "origin": "probe",
+      "parentEventId": null,
+      "codecAccepted": true,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "fake",
+      "origin": "probe",
+      "parentEventId": "persist-1",
+      "codecAccepted": true,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "fake",
+      "origin": "engine",
+      "parentEventId": null,
+      "codecAccepted": true,
+      "transportAccepted": false,
+      "solverStatus": 400
+    },
+    {
+      "mode": "fake",
+      "origin": "engine",
+      "parentEventId": "persist-1",
+      "codecAccepted": true,
+      "transportAccepted": false,
+      "solverStatus": 400
+    }
+  ],
+  "injectedFailureRequestIds": [
+    "391debc7-5ceb-43ed-9c6e-80d9d599969d",
+    "88a979e8-0d02-4ff3-8534-e83002b020dc",
+    "cb1432aa-ff46-45b0-9834-b57c72bef8a5"
+  ],
+  "countSummary": {
+    "coverage": {
+      "from": 1789031061747,
+      "to": 1789031064464,
+      "capturedFrom": 1789031061747,
+      "capturedTo": 1789031064464,
+      "retainedFrom": 1789031061747,
+      "samplingRate": 1,
+      "exportComplete": true,
+      "scopes": [
+        {
+          "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+          "backend": "cpsat",
+          "mode": "probe"
+        },
+        {
+          "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+          "backend": "cpsat",
+          "mode": "probe"
+        },
+        {
+          "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+          "backend": "cpsat",
+          "mode": "probe"
+        },
+        {
+          "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+          "backend": "cpsat",
+          "mode": "probe"
+        }
+      ],
+      "gaps": [],
+      "frequencyLimits": null
+    },
+    "invalidRows": 0,
+    "duplicateRows": 0,
+    "conflictingRows": 0,
+    "issues": [],
+    "usableForRates": true,
+    "totals": [
+      {
+        "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+        "backend": "cpsat",
+        "mode": "probe",
+        "from": 1789031061747,
+        "to": 1789031064464,
+        "observed": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 0,
+          "solveFailed": 1,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "counts": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 0,
+          "solveFailed": 1,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "missingReasons": [],
+        "frequency": "not-configured"
+      },
+      {
+        "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+        "backend": "cpsat",
+        "mode": "probe",
+        "from": 1789031061747,
+        "to": 1789031064464,
+        "observed": {
+          "generated": 0,
+          "dispatched": 4,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 3,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 1,
+          "solveFailed": 0,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "counts": {
+          "generated": 0,
+          "dispatched": 4,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 3,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 1,
+          "solveFailed": 0,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "missingReasons": [],
+        "frequency": "not-configured"
+      },
+      {
+        "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+        "backend": "cpsat",
+        "mode": "probe",
+        "from": 1789031061747,
+        "to": 1789031064464,
+        "observed": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 1,
+          "solveFailed": 0,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "counts": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 1,
+          "solveFailed": 0,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "missingReasons": [],
+        "frequency": "not-configured"
+      },
+      {
+        "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+        "backend": "cpsat",
+        "mode": "probe",
+        "from": 1789031061747,
+        "to": 1789031064464,
+        "observed": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 0,
+          "solveFailed": 1,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "counts": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 0,
+          "solveFailed": 1,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "missingReasons": [],
+        "frequency": "not-configured"
+      }
+    ],
+    "minutes": [
+      {
+        "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+        "backend": "cpsat",
+        "mode": "probe",
+        "from": 1789031061747,
+        "to": 1789031064464,
+        "observed": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 0,
+          "solveFailed": 1,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "counts": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 0,
+          "solveFailed": 1,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "missingReasons": [],
+        "frequency": "not-configured"
+      },
+      {
+        "storeRef": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74",
+        "backend": "cpsat",
+        "mode": "probe",
+        "from": 1789031061747,
+        "to": 1789031064464,
+        "observed": {
+          "generated": 0,
+          "dispatched": 4,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 3,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 1,
+          "solveFailed": 0,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "counts": {
+          "generated": 0,
+          "dispatched": 4,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 3,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 1,
+          "solveFailed": 0,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "missingReasons": [],
+        "frequency": "not-configured"
+      },
+      {
+        "storeRef": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068",
+        "backend": "cpsat",
+        "mode": "probe",
+        "from": 1789031061747,
+        "to": 1789031064464,
+        "observed": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 1,
+          "solveFailed": 0,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "counts": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 1,
+          "solveFailed": 0,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "missingReasons": [],
+        "frequency": "not-configured"
+      },
+      {
+        "storeRef": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882",
+        "backend": "cpsat",
+        "mode": "probe",
+        "from": 1789031061747,
+        "to": 1789031064464,
+        "observed": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 0,
+          "solveFailed": 1,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "counts": {
+          "generated": 0,
+          "dispatched": 1,
+          "solveStarted": 1,
+          "knownSameInputRetries": 0,
+          "retryClassificationUnknown": 0,
+          "suppressed": 0,
+          "dispatchAccepted": 1,
+          "dispatchFailed": 0,
+          "solverAccepted": 1,
+          "preparationFailed": 0,
+          "solveSucceeded": 0,
+          "solveFailed": 1,
+          "adopted": 0,
+          "rejected": 0,
+          "planSaved": 0,
+          "planSaveFailed": 0,
+          "broadcast": 0,
+          "callbackDelivered": 1,
+          "callbackFailed": 0,
+          "persistFailed": 0,
+          "doConstructed": 0,
+          "hibernation": 0,
+          "cold": 0,
+          "deployment": 0,
+          "constructionCauseUnknown": 0
+        },
+        "missingReasons": [],
+        "frequency": "not-configured"
+      }
+    ]
+  },
+  "limitations": [
+    "Task 2.2 is incomplete: private operations/WS entrance, cloud driver, deployment diff/rollback preparation remain.",
+    "H1/engine-generation and decision/effect/Persist provenance are unmeasured. Shim receipts are not generation observations.",
+    "No cloud deployment, remote bindings, live data, platform CPU, waitUntil margin or DO hibernation proof.",
+    "Real loopback HTTP ingress tested with constructed headers. Browser unreachability is argued from those results, not measured; remote bindings remain untested.",
+    "Completeness begins at the shim receipt after validation, not at the DO. Operation-to-request correlation is inference; the ledger bounds sends but does not observe DO-to-shim loss.",
+    "Synthetic operations and the WebSocket view go through the private entrance; its cloud reachability over a remote binding is untested.",
+    "No callback storage spy in this harness; storage/Alarm no-op is covered separately by the existing real-DO integration test.",
+    "The TS binding is a 202 test double. CP-SAT and callback use real source and Wasm."
+  ],
+  "sourceSha256": {
+    "app.ts": "4c3c413303ca1715e1667597392c065f23e5e70917fea16b6cf721810cfa4fbb",
+    "request.ts": "b03e3cd6a88725e7918144b20a2a5c8c2e2495b3431a51b7cd76e8b9e3360b25",
+    "shim.ts": "4bea0a713ac7c26830cba4a1bafc1f2377d06aef115ec1611ec4bf811c0252ce",
+    "solver.ts": "afc140cd254b139e090719545dc519704ed57fcf2d683ffa73733df5dfff4953",
+    "check-app-local.mjs": "8dd795207af5f8436d955bdbb3115f16b169cdf2d93f8a6d162a2a9c1bf8a54a",
+    "ledger.mjs": "2bf23b0d07985981a7b9c0c85250c2583bbce9ae89de10c5695dd4b0cc3d2fc5",
+    "manifest.json": "0fc6fbef008c9f0ea883f8a2eb79d7d6f31f61d211855d6d77f7fd03ac492d8c",
+    "fixtures.json": "2a57e18be75b668f8fd5100210311f411d1f70f6d3c5f769d7b5ff9547574045",
+    "../../../src/worker.ts": "e80e66e1aa7ed320e195678b1160c1c0cd4ab8d91c9d3e665f976f4b82eb547d",
+    "../../../src/shell/store-timer-do.ts": "f5c678f68c30f833a298d79decacfcfbaaebd3a6fc624ccf8ff6b40804d6ef9a",
+    "../../../src/shell/store-registry-do.ts": "f91ab08069cc8a661a511396f5a1885bdaf61cd3904ce2b66fa6821de697a135",
+    "../../../src/cpsat/observation.ts": "d8f8428e127a8ecc41523cd4dd927e8cde10f39b29d88d4c34337c1867ae2c8b",
+    "../../../src/cpsat/observe.ts": "e571acf1f178fb90e603e988435a767bf271647dbcfd086e6774a5096601cc23",
+    "../../../src/observe/cpsat.ts": "042f3eac2fbf45a4ec866728571582dcc752562b9580c338c444ccc23fd1cdc3",
+    "../../../tests/observe/fixtures/cpsat-transport-provenance.json": "5130f4b98bda578d66a8c170766a9cc30869319144fd394f172ff60536c5af1c"
+  }
+}

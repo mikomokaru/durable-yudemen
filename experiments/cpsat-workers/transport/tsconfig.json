@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.json",
+  "include": [
+    "solver.ts",
+    "app.ts",
+    "shim.ts",
+    "worker-configuration.d.ts",
+    "../../../src/cpsat/worker-configuration.d.ts",
+    "../../../src/worker-env.d.ts",
+    "../../../worker-configuration.d.ts"
+  ]
+}

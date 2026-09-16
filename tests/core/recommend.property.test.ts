@@ -56,7 +56,12 @@ const SYNC_PARAMS: SyncParams = { arms: 2, toleranceRatio: 10 };
 
 /** decide へ渡す束。場面が振った採点パラメータをそのまま載せる（推奨の導出と同じ値で計算させる）。 */
 function paramsOf(scene: AlarmScene): SettleParams {
-  return { ...SYNC_PARAMS, ...scene.params, noodlePresets: DEFAULT_NOODLE_PRESETS };
+  return {
+    ...SYNC_PARAMS,
+    ...scene.params,
+    noodlePresets: DEFAULT_NOODLE_PRESETS,
+    planner: "ts" as const,
+  };
 }
 
 /** 推奨がある世界と、無い世界と、両者へ流す同一のイベント。 */
@@ -67,7 +72,8 @@ interface AlarmScene {
   readonly barren: TimerState;
   readonly event: Event;
   readonly now: EpochMillis;
-  readonly params: ScheduleParams;
+  /** 採点パラメータ ＋ 計画器。**この性質試験は TS 側を主張する。** */
+  readonly params: ScheduleParams & { readonly planner: "ts" | "cpsat" };
 }
 
 const genAlarmScene: fc.Arbitrary<AlarmScene> = fc
@@ -76,7 +82,7 @@ const genAlarmScene: fc.Arbitrary<AlarmScene> = fc
     const slotCount = unitCount * SLOTS_PER_UNIT;
     return fc.record({
       slotCount: fc.constant(slotCount),
-      params: genParams(unitCount),
+      params: genParams(unitCount).map((value) => ({ ...value, planner: "ts" as const })),
       // 走行中と茹で上がり済みの双方を振る。Alarm の対象は running だけなので、boiled が混じることが
       // 「最早 endTime」の期待値を素朴な最小値から分ける（boiled を数えれば過去時刻へ張ってしまう）。
       running: fc.array(genRunning(slotCount), { minLength: 1, maxLength: 5 }),

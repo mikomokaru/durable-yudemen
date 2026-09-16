@@ -1,0 +1,88 @@
+{
+  "startedAt": "2026-09-12T10:22:23.257Z",
+  "storeId": "cpsat-transport-20260909-04",
+  "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+  "rounds": [
+    {
+      "round": 0,
+      "externalOrderId": "separation-0-eff93630",
+      "startedAt": 1789208543257,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 2503
+    },
+    {
+      "round": 1,
+      "externalOrderId": "separation-1-e8a87f31",
+      "startedAt": 1789208549761,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 495
+    },
+    {
+      "round": 2,
+      "externalOrderId": "separation-2-0000ff3b",
+      "startedAt": 1789208554258,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 282
+    },
+    {
+      "round": 3,
+      "externalOrderId": "separation-3-f7fe8916",
+      "startedAt": 1789208558541,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 243
+    },
+    {
+      "round": 4,
+      "externalOrderId": "separation-4-526a9ecc",
+      "startedAt": 1789208562787,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 592
+    },
+    {
+      "round": 5,
+      "externalOrderId": "separation-5-5df1868b",
+      "startedAt": 1789208567382,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 233
+    },
+    {
+      "round": 6,
+      "externalOrderId": "separation-6-96f386e2",
+      "startedAt": 1789208571616,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 247
+    },
+    {
+      "round": 7,
+      "externalOrderId": "separation-7-2637ae00",
+      "startedAt": 1789208575863,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 225
+    },
+    {
+      "round": 8,
+      "externalOrderId": "separation-8-fb538000",
+      "startedAt": 1789208580090,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 229
+    },
+    {
+      "round": 9,
+      "externalOrderId": "separation-9-c088dcb3",
+      "startedAt": 1789208584321,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 185
+    }
+  ],
+  "finishedAt": "2026-09-12T10:23:04.547Z"
+}

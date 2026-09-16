@@ -20,7 +20,13 @@
 
 import type { LiftItem } from "../../domain/lift-group";
 import type { CookRecommendation } from "../../domain/messages";
-import { compareArrival, itemKeyOf, pendingOrders, type OrderItem } from "../../domain/order";
+import {
+  compareArrival,
+  itemKeyOf,
+  pendingOrders,
+  type OrderItem,
+  type WireOrderItem,
+} from "../../domain/order";
 import type { NoodlePreset } from "../../domain/store";
 import type { NonEmptyArray } from "../../domain/timer";
 import { mode, type ClientView } from "../connection";
@@ -170,15 +176,49 @@ export function orderQueueEntries(
  * 品目の表示名。POS 申告の商品名を優先し、無ければ麺種名で代替する（pos-order-ingress 要件 5.3）。
  *
  * 表示のたびに NFKC 正規化する——半角カナ（`"ﾈｷﾞ丼"`）を全角へ寄せるのは表示の関心事であり、永続値は
- * 申告のままである（要件 4.5 / 5.5）。麺量名があれば添える（無ければ省く・要件 5.4）。
+ * 申告のままである（要件 4.5 / 5.5）。
+ *
+ * **語は 2 つの軸で短くなる**（item-display-abbreviation）。商品名はサーバが被せた札を使い、麺量は固定表で
+ * 1 文字に畳む（`普通` は区切りごと消える）。**札は「あるかもしれないもの」である**——無ければ本 spec 以前と
+ * 同じ全名を返す。札は上書きであって前提ではない。
+ *
+ * **異なる品目が同じ札を持っていても扱いを変えない。** 一意性は保証されない（判断 7）。
  *
  * レール・釜カードの提案・ラジアルの待ち行列は同じ品目を同じ語で呼ぶ必要があり、代替と正規化の規則を
  * 描画側へ散らせば三つの真実になる。語を組むのはここだけで、描画側は受け取った文字列を置くだけである。
  */
-export function displayName(order: OrderItem): string {
-  const name = (order.itemName ?? order.noodleType).normalize("NFKC");
+/**
+ * 麺量名 → 表示（item-display-abbreviation 判断 8）。実データの麺量は 4 種しかなく
+ * （`普通` 61.7% / `中盛` 22.6% / `大盛` 14.0% / `半玉` 1.7%）、店舗によって変わらない。
+ *
+ * **`中盛` / `大盛` / `半玉` はそのまま出す**（2026-09-15 改訂）。当初は 1 文字へ畳んでいたが、`醤油中盛` /
+ * `味噌大盛` のように語のまま読める方が現場の語彙に近い。**`普通` だけは区切りごと消す。**
+ *
+ * **`普通` を表から外さない。** 外すと「表に無い麺量」と同じ扱い（空白区切り）に落ちる。空文字を
+ * 置くことで「表に在る」と「表示する」を分ける——在るが何も表示しない、が `普通` の正しい扱いである。
+ * 値が鍵と同じ 3 語についても、表に在ることは意味を持つ——**区切りを置かない**のは表に在る語だけである。
+ *
+ * 設定にしないのは、4 語しかなく既定がどれかも店舗に依らないためである。設定項目にすれば投入漏れの面が
+ * 増えるだけで、得るものが無い。
+ */
+const SIZE_LABEL: ReadonlyMap<string, string> = new Map([
+  ["普通", ""],
+  ["中盛", "中盛"],
+  ["大盛", "大盛"],
+  ["半玉", "半玉"],
+]);
+
+export function displayName(order: WireOrderItem): string {
+  const declared = (order.itemName ?? order.noodleType).normalize("NFKC");
+  // **札はサーバが被せたものをそのまま使う。** client は辞書を持たない（判断 20）——引数は品目 1 つだけで、
+  // 札が無ければ全名へ戻る。`shortName` は `itemName` に対してだけ付くので、`noodleType` 代替のときは現れない。
+  const head = order.shortName ?? declared;
   const size = order.sizeName?.normalize("NFKC");
-  return size === undefined ? name : `${name} ${size}`;
+  if (size === undefined) return head;
+  const label = SIZE_LABEL.get(size);
+  // 表に在れば区切り無しで連結する（`普通` は空文字ゆえ何も付かない）。無ければ従来どおり空白区切りで
+  // 全名を添える——知らない麺量を機械的に 1 字へ削ると、`特盛`→`特` のように札と紛らわしくなる。
+  return label === undefined ? `${head} ${size}` : `${head}${label}`;
 }
 
 /** 推奨が指す品目を待ち行列から引く（品目の鍵で 1 品目を指す・domain の itemKeyOf）。無ければ undefined。 */

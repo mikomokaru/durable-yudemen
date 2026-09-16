@@ -1,0 +1,213 @@
+{
+  "startedAt": "2026-09-12T09:57:59.691Z",
+  "storeId": "cpsat-transport-20260909-04",
+  "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+  "window": {
+    "notBefore": 1789206547133,
+    "expiresAt": 1789211947133
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 125,
+          "firstFrameMs": 125
+        },
+        {
+          "status": 101,
+          "upgradedMs": 161,
+          "firstFrameMs": 161
+        }
+      ],
+      "probes": [
+        {
+          "offsetMs": 1500,
+          "sentAfterOrderMs": 1503,
+          "finishedAfterOrderMs": 1636,
+          "status": 101,
+          "firstFrameMs": 133
+        },
+        {
+          "offsetMs": 2500,
+          "sentAfterOrderMs": 2501,
+          "finishedAfterOrderMs": 2669,
+          "status": 101,
+          "firstFrameMs": 117
+        },
+        {
+          "offsetMs": 3500,
+          "sentAfterOrderMs": 3500,
+          "finishedAfterOrderMs": 3630,
+          "status": 101,
+          "firstFrameMs": 130
+        },
+        {
+          "offsetMs": 4500,
+          "sentAfterOrderMs": 4502,
+          "finishedAfterOrderMs": 4681,
+          "status": 101,
+          "firstFrameMs": 127
+        },
+        {
+          "offsetMs": 5500,
+          "sentAfterOrderMs": 5511,
+          "finishedAfterOrderMs": 5763,
+          "status": 101,
+          "firstFrameMs": 204
+        },
+        {
+          "offsetMs": 6500,
+          "sentAfterOrderMs": 6502,
+          "finishedAfterOrderMs": 6605,
+          "status": 101,
+          "firstFrameMs": 103
+        }
+      ],
+      "order": {
+        "externalOrderId": "occupancy-r0-c0470274",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789207080956,
+        "wallMs": 495
+      },
+      "orderFinishedAfterMs": 495
+    },
+    {
+      "round": 1,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 233,
+          "firstFrameMs": 233
+        },
+        {
+          "status": 101,
+          "upgradedMs": 124,
+          "firstFrameMs": 124
+        }
+      ],
+      "probes": [
+        {
+          "offsetMs": 1500,
+          "sentAfterOrderMs": 1501,
+          "finishedAfterOrderMs": 1607,
+          "status": 101,
+          "firstFrameMs": 106
+        },
+        {
+          "offsetMs": 2500,
+          "sentAfterOrderMs": 2500,
+          "finishedAfterOrderMs": 2684,
+          "status": 101,
+          "firstFrameMs": 132
+        },
+        {
+          "offsetMs": 3500,
+          "sentAfterOrderMs": 3502,
+          "finishedAfterOrderMs": 3655,
+          "status": 101,
+          "firstFrameMs": 152
+        },
+        {
+          "offsetMs": 4500,
+          "sentAfterOrderMs": 4501,
+          "finishedAfterOrderMs": 4674,
+          "status": 101,
+          "firstFrameMs": 121
+        },
+        {
+          "offsetMs": 5500,
+          "sentAfterOrderMs": 5502,
+          "finishedAfterOrderMs": 5713,
+          "status": 101,
+          "firstFrameMs": 210
+        },
+        {
+          "offsetMs": 6500,
+          "sentAfterOrderMs": 6501,
+          "finishedAfterOrderMs": 6637,
+          "status": 101,
+          "firstFrameMs": 136
+        }
+      ],
+      "order": {
+        "externalOrderId": "occupancy-r1-305af84f",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789207095973,
+        "wallMs": 513
+      },
+      "orderFinishedAfterMs": 513
+    },
+    {
+      "round": 2,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 124,
+          "firstFrameMs": 124
+        },
+        {
+          "status": 101,
+          "upgradedMs": 119,
+          "firstFrameMs": 119
+        }
+      ],
+      "probes": [
+        {
+          "offsetMs": 1500,
+          "sentAfterOrderMs": 1502,
+          "finishedAfterOrderMs": 1671,
+          "status": 101,
+          "firstFrameMs": 118
+        },
+        {
+          "offsetMs": 2500,
+          "sentAfterOrderMs": 2500,
+          "finishedAfterOrderMs": 2603,
+          "status": 101,
+          "firstFrameMs": 103
+        },
+        {
+          "offsetMs": 3500,
+          "sentAfterOrderMs": 3501,
+          "finishedAfterOrderMs": 3731,
+          "status": 101,
+          "firstFrameMs": 179
+        },
+        {
+          "offsetMs": 4500,
+          "sentAfterOrderMs": 4502,
+          "finishedAfterOrderMs": 4687,
+          "status": 101,
+          "firstFrameMs": 185
+        },
+        {
+          "offsetMs": 5500,
+          "sentAfterOrderMs": 5502,
+          "finishedAfterOrderMs": 5602,
+          "status": 101,
+          "firstFrameMs": 100
+        },
+        {
+          "offsetMs": 6500,
+          "sentAfterOrderMs": 6501,
+          "finishedAfterOrderMs": 6653,
+          "status": 101,
+          "firstFrameMs": 100
+        }
+      ],
+      "order": {
+        "externalOrderId": "occupancy-r2-69540340",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789207110855,
+        "wallMs": 670
+      },
+      "orderFinishedAfterMs": 670
+    }
+  ],
+  "finishedAt": "2026-09-12T09:58:37.593Z"
+}

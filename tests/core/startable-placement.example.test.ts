@@ -195,7 +195,11 @@ const PRESETS: readonly NoodlePreset[] = [
 ];
 
 /** 1 ユニット（6 釜）・重み・許容幅・arms 2・上げ間隔 45 秒は既定。 */
-const PARAMS: SettleParams = { noodlePresets: PRESETS, ...schedulingDefaults(1) };
+const PARAMS: SettleParams = {
+  noodlePresets: PRESETS,
+  planner: "ts" as const,
+  ...schedulingDefaults(1),
+};
 
 /** 釜 slot に載る Timer。endSeconds ≤ 0 なら boiled（茹で上がり済み・Complete 待ち）、正なら走行中。 */
 function timerOn(slot: number, endSeconds: number): Timer {
@@ -523,6 +527,7 @@ describe("Feature: startable-placement — 固定した「今」を残した再�
   // 30 秒後・C と M は今）と、固定を外した再生成（N を今へ繰り上げ、M は上げ窓の競合で 5 秒後へ）を同じ総費用で比べる。
   const kitchenParams = (weights: Partial<SettleParams>): SettleParams => ({
     noodlePresets: DEFAULT_NOODLE_PRESETS,
+    planner: "ts" as const,
     ...schedulingDefaults(1),
     arms: 1,
     liftIntervalSeconds: 5,
@@ -597,21 +602,43 @@ describe("Feature: startable-placement — 固定した「今」を残した再�
     );
   }
 
+  // **C と M は同じ伝票（`o`）ゆえ同じ Table_Group である**（2026-09-13・`tableKeyOf` の改訂）。
+  // 卓が分からない品目の落とし先を品目ごとから伝票ごとへ変えた——上流の POS は卓が特定できない
+  // 受注に既定値を送るので卓なしが多数派であり、品目ごとに割ると同じお客の 2 杯が別の群になる。
+  // ゆえにこの場面の期待値も変わる：M は C の隣の釜へ寄り（近接）、再生成では 2 杯が揃って動く。
   const STAGE1 = [
     ["t#0", [[1], 30]],
     ["t#1", [[0], 0]],
     ["o#0", [[2], 0]],
-    ["o#1", [[3, 5], 0]],
+    // 近接——同じ伝票の C（釜 2）の隣へ。旧い群の分け方では釜 5 を使っていた。
+    ["o#1", [[3, 4], 0]],
   ] as const;
   /** 候補 K：A が空き釜 1・N は A が空けた釜 0 に 30 秒後（時刻は 1 段目のまま）・C と M は今。 */
   const SWAP = [
     ["t#0", [[0], 30]],
     ["t#1", [[1], 0]],
     ["o#0", [[2], 0]],
-    ["o#1", [[3, 5], 0]],
+    ["o#1", [[3, 4], 0]],
   ] as const;
-  /** 再生成：N を今へ繰り上げ（A と揃えない・判断 15）、M は 45 秒の窓の競合で 5 秒後へ。 */
+  /**
+   * 再生成：N を今へ繰り上げ（A と揃えない・判断 15）、M は 45 秒の窓の競合で 5 秒後へ。
+   * **C も一緒に 5 秒後へ動く**——同じ伝票の 2 杯を揃えるほうが費用が低いからである
+   * （旧い群の分け方では C は今のまま置き去りにされていた）。
+   */
   const REGENERATED = [
+    ["t#1", [[2], 0]],
+    ["t#0", [[1], 0]],
+    ["o#0", [[3], 5]],
+    ["o#1", [[4, 5], 5]],
+  ] as const;
+  /**
+   * 同期の重みを 0 にしたときの再生成。**C は今のまま**である。
+   *
+   * 群の分け方が結果に効くのは同期の項が値段を持つときだけなので、重み 0 の場面では C を M に
+   * 揃える理由が無い。**2 つの期待値に分かれたこと自体が、伝票ごとの群が効いている証拠**である
+   * （旧い群の分け方では C と M は別の群で、どちらの重みでも揃わなかった）。
+   */
+  const REGENERATED_UNSYNCED = [
     ["t#1", [[2], 0]],
     ["t#0", [[1], 0]],
     ["o#0", [[3], 0]],
@@ -636,13 +663,13 @@ describe("Feature: startable-placement — 固定した「今」を残した再�
     expect(totalOf(regenerated)).toBe(1427);
     expect(totalOf(regenerated)).toBeLessThan(totalOf(swap!));
     expect(completed).toEqual(regenerated);
-    expect([...timesOf(completed)]).toEqual(REGENERATED);
+    expect([...timesOf(completed)]).toEqual(REGENERATED_UNSYNCED);
   });
 
-  it("既定の重み（卓同期 2）では A と N を 30 秒ずらす再生成の方が 30 秒相当高く、費用ゆえに K が選ばれる——N は 30 秒後のまま・M は今（K 1457・再生成 1487）", () => {
+  it("既定の重み（卓同期 2）では A と N を 30 秒ずらす再生成の方が 30 秒相当高く、費用ゆえに K が選ばれる——N は 30 秒後のまま・M は今（K 1457・再生成 1492）", () => {
     const { swap, regenerated, completed, totalOf } = stagesOf(kitchenParams({}));
     expect(totalOf(swap!)).toBe(1457);
-    expect(totalOf(regenerated)).toBe(1487);
+    expect(totalOf(regenerated)).toBe(1492);
     expect(totalOf(swap!)).toBeLessThan(totalOf(regenerated));
     expect(completed).toEqual(swap);
     expect([...timesOf(completed)]).toEqual(SWAP);

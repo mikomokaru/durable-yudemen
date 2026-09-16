@@ -1,0 +1,433 @@
+{
+  "node": "v26.7.0",
+  "hashes": {
+    "src/engine/lift.ts": {
+      "before": "29faa0b1c6d61341f4998be6ce26777f1e0b05a7f1e051c7888693a882cb7561",
+      "after": "41a7e1230b2340e14be732ebbbd1183b1cd9698a0930f9ee36d8da5823271f13"
+    },
+    "src/engine/schedule.ts": {
+      "before": "3ac7620db59dcc788339abb5c7fbaf7cd5d0305b95ce913183754456f94474e3",
+      "after": "c0184d05d129c92db8ac4370b09917390f44c26a887c51e381dfa4de7b3e60e5"
+    }
+  },
+  "seed": 20260915,
+  "sample": "synthetic, 1000 scenes, 6/12/18 slots, 1-64 pending, no previous plan",
+  "micro": [
+    {
+      "count": 32,
+      "spacing": 1,
+      "operation": "loadWith",
+      "beforeUs": 0.49103750000000024,
+      "afterUs": 0.14790840000000002
+    },
+    {
+      "count": 32,
+      "spacing": 1,
+      "operation": "firstFit",
+      "beforeUs": 2.5482909999999777,
+      "afterUs": 2.3335409999999968
+    },
+    {
+      "count": 32,
+      "spacing": 1000,
+      "operation": "loadWith",
+      "beforeUs": 0.5077500000000015,
+      "afterUs": 0.14455829999999992
+    },
+    {
+      "count": 32,
+      "spacing": 1000,
+      "operation": "firstFit",
+      "beforeUs": 2.6068750000000023,
+      "afterUs": 2.5923329999999964
+    },
+    {
+      "count": 32,
+      "spacing": 60000,
+      "operation": "loadWith",
+      "beforeUs": 0.07628339999999979,
+      "afterUs": 0.060695800000002006
+    },
+    {
+      "count": 32,
+      "spacing": 60000,
+      "operation": "firstFit",
+      "beforeUs": 0.08258299999999963,
+      "afterUs": 0.055292000000008557
+    },
+    {
+      "count": 128,
+      "spacing": 1,
+      "operation": "loadWith",
+      "beforeUs": 7.0383916,
+      "afterUs": 0.5050999999999988
+    },
+    {
+      "count": 128,
+      "spacing": 1,
+      "operation": "firstFit",
+      "beforeUs": 40.83916599999998,
+      "afterUs": 36.737167
+    },
+    {
+      "count": 128,
+      "spacing": 1000,
+      "operation": "loadWith",
+      "beforeUs": 3.456879200000003,
+      "afterUs": 0.404729199999997
+    },
+    {
+      "count": 128,
+      "spacing": 1000,
+      "operation": "firstFit",
+      "beforeUs": 27.546957999999677,
+      "afterUs": 24.354500000000144
+    },
+    {
+      "count": 128,
+      "spacing": 60000,
+      "operation": "loadWith",
+      "beforeUs": 0.16645419999999833,
+      "afterUs": 0.12291249999998399
+    },
+    {
+      "count": 128,
+      "spacing": 60000,
+      "operation": "firstFit",
+      "beforeUs": 0.16266599999971731,
+      "afterUs": 0.11879200000021228
+    },
+    {
+      "count": 164,
+      "spacing": 1,
+      "operation": "loadWith",
+      "beforeUs": 11.04290420000002,
+      "afterUs": 0.6687417000000097
+    },
+    {
+      "count": 164,
+      "spacing": 1,
+      "operation": "firstFit",
+      "beforeUs": 64.61095899999964,
+      "afterUs": 59.171542000000045
+    },
+    {
+      "count": 164,
+      "spacing": 1000,
+      "operation": "loadWith",
+      "beforeUs": 4.091820800000005,
+      "afterUs": 0.4262292000000343
+    },
+    {
+      "count": 164,
+      "spacing": 1000,
+      "operation": "firstFit",
+      "beforeUs": 37.12037500000042,
+      "afterUs": 32.59858299999996
+    },
+    {
+      "count": 164,
+      "spacing": 60000,
+      "operation": "loadWith",
+      "beforeUs": 0.19191250000003493,
+      "afterUs": 0.14622920000001613
+    },
+    {
+      "count": 164,
+      "spacing": 60000,
+      "operation": "firstFit",
+      "beforeUs": 0.191541999999572,
+      "afterUs": 0.15008300000044983
+    }
+  ],
+  "quality": {
+    "scenes": 1000,
+    "changed": 47,
+    "improved": 32,
+    "worsened": 14,
+    "invalid": 0,
+    "rows": [
+      {
+        "scene": 26,
+        "before": 128971,
+        "after": 127085,
+        "delta": -1886
+      },
+      {
+        "scene": 40,
+        "before": 136581,
+        "after": 137159,
+        "delta": 578
+      },
+      {
+        "scene": 61,
+        "before": 257003,
+        "after": 253283,
+        "delta": -3720
+      },
+      {
+        "scene": 124,
+        "before": 6324,
+        "after": 6221,
+        "delta": -103
+      },
+      {
+        "scene": 131,
+        "before": 167923,
+        "after": 168623,
+        "delta": 700
+      },
+      {
+        "scene": 132,
+        "before": 72041,
+        "after": 72021,
+        "delta": -20
+      },
+      {
+        "scene": 152,
+        "before": 39407,
+        "after": 39543,
+        "delta": 136
+      },
+      {
+        "scene": 214,
+        "before": 95295,
+        "after": 95385,
+        "delta": 90
+      },
+      {
+        "scene": 215,
+        "before": 23619,
+        "after": 23477,
+        "delta": -142
+      },
+      {
+        "scene": 216,
+        "before": 7355,
+        "after": 7313,
+        "delta": -42
+      },
+      {
+        "scene": 218,
+        "before": 108026,
+        "after": 108756,
+        "delta": 730
+      },
+      {
+        "scene": 249,
+        "before": 89814,
+        "after": 86607,
+        "delta": -3207
+      },
+      {
+        "scene": 291,
+        "before": 45215,
+        "after": 45130,
+        "delta": -85
+      },
+      {
+        "scene": 306,
+        "before": 29090,
+        "after": 28974,
+        "delta": -116
+      },
+      {
+        "scene": 331,
+        "before": 36261,
+        "after": 36317,
+        "delta": 56
+      },
+      {
+        "scene": 346,
+        "before": 104361,
+        "after": 104345,
+        "delta": -16
+      },
+      {
+        "scene": 355,
+        "before": 8413,
+        "after": 8335,
+        "delta": -78
+      },
+      {
+        "scene": 422,
+        "before": 31709,
+        "after": 31120,
+        "delta": -589
+      },
+      {
+        "scene": 430,
+        "before": 59034,
+        "after": 58945,
+        "delta": -89
+      },
+      {
+        "scene": 440,
+        "before": 75917,
+        "after": 75489,
+        "delta": -428
+      },
+      {
+        "scene": 476,
+        "before": 104546,
+        "after": 104443,
+        "delta": -103
+      },
+      {
+        "scene": 489,
+        "before": 44372,
+        "after": 45866,
+        "delta": 1494
+      },
+      {
+        "scene": 491,
+        "before": 108864,
+        "after": 108621,
+        "delta": -243
+      },
+      {
+        "scene": 504,
+        "before": 93036,
+        "after": 93096,
+        "delta": 60
+      },
+      {
+        "scene": 544,
+        "before": 88602,
+        "after": 88774,
+        "delta": 172
+      },
+      {
+        "scene": 566,
+        "before": 73057,
+        "after": 73291,
+        "delta": 234
+      },
+      {
+        "scene": 580,
+        "before": 9643,
+        "after": 9582,
+        "delta": -61
+      },
+      {
+        "scene": 590,
+        "before": 89022,
+        "after": 89002,
+        "delta": -20
+      },
+      {
+        "scene": 599,
+        "before": 61140,
+        "after": 60999,
+        "delta": -141
+      },
+      {
+        "scene": 631,
+        "before": 74666,
+        "after": 74818,
+        "delta": 152
+      },
+      {
+        "scene": 655,
+        "before": 15525,
+        "after": 15375,
+        "delta": -150
+      },
+      {
+        "scene": 678,
+        "before": 97513,
+        "after": 97909,
+        "delta": 396
+      },
+      {
+        "scene": 687,
+        "before": 106480,
+        "after": 104574,
+        "delta": -1906
+      },
+      {
+        "scene": 701,
+        "before": 83203,
+        "after": 82882,
+        "delta": -321
+      },
+      {
+        "scene": 765,
+        "before": 143586,
+        "after": 144107,
+        "delta": 521
+      },
+      {
+        "scene": 766,
+        "before": 137789,
+        "after": 137767,
+        "delta": -22
+      },
+      {
+        "scene": 824,
+        "before": 65807,
+        "after": 65437,
+        "delta": -370
+      },
+      {
+        "scene": 849,
+        "before": 127788,
+        "after": 127764,
+        "delta": -24
+      },
+      {
+        "scene": 855,
+        "before": 81806,
+        "after": 81732,
+        "delta": -74
+      },
+      {
+        "scene": 865,
+        "before": 14614,
+        "after": 14168,
+        "delta": -446
+      },
+      {
+        "scene": 873,
+        "before": 46184,
+        "after": 46106,
+        "delta": -78
+      },
+      {
+        "scene": 884,
+        "before": 44818,
+        "after": 44065,
+        "delta": -753
+      },
+      {
+        "scene": 940,
+        "before": 122443,
+        "after": 117982,
+        "delta": -4461
+      },
+      {
+        "scene": 941,
+        "before": 72389,
+        "after": 70593,
+        "delta": -1796
+      },
+      {
+        "scene": 955,
+        "before": 46248,
+        "after": 46172,
+        "delta": -76
+      },
+      {
+        "scene": 958,
+        "before": 9002,
+        "after": 9428,
+        "delta": 426
+      }
+    ]
+  },
+  "planTimingMsPer1000": {
+    "before": 218.9315000000006,
+    "after": 230.91008299999976
+  },
+  "sink": 244800164898030000
+}

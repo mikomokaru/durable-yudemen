@@ -146,6 +146,22 @@ _出所: 判断 3・5・14・15・16, 観測事実 14_
 5. IF 指した品目が `pendingOrders` に無い, THEN THE engine SHALL 状態を変更せず、品目不在の拒否 code を要求元へ返す
 6. IF 当該品目の `noodleType` が `noodlePresets` に無い, THEN THE engine SHALL 状態を変更せず、既存の `InvalidSlotOrNoodle` で拒否する
 7. THE engine SHALL Order_Item_Start に対して釜の占有・推奨との一致・`slotIds` の数と `slotSpan` の一致を検査しない（AC 8.3）
+
+> **改訂（ADR-0015・2026-09-14）：釜の占有だけ撤回する。** THE engine SHALL 遷移の**結果**が
+> 「同じ釜を 2 つ以上の Timer が占める」状態になるなら、その遷移を `SlotOccupied` で拒否し状態を
+> 変更しない。判定は `decide`（core への唯一の入口）に 1 箇所だけ置き、開始の入口ごとには置かない。
+> 大盛（`slotSpan` 2）は同じ Timer が 2 釜を占めるだけで重複ではない。**遷移が重複を新たに作った
+> ときだけ**拒否する——永続から復元した状態が既に壊れている場合にそこで止めると、あらゆる操作が
+> 永久に拒否されて店舗が動かなくなる。**`migrate` でも修復しない**——「移行は Timer を落とさない」は
+> `migrate` の性質であり、本番で重複は観測されていない（`INFEASIBLE` 0 件）ので緩める理由が無い。
+> 既存の重複は茹で上がりと完了で自然に消える。
+>
+> **「推奨との一致」「`slotIds` と `slotSpan` の一致」は検査しないまま**である。あれらは現場の選択で
+> あって正本の嘘ではない（判断 7）。撤回するのは占有だけで、理由は 3 つ——(1) 「client 側の構造が
+> 防ぐ」は単一端末・オンラインでしか働かず、縮退からの復帰（`degraded-slot-superimposition` が
+> バグとして記録）・複数端末・通信の遅れで崩れる、(2) `TimerState.timers` は釜を鍵にした表ではない
+> ので**釜の本数を超える Timer を持つ状態**が作れる、(3) CP-SAT が「1 釜 1 杯」をハード制約として
+> 読むため、重複した正本は**解が存在しない**状態を生む。
 8. THE engine SHALL Order_Item_Start の受理時に既存 `start` と同じ Effect 列（`Persist` 先頭・`SetAlarm`・`Broadcast(snapshot)`）を生成する
 9. THE ClientMessage の `start` SHALL `externalOrderId` / `itemIndex` を持たず、Ad_Hoc_Start 専用となる
 10. WHEN Ad_Hoc_Start（`start`）が受理される, THE engine SHALL 従来どおり Pending_Order 集合に触れない

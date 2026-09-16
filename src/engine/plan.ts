@@ -22,7 +22,7 @@
 import type { TimerState } from "./state";
 import type { Event } from "./event";
 import type { Outcome } from "./effect";
-import { admit } from "./admit";
+import { admitDetailed } from "./admit";
 import { committedSchedule } from "./commit";
 import { settle } from "./settle";
 import type { SettleParams } from "./settle";
@@ -89,7 +89,10 @@ export function receivePlan(
     params,
     changeContext,
   );
-  const accepted = admit(
+  // **採否の理由を添えて受ける**（`admitDetailed`・2026-09-13）。判定そのものは `admit` と同一で、
+  // `admit` はこれの `slices` だけを返す薄い包みである。理由は `note` に載せて shell の記録へ渡す
+  // ——Effect 列（採用の有無）からは「どの述語で落ちたか」が読めない。
+  const decision = admitDetailed(
     args.plan,
     committed,
     live,
@@ -99,8 +102,12 @@ export function receivePlan(
     params.noodlePresets,
     params,
   );
-  if (accepted.length === 0) return { ok: true, state, effects: [] };
+  const note = { admitStage: decision.stage, retimedByMs: decision.retimedByMs };
+  if (decision.slices.length === 0) return { ok: true, state, effects: [], note };
 
-  const moved: TimerState = { ...state, acceptedSlices: accepted };
-  return settle(state, moved, params, args.now, false);
+  const moved: TimerState = { ...state, acceptedSlices: decision.slices };
+  // `settle` は拒否を返し得る型だが、この経路は採用済み一片を差し替えるだけで拒否事由を持たない。
+  // 添え物は成功の側にだけ載せる（拒否に理由は既に在る）。
+  const settled = settle(state, moved, params, args.now, false);
+  return settled.ok ? { ...settled, note } : settled;
 }

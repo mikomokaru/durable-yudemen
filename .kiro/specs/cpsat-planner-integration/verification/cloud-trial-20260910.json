@@ -1,0 +1,26 @@
+{
+  "startedAt": "2026-09-10T14:01:45.771Z",
+  "window": {
+    "notBefore": 1789048492130,
+    "expiresAt": 1789051252130
+  },
+  "runs": [
+    {
+      "problem": "small",
+      "storeId": "cpsat-transport-20260909-01",
+      "requestId": "d5f65080-dbf3-4d71-83b4-d5204232731f",
+      "acceptStatus": 202,
+      "acceptWallMs": 790,
+      "body": "{\"accepted\":true,\"requestId\":\"d5f65080-dbf3-4d71-83b4-d5204232731f\"}"
+    },
+    {
+      "problem": "hard",
+      "storeId": "cpsat-transport-20260909-02",
+      "requestId": "4094f92c-9519-4928-a60a-ae0321ab1793",
+      "acceptStatus": 202,
+      "acceptWallMs": 1829,
+      "body": "{\"accepted\":true,\"requestId\":\"4094f92c-9519-4928-a60a-ae0321ab1793\"}"
+    }
+  ],
+  "finishedAt": "2026-09-10T14:01:48.483Z"
+}

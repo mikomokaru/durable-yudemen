@@ -138,6 +138,10 @@ describe("Operation History 縮退経路 — Logpush 構成が0件である", ()
   });
 });
 
+/** 合成プローブの設定と実装。周期起動を持つ唯一の対で、上の検査が構造で裏づける。 */
+const PROBE_CONFIG = "wrangler.history-probe.jsonc";
+const PROBE_SOURCE = "src/data-platform/history-probe.ts";
+
 /** Validates: Requirements 1.8, 1.9, 2.15, 4.8, 4.14 */
 describe("Operation History 縮退経路 — 未観測期間の補完機構がない", () => {
   it("src 全体の識別子・文字列に backfill／再出力／outbox の語彙が現れない", () => {
@@ -188,12 +192,18 @@ describe("Operation History 縮退経路 — 未観測期間の補完機構が�
   it("未観測期間を埋めるために DO を起こせる scheduled 起動がない", () => {
     // cron も scheduled handler も、観測のために StoreTimerDO を起こす唯一の残り道である
     // （要件1.8 / 2.15）。設定と実装の両側で0件を保つ。
+    //
+    // 合成プローブ（operation-history-log 要件 7.3）だけは周期起動で動く。**免除ではなく、
+    // 起こす能力が無いことを下の検査で裏づけたうえでの除外である。** プローブ設定に DO・service・
+    // storage の binding が入った時点でここが落ちる。
     for (const path of wranglerConfigPaths) {
+      if (path === PROBE_CONFIG) continue;
       expect(activeConfig(path), `${path} が cron trigger を持つ`).not.toMatch(
         /"(?:triggers|crons)"\s*:/,
       );
     }
     for (const path of sourceFilePaths) {
+      if (path === PROBE_SOURCE) continue;
       const file = parse(path);
       walk(file, (node) => {
         if (
@@ -210,6 +220,31 @@ describe("Operation History 縮退経路 — 未観測期間の補完機構が�
         expect(text, `${path} が scheduled handler を定義する`).not.toBe("scheduled");
       });
     }
+  });
+
+  it("合成プローブは周期起動を持つが StoreTimerDO へ到達できない", () => {
+    const config = activeConfig(PROBE_CONFIG);
+    expect(config, "プローブが周期起動を失っている").toMatch(/"crons"\s*:/);
+    // 起こす能力そのもの。どれか一つでも増えれば、プローブは「DO を起こせる cron」になる。
+    for (const capability of [
+      "durable_objects",
+      "services",
+      "kv_namespaces",
+      "r2_buckets",
+      "queues",
+      "d1_databases",
+      "routes",
+      "vars",
+    ]) {
+      expect(config, `プローブ設定が ${capability} を持つ`).not.toMatch(
+        new RegExp(`"${capability}"\\s*:`),
+      );
+    }
+    // 実装側も同じことを別の角度から見る。env を受け取らない scheduled handler は binding を使えない。
+    const probe = source(PROBE_SOURCE);
+    expect(probe, "プローブが StoreTimerDO を名指している").not.toMatch(
+      /STORE_TIMER_DO|DurableObject|idFromName/,
+    );
   });
 });
 
@@ -234,6 +269,11 @@ describe("Operation History 縮退経路 — 搬送経路の分岐と補完手�
       "OPERATION_HISTORY_ENABLED",
     ]);
     for (const key of envKeys) {
+      // **観測の**搬送経路を読まないことを守る検査である。`CPSAT_PLAN_QUEUE` は計画要求の
+      // 送出口で、観測の搬送ではない（cpsat-planner-integration・design 第9節）。これを読む
+      // ことで観測が搬送状態へ依存する余地は生まれない——計画要求が出るかどうかは
+      // Operation History の欠落とは無関係である（2026-09-12）。
+      if (key === "CPSAT_PLAN_QUEUE") continue;
       expect(key, `shell が搬送経路 ${key} を読む`).not.toMatch(
         /TAIL|LOGPUSH|QUEUE|R2|SNOWPIPE|SNOWFLAKE|BACKFILL|DEGRADED|FALLBACK/i,
       );

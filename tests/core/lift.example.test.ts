@@ -82,6 +82,16 @@ describe("initialLifts — 走行中から上げ表を導く", () => {
 });
 
 describe("loadWith — t を含む半開窓の負荷の最大", () => {
+  it("走行中のミリ秒を丸めない：44.226 秒の間隔は 45 秒窓の外にならない", () => {
+    const end = 1_700_000_300_226 as EpochMillis;
+    const lifts = [{ at: end, span: 4 }];
+    const before = (end - 44_226) as EpochMillis;
+    expect(loadWith(lifts, before, 1, PARAMS)).toBe(5);
+    expect(firstFit(lifts, before, 1, PARAMS)).toBe(end + 45_000);
+    expect(loadWith(lifts, (end - 45_000) as EpochMillis, 1, PARAMS)).toBe(1);
+    expect(firstFit(lifts, (end - 45_000) as EpochMillis, 1, PARAMS)).toBe(end - 45_000);
+  });
+
   it("ちょうど L 離れた上がりは同じ窓に入らず、1 ミリ秒手前なら入る（AC 9.3）", () => {
     const lifts = table([0, 2]);
     // [0, 45) は 45 秒を含まない。45 秒を含む窓は [45, 90) だけで、既存の上がりは無い。

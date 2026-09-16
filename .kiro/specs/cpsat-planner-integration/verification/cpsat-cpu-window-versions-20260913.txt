@@ -1,0 +1,22 @@
+# CPU 測定窓・配備前の現行版（2026-09-13T06:33:34Z）
+## yude-men-timer
+  現行 deployment: 0045e75c-5826-4c7b-973e-c1ef9a0562bc 2026-09-13T03:32:14.522485Z
+  現行 version  : a4412cad-a1dc-4d95-bcb7-4e280c803cc1
+## yude-men-cpsat-planner-dev
+  現行 deployment: b0cabc5c-dd5c-482f-9fde-5aee5da7707b 2026-09-13T03:31:01.930735Z
+  現行 version  : 81598b64-a0c7-441b-ad86-6549c0fbade3
+# CPU 測定窓 2 回目・配備前の現行版（2026-09-13T10:06:53Z）
+## yude-men-timer
+  現行 version: a4412cad-a1dc-4d95-bcb7-4e280c803cc1 2026-09-13T03:32:14.522485Z
+## yude-men-cpsat-planner-dev
+  現行 version: c39348a1-d0de-46cc-a954-ca8a635b72b7 2026-09-13T07:47:59.442001Z
+
+# 段 1〜3 配備・配備前の現行版（2026-09-13T13:43:26Z）
+## yude-men-timer
+  現行 version: a4412cad-a1dc-4d95-bcb7-4e280c803cc1 2026-09-13T03:32:14.522485Z
+## yude-men-cpsat-planner-dev
+  現行 version: a9e15af8-3d32-4e3e-9101-daeeb0a75c5b 2026-09-13T10:07:12.48863Z
+
+# admit の (d) 修正・配備前（2026-09-13T15:19:24Z）
+## yude-men-timer 現行 version: f8d7dcaf-c6b9-4cad-a9d8-0bfcf57c5648
+## yude-men-cpsat-planner-dev 現行 version: 112402a8-40f8-48d1-afaf-56cdf952cd71（変更なし）

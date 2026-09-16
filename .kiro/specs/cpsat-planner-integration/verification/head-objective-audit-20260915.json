@@ -1,0 +1,49 @@
+{
+  "measuredAt": "2026-09-15T09:41:09.661Z",
+  "sourceReport": "/tmp/cpsat-head-objective-audit-full-20260915.json",
+  "sha256": "45b56687c6869b8ee57f348fb3b5324e623151331ed7201c460694524cb43e60",
+  "rows": [
+    {
+      "file": "284_20260905_1945_2145.jsonl",
+      "cutAt": "2026-09-05T12:12:22.000Z",
+      "headVerdicts": [
+        {
+          "key": "284:42:420716:2026-09-05T21%3A03%3A51#0",
+          "from": "6,11",
+          "to": "9,11",
+          "startedInMs": 8198,
+          "heldStatus": "FEASIBLE",
+          "freeObjective": 262542,
+          "heldObjective": 253448,
+          "freeRecomputed": 262542,
+          "heldRecomputed": 253448,
+          "sameObjectiveTerms": true,
+          "sameVariableDomains": true,
+          "sameIntervals": true,
+          "heldKeepsFreeConstraints": true,
+          "addedHeldConstraints": [
+            {
+              "kind": "linear",
+              "terms": [[240, 1]],
+              "lo": 6,
+              "hi": 6,
+              "when": []
+            },
+            {
+              "kind": "linear",
+              "terms": [[256, 1]],
+              "lo": 11,
+              "hi": 11,
+              "when": []
+            }
+          ],
+          "freeTotal": 11398.400000000001,
+          "heldTotal": 11831.4,
+          "freeSlotChanges": 1,
+          "heldSlotChanges": 3,
+          "heldSlots": "6,11"
+        }
+      ]
+    }
+  ]
+}

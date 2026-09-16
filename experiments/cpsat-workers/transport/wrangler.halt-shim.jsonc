@@ -1,0 +1,11 @@
+{
+  // Stop version for yude-men-cpsat-transport-shim-dev. No bindings, no routes, no Wasm rules:
+  // the refusal is structural, not a matter of this Worker behaving well.
+  "name": "yude-men-cpsat-transport-shim-dev",
+  "main": "./halt.ts",
+  "compatibility_date": "2026-09-09",
+  "compatibility_flags": ["no_nodejs_compat", "no_nodejs_compat_v2"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+}

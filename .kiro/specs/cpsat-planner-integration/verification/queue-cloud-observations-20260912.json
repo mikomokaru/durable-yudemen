@@ -1,0 +1,132 @@
+{
+  "invocations": [
+    {
+      "ts": 1789206811467,
+      "wallMs": 2227,
+      "cpuMs": 1984,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789206818569,
+      "wallMs": 1096,
+      "cpuMs": 876,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789206829729,
+      "wallMs": 924,
+      "cpuMs": 812,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789206944724,
+      "wallMs": 920,
+      "cpuMs": 819,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789206954860,
+      "wallMs": 827,
+      "cpuMs": 723,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789206971044,
+      "wallMs": 1306,
+      "cpuMs": 1161,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789206980572,
+      "wallMs": 742,
+      "cpuMs": 636,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789207085930,
+      "wallMs": 636,
+      "cpuMs": 536,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789207101023,
+      "wallMs": 793,
+      "cpuMs": 686,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789207116479,
+      "wallMs": 937,
+      "cpuMs": 834,
+      "outcome": "ok"
+    }
+  ],
+  "receipts": [
+    {
+      "outcome": "accepted",
+      "cold": false,
+      "lat": 4910,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": false,
+      "lat": 4426,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": false,
+      "lat": 4391,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": false,
+      "lat": 1850,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": true,
+      "lat": 4152,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": false,
+      "lat": 1271,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": false,
+      "lat": 3508,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": false,
+      "lat": 4922,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": false,
+      "lat": 2417,
+      "attempts": 1
+    },
+    {
+      "outcome": "accepted",
+      "cold": true,
+      "lat": 2382,
+      "attempts": 1
+    }
+  ],
+  "facts": {
+    "cpsat.callback-returned:delivered": 10,
+    "cpsat.solve-finished:UNKNOWN": 10,
+    "cpsat.solve-started": 10,
+    "cpsat.solver-accepted": 10
+  }
+}

@@ -6,7 +6,10 @@ import { migrate } from "../engine/migrate";
 import type { ShellFailure } from "../engine/rejection";
 import { fromSnapshot } from "../engine/snapshot";
 import { EMPTY_STATE, isNewerSequence, type TimerState } from "../engine/state";
-import { toCookSchedule } from "../engine/schedule";
+import { toCookSchedule, type AcceptedSlice, type CookSchedule } from "../engine/schedule";
+import type { ShownPlan } from "../engine/stability";
+import type { OutcomeNote } from "../engine/effect";
+import { joinWindowMillis } from "../engine/boil";
 import { toWireSnapshot, type SettleParams } from "../engine/settle";
 import type { ScheduleParams } from "../engine/objective";
 import type { EpochMillis, TimerId } from "../engine/types";
@@ -15,8 +18,14 @@ import { PING_REQUEST, PONG_RESPONSE } from "../transport/heartbeat";
 import { REJECTION_CLOSE_CODE } from "../transport/rejection";
 import type { ServerMessage } from "../domain/messages";
 import { toClientMessage, toDecodeFailureLine } from "../domain/wire";
-import { toDeclaredName } from "../domain/predicate";
-import { toOrderItems, type OrderItem } from "../domain/order";
+import { isRecord, toDeclaredName } from "../domain/predicate";
+import {
+  checkCpsatPayload,
+  cpsatInputDigest,
+  CPSAT_QUEUE_PAYLOAD_LIMIT_BYTES,
+  type CpsatPlanRequest,
+} from "../cpsat/request";
+import { pendingOrders, toOrderItems, type OrderItem } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import type { StoreConfig, NoodlePreset, FirmnessCode, MenuItem } from "../domain/store";
 import {
@@ -39,12 +48,14 @@ import {
 } from "../domain/store";
 import type { ArrivalRecord } from "../ingress/batch";
 import { readDeclaredText } from "../ingress/declared-text";
+import { toTableId } from "../ingress/table-id";
 import { toNoodleSpec, type NoodleLookup } from "../ingress/noodle-spec";
 import { toUniqueKey } from "../ingress/unique-key";
 import type { StoreProjection } from "../registry/projection";
 import type { Roster } from "../registry/ideal";
 import { normalize } from "../registry/authz";
 import { tryWriteOperationLines } from "../operation-history/producer";
+import { tryWriteLiftDelayLines } from "../lift-delay/producer";
 import type { OperationObservation } from "../operation-history/derive";
 import type { PlanRequest } from "../solver/request";
 
@@ -70,6 +81,18 @@ const SNAPSHOT_KEY = "activeTimers";
  * env シード（旧 storeConfig）は廃止した——設定はプロビジョニング（投影押し込み）でのみ確立する（要件2.7 / 9.3）。
  */
 const PROJECTION_KEY = "projection";
+
+/**
+ * 札（Short_Name）の永続キー（item-display-abbreviation Requirement 7.4）。
+ *
+ * **`StoreSnapshot` とは別のキーである。** 同じキーに入れれば `CURRENT_SCHEMA_VERSION` が上がり `migrate` に
+ * 分岐が増えるが、札は表示だけの被せ物であって Timer の事実ではない。`projection`（設定と Roster）を別キーに
+ * 置いているのと同じ理屈で、Timer の SSOT と生存期間を分ける。
+ *
+ * **在メモリだけでは足りない。** DO は約 10 秒の無活動で休眠してメモリを失う（WS 接続は残る）。復元が
+ * 「その商品の再観測」頼みだと、閑散時ほど札が消えたままになる。
+ */
+const SHORT_NAMES_KEY = "shortNames";
 
 /**
  * プロビジョニング状態。投影が永続されていれば provisioned（その投影を同梱）、未永続なら未プロビジョニング。
@@ -272,18 +295,6 @@ function toReceivedOrders(
 }
 
 /**
- * `payload.table_no` を Table_Group の識別子へ写す（AC 6.26）。欠落・`0` は卓に紐づかない品目ゆえ null。
- *
- * 読み出しは `readDeclaredText` に委ねる——実データでは卓番が数値で届き、Unique_Key の要素と同じ
- * 「申告値を文字列として読む」規則に従うのが素直である。`0` の除外を文字列化の後に置くのは、数値の `0` と
- * 文字列の `"0"` が同じ意味（卓なし）を表すためで、型によって扱いが分かれる形を作らない。
- */
-function toTableId(raw: unknown): string | null {
-  const text = readDeclaredText(raw);
-  return text === null || text === "0" ? null : text;
-}
-
-/**
  * 単調性で読み飛ばされる Record 数を数える（`ReceiveCounts.doDedupeSkipped`）。
  *
  * **判定するのは engine であって、ここは数えるだけである。** 重複の判定は `arriveRecords` の内側にあり
@@ -359,6 +370,14 @@ export class StoreTimerDO extends DurableObject<Env> {
    * ensureLoaded を呼ぶため、このフラグで二重ロードを防ぐ（hibernate 復帰ごとに false へ戻る）。
    */
   private loaded = false;
+
+  /**
+   * 札（NFKC 正規化後の申告名 → 札）。押し込みで届き、送信を組む時点で品目へ被せる。
+   *
+   * **辞書を引きに行かない。** 自立性の不変が禁じているのは pull であって push ではない——設定が
+   * `applyProjection` で、外部計画が `deliverPlan` で届くのと同じ形で受ける。
+   */
+  private shortNames: Readonly<Record<string, string>> = {};
 
   /**
    * 店舗のユニット総数（StoreConfig.unitCount）。サーバ権威・クライアント不変の店舗設定。
@@ -465,6 +484,15 @@ export class StoreTimerDO extends DurableObject<Env> {
     return (this.env.OPERATION_HISTORY_ENABLED as string) === "1";
   }
 
+  /**
+   * 麺揚げ遅延ログの独立ゲート（lift-delay-log 要件 4.7）。
+   *
+   * 操作履歴とも debug 計装とも共有しない。片方だけを有効にして比べられるようにするためである。
+   */
+  private get liftDelayEnabled(): boolean {
+    return (this.env.LIFT_DELAY_ENABLED as string) === "1";
+  }
+
   /** Persist を含む既存作用列が通常完了した確定差分だけを、入口の終端で同期出力試行する。 */
   private tryWriteCommittedOperation(
     eventKind: OperationObservation["eventKind"],
@@ -472,6 +500,8 @@ export class StoreTimerDO extends DurableObject<Env> {
     before: TimerState,
     effects: readonly Effect[],
     result: RunResult,
+    /** 品目からの開始で指された品目。遅延ログの開始文脈にだけ使う。 */
+    startedOrderItem?: { readonly externalOrderId: string; readonly itemIndex: number } | null,
   ): void {
     if (!result.persisted || !effects.some((effect) => effect.type === "Persist")) return;
     const storeId = this.ctx.id.name;
@@ -483,6 +513,29 @@ export class StoreTimerDO extends DurableObject<Env> {
       before,
       after: this.workingCopy,
     });
+
+    // 遅延ログは開始と終端だけを見る。茹で上がりや調整はこちらの関心ではない。
+    //
+    // **フラグを先に見る。** 無効のときに `pendingOrders` を数えれば、観測しない設定でも厨房操作の
+    // 経路に計算が乗る（要件 4.6 の「無影響とは主張しない」は、有効時の話である）。
+    if (
+      this.liftDelayEnabled &&
+      (eventKind === "Start" ||
+        eventKind === "StartOrderItem" ||
+        eventKind === "Complete" ||
+        eventKind === "Cancel")
+    ) {
+      tryWriteLiftDelayLines(true, {
+        storeId,
+        eventTime,
+        eventKind,
+        before,
+        after: this.workingCopy,
+        // 開始直前の未着手品目。**絞る前の集合**を渡す（要件 2.2）。
+        pendingBeforeStart: pendingOrders(before.orderItems, before.timers, eventTime),
+        startedOrderItem: startedOrderItem ?? null,
+      });
+    }
   }
 
   /**
@@ -583,6 +636,10 @@ export class StoreTimerDO extends DurableObject<Env> {
     }
     // ここで初めて Working_Copy を再構築する。確定後にロード済みとし、以後は冪等。
     this.workingCopy = fromSnapshot(migrated.snapshot);
+    // 札も同じ経路で読み戻す（別キー）。**POS の再観測を待たない**——待てば休眠のたびに札が消え、
+    // 閑散時ほど全名の期間が延びる。読めない値は空として扱う（表示が全名へ戻るだけ）。
+    const storedShortNames = await this.ctx.storage.get(SHORT_NAMES_KEY);
+    this.shortNames = toShortNameTable(storedShortNames);
     // 継ぎ目2: rehydrate（要件4.2）。なぜ fromSnapshot 直後か——hibernate 復帰で揮発した Working_Copy が
     // 永続スナップショットから何件復元されたかは、再構築が済んだこの時点でしか正確に採れないため。
     // restoredCount は復元後の copy を読むだけで、ロード制御（loaded フラグ）や状態を一切変えない。
@@ -682,9 +739,39 @@ export class StoreTimerDO extends DurableObject<Env> {
    * toleranceRatio / noodlePresets / 採点パラメータ（arms を含む）のいずれも ensureProvisioned（または
    * applyProjection）が投影 config から確立した確定値。
    */
+  /**
+   * この店舗が CP-SAT の標本に入っているか（段階投入・2026-09-13）。
+   *
+   * **design 第 1.1 節は切り替えの単位を「アプリ Worker 全体」と定めていた。** 段 1〜3（R1.4 の
+   * 補完の撤去・R5.4 の有効性採用・全件対象）は**画面に出るものを変える**変更なので、全店舗へ
+   * 一度に入れず標本から始める。**これは design の改訂である**（第 1.1 節・2026-09-13）。
+   *
+   * **店舗別の設定編集でもレジストリのスキーマ変更でもない。** 判定は env の許可リストと自分の
+   * storeId だけで閉じる。投影にも永続にも何も足さない。
+   *
+   * 標本に入らない店舗は `planner: "ts"` として扱う——**画面も費用も従来のまま**である。
+   * 「CP-SAT を選んでいるのに TS で合成する」ことになるが、それは段階投入の意味そのものであり、
+   * 未設定を黙って読み替える既定ではない（許可リストは明示的に置く）。
+   */
+  private get cpsatSampled(): boolean {
+    if ((this.env.PLANNER_BACKEND as string) !== "cpsat") return false;
+    const storeId = this.ctx.id.name;
+    if (storeId === undefined || storeId.length === 0) return false;
+    const allowed: string = this.env.CPSAT_STORE_IDS ?? "";
+    // 空は「標本を絞らない」＝全店舗。**明示的に空にしたときだけ全店舗になる。**
+    if (allowed.trim().length === 0) return true;
+    return allowed.split(",").some((entry) => entry.trim() === storeId);
+  }
+
   private settleParams(): SettleParams {
     return {
       noodlePresets: this.noodlePresets,
+      // 計画器の選択は env（design 第1.1節）。engine の合成と採否がこれで変わる（R1.4・R5.4）。
+      // **不明な値は `ts` に畳まない**——`requestPlan` が `configuration-invalid` で止めるので、
+      // ここで黙って読み替えれば「設定を間違えたまま TS で動いている」状態を作る。
+      // 設定の literal 型（`"ts"`）のままだと `cpsat` の比較が型の上で到達不能になる。`requestPlan`
+      // と同じ理由でここも string へ広げる。
+      planner: this.cpsatSampled ? "cpsat" : "ts",
       ...this.scheduleParams,
     };
   }
@@ -707,6 +794,66 @@ export class StoreTimerDO extends DurableObject<Env> {
    *
    * 到達＝計算済みの健全な投影（要件4.6 の帰結・レジストリ入口で検証済み）ゆえ、ここで再検証はしない。
    */
+  /**
+   * applyShortNames — 札の押し込みの受け口（item-display-abbreviation Requirement 7.1〜7.3・7.14・7.15）。
+   *
+   * 呼び手は札の Worker で、`deliverPlan` と同じ cross-script binding から入る。**DO は辞書を引かない。**
+   *
+   * **順序が意味を持つ。** マージ → 変化があれば別キーへ保存 → **保存が成功してから**在メモリへ反映し、
+   * 確定済みの状態を再送する。配ってから保存する形にすると、休眠を挟んだ瞬間に「画面には出ているのに
+   * DO は知らない札」が生まれる。**保存に失敗したら従来の札を維持し、未保存の札を配信しない。**
+   *
+   * 再送するのは**既に確定した状態**であり、新しい遷移でも `Effect` でもない——`decide` を通らず
+   * `SNAPSHOT_KEY` の `put` も伴わない（Timer の確定の起点は従来どおりそこだけである）。札そのものは
+   * 別キーへ保存する。**変わらなければ送らない**——同じ札を押し直されるたびに再送すれば、閑散時に
+   * 無意味な送信が積み上がる。
+   */
+  async applyShortNames(labels: Readonly<Record<string, string>>): Promise<void> {
+    await this.ensureLoaded();
+    const merged = { ...this.shortNames, ...toShortNameTable(labels) };
+    // 変化の判定は「鍵の数」と「各鍵の値」で足りる（削除はこの経路に無い＝マージは単調である）。
+    const changed =
+      Object.keys(merged).length !== Object.keys(this.shortNames).length ||
+      Object.entries(merged).some(([key, label]) => this.shortNames[key] !== label);
+    if (!changed) return;
+
+    // 保存が先。失敗は呼び手へ伝え、在メモリも配信も触らない（従来の札のまま）。
+    await this.ctx.storage.put(SHORT_NAMES_KEY, merged);
+    this.shortNames = merged;
+
+    // 確定済みの現在の状態を、hydration と同じ射影で送り直す。
+    const payload = JSON.stringify(
+      this.withShortNames(
+        toWireSnapshot(this.workingCopy, this.settleParams(), Date.now() as EpochMillis),
+      ),
+    );
+    for (const ws of this.ctx.getWebSockets()) {
+      ws.send(payload);
+    }
+  }
+
+  /**
+   * 送信直前に品目へ札を被せる（Requirement 7.5〜7.7・7.13）。**被せるのはここ 1 箇所だけである。**
+   *
+   * 通常の Broadcast も接続時の hydration も同じこの関数を通る——二箇所で組めば「レールには札が出るのに
+   * 開き直すと全名」という食い違いが生まれる。
+   *
+   * 引くのは**送信のたび**であり、到着時刻の札で固定しない。ゆえに札ができた瞬間から、既に待ち行列に
+   * 在る品目にも効く。札を持たない品目には項目を足さない——受け手は全名へ戻る。
+   */
+  private withShortNames(message: ServerMessage): ServerMessage {
+    if (message.type !== "snapshot") return message;
+    return {
+      ...message,
+      orderItems: message.orderItems.map((item) => {
+        const declared = item.itemName;
+        if (declared === null) return item;
+        const label = this.shortNames[declared.normalize("NFKC")];
+        return label === undefined ? item : { ...item, shortName: label };
+      }),
+    };
+  }
+
   async applyProjection(projection: StoreProjection): Promise<{ readonly version: number }> {
     // 単調ガードの基準は永続済み投影の version。SSOT は永続層ゆえ storage から読む。
     const persisted = (await this.ctx.storage.get(PROJECTION_KEY)) as StoreProjection | undefined;
@@ -813,7 +960,9 @@ export class StoreTimerDO extends DurableObject<Env> {
     // serverTime は送信時点のサーバ現在時刻（残り秒は送らず endTime から各クライアントが導出する）。
     server.send(
       JSON.stringify(
-        toWireSnapshot(this.workingCopy, this.settleParams(), Date.now() as EpochMillis),
+        this.withShortNames(
+          toWireSnapshot(this.workingCopy, this.settleParams(), Date.now() as EpochMillis),
+        ),
       ),
     );
 
@@ -967,6 +1116,9 @@ export class StoreTimerDO extends DurableObject<Env> {
     const validated = toCookSchedule(plan);
     if (validated === null) return;
     const now = Date.now() as EpochMillis;
+    // **遷移の前の Shown_Plan を控える。** 配置の揺れ（`churn`）はこれと届いた計画の差である。
+    // 遷移後に読むと、採用した計画そのものが新しい Shown_Plan になっていて差が 0 に見える。
+    const shownBefore = this.workingCopy.shownPlan;
     const outcome = decide(
       this.workingCopy,
       { type: "PlanArrived", plan: validated, now },
@@ -976,7 +1128,135 @@ export class StoreTimerDO extends DurableObject<Env> {
     if (!outcome.ok) return;
     // 採用があれば Persist 先頭の Effect 列が実行され、broadcast は put 成功の上に立つ（SSOT 規律）。
     // Operation History へは何も出さない——採用/棄却は Timer 状態の差分ではない（tasks.md 21.3）。
+    // **採否はこの遷移が Effect を出したかで決まる。** 遷移後の `acceptedSlices` を見てはいけない
+    // ——全棄却は状態をそのまま返すので、以前の受領で採用した一片がそこに残っており、棄却を
+    // 「採用」と読んでしまう（`receivePlan` の「全棄却は早期に返す」）。
+    const adopted = outcome.effects.length > 0;
     await this.runEffects(outcome.effects);
+    this.emitPlanDecided(
+      plan,
+      validated,
+      adopted,
+      outcome.state.acceptedSlices,
+      shownBefore,
+      outcome.note ?? null,
+      now,
+    );
+  }
+
+  /**
+   * 現場の操作が**拒否された**ことを 1 行で出す（2026-09-13）。
+   *
+   * **これが無い間、「押したのに何も起きない」を誰も追えなかった。** 拒否は Effect 列を生まず、
+   * 要求元の WS へ `error` を返すだけなので、**サーバ側には痕跡が一切残らない**。1108 で
+   * 「スタートを押したのに走行中が 0 のまま」という観測が出たとき、届かなかったのか
+   * （WS 切断）拒否されたのか（engine の判定）を、ログからは区別できなかった。
+   *
+   * **採用されたときは出さない。** 成功は確定の副産物（Persist・Broadcast・計画要求）から
+   * 追えるし、1 店 1 分あたり何十件も出る。拒否は定義上まれで、出しても量にならない。
+   *
+   * `emitSeam` は通さない——あちらは Instrumentation_Log の 4 継ぎ目限定のゲート（要件4.9）を
+   * 守る出力点で、これはその 4 つに当たらない。`OBSERVE_DEBUG` に関係なく常に出す：
+   * **現場の操作が通らなかったことは、debug のときだけ在ればよい事実ではない。**
+   *
+   * 運ぶのは種別と理由コードだけである。品目の鍵も釜の番号も載せない——追うのに要るのは
+   * 「どの操作が、どの規則で落ちたか」であって、注文の中身ではない。
+   */
+  private emitCommandRejected(command: string, code: string): void {
+    console.log(
+      JSON.stringify({
+        kind: "command-rejected",
+        storeId: this.ctx.id.name ?? null,
+        command,
+        code,
+      }),
+    );
+  }
+
+  /**
+   * 外部計画の採否を 1 行で出す（`cpsat.plan-decided` 相当・2026-09-13）。
+   *
+   * **これが無い間、画面の提案がどちらの計画器のものか誰にも分からなかった。** 「画面に推奨が
+   * 出ている」は CP-SAT 由来を示さない——採用が 1 件も無くても engine の自前解で推奨は出る。
+   * 官能評価は「見ている提案の出所」が言えなければ成立しないので、その印をここに置く
+   * （R8「実行と体感を分ける」・tasks 7.5 の由来確認）。
+   *
+   * **2 つを分けて持つ。** `outcome` は「今回の受領が採用されたか」で、`standingAcceptedSlices` は
+   * 「いま画面に出ているものが外部計画由来か」である。棄却でも以前の採用は残るので、後者だけを
+   * 見れば棄却を採用と読み、前者だけを見れば画面の由来が言えない。
+   *
+   * 採否の判定を組み直さない——`receivePlan` の全棄却は「状態を変えず Effect も出さない」と
+   * 明示されているので、Effect 列が空かどうかがそのまま採否である。
+   *
+   * **棄却の段はここでは言わない。** 段 1（卓の完全被覆・feasibility）と段 2（非改善）を分けるには
+   * `admit` の内側の理由が要るが、それを運ぶには engine の `Outcome` の契約を動かすことになる。
+   * 代わりに計画 Worker 側が `pending` と `slices`（卓の数）を出すので、`pending > 6` かつ卓が 1 つの
+   * 棄却は被覆、`pending ≤ 6` の棄却は非改善、と**集計の側で**分けられる（2026-09-13 の記録）。
+   *
+   * `emitSeam` は通さない。あちらは Instrumentation_Log の 4 継ぎ目限定のゲート（要件4.9）を守る
+   * 出力点であり、これはその 4 つに当たらない。`OBSERVE_DEBUG` に関係なく常に出す——採否は
+   * 有効化判断の根拠であって、debug のときだけ在ればよい値ではない。
+   */
+  private emitPlanDecided(
+    raw: unknown,
+    validated: CookSchedule,
+    adopted: boolean,
+    standing: readonly AcceptedSlice[],
+    shownBefore: ShownPlan,
+    note: OutcomeNote | null,
+    now: EpochMillis,
+  ): void {
+    // 生値から読むのは出所の申告だけ（`toCookSchedule` は `slices` しか残さない）。申告を信じて
+    // 何かを決めることはしない——記録にそのまま残すだけである。
+    const declared =
+      typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+    console.log(
+      JSON.stringify({
+        kind: "cpsat.plan-decided",
+        storeId: this.ctx.id.name ?? null,
+        planner: typeof declared.planner === "string" ? declared.planner : null,
+        requestId: typeof declared.requestId === "string" ? declared.requestId : null,
+        inputKey: typeof declared.inputKey === "string" ? declared.inputKey : null,
+        outcome: adopted ? "adopted" : "rejected",
+        arrivedSlices: validated.slices.length,
+        arrivedPlacements: validated.slices.reduce(
+          (count, slice) => count + slice.placements.length,
+          0,
+        ),
+        // **由来の印。** 遷移後の採用済み一片の数で、「いま画面に出ているもの」を表す。非空なら、
+        // その卓について画面に出ている配置は外部計画（＝CP-SAT）のものである。空なら engine の
+        // 自前解である。今回の受領が棄却でも、以前の採用が残っていれば非空になる——だから
+        // `outcome`（今回の採否）と分けて持つ。
+        standingAcceptedSlices: standing.length,
+        standingAcceptedPlacements: standing.reduce(
+          (count, slice) => count + slice.placements.length,
+          0,
+        ),
+        // **注文 1 件ごとの配置の揺れ**（2026-09-14・段 1 の `slotChangeCost` の効きを数える）。
+        // 旧 Shown_Plan と届いた計画の**両方に在る品目**だけを数える——開始済みで消えた品目も
+        // 新着も対応が無いので、揺れではない（`changeCost` が対応を取るのと同じ規則）。
+        // 採否に関わらず出す：棄却された計画の揺れは「採られなくて良かった量」であり、
+        // 採用の揺れとは別の意味を持つ。
+        ...churnOf(shownBefore, validated, this.settleParams()),
+        // **どの述語が接頭辞を止めたか**（`admitDetailed`・2026-09-13）。棄却の 1 行から
+        // 「求解中に人が開始した（`stale`）」のような正常な棄却と、別の欠陥を分けるために要る。
+        // engine が返す添え物をそのまま写すだけで、shell はこれで何も分岐しない。
+        admitStage: note?.admitStage ?? null,
+        // 当てた遅延補正の幅（R5.5・0 は補正なし）。採用した配置はこの分だけ後ろにある。
+        retimedByMs: note?.retimedByMs ?? null,
+        // **画面の先頭が「いま」からどれだけ先を指しているか**（ミリ秒・2026-09-13）。
+        //
+        // `CPSAT_DELIVERY_LEAD_MS` は生成側で一律に開始を先へ送るので、**推奨は「いま」ではなく
+        // 常に少し先を指す**（TS の `pinNow` が持っていた即時開始の推奨は CP-SAT モードでは
+        // 出ない）。偏りの大きさは**画面を見た人の記憶ではなくこの値で言う**——目視は後から
+        // 取り直せない。lead を短くするかどうかの判断材料がこれである。
+        //
+        // 2 つ分ける。`arrived` は届いた計画の先頭、`standing` は**いま画面に出ている**採用済みの
+        // 先頭である。棄却が続けば後者だけが古いまま残り、その差が「提案が止まっている」量になる。
+        arrivedHeadInMs: earliestStartInMs(validated.slices, now),
+        standingHeadInMs: earliestStartInMs(standing, now),
+      }),
+    );
   }
 
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -1030,6 +1310,7 @@ export class StoreTimerDO extends DurableObject<Env> {
         this.tryWriteCommittedOperation("Adjust", now, before, outcome.effects, result);
         return;
       }
+      this.emitCommandRejected("Adjust", outcome.rejection.code);
       const error: ServerMessage = {
         type: "error",
         serverTime: Date.now(),
@@ -1072,10 +1353,20 @@ export class StoreTimerDO extends DurableObject<Env> {
       // Persist 先頭の Effect 列を runEffects が実行する（SSOT 規律）。確定変化は全 WS へ snapshot を
       // broadcast し、要求元も他 client と同一の snapshot を受ける（Reply を使わない・bug#1 の構造的消滅）。
       const result = await this.runEffects(outcome.effects);
-      this.tryWriteCommittedOperation(event.type, now, before, outcome.effects, result);
+      this.tryWriteCommittedOperation(
+        event.type,
+        now,
+        before,
+        outcome.effects,
+        result,
+        event.type === "StartOrderItem"
+          ? { externalOrderId: event.externalOrderId, itemIndex: event.itemIndex }
+          : null,
+      );
       return;
     }
     // 拒否は Effect 列を生まない（outcome.ok === false）。要求元の WS だけへ error を返す（要件1.5 / 3.8 / 6.6）。
+    this.emitCommandRejected(event.type, outcome.rejection.code);
     const error: ServerMessage = {
       type: "error",
       serverTime: Date.now(),
@@ -1190,7 +1481,7 @@ export class StoreTimerDO extends DurableObject<Env> {
         break;
       case "Broadcast": {
         // 接続中の全 WS へ全量送信。送信失敗は握り潰さず、回復は再接続 hydration に委ねる（要件2.6）。
-        const payload = JSON.stringify(effect.message);
+        const payload = JSON.stringify(this.withShortNames(effect.message));
         // 継ぎ目4: broadcast（要件4.4）。なぜ送信ループ前に 1 回か——「この broadcast 作用が起きた」事実は
         // 宛先 WS の数とは独立した 1 回の出来事であり、ループ内に置くと接続数ぶん増殖して観測点が
         // 4 継ぎ目限定（要件4.9）から外れるため。messageType は送る ServerMessage の種別を読むだけで、
@@ -1254,14 +1545,183 @@ export class StoreTimerDO extends DurableObject<Env> {
       digest: effect.digest,
       shownPlan: effect.shownPlan,
     };
+    // 計画器の選択は env の `PLANNER_BACKEND`（design 第1.1節）。未指定・`ts` は TS で、
+    // 既存の Service binding へ送る。`cpsat` のときだけ Queue へ投入する。
+    // **不明な値を TS に黙って読み替えない**（同節）——読み替えれば、設定を間違えた
+    // まま「動いている」ことになる。
+    // 型は設定の literal（`"ts"`）になるので、ここで string へ広げる。広げないと
+    // `cpsat` の分岐が型の上で到達不能になり、切り替えたときに気づけない形になる。
+    const backend: string = this.env.PLANNER_BACKEND ?? "ts";
+    if (backend === "ts") {
+      try {
+        await this.env.SOLVER.fetch(SOLVER_REQUEST_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        // 送出失敗は握って落とす（上記のとおり伝播させない・再試行も抱えない）。
+      }
+      return;
+    }
+    if (backend !== "cpsat") {
+      // 設定が不正。注文・Timer 操作は止めず、CP-SAT 要求だけを止める（design 第1.1節）。
+      console.error(JSON.stringify({ kind: "configuration-invalid", field: "PLANNER_BACKEND" }));
+      return;
+    }
+    if (!this.cpsatSampled) {
+      // **標本外の店舗は求解を通さない。** Queue にも載せず、CPU も課金も使わない。
+      // 合成は `planner: "ts"` のままなので、画面は従来どおり engine の自前解で埋まる。
+      // TS 経路へ流さないのは、`yude-men-solver` が返すのが同じ自前解であり、送っても
+      // 同値で棄却されるだけだからである（費用だけが増える）。
+      console.log(JSON.stringify({ kind: "cpsat-store-not-sampled", storeId }));
+      return;
+    }
+    await this.requestCpsatPlan(body);
+  }
+
+  /**
+   * CP-SAT へ Queue 経由で要求する。
+   *
+   * **await するのは投入の完了だけである。** 求解の結末も配送の結末も待たない——待てば
+   * 呼出元がこの DO であり、同期求解に握られる。それが初期案（Service binding →
+   * `waitUntil`）を不成立にした当のものである（design 第9節）。`send` は速い I/O なので、
+   * 「送ったことを確かめてから event 処理を終える」上記の規律はそのまま保たれる。
+   */
+  private async requestCpsatPlan(body: PlanRequest): Promise<void> {
+    const activation: string = this.env.CPSAT_ACTIVATION_ID ?? "";
+    if (activation.length === 0) {
+      // 有効化世代は要求の同一性に入る（R1.6）。無いまま送れば、どの有効化に属する
+      // 要求か後から言えない。設定の不備として止める。
+      console.error(
+        JSON.stringify({ kind: "configuration-invalid", field: "CPSAT_ACTIVATION_ID" }),
+      );
+      return;
+    }
+    const request: CpsatPlanRequest = {
+      ...body,
+      planner: "cpsat",
+      // 入力の指紋。**写しは載せない**——載せると同じデータがメッセージに 2 回入り、
+      // 実測で 2.12 倍（44,068 B → 93,591 B）になる。Queues は 64 KB ごと課金なので
+      // 操作が倍になり、品名が長い局面は 1 通の上限 128 KB を超えて送出が止まる
+      // （その店舗の計画が出なくなる）。受け手は自分で組み直して照合するので、
+      // 写しでもハッシュでも同じ判定ができる（2026-09-13）。
+      inputKey: await cpsatInputDigest(body),
+      requestId: crypto.randomUUID(),
+    };
+    // **超過を黙って落とさない**（R6.4）。1 通に収まらない要求は送らず、理由を残す。
+    const payload = checkCpsatPayload(request);
+    if (!payload.ok) {
+      console.error(
+        JSON.stringify({
+          kind: "cpsat-request-too-large",
+          requestId: request.requestId,
+          bytes: payload.bytes,
+          limit: CPSAT_QUEUE_PAYLOAD_LIMIT_BYTES,
+        }),
+      );
+      return;
+    }
     try {
-      await this.env.SOLVER.fetch(SOLVER_REQUEST_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await this.env.CPSAT_PLAN_QUEUE.send(request);
     } catch {
-      // 送出失敗は握って落とす（上記のとおり伝播させない・再試行も抱えない）。
+      // 送出失敗は握って落とす。輸送層の再配送には依存せず、取り逃した機会は次の
+      // 状態変化の要求が回収する（R6.7）。
     }
   }
+}
+
+/**
+ * churnOf — **注文 1 件ごとの配置の揺れ**を数える（2026-09-14）。
+ *
+ * CP-SAT モードでは、ちらつきの守り手が `admit` の改善判定からモデルの `slotChangeCost` へ
+ * 移った（R1.4・design 第 7.6.5 節）。**係数が十分かは、実際に何杯の配置が動いたかを数えて
+ * 初めて言える**——目的関数の値を見ても、画面の上で何が動いたかは分からない。
+ *
+ * 数えるのは**対応する品目**だけである。旧 Shown_Plan と届いた計画の両方に鍵が在るものに
+ * 限る——開始済みで消えた品目も新着も対応が無く、それは揺れではない（`changeCost` が対応を
+ * 取るのと同じ規則・plan-stability AC 2.1 / 2.3）。
+ *
+ * 釜と時刻を**別々に**数える。同じ杯が同じ時刻のまま別の釜に移るのと、同じ釜のまま時刻が
+ * 動くのとでは、厨房から見える揺れが違う。`slotIds` は**釜番号の集合**で比べる（並びと表記の
+ * 違いは変更ではない・`changeCost` の (b) と同じ）。
+ *
+ * **時刻は 2 通りで数える。** `churnTime` は 1 ミリ秒でも動いた杯で、`churnTimeBeyondWindow` は
+ * **合流の窓 h_i を超えて**動いた杯である。前者は本番で 100%（161/161・2026-09-13）になった——
+ * 計画のたびに原点（`now + CPSAT_DELIVERY_LEAD_MS`）が進むので、どの杯も必ず数秒動く。
+ * **厨房から見える揺れは後者である**：`changeCost` の (d) も窓の内側の移動を数えない
+ * （plan-stability 判断 2 (c)）。窓は `joinWindowMillis`（engine）ただ一つで引く。
+ */
+function churnOf(
+  shown: ShownPlan,
+  arrived: CookSchedule,
+  params: ScheduleParams,
+): {
+  readonly churnCompared: number;
+  readonly churnSlot: number;
+  readonly churnTime: number;
+  readonly churnTimeBeyondWindow: number;
+  readonly churnAny: number;
+} {
+  const key = (item: { readonly externalOrderId: string; readonly itemIndex: number }) =>
+    `${item.externalOrderId} ${item.itemIndex}`;
+  const slotSet = (slotIds: readonly string[]) => [...new Set(slotIds)].sort().join(",");
+  const before = new Map(shown.map((item) => [key(item), item]));
+  let compared = 0;
+  let slot = 0;
+  let time = 0;
+  let beyond = 0;
+  let any = 0;
+  for (const slice of arrived.slices)
+    for (const placement of slice.placements) {
+      const old = before.get(key(placement));
+      if (old === undefined) continue;
+      compared += 1;
+      const movedSlot = slotSet(old.slotIds) !== slotSet(placement.slotIds);
+      const moved = Math.abs(placement.startAt - old.startAt);
+      // 旧提案の茹で時間は `serveAt - startAt` そのものである（`feasibleRelease` がこの等式を
+      // 要求する）。窓は engine の `joinWindowMillis` ただ一つで引く——写しを作らない。
+      if (movedSlot) slot += 1;
+      if (moved !== 0) time += 1;
+      if (moved > joinWindowMillis(old.serveAt - old.startAt, params)) beyond += 1;
+      if (movedSlot || moved !== 0) any += 1;
+    }
+  return {
+    churnCompared: compared,
+    churnSlot: slot,
+    churnTime: time,
+    churnTimeBeyondWindow: beyond,
+    churnAny: any,
+  };
+}
+
+/**
+ * earliestStartInMs — 一片の列の**最も早い開始時刻が `now` からどれだけ先か**（ミリ秒）。
+ *
+ * 負なら過去（推奨時刻が過ぎている）、正なら未来である。配置が無ければ `null`。
+ *
+ * **これは画面の見え方を数で言うための値である。** 「提案がいつも少し先を指す」という感覚は
+ * `CPSAT_DELIVERY_LEAD_MS` の偏りだが、感覚は後から取り直せない——操作した人が覚えていなければ
+ * それきりである。値にしておけば、次に誰かが操作したときに自動的に残る。
+ */
+function earliestStartInMs(
+  slices: readonly { readonly placements: readonly { readonly startAt: EpochMillis }[] }[],
+  now: EpochMillis,
+): number | null {
+  const starts = slices.flatMap((slice) => slice.placements.map((placement) => placement.startAt));
+  return starts.length === 0 ? null : Math.min(...starts) - now;
+}
+
+/**
+ * 生値を札の表へ写す。読めない項目はその 1 件だけを落とす（表全体を失えば全商品が全名へ戻る）。
+ *
+ * 空文字の札は落とす——「札がある」と「無い」を区別できなくなる。
+ */
+function toShortNameTable(raw: unknown): Readonly<Record<string, string>> {
+  if (!isRecord(raw) || Array.isArray(raw)) return {};
+  const table: Record<string, string> = {};
+  for (const [key, label] of Object.entries(raw)) {
+    if (key.length > 0 && typeof label === "string" && label.length > 0) table[key] = label;
+  }
+  return table;
 }

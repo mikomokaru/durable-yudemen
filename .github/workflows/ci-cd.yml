@@ -42,6 +42,11 @@ jobs:
       - name: Generate Worker types
         run: pnpm cf-typegen
 
+      # 札の Worker は root と別の Env 型を持つ（`ShortNamesEnv`）。root の `Env` に AI / KV が
+      # 現れないことが、`StoreTimerDO` がそれらの直接 binding を持たないことの担保である。
+      - name: Generate short-names Worker types
+        run: pnpm short-names:types
+
       - name: Lint
         run: pnpm lint
 
@@ -82,10 +87,29 @@ jobs:
       - name: Generate Worker types
         run: pnpm cf-typegen
 
+      # 札の Worker は root と別の Env 型を持つ（`ShortNamesEnv`）。root の `Env` に AI / KV が
+      # 現れないことが、`StoreTimerDO` がそれらの直接 binding を持たないことの担保である。
+      - name: Generate short-names Worker types
+        run: pnpm short-names:types
+
       # assets バインディング（dist）が必要なため、デプロイ前に本番ビルドする。
       # build = tsc --noEmit && vite build。OBSERVE_DEBUG は wrangler.jsonc 既定の "0" のまま。
       - name: Build
         run: pnpm build
+
+      # **札の Worker を root より先に出す**（item-display-abbreviation）。root は `SHORT_NAMES_WORKER`
+      # service binding を持ち、binding が指す service が実在しないと root の deploy が失敗する
+      # （tail_consumers と同じ footgun）。順序を CI に固定して、手順の記憶に依存させない。
+      #
+      # この Worker だけが AI binding と KV binding を持つ。root に置くと `StoreTimerDO` の env にも
+      # 現れるため（`class StoreTimerDO extends DurableObject<Env>`）、能力を分けるには Worker を分ける。
+      - name: Deploy short-names Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          command: "deploy --config wrangler.short-names.jsonc"
 
       # 本番のみ Access を ON にする。リポジトリ既定（wrangler.jsonc）は ACCESS_REQUIRED="0" を保ち
       # （テスト環境の既定 OFF を壊さない）、本番デプロイ時にのみ実値を --var で注入する（要件5.6）。

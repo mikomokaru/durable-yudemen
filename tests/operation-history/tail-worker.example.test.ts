@@ -66,21 +66,25 @@ describe("operationRecordMessagesFromTailEvents", () => {
   });
 
   it("不正行はmessageにせず1始まり位置と失敗種別を観測側へ残す", () => {
-    const missingRequired = '{"storeId":"store-1"}';
+    // 操作記録を名乗る行だけが対象。名乗らない他機能のログは失敗として数えない
+    // （2026-09-16 に本番で判明。src/operation-history/tail.ts の OPERATION_CLAIM）。
+    const claimsButBroken = '{"operationKind":"completed","storeId":"store-1"';
+    const claimsButIncomplete = '{"operationKind":"completed","storeId":"store-1"}';
     const events = [
       event(PRODUCER_SCRIPT, [
         { level: "warn", message: ["not-json"] },
         { level: "log", message: ["not-json"] },
         { level: "log", message: [line, "extra"] },
         { level: "log", message: [line] },
-        { level: "log", message: [missingRequired] },
+        { level: "log", message: [claimsButBroken] },
+        { level: "log", message: [claimsButIncomplete] },
       ]),
     ];
     expect(operationRecordMessagesFromTailEvents(events, 2000)).toEqual({
       messages: [{ canonicalLine: line, firstObservedAt: 2000, producerScript: PRODUCER_SCRIPT }],
       failures: [
-        { lineNumber: 1, failure: "invalid-json" },
-        { lineNumber: 3, failure: "missing-required-attribute" },
+        { lineNumber: 3, failure: "invalid-json" },
+        { lineNumber: 4, failure: "missing-required-attribute" },
       ],
     });
   });

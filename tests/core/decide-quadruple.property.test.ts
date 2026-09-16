@@ -115,6 +115,7 @@ const genDeliveryScene: fc.Arbitrary<QuadrupleScene> = fc
     const pending = toPending(seed.orders);
     const params: SettleParams = {
       noodlePresets: DEFAULT_NOODLE_PRESETS,
+      planner: "ts" as const,
       ...seed.schedule,
       toleranceRatio: seed.toleranceRatio,
       arms: seed.arms,

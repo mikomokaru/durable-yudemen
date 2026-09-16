@@ -1,0 +1,45 @@
+{
+  "name": "yude-men-cpsat-planner-dev",
+  "main": "src/cpsat/worker.ts",
+  "compatibility_date": "2026-09-09",
+  "compatibility_flags": ["no_nodejs_compat", "no_nodejs_compat_v2"],
+  "workers_dev": false,
+  "preview_urls": false,
+  // **本番の値：20,000（2026-09-13・ユーザー承認）。** 10,000 では走行中 4 本以上の局面で
+  // 裾が切られる——予算の校正で走行中 4 本に 0.5 が要ると分かり、見込み CPU の裾が 13,300 ms に
+  // なるためである（実測 0.172 で max 4,571 ms からの比例）。切られた回は `no-solution` ではなく
+  // CPU 超過として失敗し、R9.10 の「通常局面で上限超過が出た組み合わせは有効化しない」に当たる。
+  // **走行中がある局面こそ操作されている店舗の局面**なので、そこで解けない形は採らない。
+  // 2.4 の閾値もこれに合わせて置き直す（verification/cpsat-running-window-20260913.md §5）。
+  "limits": { "cpu_ms": 20000 },
+  "observability": { "enabled": true },
+  // Queue consumer。求解はこの invocation で走るので、効く上限は上の cpu_ms である
+  // （`waitUntil` の 30 秒枠ではない）。
+  //
+  // max_batch_size 1：1 invocation 1 求解。区間の測定が invocation の境界と一致し、
+  //   handler が落ちても巻き込む範囲が 1 件に閉じる。
+  // max_batch_timeout 0：束ねて待たない。厨房が要するのは 1 件ずつ速く解くこと。
+  // max_concurrency は置かない（無制限）。これは queue 全体の同時実行数であって店舗ごと
+  //   ではない。1 にすると全店舗の要求が直列化し、配送遅延が 7 倍になる（2026-09-12 実測）。
+  "queues": {
+    "consumers": [
+      {
+        "queue": "cpsat-plan-requests",
+        "max_batch_size": 1,
+        "max_batch_timeout": 0,
+        "max_retries": 3,
+        "dead_letter_queue": "cpsat-plan-requests-dlq",
+      },
+    ],
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STORE_TIMER_DO",
+        "class_name": "StoreTimerDO",
+        "script_name": "yude-men-timer",
+      },
+    ],
+  },
+  "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallthrough": true }],
+}

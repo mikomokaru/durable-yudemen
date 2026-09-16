@@ -1,5 +1,7 @@
 # 機密業務データの分類と access 制御を構成する手順（operation-history-log）
 
+> **2026-09-11: 旧Snowpipe方式の資料。** 現行の[統合spec](../../.kiro/specs/operation-history-log/requirements.md)はR2＋Icebergを共通保存先とし、Snowflakeは外部Icebergを読み取る。生ログの期間削除は行わない。本資料・付属SQL／Lifecycle設定は旧実装の記録であり、新方式へそのまま適用しない。runtime・設定・実環境の移行は未実施で、削除task／Lifecycleの停止も[移行タスク](../../.kiro/specs/operation-history-log/tasks.md)で実状態を確認して行う。
+
 > 対象 spec: `operation-history-log` / タスク 13.6「機密業務データのアクセス制御を実装する」
 > 種別: ［手続き］（Snowflake は外部サービスゆえリポジトリからは適用されない。ユーザーが本手順に従い実行する）
 > 正本: `requirements.md` 要件 6.10〜6.12、`design.md` 節「SLO・保持・機密性」「access 制御の確定結果（タスク13.6）」

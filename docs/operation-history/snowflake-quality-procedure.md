@@ -1,5 +1,7 @@
 # 相関・重複収束・品質率を Snowflake へ配線する手順（operation-history-log）
 
+> **2026-09-11: 旧Snowpipe方式の資料。** 現行の[統合spec](../../.kiro/specs/operation-history-log/requirements.md)はR2＋Icebergを共通保存先とし、Snowflakeは外部Icebergを読み取る。生ログの期間削除は行わない。本資料・付属SQL／Lifecycle設定は旧実装の記録であり、新方式へそのまま適用しない。runtime・設定・実環境の移行は未実施で、削除task／Lifecycleの停止も[移行タスク](../../.kiro/specs/operation-history-log/tasks.md)で実状態を確認して行う。
+
 > 対象 spec: `operation-history-log` / タスク 13.2「相関、重複収束、欠落／孤児／競合／重複、品質率を Snowflake へ配線する」
 > 種別: ［手続き］（Snowflake は外部サービスゆえリポジトリから適用できない。ユーザーが本手順に従い実行する）
 > 正本: `requirements.md` 要件 5.1〜5.7 / 5.9〜5.13 / 5.15、`design.md` 節「相関・重複・品質」

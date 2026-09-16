@@ -33,13 +33,27 @@ export type OperationLineFailure =
   | "missing-required-attribute"
   | "disallowed-operation-kind-attribute"
   | "known-attribute-type"
-  | "known-attribute-value";
+  | "known-attribute-value"
+  // オブジェクトで届いた記録が Tail 側の検査に通らなかった。どの場が駄目だったかは
+  // 失敗に添える `issues` に入る（`src/data-platform/record-schema.ts`）。
+  | "schema-invalid";
 type ParsedOperationLineResult =
   | { readonly ok: true; readonly record: OperationRecord }
   | { readonly ok: false; readonly failure: OperationLineFailure };
 export type OperationLineResult =
   | { readonly ok: true; readonly record: OperationRecord }
   | { readonly ok: false; readonly lineNumber: number; readonly failure: OperationLineFailure };
+
+/**
+ * console へ渡す payload。**その場で作り直した素のオブジェクトである。**
+ *
+ * Producer が record をそのまま `console.log` へ渡すと、渡るのは参照である。tail event が組まれる
+ * までの間に呼び出し側が中身を書き換えれば、届くのは別物になる。属性を書き写し、`slotIds` を複製する
+ * ことでその窓を閉じる。既知属性だけ・kind ごとに閉じた形・固定順序も、同時にここで決まる。
+ */
+export function operationRecordPayload(record: OperationRecord): Record<string, unknown> {
+  return knownAttributes(record);
+}
 
 function knownAttributes(record: OperationRecord) {
   const common = {

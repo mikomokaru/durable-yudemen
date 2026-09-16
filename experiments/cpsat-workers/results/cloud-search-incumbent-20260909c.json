@@ -1,0 +1,14 @@
+{
+  "liftOverflowCost": 60,
+  "severeLiftOverflowCost": 600,
+  "clusterCost": 30,
+  "gapShortfallWeight": 2,
+  "simultaneousDistanceWeight": 1,
+  "multiSlotDistanceWeight": 60,
+  "peripheralWeight": 1,
+  "centralWeight": 1,
+  "purchaseInversionCost": 20,
+  "orderFragmentCost": 30,
+  "orderDistanceWeight": 1,
+  "slotChangeCost": 10
+}

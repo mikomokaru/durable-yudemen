@@ -18,6 +18,7 @@ import type { OrderItem } from "../domain/order";
 import type { NoodlePreset } from "../domain/store";
 import type { ServerMessage } from "../domain/messages";
 import type { ShownPlan } from "./stability";
+import type { AdmitStage } from "./admit";
 
 /** 純粋変換が返す作用の記述。shell が先頭から順に実行する。 */
 export type Effect =
@@ -42,7 +43,30 @@ export type Effect =
       readonly shownPlan: ShownPlan;
     };
 
-/** 純粋変換の結果。成功なら新状態と Effect 列、失敗なら拒否理由。 */
+/**
+ * 純粋変換の結果。成功なら新状態と Effect 列、失敗なら拒否理由。
+ *
+ * `note` は**状態でも Effect でもない観測の添え物**である（2026-09-13 追加）。省略可能で、置くのは
+ * `receivePlan` ただ一つ——外部計画の採否がどの述語で決まったかは、Effect 列（採用の有無）からは
+ * 読めないが、次に直す対象を決めるにはそれが要る。**省略可能にしたのは、他のすべての遷移が
+ * 何も足さずに従来どおりでいられるようにするためである**（`Outcome` を返す箇所は engine 全体に
+ * 散らばっており、必須にすれば無関係な遷移が「理由なし」を書き足すことになる）。
+ *
+ * shell はこれを**記録にだけ**使う。分岐に使えば、engine の内部事情が shell の判断に漏れる。
+ */
 export type Outcome =
-  | { readonly ok: true; readonly state: TimerState; readonly effects: readonly Effect[] }
+  | {
+      readonly ok: true;
+      readonly state: TimerState;
+      readonly effects: readonly Effect[];
+      readonly note?: OutcomeNote;
+    }
   | { readonly ok: false; readonly rejection: Rejection };
+
+/** 観測の添え物。いまは外部計画の採否の段だけを運ぶ。 */
+export interface OutcomeNote {
+  /** 接頭辞が伸びるのを止めた述語（`admitDetailed`）。 */
+  readonly admitStage: AdmitStage;
+  /** 当てた遅延補正の幅（ミリ秒・0 は補正なし）。 */
+  readonly retimedByMs: number;
+}

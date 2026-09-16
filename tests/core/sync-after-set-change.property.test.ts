@@ -7,6 +7,7 @@ import { EMPTY_STATE, type TimerState } from "../../src/engine/state";
 import { synchronize, type SyncParams } from "../../src/engine/sync";
 import type { EpochMillis, TimerId } from "../../src/engine/types";
 import { settleParams } from "../settleParams";
+import { occupiedSlotsOf } from "../../src/domain/store";
 
 interface StartOperation {
   readonly kind: "start";
@@ -74,6 +75,9 @@ function expectCurrentRunningSynchronization(state: TimerState, params: SyncPara
   }
 }
 
+/** 18 釜（3 ユニット）。生成器の `slotIndex` と同じ範囲である。 */
+const SLOT_INDEXES = Array.from({ length: 18 }, (_unused, slot) => slot);
+
 function startEvent(operation: StartOperation, step: number, now: EpochMillis): Event {
   return {
     type: "Start",
@@ -85,9 +89,18 @@ function startEvent(operation: StartOperation, step: number, now: EpochMillis): 
   };
 }
 
-function fallbackStart(step: number, now: EpochMillis): Event {
+/**
+ * 空いている釜の番号（ADR-0015）。**boiled も釜を保持する**ので `occupiedSlotsOf` を通す
+ * ——麺がまだ入っている釜には次を入れられない。
+ */
+function freeSlots(state: TimerState): readonly number[] {
+  const occupied = occupiedSlotsOf(state.timers);
+  return SLOT_INDEXES.filter((slot) => !occupied.has(slot));
+}
+
+function fallbackStart(step: number, now: EpochMillis, free: readonly number[]): Event {
   return startEvent(
-    { kind: "start", boilSeconds: 60, slotIndex: step % 18, delayMillis: 0 },
+    { kind: "start", boilSeconds: 60, slotIndex: free[step % free.length]!, delayMillis: 0 },
     step,
     now,
   );
@@ -99,14 +112,23 @@ function resolveEvent(
   position: SequencePosition,
 ): { readonly event: Event; readonly now: EpochMillis } {
   const running = runningOf(position.state);
+  // **空いている釜から選ぶ（ADR-0015）。** 1 釜 1 Timer が不変条件になったので、無作為の釜番号を
+  // そのまま使うと `SlotOccupied` で拒否され、この性質（集合変化後の同期）を試せない局面が混じる。
+  const free = freeSlots(position.state);
 
-  if (operation.kind === "start") {
+  if (operation.kind === "start" && free.length > 0) {
     const now = (position.now + operation.delayMillis) as EpochMillis;
-    return { event: startEvent(operation, step, now), now };
+    const slotIndex = free[operation.slotIndex % free.length]!;
+    return { event: startEvent({ ...operation, slotIndex }, step, now), now };
   }
 
+  // 釜が全部塞がっている（または開始以外）で走行中が無ければ、進める手が無い——
+  // boiled を上げるための Alarm も打てないので、空き釜が現れるまで待てない。性質の検査は
+  // ここで止めず、空き釜があるときだけ開始を試す形にする。
   if (running.length === 0) {
-    return { event: fallbackStart(step, position.now), now: position.now };
+    if (free.length === 0)
+      return { event: { type: "Reconcile", now: position.now }, now: position.now };
+    return { event: fallbackStart(step, position.now, free), now: position.now };
   }
 
   if (operation.kind === "cancel") {

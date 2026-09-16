@@ -1,5 +1,7 @@
 # Operation History — R2 bucket 側の保持の宣言的正本
 
+> **2026-09-11: 旧Snowpipe方式の資料。** 現行の[統合spec](../../.kiro/specs/operation-history-log/requirements.md)はR2＋Icebergを共通保存先とし、Snowflakeは外部Icebergを読み取る。生ログの期間削除は行わない。本資料・付属SQL／Lifecycle設定は旧実装の記録であり、新方式へそのまま適用しない。runtime・設定・実環境の移行は未実施で、削除task／Lifecycleの停止も[移行タスク](../../.kiro/specs/operation-history-log/tasks.md)で実状態を確認して行う。
+
 `operation-history-log` の raw arrival を置く R2 bucket `operation-raw-arrivals` の
 **object lifecycle 設定の宣言的な正本**。適用手順は
 [`docs/operation-history/retention-procedure.md`](../../docs/operation-history/retention-procedure.md)

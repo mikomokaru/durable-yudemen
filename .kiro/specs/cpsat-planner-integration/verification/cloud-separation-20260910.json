@@ -1,0 +1,32 @@
+{
+  "startedAt": "2026-09-10T14:30:10.109Z",
+  "storeId": "cpsat-transport-20260909-04",
+  "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+  "rounds": [
+    {
+      "round": 0,
+      "externalOrderId": "separation-0-acdd6790",
+      "startedAt": 1789050610109,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 2042
+    },
+    {
+      "round": 1,
+      "externalOrderId": "separation-1-33c347e8",
+      "startedAt": 1789050616153,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 272
+    },
+    {
+      "round": 2,
+      "externalOrderId": "separation-2-f9e8fb1b",
+      "startedAt": 1789050620426,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 311
+    }
+  ],
+  "finishedAt": "2026-09-10T14:30:20.769Z"
+}

@@ -35,6 +35,7 @@ export const EXPIRY_PRESETS: readonly NoodlePreset[] = [
 /** 1 ユニット（6 釜）・arms 1・L 45・w_table 2（既定）。Boil_Sync も arms 1（走行中は 1 本だけなので動かない）。 */
 export const EXPIRY_PARAMS: SettleParams = {
   noodlePresets: EXPIRY_PRESETS,
+  planner: "ts" as const,
   ...schedulingDefaults(1),
   arms: 1,
   // 許容 10%（h_i = 60 秒）を前提にした場面。既定は 5% に下がった（2026-09-07）

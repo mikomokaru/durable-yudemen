@@ -1,0 +1,503 @@
+{
+  "eventsSeen": 402,
+  "rowsSeen": 378,
+  "matchedRequests": 20,
+  "distinctInstances": 9,
+  "instanceIds": [
+    "8610cb8f-8658-4877-862d-0b4845da4069",
+    "ead99371-c159-439d-a269-c29c8c5add90",
+    "282bd663-ee8d-4d9a-864a-2dd3eaa72162",
+    "0da7bc86-f97f-4de6-86c5-c85258c76e6c",
+    "0977d718-529b-403d-b134-6a4a8338f9a5",
+    "0bfa60f8-3308-43e2-bcd7-28e796d5b4ce",
+    "a1076a00-c566-40fa-8f6d-8992392ec2a3",
+    "c5d7332a-52cd-4525-bf1b-d0323b45f1ee",
+    "f49f8db6-9bcd-403b-bb01-978251a8bd14"
+  ],
+  "metricsSeen": [
+    "isolate-bytes",
+    "wait-until-wall-ms",
+    "invocation-wall-ms",
+    "cpu-ms",
+    "solve-callback-wall-ms",
+    "model-bytes",
+    "constraints",
+    "variables",
+    "wasm-bytes",
+    "consumed-deterministic",
+    "budget-deterministic",
+    "cpu-limit-ms"
+  ],
+  "runs": [
+    {
+      "i": 0,
+      "acceptWallMs": 4657,
+      "instance": "8610cb8f-8658-4877-862d-0b4845da4069",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 4384,
+        "cpuMs": 3101,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 1,
+      "acceptWallMs": 1718,
+      "instance": "8610cb8f-8658-4877-862d-0b4845da4069",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 1689,
+        "cpuMs": 1437,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 2,
+      "acceptWallMs": 1115,
+      "instance": "ead99371-c159-439d-a269-c29c8c5add90",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 977,
+        "cpuMs": 902,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 3,
+      "acceptWallMs": 1045,
+      "instance": "ead99371-c159-439d-a269-c29c8c5add90",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 931,
+        "cpuMs": 888,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 4,
+      "acceptWallMs": 1592,
+      "instance": "282bd663-ee8d-4d9a-864a-2dd3eaa72162",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 1492,
+        "cpuMs": 1328,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 5,
+      "acceptWallMs": 934,
+      "instance": "282bd663-ee8d-4d9a-864a-2dd3eaa72162",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 913,
+        "cpuMs": 883,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 6,
+      "acceptWallMs": 2394,
+      "instance": "0da7bc86-f97f-4de6-86c5-c85258c76e6c",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 2149,
+        "cpuMs": 1750,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 7,
+      "acceptWallMs": 1891,
+      "instance": "0977d718-529b-403d-b134-6a4a8338f9a5",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 1765,
+        "cpuMs": 1590,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 8,
+      "acceptWallMs": 1970,
+      "instance": "0bfa60f8-3308-43e2-bcd7-28e796d5b4ce",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 1782,
+        "cpuMs": 1499,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 9,
+      "acceptWallMs": 979,
+      "instance": "0bfa60f8-3308-43e2-bcd7-28e796d5b4ce",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 910,
+        "cpuMs": 871,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 10,
+      "acceptWallMs": 798,
+      "instance": "282bd663-ee8d-4d9a-864a-2dd3eaa72162",
+      "facts": ["solve-finished:UNKNOWN", "solve-started", "solver-accepted"],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": null
+    },
+    {
+      "i": 11,
+      "acceptWallMs": 4411,
+      "instance": "a1076a00-c566-40fa-8f6d-8992392ec2a3",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 3982,
+        "cpuMs": 3145,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 12,
+      "acceptWallMs": 828,
+      "instance": "282bd663-ee8d-4d9a-864a-2dd3eaa72162",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 701,
+        "cpuMs": 673,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 13,
+      "acceptWallMs": 1051,
+      "instance": "0da7bc86-f97f-4de6-86c5-c85258c76e6c",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 949,
+        "cpuMs": 895,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 14,
+      "acceptWallMs": 788,
+      "instance": "0da7bc86-f97f-4de6-86c5-c85258c76e6c",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 735,
+        "cpuMs": 694,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 15,
+      "acceptWallMs": 870,
+      "instance": "0da7bc86-f97f-4de6-86c5-c85258c76e6c",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 843,
+        "cpuMs": 818,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 16,
+      "acceptWallMs": 2251,
+      "instance": "c5d7332a-52cd-4525-bf1b-d0323b45f1ee",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 1917,
+        "cpuMs": 1382,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 17,
+      "acceptWallMs": 977,
+      "instance": "c5d7332a-52cd-4525-bf1b-d0323b45f1ee",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 740,
+        "cpuMs": 638,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 18,
+      "acceptWallMs": 856,
+      "instance": "ead99371-c159-439d-a269-c29c8c5add90",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 734,
+        "cpuMs": 709,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 19,
+      "acceptWallMs": 3944,
+      "instance": "f49f8db6-9bcd-403b-bb01-978251a8bd14",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 3602,
+        "cpuMs": 2981,
+        "outcome": "ok",
+        "status": 202
+      }
+    }
+  ]
+}

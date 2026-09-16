@@ -322,8 +322,15 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
         ["b#0", ["5"], 600, null],
         ["c#0", ["0", "4"], 600, null],
       ],
+      // **発火の時点では C は釜に出ない。** C の釜 0 には boiled の A が残っており、全釜 idle
+      // （判断 15）を満たさないためである——群としては見えるが、釜のカードには現れない。
       fired: [[5, ["b#0 now"]]],
-      completed: [[5, ["b#0 now"]]],
+      // **Complete で釜 0 が空くと C も出る**（ADR-0017：同じ 600 秒の群は互いを待たない）。
+      completed: [
+        [0, ["c#0 now"]],
+        [4, ["c#0 now"]],
+        [5, ["b#0 now"]],
+      ],
     },
     {
       name: "A の釜が index 最大（釜 5 で始めた・残りは釜 4・別卓は釜 2・4）",
@@ -348,8 +355,13 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
         ["b#0", ["4"], 600, null],
         ["c#0", ["2", "5"], 600, null],
       ],
+      // 同上。C は 600 秒に空く釜 2・5 を採るが、発火の時点では釜 5 に boiled の A が残る。
       fired: [[4, ["b#0 now"]]],
-      completed: [[4, ["b#0 now"]]],
+      completed: [
+        [2, ["c#0 now"]],
+        [4, ["b#0 now"]],
+        [5, ["c#0 now"]],
+      ],
     },
   ];
 
@@ -404,7 +416,7 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
         expect(suggestionsAt(started, at(600))).toEqual(variant.at600);
       });
 
-      it("発火 snapshot：B は錨を持たない新しい群として前回の釜のまま届き、G2 は引き続き隠れる", () => {
+      it("発火 snapshot：B は錨を持たない新しい群として前回の釜のまま届き、**G2 も同じ 600 秒なので見える**", () => {
         expect(planOf(fired)).toEqual(variant.firedPlan);
         // 残りは「いま始める群」に組み直される——boiled の A（600 秒）にはもう合流せず anchor は null で started でない。
         // 釜は前回のまま（plan-stability AC 3.1）。G2 との startAt の同値は到着順で断たれ、先に届いた t-1 が先頭に
@@ -413,12 +425,20 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
           { anchor: null, items: ["b#0"], started: false },
           { anchor: null, items: ["c#0"], started: false },
         ]);
-        expect(visibleAt(fired, at(600))).toEqual([["b#0"]]);
+        // **改訂前はここが [["b#0"]] だった**（ADR-0017）。どちらも 600 秒に始められるのに 1 つずつ
+        // しか出さないのは、現場の手を余らせる。麺の投入に腕の本数は効かない——腕を意識するのは
+        // **上げる**ときである。濃く（押せる）出すのが先頭 arms 本という規則（判断 21）は変えていない。
+        //
+        // **群として見えることと、釜のカードに出ることは別である。** この時点で C の釜には
+        // boiled の A が残っており、全釜 idle（判断 15）を満たさないので釜には現れない（`fired`）。
+        expect(visibleAt(fired, at(600))).toEqual([["b#0"], ["c#0"]]);
         expect(suggestionsAt(fired, at(600))).toEqual(variant.fired);
       });
 
-      it("A を Complete した snapshot：B は引き続き自分の釜に先頭として濃く出る。G2 はまだ隠れる", () => {
-        expect(visibleAt(completed, at(600))).toEqual([["b#0"]]);
+      it("A を Complete した snapshot：B は引き続き自分の釜に先頭として濃く出る。**G2 も同じ 600 秒なので見える**", () => {
+        // **改訂前はここが [["b#0"]] だった**（ADR-0017）。Complete で釜が空いても、群は
+        // どちらも 600 秒に始められるので両方見える。押せるのは先頭 arms 本という規則は不変。
+        expect(visibleAt(completed, at(600))).toEqual([["b#0"], ["c#0"]]);
         expect(suggestionsAt(completed, at(600))).toEqual(variant.completed);
       });
     });

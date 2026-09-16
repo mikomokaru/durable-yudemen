@@ -36,7 +36,7 @@
 // ならない。ゆえに全釜を走行中 Timer で埋め、解放表を絶対時刻の事実（実効 endTime）だけから決めさせる。
 // 時計を差し替える手より素直で、実機の経路をそのまま通す。
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { env, evictDurableObject, reset, runInDurableObject } from "cloudflare:test";
 import type { StoreTimerDO } from "../../src/shell/store-timer-do";
 import type { StoreProjection } from "../../src/registry/projection";
@@ -534,7 +534,14 @@ async function withSolver<T>(
   return runInDurableObject(stub, async (instance, state) => {
     const holder = instance as unknown as { env: Env };
     const original = holder.env;
-    holder.env = { ...original, SOLVER: { fetch: probe(state) } as unknown as Env["SOLVER"] };
+    // **計画器を明示する。** 2026-09-12 に root 設定の既定が `cpsat` になったので、
+    // 既定に任せると `requestPlan` は Queue へ行き、この `SOLVER` は呼ばれない。
+    // TS 経路を検査する試験は、検査する経路を自分で選ぶ。
+    holder.env = {
+      ...original,
+      PLANNER_BACKEND: "ts" as Env["PLANNER_BACKEND"],
+      SOLVER: { fetch: probe(state) } as unknown as Env["SOLVER"],
+    };
     try {
       return await action(instance, state);
     } finally {
@@ -843,6 +850,64 @@ describe("20.5 外部の往復と不到達の無害性（Requirements 4.4, 5.2, 
     // 採用が永続へ載っている＝wake し、永続から復元した状態の上で `PlanArrived` が decide を通った。
     // 採用の end-to-end（broadcast・hydration・再評価）は 20.6 が受け持つ。
     expect((await readSnapshot(stage.stub))?.acceptedSlices).toHaveLength(1);
+  });
+
+  it("`cpsat.plan-decided` が採否と**画面の由来**を 1 行で出す（官能評価の前提・2026-09-13）", async () => {
+    const stage = await planStage("cook-plan-decided");
+    const lines: Record<string, unknown>[] = [];
+    const log = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      for (const arg of args) {
+        if (typeof arg !== "string") continue;
+        try {
+          const row = JSON.parse(arg) as Record<string, unknown>;
+          if (row.kind === "cpsat.plan-decided") lines.push(row);
+        } catch {
+          /* 他の行は関心外 */
+        }
+      }
+    });
+
+    const startAt = Date.now() + PLAN_START_LEAD_MS;
+    // 1 回目：自前解より良い計画ゆえ採用される。
+    await stage.stub.deliverPlan({
+      ...improvingPlan(startAt),
+      planner: "cpsat",
+      requestId: "req-1",
+      inputKey: "key-1",
+    });
+    // 2 回目：**同じ計画は同値ゆえ棄却される**（`admit` は真の改善だけを採る）。このとき以前の
+    // 採用は状態に残っているので、`standingAcceptedSlices` だけを見れば棄却を採用と読んでしまう。
+    // 2 欄を分けていることの検査である。
+    await stage.stub.deliverPlan({
+      ...improvingPlan(startAt),
+      planner: "cpsat",
+      requestId: "req-2",
+      inputKey: "key-1",
+    });
+    log.mockRestore();
+
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({
+      kind: "cpsat.plan-decided",
+      planner: "cpsat",
+      requestId: "req-1",
+      inputKey: "key-1",
+      outcome: "adopted",
+      arrivedSlices: 1,
+      arrivedPlacements: 1,
+      standingAcceptedSlices: 1,
+      standingAcceptedPlacements: 1,
+    });
+    expect(typeof lines[0]?.storeId).toBe("string");
+    expect(lines[1]).toMatchObject({
+      requestId: "req-2",
+      // 今回の受領は採られていない。
+      outcome: "rejected",
+      // だが画面に出ているのは依然として外部計画である（1 回目の採用が生きている）。
+      standingAcceptedSlices: 1,
+    });
+
+    stage.client.close();
   });
 
   it("Solver_Worker が不到達でも受理は返り、推奨は出続け、Timer 本体の計時が乱れない", async () => {

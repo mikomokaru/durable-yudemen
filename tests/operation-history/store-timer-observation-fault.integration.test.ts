@@ -17,7 +17,7 @@ declare module "cloudflare:test" {
   interface ProvidedEnv extends Env {}
 }
 
-type ObservationMode = "off" | "success" | "record-throw" | "printer-throw" | "console-throw";
+type ObservationMode = "off" | "success" | "record-throw" | "payload-throw" | "console-throw";
 type RunResult = { readonly persisted: boolean };
 type ExistingException = { readonly name: string; readonly message: string };
 
@@ -45,10 +45,11 @@ type RuntimeCounters = {
 
 type ObservationTrace = {
   readonly mode: ObservationMode;
-  readonly consoleAttempts: string[];
-  readonly consoleLines: string[];
+  // console へ渡された payload そのもの。文字列ではない（2026-09-16）。
+  readonly consoleAttempts: unknown[];
+  readonly consoleLines: unknown[];
   recordFaultAttempts: number;
-  printerFaultAttempts: number;
+  payloadFaultAttempts: number;
   consoleFaultAttempts: number;
   activeEvent: OperationObservation["eventKind"] | null;
   readonly timer: TimerTrace;
@@ -201,8 +202,13 @@ function exceptionOf(error: unknown): ExistingException {
     : { name: typeof error, message: String(error) };
 }
 
-function operationKinds(lines: readonly string[]): string[] {
-  return lines.map((line) => (JSON.parse(line) as { operationKind: string }).operationKind);
+/** 遅延ログの payload も同じ console を通る（2026-09-16）。操作履歴を名乗るものだけ取る。 */
+function operationLines(values: readonly unknown[]): Record<string, unknown>[] {
+  return values.flatMap((value) => (isOperationPayload(value) ? [value] : []));
+}
+
+function operationKinds(values: readonly unknown[]): string[] {
+  return operationLines(values).map((payload) => payload.operationKind as string);
 }
 
 function installTraceHooks(controls: Map<string, ObservationTrace>): void {
@@ -246,8 +252,8 @@ function installTraceHooks(controls: Map<string, ObservationTrace>): void {
 
   vi.spyOn(console, "log").mockImplementation((value?: unknown) => {
     if (activeControl === undefined) return;
-    const line = String(value);
-    activeControl.consoleAttempts.push(line);
+    // 同じ console を遅延ログも通る（2026-09-16）。操作履歴の試行だけを数える。
+    if (isOperationPayload(value)) activeControl.consoleAttempts.push(value);
     if (
       activeControl.mode === "console-throw" &&
       activeControl.activeEvent === "AlarmFired" &&
@@ -256,7 +262,7 @@ function installTraceHooks(controls: Map<string, ObservationTrace>): void {
       activeControl.consoleFaultAttempts += 1;
       throw new Error("injected console failure");
     }
-    activeControl.consoleLines.push(line);
+    activeControl.consoleLines.push(value);
   });
 
   vi.spyOn(prototype, "runEffects").mockImplementation(async function (
@@ -341,23 +347,24 @@ function installTraceHooks(controls: Map<string, ObservationTrace>): void {
         return;
       }
 
-      if (control.mode === "printer-throw" && eventKind === "AlarmFired") {
+      if (control.mode === "payload-throw" && eventKind === "AlarmFired") {
         const committed = this.workingCopy;
         const firstBoiled = committed.timers.findIndex((timer) => {
           const prior = before.timers.find(({ id }) => id === timer.id);
           return prior?.boiledAt === null && timer.boiledAt !== null;
         });
         if (firstBoiled >= 0) {
-          const throwingSlot = {
-            toJSON: () => {
-              control.printerFaultAttempts += 1;
-              throw new Error("injected printer failure");
+          // **2026-09-16 に注入点が変わった。** 以前は `toJSON` を投げさせて canonical への
+          // 直列化を失敗させていたが、Producer は直列化をやめた（payload を組んで渡すだけ）。
+          // いま Producer の側で失敗し得るのは payload を組む所——`[...record.slotIds]` である。
+          const throwingSlots = {
+            get [Symbol.iterator](): never {
+              control.payloadFaultAttempts += 1;
+              throw new Error("injected payload failure");
             },
-          };
+          } as unknown as NonEmptyArray<SlotId>;
           const timers = committed.timers.map((timer, index) =>
-            index === firstBoiled
-              ? { ...timer, slotIds: [throwingSlot] as unknown as NonEmptyArray<SlotId> }
-              : timer,
+            index === firstBoiled ? { ...timer, slotIds: throwingSlots } : timer,
           );
           this.workingCopy = { ...committed, timers };
           try {
@@ -440,7 +447,7 @@ async function runScenario(
     consoleAttempts: [],
     consoleLines: [],
     recordFaultAttempts: 0,
-    printerFaultAttempts: 0,
+    payloadFaultAttempts: 0,
     consoleFaultAttempts: 0,
     activeEvent: null,
     timer: { effects: [], actions: [], workingCopies: [], messages: [], returns: [] },
@@ -568,6 +575,32 @@ afterEach(async () => {
   await reset();
 });
 
+/**
+ * console へ出た行のうち**操作履歴の行だけ**を取り出す。
+ *
+ * 同じ console を遅延ログ（`recordType`）も通るようになったので（2026-09-16）、呼び出し回数
+ * そのものでは操作履歴の契約を語れない。名乗りで絞ってから数える。
+ */
+function isOperationPayload(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).operationKind === "string"
+  );
+}
+
+/**
+ * 操作履歴の payload だけを取る。
+ *
+ * 同じ console を遅延ログも通る。Producer が渡すのは**オブジェクト**なので（2026-09-16）、
+ * 名乗りは場の有無と型で見る——本番の Tail と同じ判定である。
+ */
+function operationRecordsOf(log: {
+  readonly mock: { readonly calls: readonly (readonly unknown[])[] };
+}): Record<string, unknown>[] {
+  return log.mock.calls.flatMap(([payload]) => (isOperationPayload(payload) ? [payload] : []));
+}
+
 describe("StoreTimerDO Operation History 非干渉 trace", () => {
   it("OFF・成功・三種 fault で Timer trace を一致させ、失敗を各 record に局所化する", async () => {
     const controls = new Map<string, ObservationTrace>();
@@ -578,10 +611,10 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
     const off = await runScenario("off", controls);
     const success = await runScenario("success", controls);
     const recordThrow = await runScenario("record-throw", controls);
-    const printerThrow = await runScenario("printer-throw", controls);
+    const payloadThrow = await runScenario("payload-throw", controls);
     const consoleThrow = await runScenario("console-throw", controls);
 
-    for (const candidate of [success, recordThrow, printerThrow, consoleThrow]) {
+    for (const candidate of [success, recordThrow, payloadThrow, consoleThrow]) {
       expect(candidate.timer).toEqual(off.timer);
     }
 
@@ -590,20 +623,20 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
     // 回数（Effect 列には現れない）は runtime counter でのみ観測できる。観測は evict 後の instance を 1 回だけ
     // 生成し、1 回だけ rehydrate し、SNAPSHOT_KEY と PROJECTION_KEY をそれぞれ 1 回だけ読む——これに何も足さない。
     expect(off.runtime).toEqual({ construct: 1, rehydrate: 1, storageReads: 2 });
-    for (const candidate of [success, recordThrow, printerThrow, consoleThrow]) {
+    for (const candidate of [success, recordThrow, payloadThrow, consoleThrow]) {
       expect(candidate.runtime).toEqual(off.runtime);
     }
 
     // O7: Alarm 予定（SetAlarm）件数も観測に依存しない（Requirements 1.8）。
     const alarmSchedules = (trace: TimerTrace): number =>
       trace.actions.filter((action) => (action as { type?: string }).type === "SetAlarm").length;
-    for (const candidate of [success, recordThrow, printerThrow, consoleThrow]) {
+    for (const candidate of [success, recordThrow, payloadThrow, consoleThrow]) {
       expect(alarmSchedules(candidate.timer)).toBe(alarmSchedules(off.timer));
     }
 
     // O7 / Requirements 1.10: invocation 終了時に観測由来の live resource（追加 Alarm など）が残らない。
     // 最終 Alarm 状態が観測なし基準と一致し、観測が余分な Alarm 予定を残していないことを確認する。
-    for (const candidate of [success, recordThrow, printerThrow, consoleThrow]) {
+    for (const candidate of [success, recordThrow, payloadThrow, consoleThrow]) {
       expect(candidate.timer.finalAlarm).toBe(off.timer.finalAlarm);
     }
 
@@ -623,15 +656,17 @@ describe("StoreTimerDO Operation History 非干渉 trace", () => {
     expect(recordThrow.consoleAttempts).toHaveLength(success.consoleAttempts.length - 1);
     expect(operationKinds(recordThrow.consoleLines)).not.toContain("adjusted");
 
-    expect(printerThrow.printerFaultAttempts).toBe(1);
-    expect(printerThrow.consoleAttempts).toHaveLength(success.consoleAttempts.length - 1);
+    expect(payloadThrow.payloadFaultAttempts).toBe(1);
+    expect(payloadThrow.consoleAttempts).toHaveLength(success.consoleAttempts.length - 1);
     expect(
-      operationKinds(printerThrow.consoleLines).filter((kind) => kind === "boiled"),
+      operationKinds(payloadThrow.consoleLines).filter((kind) => kind === "boiled"),
     ).toHaveLength(2);
 
     expect(consoleThrow.consoleFaultAttempts).toBe(1);
     expect(consoleThrow.consoleAttempts).toHaveLength(success.consoleAttempts.length);
-    expect(consoleThrow.consoleLines).toHaveLength(success.consoleLines.length - 1);
+    expect(operationLines(consoleThrow.consoleLines)).toHaveLength(
+      operationLines(success.consoleLines).length - 1,
+    );
 
     // Effect 列の形（OFF 基準）。観測の有無に依存しない事実なので、この主張の意図は変わらない。
     // **調理順スケジューリングの要求（RequestPlan）はこの筋書きでは一度も乗らない。** この筋書きは
@@ -895,7 +930,7 @@ describe("StoreTimerDO Operation History 既存例外", () => {
     expect(enabled).toEqual(off);
     expect(enabled.after).toEqual(enabled.before);
     expect(enabled.snapshot).toBeUndefined();
-    expect(log).not.toHaveBeenCalled();
+    expect(operationRecordsOf(log)).toEqual([]);
   });
 
   it.each(["SetAlarm", "ClearAlarm", "Broadcast.stringify", "Broadcast.send"] as const)(
@@ -909,7 +944,7 @@ describe("StoreTimerDO Operation History 既存例外", () => {
 
       expect(enabled).toEqual(off);
       expect(enabled).toEqual({ name: "TypeError", message: `existing ${fault} failed` });
-      expect(log).not.toHaveBeenCalled();
+      expect(operationRecordsOf(log)).toEqual([]);
     },
   );
 
@@ -943,6 +978,6 @@ describe("StoreTimerDO Operation History 既存例外", () => {
       expect(rearm.after.timers[0]?.boiledAt).toBeNull();
       expect(rearm.snapshotAfter?.timers[0]?.boiledAt).toBeNull();
     }
-    expect(log).not.toHaveBeenCalled();
+    expect(operationRecordsOf(log)).toEqual([]);
   });
 });

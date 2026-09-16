@@ -1,0 +1,38 @@
+--- experiments/cpsat-workers/quality/run-replay.mjs
++++ experiments/cpsat-workers/quality/objective-audit.tmp.mjs
+@@ -204,6 +204,35 @@
+     external: ["cloudflare:workers", "cloudflare:sockets"],
+     loader: { ".html": "text" },
+     plugins: [
++      { name: "audit-objective", setup(bundler) {
++        bundler.onLoad({ filter: /src\/cpsat\/plan\.ts$/ }, async ({ path }) => {
++          const original = await readFile(path, "utf8");
++          const needle = "schedule,\n    status: result.status,";
++          if (!original.includes(needle)) throw new Error("objective audit hook missing");
++          return { contents: original.replace(needle, `schedule,
++            objectiveAudit: {
++              recomputed: built.model.objective.reduce((sum, [variable, coefficient]) => sum + coefficient * result.solution[variable], 0),
++              terms: built.model.objective,
++              domains: built.model.variables,
++              constraints: built.model.constraints,
++              intervals: built.model.intervals,
++            },
++            status: result.status,`), loader: "ts" };
++        });
++        bundler.onLoad({ filter: /quality\/eval-entry\.ts$/ }, async ({ path }) => {
++          const original = await readFile(path, "utf8");
++          const needle = "heldObjective: pinned.objective,";
++          if (!original.includes(needle)) throw new Error("head audit hook missing");
++          return { contents: original.replace(needle, `heldObjective: pinned.objective,
++            freeRecomputed: again.objectiveAudit.recomputed,
++            heldRecomputed: pinned.objectiveAudit.recomputed,
++            sameObjectiveTerms: JSON.stringify(again.objectiveAudit.terms) === JSON.stringify(pinned.objectiveAudit.terms),
++            sameVariableDomains: JSON.stringify(again.objectiveAudit.domains) === JSON.stringify(pinned.objectiveAudit.domains),
++            sameIntervals: JSON.stringify(again.objectiveAudit.intervals) === JSON.stringify(pinned.objectiveAudit.intervals),
++            heldKeepsFreeConstraints: again.objectiveAudit.constraints.every(c => pinned.objectiveAudit.constraints.some(h => JSON.stringify(c) === JSON.stringify(h))),
++            addedHeldConstraints: pinned.objectiveAudit.constraints.filter(h => !again.objectiveAudit.constraints.some(c => JSON.stringify(c) === JSON.stringify(h))),`), loader: "ts" };
++        });
++      } },
+       {
+         name: "wasm-external",
+         setup(bundler) {

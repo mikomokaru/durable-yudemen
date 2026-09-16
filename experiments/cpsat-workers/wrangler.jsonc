@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "yude-men-cpsat-wasm-poc",
+  "account_id": "305d89a643ac689b4204454c5493cbde",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-26",
+  "workers_dev": true,
+  "preview_urls": false,
+  "secrets": { "required": ["POC_AUTH_TOKEN"] },
+  "limits": { "cpu_ms": 1000 },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+}

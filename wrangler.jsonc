@@ -5,6 +5,9 @@
   "observability": {
     "enabled": true,
   },
+  // 現在の公開範囲を維持する（配備前 GET で true を確認済み）。省略すると既定に
+  // 従って公開範囲が変わり得るため、試験中も明示する。
+  "workers_dev": true,
   // 観測ハーネスの debug flag。"1" で計装ログ出力が有効・既定は無効（"0"）。
   // Operation History は独立した OPERATION_HISTORY_ENABLED で切り替え、debug 計装と共有しない。
   // 既定 OFF（"0"）とし、"1" のときだけ確定差分の同期 console 出力を試行する。
@@ -25,11 +28,45 @@
   //   本番: `wrangler secret put ORDER_INGRESS_TOKEN`／ローカル dev: `.dev.vars` に ORDER_INGRESS_TOKEN=... を置く。
   //   ADMIN_TOKEN とは別の鍵にする（POS は設定を投入する主体ではなく、運用系の書き込み口を開かない）。
   "vars": {
+    // 計画器の選択（design 第1.1節）。未指定でも TS だが、**明示する**——省略で既定へ
+    // 流れる形にすると、CP-SAT を有効化したつもりで TS のまま動いていても気づけない。
+    // CP-SAT への切り替えはこの値と CPSAT_ACTIVATION_ID の 2 つで行う。
+    //
+    // **2026-09-16 に `ts` へ戻した。** CP-SAT への経路を全部閉じる判断による。
+    // これだけで送出は止まる（`ts` の枝は `SOLVER` へ送り、Queue に一切触れない）。
+    "PLANNER_BACKEND": "ts",
+    // CP-SAT の有効化世代。有効化ごとに新しい不透明値を置く。要求の同一性に入る（R1.6）。
+    // `ts` の間は空で、CP-SAT 有効化時に値を入れる——空のまま cpsat にすると送出を止める。
+    // **CP-SAT の許可リスト（段階投入・2026-09-13）。** ここに挙げた店舗だけが CP-SAT で解かれ、
+    // 合成も CP-SAT の規則（尾部を自前解で埋めない・R1.4）になる。**残りは従来どおり**——
+    // 求解を通さず、画面も費用も変わらない。空文字は「絞らない＝全店舗」を意味する。
+    //
+    // **2 つの枝が混ざっている。分けて読むこと。**
+    //   (1) 官能評価の店舗（`yamaokaya-1108`）——**人が注文を入れて操作し、画面で提案を見る店舗**。
+    //       CP-SAT の提案が実際に目に入るのはここだけである。
+    //   (2) 観測の標本 20 店舗（seed `cpsat-sample-20260913` のハッシュ順・閉店済みの 1235 を除外）
+    //       ——誰も操作していないので `pending` は 34〜64 に張り付き、**天井 24 を超えて「対象超過」で
+    //       失敗する。求解は走らず、補完も無いので画面は「提案なし」になる。** 資源と失敗の分布を
+    //       測るための枝であって、提案を見るための枝ではない。
+    "CPSAT_STORE_IDS": "yamaokaya-1108,yamaokaya-1360,yamaokaya-1201,yamaokaya-1338,yamaokaya-1132,yamaokaya-1216,yamaokaya-1313,yamaokaya-1205,yamaokaya-1234,yamaokaya-1263,yamaokaya-1247,yamaokaya-1160,yamaokaya-1141,yamaokaya-1203,yamaokaya-1125,yamaokaya-1330,yamaokaya-1361,yamaokaya-1150,yamaokaya-1296,yamaokaya-1299,yamaokaya-1339",
+    // 2026-09-16 に空へ戻した（`ts` の間は空・二重の安全弁）。再開時に新しい値を置く。
+    "CPSAT_ACTIVATION_ID": "",
     "OBSERVE_DEBUG": "0",
-    "OPERATION_HISTORY_ENABLED": "0",
+    "OPERATION_HISTORY_ENABLED": "1",
+    // 麺揚げ遅延ログの独立ゲート（lift-delay-log 要件 4.7）。操作履歴とも debug 計装とも共有しない
+    // ——片方だけを有効にして比べられるようにするため。2026-09-16 に有効化した。
+    "LIFT_DELAY_ENABLED": "1",
+    // 注文到着ログの独立ゲート（order-arrival-log）。操作履歴とも遅延ログとも共有しない
+    // ——片方だけを有効にして比べられるようにするため。既定は無効。
+    "ORDER_ARRIVAL_ENABLED": "1",
     "ACCESS_REQUIRED": "0",
     "TEAM_DOMAIN": "https://<team>.cloudflareaccess.com",
     "POLICY_AUD": "<access-app-aud>",
+  },
+  // 試験中の計画要求の投入口。求解は consumer の invocation で走り、ここは
+  // 投入の完了だけを待つ（R6.7）。復帰時に削除する。
+  "queues": {
+    "producers": [{ "binding": "CPSAT_PLAN_QUEUE", "queue": "cpsat-plan-requests" }],
   },
   "durable_objects": {
     "bindings": [
@@ -50,10 +87,36 @@
   // **binding が唯一の到達経路である**（あちらは routes も workers.dev も持たない）ため、往路に独自の
   // secret は置かない。不達・エラーはすべて「何も起きない」に収束し、Timer 本体は自前解だけで成立し続ける
   // （AC 10.1 / 10.2）。
+  // 試験の輸送 shim は経路から外した（2026-09-12）。`PLANNER_BACKEND: "cpsat"` の間
+  // この binding は使われないが、`ts` へ戻したときの経路として本来の TS solver を指す。
+  //
+  // **求解 Worker への直接 binding は置かない。** 置けば同期の求解に呼出元が握られる
+  // 連鎖が復活する。CP-SAT への到達手段は Queue だけである（design 第9節）。
   "services": [
     {
       "binding": "SOLVER",
       "service": "yude-men-solver",
+    },
+    // 札の Worker（item-display-abbreviation）。**AI binding と KV binding はあちらだけが持つ。**
+    //
+    // **外から届く経路は無い。** root は `/display/*` を中継しない——札は WS の品目に載って届くので、
+    // client が HTTP で取りに来ることがない。この binding は POS 取り込みからの観測通知だけに使う。
+    //
+    // root に置けない理由：`StoreTimerDO` は root の生成 Env をそのまま受ける
+    // （`class StoreTimerDO extends DurableObject<Env>`）。root に `ai` / `kv_namespaces` を書くと
+    // **DO の env にも現れ**、「DO は AI・KV の直接 binding を持たない」が成り立たなくなる。
+    // Workers に per-DO の binding スコープは無いので、能力を分けるには Worker を分けるしかない。
+    //
+    // **この binding 自体は DO からも見える。** 保証しているのは「DO が AI・KV の**直接** binding を
+    // 持たない」ことであって、「札の機能へ一切到達できない」ことではない。前者は生成 Env 型で閉じ、
+    // 後者は `store-timer-do.ts` が参照しないという静的検査で見る（SOLVER と同じ扱い）。
+    //
+    // 設定正本は wrangler.short-names.jsonc（`wrangler deploy --config wrangler.short-names.jsonc`）。
+    // **デプロイ順は札用 Worker → root。** binding が指す service が実在しないと root の deploy が
+    // 失敗する（tail_consumers と同じ footgun）。
+    {
+      "binding": "SHORT_NAMES_WORKER",
+      "service": "yude-men-short-names",
     },
   ],
   // SQLite ストレージバックエンド（非同期 KV API のみ使用。SQL API は使わない）
@@ -82,12 +145,14 @@
   //   ため、Tail Worker のデプロイ前に有効化すると本番デプロイを壊す。有効化の順序は
   //   「下流疎通（Queue / Consumer / R2）→ Tail fixture 検証 → Producer attachment」に固定する（tasks.md 15.4）。
   //
-  // 有効化手順: Tail Worker（yude-men-telemetry-tail・設定正本は wrangler.telemetry-tail.jsonc）を
-  //   デプロイしてから、下の3行のコメントを外す。無効化（切戻し）は再コメント化だけで済み、
-  //   Timer の state migration、backfill、Producer 再出力、DO 再起動をいずれも必要としない（要件4.8）。
-  // "tail_consumers": [
-  //   { "service": "yude-men-telemetry-tail" }
-  // ],
+  // **有効化済み（2026-09-16）。** 指す先は `yude-men-history-tail`（設定正本は wrangler.history-tail.jsonc）で、
+  //   console → Tail → Pipelines → R2/Iceberg の経路を持つ。旧 `yude-men-telemetry-tail`（Queue 版）は
+  //   2026-09-12 の方式変更で経路から外れており、**未デプロイのままなので指してはならない**
+  //   ——存在しない service を指すと root の deploy が失敗する。
+  //
+  //   無効化（切戻し）は再コメント化だけで済み、Timer の state migration、backfill、Producer 再出力、
+  //   DO 再起動をいずれも必要としない（要件4.8）。
+  "tail_consumers": [{ "service": "yude-men-history-tail" }],
   // React 静的アセットを同一オリジンで配信。SPA フォールバック。
   //
   // run_worker_first: Worker が担うパスを**全て列挙する**。

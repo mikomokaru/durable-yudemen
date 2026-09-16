@@ -9,7 +9,7 @@
 
 import type { TimerFact, NonEmptyArray } from "./timer";
 import type { StoreConfig } from "./store";
-import type { OrderItem } from "./order";
+import type { WireOrderItem } from "./order";
 import type { Firmness } from "./firmness";
 
 /**
@@ -97,7 +97,7 @@ export type ServerMessage =
        * 計画対象の 64 件を超える分も含む（要件2.3 / 2.4）。unstarted / cooking / done を問わず載り、状態は client が
        * `itemStatusOf` で導く（保存しない）。左レールはこの中の未調理（`pendingOrders(items, timers, now)`）だけを出す。
        */
-      readonly orderItems: readonly OrderItem[];
+      readonly orderItems: readonly WireOrderItem[];
       /** Committed_Plan からの導出値。永続しない（要件8.1 / 8.5）。 */
       readonly recommendations: readonly CookRecommendation[];
     }

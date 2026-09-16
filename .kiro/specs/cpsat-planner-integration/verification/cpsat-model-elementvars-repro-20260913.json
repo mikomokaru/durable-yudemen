@@ -1,0 +1,95 @@
+{
+  "cloudEvidence": false,
+  "rows": [
+    {
+      "width": 27000,
+      "n": 16,
+      "k": 16,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 16,
+      "memoryBytes": 33554432,
+      "variables": 48
+    },
+    {
+      "width": 27000,
+      "n": 24,
+      "k": 24,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 24,
+      "memoryBytes": 33554432,
+      "variables": 72
+    },
+    {
+      "width": 27000,
+      "n": 32,
+      "k": 32,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 32,
+      "memoryBytes": 33554432,
+      "variables": 96
+    },
+    {
+      "width": 2700,
+      "n": 16,
+      "k": 16,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 16,
+      "memoryBytes": 33554432,
+      "variables": 48
+    },
+    {
+      "width": 2700,
+      "n": 24,
+      "k": 24,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 24,
+      "memoryBytes": 33554432,
+      "variables": 72
+    },
+    {
+      "width": 2700,
+      "n": 32,
+      "k": 32,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 32,
+      "memoryBytes": 33554432,
+      "variables": 96
+    },
+    {
+      "width": 270,
+      "n": 16,
+      "k": 16,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 16,
+      "memoryBytes": 33554432,
+      "variables": 48
+    },
+    {
+      "width": 270,
+      "n": 24,
+      "k": 24,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 24,
+      "memoryBytes": 33554432,
+      "variables": 72
+    },
+    {
+      "width": 270,
+      "n": 32,
+      "k": 32,
+      "ok": true,
+      "status": "OPTIMAL",
+      "objective": 32,
+      "memoryBytes": 33554432,
+      "variables": 96
+    }
+  ]
+}

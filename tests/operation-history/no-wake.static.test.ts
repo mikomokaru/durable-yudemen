@@ -3,6 +3,7 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { jsoncToJson } from "./support/jsonc";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const producerRoot = "src/operation-history/producer.ts";
@@ -236,11 +237,10 @@ describe("Operation History O1 — Producer capability の閉包", () => {
       if (ts.isCallExpression(node)) calls.push(node.expression.getText(file));
       if (ts.isAwaitExpression(node)) awaits += 1;
     });
-    expect(calls).toEqual([
-      "recordsFromCommittedDiff",
-      "printCanonicalOperationLine",
-      "console.log",
-    ]);
+    // 2026-09-16: 文字列へ組む `printCanonicalOperationLine` をやめ、payload を組んで渡す形にした。
+    // 検査は Tail 側へ移り、Producer の終端は「作り直したオブジェクトを 1 つ渡す」だけになった。
+    // 並びは AST の訪問順。`console.log(operationRecordPayload(record))` は外側の呼び出しが先に出る。
+    expect(calls).toEqual(["recordsFromCommittedDiff", "console.log", "operationRecordPayload"]);
     expect(awaits).toBe(0);
   });
 });
@@ -337,17 +337,23 @@ describe("Operation History O2 — 観測に由来する起動原因ゼロ", () 
     for (const member of baseEnv?.members ?? []) {
       if (!ts.isPropertySignature(member)) continue;
       const name = nodeName(member.name);
-      if (name !== undefined && /(?:OPERATION|HISTORY|TELEMETRY)/i.test(name)) {
+      // 遅延ログの旗（LIFT_DELAY_ENABLED）も観測の旗である。同じ規律で見る（2026-09-16）。
+      if (name !== undefined && /(?:OPERATION|HISTORY|TELEMETRY|LIFT_DELAY)/i.test(name)) {
         observationFields.push(member);
       }
     }
-    expect(observationFields.map((member) => nodeName(member.name))).toEqual([
+    expect(observationFields.map((member) => nodeName(member.name)).sort()).toEqual([
+      "LIFT_DELAY_ENABLED",
       "OPERATION_HISTORY_ENABLED",
     ]);
-    expect(observationFields[0]?.type?.getText(file)).toBe('"0"');
-    expect(observationFields[0]?.type?.getText(file)).not.toMatch(
-      /Queue|R2|Fetcher|DurableObject|WorkerStub|Service/i,
-    );
+    for (const member of observationFields) {
+      // **値ではなく形を見る。** 既定が "0" か "1" かは配備の判断で動く（2026-09-16 に本番で
+      // 操作履歴を有効化した）。この検査が守るのは「旗以外の能力が env に現れないこと」である。
+      expect(member.type?.getText(file)).toMatch(/^"[01]"$/);
+      expect(member.type?.getText(file)).not.toMatch(
+        /Queue|R2|Fetcher|DurableObject|WorkerStub|Service/i,
+      );
+    }
   });
 });
 describe("Operation History O3 — 観測用の永続 read/write ゼロ", () => {
@@ -389,7 +395,14 @@ describe("Operation History O3 — 観測用の永続 read/write ゼロ", () => 
         );
       }
     });
-    expect(calls).toEqual(["effects.some", "tryWriteOperationLines"]);
+    // `pendingOrders` は既にメモリに在る値を数える純粋関数で、storage も Alarm も触らない。
+    // 遅延ログの旗が無効なら呼ばれない位置に置いてある（store-timer-do.ts の該当分岐）。
+    expect(calls).toEqual([
+      "effects.some",
+      "tryWriteOperationLines",
+      "tryWriteLiftDelayLines",
+      "pendingOrders",
+    ]);
   });
 });
 /** Validates: Requirements 1.8, 1.9, 4.13, 4.14, 4.15 */
@@ -401,9 +414,19 @@ describe("Operation History O4 — Data Platform からの逆方向到達不能"
       /OperationRecord|operationLinesFromTailEvents|operation-history/.test(source(path))
     );
   });
+  // **Operation History の語彙で分類する。** 以前は `consumer` や `tail` という一般語で
+  // 拾っていたが、cpsat-planner-integration が計画要求の Queue consumer を足した。あれは
+  // 計画計算の端であって Data Platform ではなく、復路で StoreTimerDO を呼ぶのは設計どおり
+  // である（`deliverPlan`）。一般語のままだと、正当な復路が逆方向到達として弾かれる。
+  //
+  // 行コメントは落としてから見る。他 spec の設定が説明として Data Platform の名前に触れる
+  // ことがあり、生のテキストだと分類が引きずられる（2026-09-12）。
   const dataPlatformConfigs = projectFiles("").filter((path) => {
     if (path === "wrangler.jsonc" || !/(?:^|\/)wrangler[^/]*\.jsonc$/.test(path)) return false;
-    return /(?:operation-history|tail|consumer)/i.test(`${path}\n${source(path)}`);
+    const active = source(path).replace(/^\s*\/\/.*$/gm, "");
+    return /(?:operation-history|operation-records|operation-raw-arrivals|raw-arrival|telemetry-tail)/i.test(
+      `${path}\n${active}`,
+    );
   });
   const forbiddenCallbacks = new Set([
     "fetch",
@@ -416,20 +439,41 @@ describe("Operation History O4 — Data Platform からの逆方向到達不能"
 
   it("Producer root に下流 binding を与えず、将来の Data Platform 設定にも逆 edge を許さない", () => {
     const producerConfig = source("wrangler.jsonc");
-    expect(producerConfig).not.toMatch(/"(?:queues|r2_buckets)"\s*:/);
+    // `queues` は鍵の有無で見ない。cpsat-planner-integration が root へ計画要求の Queue
+    // producer を足した——計画計算の端であって Operation History の下流ではなく、この検査が
+    // 守る不変には触れない（下の services と同じ理屈・2026-09-12）。下流の Queue を指して
+    // いないことは名前で確かめる。
+    expect(producerConfig).not.toMatch(/"r2_buckets"\s*:/);
+    for (const [, queue] of producerConfig
+      .replace(/^\s*\/\/.*$/gm, "")
+      .matchAll(/"queue"\s*:\s*"([^"]*)"/g)) {
+      expect(queue, `root が下流 Queue ${queue} への binding を持つ`).not.toMatch(
+        /operation-records|raw-arrival/i,
+      );
+    }
     // services は種別ごと禁じるのではなく、**下流（Data Platform）を指す binding だけを**禁じる。
     // online-cook-scheduling が root へ Solver_Worker への Service binding（SOLVER → yude-men-solver）を
     // 足した。あちらは計画計算の端であって Operation History の下流ではなく、この検査が守る不変
     // （Producer から Queue / Consumer / R2 へ到達できないこと）には触れない。ゆえに検査対象を
     // 「service 名が Tail / Consumer / Operation History を指すか」へ絞る（他 spec の正当な追加に追随する）。
-    // 行コメントを除いてから走査する。root には無効化された tail_consumers 見本（有効化手順）が
-    // コメントで残っており、生のテキストを見るとその service 名が実在の binding に見えてしまう。
-    const activeBindings = producerConfig.replace(/^\s*\/\/.*$/gm, "");
-    for (const [, service] of activeBindings.matchAll(/"service"\s*:\s*"([^"]*)"/g)) {
-      expect(service, `root が下流 service ${service} への binding を持つ`).not.toMatch(
-        /(?:operation-history|tail|consumer|queue|r2)/i,
-      );
+    // **走査するのは `services`（env の service binding）だけである。** `tail_consumers` は同じ
+    // `"service"` という鍵を使うが、向きが逆で Producer に能力を与えない——Tail が受け取るだけで、
+    // root からあちらを呼ぶ手段にはならない。生のテキストを正規表現で舐めると両者を区別できず、
+    // 2026-09-16 に tail attachment を有効化した途端この検査が落ちた。構造で読む。
+    const parsedProducer = JSON.parse(jsoncToJson(producerConfig)) as {
+      readonly services?: readonly { readonly service?: string }[];
+      readonly tail_consumers?: readonly { readonly service?: string }[];
+    };
+    for (const binding of parsedProducer.services ?? []) {
+      expect(
+        binding.service ?? "",
+        `root が下流 service ${binding.service} への binding を持つ`,
+      ).not.toMatch(/(?:operation-history|tail|consumer|queue|r2)/i);
     }
+    // attachment は許すが、行き先は共通 Tail ただ一つに限る。
+    expect((parsedProducer.tail_consumers ?? []).map((entry) => entry.service)).toEqual([
+      "yude-men-history-tail",
+    ]);
 
     for (const path of dataPlatformConfigs) {
       const config = source(path);

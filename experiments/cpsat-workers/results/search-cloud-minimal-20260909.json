@@ -1,0 +1,21 @@
+{
+  "startedAt": "2026-09-09T05:30:40.542Z",
+  "completedAt": "2026-09-09T05:30:40.829Z",
+  "runtime": {
+    "kind": "ready",
+    "runtime": "wasm-cloud",
+    "origin": "https://yude-men-cpsat-search.yamaokaya.workers.dev",
+    "versionId": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e",
+    "wasmSha256": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1",
+    "clock": "frozen",
+    "cpuLimitMs": 1000,
+    "expiresAt": "2026-09-10T06:00:00Z",
+    "healthElapsedMs": 220.157042,
+    "cfRay": "a383cd629ad4db4f-NRT"
+  },
+  "capturesSha256": "045ec0536eb271b51417a4214f5d568d641c94c86826255c67bd5996269f120e",
+  "boundaries": [],
+  "warmupMs": 286.357708,
+  "allOutcomesEqualLocalWasm": true,
+  "rows": []
+}

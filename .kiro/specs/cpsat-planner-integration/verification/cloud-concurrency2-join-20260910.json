@@ -1,0 +1,119 @@
+{
+  "eventsSeen": 538,
+  "rowsSeen": 506,
+  "matchedRequests": 4,
+  "distinctInstances": 2,
+  "instanceIds": ["0977d718-529b-403d-b134-6a4a8338f9a5", "6ef8c827-b48a-4667-803e-966065fb9a3d"],
+  "metricsSeen": [
+    "isolate-bytes",
+    "wait-until-wall-ms",
+    "invocation-wall-ms",
+    "cpu-ms",
+    "solve-callback-wall-ms",
+    "model-bytes",
+    "constraints",
+    "variables",
+    "wasm-bytes",
+    "consumed-deterministic",
+    "budget-deterministic",
+    "cpu-limit-ms"
+  ],
+  "runs": [
+    {
+      "i": 0,
+      "acceptWallMs": 1631,
+      "instance": "0977d718-529b-403d-b134-6a4a8338f9a5",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 1505,
+        "cpuMs": 1426,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 1,
+      "acceptWallMs": 1352,
+      "instance": "0977d718-529b-403d-b134-6a4a8338f9a5",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 1301,
+        "cpuMs": 1255,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 2,
+      "acceptWallMs": 3316,
+      "instance": "6ef8c827-b48a-4667-803e-966065fb9a3d",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 3110,
+        "cpuMs": 2779,
+        "outcome": "ok",
+        "status": 202
+      }
+    },
+    {
+      "i": 3,
+      "acceptWallMs": 1573,
+      "instance": "6ef8c827-b48a-4667-803e-966065fb9a3d",
+      "facts": [
+        "callback-returned:delivered",
+        "solve-finished:UNKNOWN",
+        "solve-started",
+        "solver-accepted"
+      ],
+      "consumed": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "invocation": {
+        "wallMs": 1473,
+        "cpuMs": 1400,
+        "outcome": "ok",
+        "status": 202
+      }
+    }
+  ]
+}

@@ -1,0 +1,161 @@
+--- a/src/engine/lift.ts
++++ b/src/engine/lift.ts
+@@ -136,15 +136,38 @@
+   return origins;
+ }
+ 
+-/** 起点 x の窓 [x, x + L) に上がる本数（既存の表だけ）。 */
+-function loadAt(lifts: LiftTable, origin: EpochMillis, params: LiftParams): number {
+-  const upper = origin + windowMillis(params);
++/**
++ * t を含む窓を起点順に走査する。窓へ入る分を足し、外れる分を引くので、一度の検査は O(n)。
++ * CP-SAT の上げ窓検証で確認した将来側の負荷も含め、最大負荷と最初の過負荷を同じ走査で求める。
++ * 上限を指定した場合は最初の過負荷で止める（firstFit が飛ばす最早の起点）。
++ */
++function scanWindows(
++  lifts: LiftTable,
++  t: EpochMillis,
++  params: LiftParams,
++  limit = Number.POSITIVE_INFINITY,
++): { readonly load: number; readonly overloadedAt: EpochMillis | null } {
++  const origins = originsContaining(lifts, t, params);
++  const length = windowMillis(params);
++  let left = 0;
++  while (left < lifts.length && lifts[left]!.at < origins[0]!) left += 1;
++  let right = left;
+   let load = 0;
+-  for (const lift of lifts) {
+-    if (lift.at >= upper) break; // 昇順ゆえ以降はすべて窓の外
+-    if (lift.at >= origin) load += lift.span;
+-  }
+-  return load;
++  let max = 0;
++  for (const origin of origins) {
++    const upper = origin + length;
++    while (right < lifts.length && lifts[right]!.at < upper) {
++      load += lifts[right]!.span;
++      right += 1;
++    }
++    while (left < right && lifts[left]!.at < origin) {
++      load -= lifts[left]!.span;
++      left += 1;
++    }
++    if (load > limit) return { load, overloadedAt: origin };
++    if (load > max) max = load;
++  }
++  return { load: max, overloadedAt: null };
+ }
+ 
+ /**
+@@ -160,12 +183,7 @@
+   span: number,
+   params: LiftParams,
+ ): number {
+-  let max = 0;
+-  for (const origin of originsContaining(lifts, t, params)) {
+-    const load = loadAt(lifts, origin, params) + span;
+-    if (load > max) max = load;
+-  }
+-  return max;
++  return scanWindows(lifts, t, params).load + span;
+ }
+ 
+ /**
+@@ -191,13 +209,7 @@
+   const length = windowMillis(params);
+   let candidate = t;
+   for (;;) {
+-    let overloadedAt: EpochMillis | null = null;
+-    for (const origin of originsContaining(lifts, candidate, params)) {
+-      if (loadAt(lifts, origin, params) + span > cap) {
+-        overloadedAt = origin; // 昇順ゆえ最初に見つかった起点が最早
+-        break;
+-      }
+-    }
++    const { overloadedAt } = scanWindows(lifts, candidate, params, cap - span);
+     if (overloadedAt === null) return candidate;
+     candidate = (overloadedAt + length) as EpochMillis;
+   }
+--- a/src/engine/schedule.ts
++++ b/src/engine/schedule.ts
+@@ -1989,12 +1989,11 @@
+  *   - S > arms + HELPER_ARMS：どの時刻にも入らない列なので、**候補の窓の残り容量**（上限 − 既存の負荷。残りが
+  *     先頭の品目に足りなければ上限）に収まる最長の非空の接頭辞と残りに割って再帰する（先頭の品目は必ず上限に
+  *     収まる——1 品で超える品目は placeGroup が列に入れない・AC 9.12）。
+- *   - S ≤ arms：手伝いが要らないので pack（全員を firstFit の時刻へ）。前回の提案が在れば、前回のまとまり・先頭を
+- *     残す分割も候補になる（窓が埋まって pack が次の窓へ動くとき、先頭の 1 本だけなら今の窓に残れることがある）。
+- *   - その間：pack（全員を同じ窓へ・手伝いを頼む）と split（arms に収まる最長の非空の接頭辞を先に、残りを
+- *     進めた表の上で再帰）の**両方を同じ既存の表に対して実際に作り**、局所の費用で安い方を置く。同点は pack。
+- *     **品目は不可分**——接頭辞が空（先頭の品目の span が arms を超える・例：arms 1 の大盛）なら split は候補に
+- *     ならず pack を置く。
++ *   - S ≤ arms + HELPER_ARMS：pack（全員を firstFit の時刻へ）と、残り容量／arms で切る split を
++ *     同じ既存の表に対して作り、局所費用で比べる。分割は min(arms, 残り容量)、arms の順に最長接頭辞を取り、
++ *     空・全列・重複は除く。列だけなら S ≤ arms でも、走行中の負荷で pack が遅れると分割が有利になり得る。
++ *     同点は pack、分割同士は残り容量を使う方。前回の提案が在れば、前回を保つ候補をさらに優先する。
++ *     品目は不可分で、接頭辞を置いた後の表で残りを再帰する。
+  *
+  * 局所の費用 cost(c) = Σ 待ち（serve − 到着・候補を後ろへ動かした分を含む）
+  *                   + w_table × Σ 卓の遅れ（走行中の仲間と先に置いた配置を含む成員の、最遅からの差）
+@@ -2072,7 +2071,7 @@
+   // S ≤ arms + HELPER_ARMS なので firstFit は必ず時刻を返す（null は span が上限を超えるときだけ）。
+   const pack = placeAt(column, firstFit(lifts, t0, total, params)!);
+   // 候補は優先順（同点はこの順で先の側）：前回の配置を再現する分割・前回のまとまりを保つ分割・前回の先頭を今の窓に
+-  // 残す分割・pack・split。前回の提案が無ければ前者 3 つは無い。
++  // 残す分割・pack・残り容量の split・arms の split。前回の提案が無ければ前者 3 つは無い。
+   const keeping =
+     continuity === null
+       ? []
+@@ -2081,24 +2080,36 @@
+           keepPrevious(column, t0, lifts, members, params, continuity),
+           keepHeads(column, t0, lifts, members, params, continuity),
+         ];
+-  // S ≤ arms：手伝いが要らないので pack——ただし窓が埋まっていて pack が次の窓へ動くとき、前回の先頭やまとまりを
+-  // 今の窓に残す分割は候補になる（列の全員が窓に入らなくても、先頭の 1 本は入ることがある）。
+-  if (total <= params.arms)
++  // 列だけなら腕に収まっても、将来の走行中が窓を占めると pack は丸ごと後ろへ動く。
++  // 残り容量で先頭を切る候補も作る。従来の arms 分割を残し、同費用の分割同士なら先頭を早く置ける方を先にする。
++  // 空／全列の接頭辞は分割ではない。同じ接頭辞は一度だけ評価する（品目は不可分）。
++  // pack が候補時刻に入るなら残り容量で切る必要はない。特に腕以内の列は従来どおり比較を終える。
++  if (total <= params.arms && pack[0]!.serveAt === t0)
+     return cheapest([...keeping, pack], column, lifts, members, params, continuity);
+-  const prefix = longestPrefixWithin(column, params.arms);
+-  if (prefix.length === 0)
+-    return cheapest([...keeping, pack], column, lifts, members, params, continuity);
+-  const placedPrefix = placeAt(prefix, firstFit(lifts, t0, spanOf(prefix), params)!);
+-  const placedRest = placeWithLifts(
+-    column.slice(prefix.length),
+-    t0,
+-    advanceLifts(lifts, liftsOf(placedPrefix)),
+-    [...members, ...placedPrefix.map((placement) => placement.serveAt)],
+-    params,
+-    after(continuity, placedPrefix),
+-  );
+-  const split = [...placedPrefix, ...placedRest];
+-  return cheapest([...keeping, pack, split], column, lifts, members, params, continuity);
++  const capacities = [params.arms];
++  if (pack[0]!.serveAt > t0) {
++    const room = cap - loadWith(lifts, t0, 0, params);
++    if (room > 0 && room < params.arms) capacities.unshift(room);
++  }
++  const splits: (readonly Placement[])[] = [];
++  const lengths = new Set<number>();
++  for (const capacity of capacities) {
++    const prefix = longestPrefixWithin(column, capacity);
++    if (prefix.length === 0 || prefix.length === column.length || lengths.has(prefix.length))
++      continue;
++    lengths.add(prefix.length);
++    const placedPrefix = placeAt(prefix, firstFit(lifts, t0, spanOf(prefix), params)!);
++    const placedRest = placeWithLifts(
++      column.slice(prefix.length),
++      t0,
++      advanceLifts(lifts, liftsOf(placedPrefix)),
++      [...members, ...placedPrefix.map((placement) => placement.serveAt)],
++      params,
++      after(continuity, placedPrefix),
++    );
++    splits.push([...placedPrefix, ...placedRest]);
++  }
++  return cheapest([...keeping, pack, ...splits], column, lifts, members, params, continuity);
+ }
+ 
+ /** 候補（優先順・null は候補にならなかったもの）のうち局所費用が最小のもの。同点は先の候補。 */

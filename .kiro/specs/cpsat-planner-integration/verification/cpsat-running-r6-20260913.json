@@ -1,0 +1,287 @@
+{
+  "measuredAt": "2026-09-13T12:41:39.299Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "seed": "cpsat-plan-quality-20260913",
+  "windowMinutes": 60,
+  "perFile": 1,
+  "maxScenes": 6,
+  "limits": [24],
+  "unguarded": false,
+  "legacyLiftCap": false,
+  "budgetCap": null,
+  "fatSlots": false,
+  "fatPairs": false,
+  "checkHints": true,
+  "injectRunning": 6,
+  "crowdRunning": true,
+  "clusterCap": null,
+  "corpus": {
+    "files": 20,
+    "rows": 1919,
+    "stores": 10,
+    "menuItemConflicts": []
+  },
+  "sceneCount": 6,
+  "rows": [
+    {
+      "ordinal": 0,
+      "file": "247_20260908_1330_1530.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-08T06:27:47.000Z",
+      "recordCount": 49,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3907179644,
+      "ok": true,
+      "now": 1789303299424,
+      "liveCount": 35,
+      "runningCount": 6,
+      "tsWhole": {
+        "total": 175850,
+        "businessCost": 171358,
+        "changeCost": 4492,
+        "waitTime": 99861,
+        "tableLag": 60570,
+        "orderSync": 45,
+        "affinity": 9802,
+        "liftOverflow": 1080,
+        "placements": 35,
+        "slices": 1
+      },
+      "results": [
+        {
+          "hintFeasible": "FEASIBLE",
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=INFEASIBLE)",
+          "solveMs": 526
+        }
+      ]
+    },
+    {
+      "ordinal": 1,
+      "file": "336_20260906_1815_2015.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-06T10:49:52.000Z",
+      "recordCount": 42,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2245704281,
+      "ok": true,
+      "now": 1789303300459,
+      "liveCount": 46,
+      "runningCount": 6,
+      "tsWhole": {
+        "total": 285131,
+        "businessCost": 281004,
+        "changeCost": 4127,
+        "waitTime": 132578,
+        "tableLag": 129000,
+        "orderSync": 1845,
+        "affinity": 16276,
+        "liftOverflow": 1305,
+        "placements": 46,
+        "slices": 1
+      },
+      "results": [
+        {
+          "hintFeasible": "FEASIBLE",
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=INFEASIBLE)",
+          "solveMs": 411
+        }
+      ]
+    },
+    {
+      "ordinal": 2,
+      "file": "336_20260908_2145_2345.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-08T14:05:00.000Z",
+      "recordCount": 47,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1871658462,
+      "ok": true,
+      "now": 1789303301378,
+      "liveCount": 37,
+      "runningCount": 6,
+      "tsWhole": {
+        "total": 201029,
+        "businessCost": 197129,
+        "changeCost": 3900,
+        "waitTime": 105110,
+        "tableLag": 79914,
+        "orderSync": 495,
+        "affinity": 10440,
+        "liftOverflow": 1170,
+        "placements": 37,
+        "slices": 1
+      },
+      "results": [
+        {
+          "hintFeasible": "FEASIBLE",
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=INFEASIBLE)",
+          "solveMs": 383
+        }
+      ]
+    },
+    {
+      "ordinal": 3,
+      "file": "342_20260905_1145_1345.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-05T04:44:57.000Z",
+      "recordCount": 47,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2289359873,
+      "ok": true,
+      "now": 1789303302234,
+      "liveCount": 49,
+      "runningCount": 6,
+      "tsWhole": {
+        "total": 341305,
+        "businessCost": 338295,
+        "changeCost": 3010,
+        "waitTime": 145496,
+        "tableLag": 170976,
+        "orderSync": 1845,
+        "affinity": 18538,
+        "liftOverflow": 1440,
+        "placements": 49,
+        "slices": 1
+      },
+      "results": [
+        {
+          "hintFeasible": "FEASIBLE",
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=INFEASIBLE)",
+          "solveMs": 319
+        }
+      ]
+    },
+    {
+      "ordinal": 4,
+      "file": "362_20260905_2100_2300.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-05T13:54:26.000Z",
+      "recordCount": 46,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1909097370,
+      "ok": true,
+      "now": 1789303303012,
+      "liveCount": 47,
+      "runningCount": 6,
+      "tsWhole": {
+        "total": 290740,
+        "businessCost": 287016,
+        "changeCost": 3724,
+        "waitTime": 133314,
+        "tableLag": 132828,
+        "orderSync": 1575,
+        "affinity": 17814,
+        "liftOverflow": 1485,
+        "placements": 47,
+        "slices": 1
+      },
+      "results": [
+        {
+          "hintFeasible": "FEASIBLE",
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=INFEASIBLE)",
+          "solveMs": 373
+        }
+      ]
+    },
+    {
+      "ordinal": 5,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:53:00.000Z",
+      "recordCount": 57,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 1413834021,
+      "ok": true,
+      "now": 1789303303853,
+      "liveCount": 57,
+      "runningCount": 6,
+      "tsWhole": {
+        "total": 373920,
+        "businessCost": 373920,
+        "changeCost": 0,
+        "waitTime": 173749,
+        "tableLag": 150930,
+        "orderSync": 855,
+        "affinity": 46766,
+        "liftOverflow": 1620,
+        "placements": 57,
+        "slices": 1
+      },
+      "results": [
+        {
+          "hintFeasible": "FEASIBLE",
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=INFEASIBLE)",
+          "solveMs": 363
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

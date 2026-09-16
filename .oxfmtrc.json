@@ -1,5 +1,12 @@
 {
-  "ignorePatterns": ["**/*.md", "**/*.mdx", "pnpm-lock.yaml"],
+  "ignorePatterns": [
+    "**/*.md",
+    "**/*.mdx",
+    "pnpm-lock.yaml",
+    "experiments/cpsat-workers/results/**",
+    "experiments/cpsat-workers/transport/fixtures.json",
+    "experiments/cpsat-workers/vendor/cpsat_workers_poc_runtime.js"
+  ],
   "sortTailwindcss": {
     "functions": ["cn"],
     "stylesheet": "./src/client/styles.css"

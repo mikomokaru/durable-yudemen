@@ -81,6 +81,21 @@ export interface OrderItem {
   readonly interruptedAt: number | null;
 }
 
+/**
+ * WireOrderItem — **ワイヤに載る品目**。`OrderItem` に表示用の札を足した形（item-display-abbreviation 判断 24）。
+ *
+ * **`OrderItem` そのものには足さない。** `StoreSnapshot.orderItems` と `ServerMessage` の品目は同じ
+ * `OrderItem` を共有するので、あの型に足せば永続スキーマが v14 になり、engine が表示専用の項目を持つ。
+ * ゆえにワイヤ側だけの形として別に立てる——永続・`migrate`・`digest` はいずれも `OrderItem` のままである。
+ *
+ * `shortName` を持たないことと持つことの双方が正常である。持たなければ受け手は全名へ戻る（札が無い、
+ * 辞書に届いていない、`plain` と判断された、のいずれも同じ見え方になる——受け手に区別は要らない）。
+ */
+export interface WireOrderItem extends OrderItem {
+  /** 送信時に被せた札。省略は「札が無い」＝全名で表示する。 */
+  readonly shortName?: string;
+}
+
 /** Item_Status — 品目の状態。保存しない導出値（`itemStatusOf` が唯一の出所）。 */
 export type ItemStatus = "unstarted" | "cooking" | "done";
 

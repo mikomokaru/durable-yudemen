@@ -160,7 +160,11 @@ function renderBoard(playTouchCue: () => void) {
   };
 
   const html = renderToStaticMarkup(
-    createElement(SlotBoard, { connection, units: ASSIGNED_UNITS, playTouchCue }),
+    createElement(SlotBoard, {
+      connection,
+      units: ASSIGNED_UNITS,
+      playTouchCue,
+    }),
   );
 
   return {

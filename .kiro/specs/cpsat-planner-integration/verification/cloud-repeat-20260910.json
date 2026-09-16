@@ -1,0 +1,21 @@
+{
+  "startedAt": "2026-09-10T14:04:21.475Z",
+  "problem": "hard",
+  "requested": 20,
+  "runs": [
+    {
+      "index": 0,
+      "requestId": "9cd13972-38a1-4c02-b33d-a46df19c7713",
+      "status": 202,
+      "wallMs": 4655
+    },
+    {
+      "index": 1,
+      "requestId": "70e2ff9b-a004-4c4e-9746-26b10b956271",
+      "status": 429,
+      "wallMs": 45
+    }
+  ],
+  "finishedAt": "2026-09-10T14:04:26.215Z",
+  "accepted": 1
+}

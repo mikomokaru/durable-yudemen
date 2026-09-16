@@ -134,9 +134,13 @@ describe("Feature: slot-suggested-start — 拒否は状態を変えない（要
   });
 });
 
-describe("Feature: slot-suggested-start — 検査しないもの（要件 3.7）", () => {
-  it("走行中の釜へ重ねても拒否しない（占有を検査しない）", () => {
-    // 提案からの重畳は「押す場所が idle にしかない」ことで client 側の構造が防ぐ。engine は見ない。
+describe("Feature: slot-suggested-start — 検査するもの・しないもの（要件 3.7・ADR-0015 改訂）", () => {
+  it("**走行中の釜へ重ねたら拒否する**（1 釜 1 Timer・ADR-0015 で改訂）", () => {
+    // **改訂前はここを「拒否しない」と固定していた。** 根拠は「押す場所が idle にしかない」という
+    // client 側の構造だったが、それは単一端末・オンラインでしか働かない——縮退からの復帰
+    // （`degraded-slot-superimposition`）・複数端末・通信の遅れで崩れる。しかも正本は釜を鍵にした
+    // 表ではないので、**釜の本数を超える Timer を持つ状態**が作れてしまう。CP-SAT は「1 釜 1 杯」を
+    // ハード制約として読むため、重複した正本では**解が存在しない**。
     const first = start({ ...EMPTY_STATE, orderItems: [ORDER] }, ORDER);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
@@ -153,7 +157,9 @@ describe("Feature: slot-suggested-start — 検査しないもの（要件 3.7�
       },
       PARAMS,
     );
-    expect(outcome.ok).toBe(true);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.rejection.code).toBe("SlotOccupied");
   });
 
   it("押した釜数が slotSpan と違っても拒否しない（現場の判断に委ねる）", () => {

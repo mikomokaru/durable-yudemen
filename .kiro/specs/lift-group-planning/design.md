@@ -464,17 +464,19 @@ placeWithLifts(batch, t0, release, lifts, siblingsEnds, params):
     head = Σ span ≤ (room ≥ 先頭の span ? room : arms + HELPER) に収まる最長の非空の接頭辞   # 先頭の品目は必ず上限に収まる（AC 9.12）
     return placeWithLifts(head, …) ++ placeWithLifts(残り, その表の上で t0 以降, …)
   pack  = 全員を firstFit(lifts, t0, S) に置く配置
-  if S ≤ arms: return pack
-  prefix = Σ span ≤ arms に収まる最長の非空の接頭辞
-  if prefix が空: return pack                                            # split は候補にならない（例：arms 1 の大盛）
-  split = prefix を firstFit(lifts, t0, Σ span(prefix)) に置き、残りをその表の上で再帰した配置
+  room = (arms + HELPER) − loadWith(lifts, t0, 0)
+  splits = []
+  for capacity in [min(arms, room), arms]:
+    prefix = Σ span ≤ capacity に収まる最長接頭辞
+    if prefix が空／全列／既に試した接頭辞: continue
+    splits に prefix を firstFit へ置き、残りを進めた表の上で再帰した配置を追加
   cost(c) = Σ_i (serve_i − arrival_i)                                   # 待ち（候補を後ろへ動かした分を含む）
           + w_table × Σ_{m ∈ 卓の成員（走行中の仲間を含む）} (max serve − serve_m)   # 卓の遅れ
           + (liftOverflow(lifts + c) − liftOverflow(lifts))              # 手伝いの費用の差分（liftOverflow は秒相当を返す・L を重ねて掛けない）
-  return cost(pack) ≤ cost(split) ? pack : split                         # 同点は pack
+  return [pack, ...splits] の費用最小の配置                              # 同点はこの順（保持候補は Component 5 の規則）
 ```
 
-両候補を同じ既存の表に対して**実際に作って**比べる。pack が既存の上がりを避けて 135 秒後ろへ動くなら、その待ちと遅れは cost(pack) に入る。split が既存の走行中と重なれば手伝いの費用は cost(split) に入る。4 人家族（arms 2・L 45・表が空）：pack 90、split 270 → pack。9 本：先頭 4 本の列で pack（90 < 270）、残り 5 本は次の窓で 4 + 1。arms 1 の大盛（span 2 ≤ 上限 3）は split の接頭辞が空なので pack で単独に置く。
+各候補を同じ既存の表に対して**実際に作って**比べる。列の合計が arms 以下でも既存負荷があると pack は遅れるため、残り容量の分割を試す。残り容量は過去側だけでなく将来の走行中の上げも含む。pack が既存の上がりを避けて 135 秒後ろへ動くなら、その待ちと遅れは cost(pack) に入る。split が既存の走行中と重なれば手伝いの費用は cost(split) に入る。4 人家族（arms 2・L 45・表が空）：pack 90、split 270 → pack。9 本：先頭 4 本の列で pack（90 < 270）、残り 5 本は次の窓で 4 + 1。arms 1 の大盛（span 2 ≤ 上限 3）は split の接頭辞が空なので pack で単独に置く。
 
 **`Placement.anchor`（AC 9.9・9.10・レビュー 1）。** 合流先の走行中の実効 endTime を配置の時点で決めて `Placement` に持ち、窓で `serveAt` が動いても変えない。`recommend` はそれを運ぶ（`joinedAnchor` の ±h_i 推定は撤去）。`AcceptedSlice` も持つので永続 v11（**v10 の一片は推定せず null**——`migrate` は純粋で設定（toleranceRatio・プリセット）を持たず h_i の窓を引けない。所属を失った合流分は合成が 1 品の単位として再検証する。代償は次の再計画まで「開始済み」が失われることで、`docs/persisted-schema-rollback.md` の v11 行に明記。レビュー追記・2026-09-06）。**`anchor` の主張は `recommend` が無条件に運ぶので、検証は `keepsAnchor` ただ一つが担う**——(a)「錨は現在の走行中の仲間の実効 endTime のいずれかに等しい・仲間が無い卓では `anchor` を持てない」は 21.4 の時点で先に据え（21.6 の pack 単位の検査はこれを含む）、ゲートと合成が同じ述語で読む。錨が Boil_Sync で ±h_i の内側に動いた採用済み一片も切られ、自前解が現在の錨で置き直す（錨は等号で運ぶ約束・判断 17）。
 

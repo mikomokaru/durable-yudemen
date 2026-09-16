@@ -1,0 +1,2750 @@
+{
+  "collectedAt": "2026-09-13T02:45:09.580Z",
+  "window": {
+    "from": "2026-09-13T01:44:00.000Z",
+    "to": "2026-09-13T02:44:00.000Z",
+    "minutes": 60
+  },
+  "worker": "yude-men-cpsat-planner-dev",
+  "slices": [
+    {
+      "from": "2026-09-13T01:44:00.000Z",
+      "to": "2026-09-13T01:47:00.000Z",
+      "status": 200,
+      "count": 380,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T01:47:00.000Z",
+      "to": "2026-09-13T01:50:00.000Z",
+      "status": 200,
+      "count": 356,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T01:50:00.000Z",
+      "to": "2026-09-13T01:53:00.000Z",
+      "status": 200,
+      "count": 365,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T01:53:00.000Z",
+      "to": "2026-09-13T01:56:00.000Z",
+      "status": 200,
+      "count": 333,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T01:56:00.000Z",
+      "to": "2026-09-13T01:59:00.000Z",
+      "status": 200,
+      "count": 398,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T01:59:00.000Z",
+      "to": "2026-09-13T02:02:00.000Z",
+      "status": 200,
+      "count": 362,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:02:00.000Z",
+      "to": "2026-09-13T02:05:00.000Z",
+      "status": 200,
+      "count": 391,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:05:00.000Z",
+      "to": "2026-09-13T02:08:00.000Z",
+      "status": 200,
+      "count": 402,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:08:00.000Z",
+      "to": "2026-09-13T02:11:00.000Z",
+      "status": 200,
+      "count": 369,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:11:00.000Z",
+      "to": "2026-09-13T02:14:00.000Z",
+      "status": 200,
+      "count": 363,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:14:00.000Z",
+      "to": "2026-09-13T02:17:00.000Z",
+      "status": 200,
+      "count": 395,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:17:00.000Z",
+      "to": "2026-09-13T02:20:00.000Z",
+      "status": 200,
+      "count": 339,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:20:00.000Z",
+      "to": "2026-09-13T02:23:00.000Z",
+      "status": 200,
+      "count": 392,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:23:00.000Z",
+      "to": "2026-09-13T02:26:00.000Z",
+      "status": 200,
+      "count": 323,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:26:00.000Z",
+      "to": "2026-09-13T02:29:00.000Z",
+      "status": 200,
+      "count": 370,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:29:00.000Z",
+      "to": "2026-09-13T02:32:00.000Z",
+      "status": 200,
+      "count": 347,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:32:00.000Z",
+      "to": "2026-09-13T02:35:00.000Z",
+      "status": 200,
+      "count": 371,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:35:00.000Z",
+      "to": "2026-09-13T02:38:00.000Z",
+      "status": 200,
+      "count": 341,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:38:00.000Z",
+      "to": "2026-09-13T02:41:00.000Z",
+      "status": 200,
+      "count": 361,
+      "saturated": false
+    },
+    {
+      "from": "2026-09-13T02:41:00.000Z",
+      "to": "2026-09-13T02:44:00.000Z",
+      "status": 200,
+      "count": 386,
+      "saturated": false
+    }
+  ],
+  "saturatedSlices": 0,
+  "kinds": {
+    "cpsat-queue-received": 3673,
+    "cpsat-plan-computed": 3671
+  },
+  "solves": 3671,
+  "stores": 189,
+  "pendingOverall": {
+    "min": 1,
+    "p50": 64,
+    "max": 64,
+    "overSix": 3653
+  },
+  "adoption": {
+    "adopted": null,
+    "rejected": null,
+    "why": "本番は cpsat.plan-decided を一度も出さない（StoreTimerDO.deliverPlan に観測が無い）。数えられない。"
+  },
+  "perStore": [
+    {
+      "storeId": "yamaokaya-1335",
+      "solves": 36,
+      "status": {
+        "FEASIBLE": 34,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 44,
+      "pendingP50": 53,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 36,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1151",
+      "solves": 36,
+      "status": {
+        "FEASIBLE": 36
+      },
+      "pendingMin": 34,
+      "pendingP50": 49,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 36,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1327",
+      "solves": 36,
+      "status": {
+        "FEASIBLE": 36
+      },
+      "pendingMin": 31,
+      "pendingP50": 46,
+      "pendingMax": 60,
+      "solvesWithPendingOverSix": 36,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1263",
+      "solves": 35,
+      "status": {
+        "FEASIBLE": 29,
+        "OPTIMAL": 6
+      },
+      "pendingMin": 39,
+      "pendingP50": 49,
+      "pendingMax": 60,
+      "solvesWithPendingOverSix": 35,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1152",
+      "solves": 35,
+      "status": {
+        "FEASIBLE": 35
+      },
+      "pendingMin": 36,
+      "pendingP50": 45,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 35,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1144",
+      "solves": 34,
+      "status": {
+        "FEASIBLE": 34
+      },
+      "pendingMin": 20,
+      "pendingP50": 43,
+      "pendingMax": 61,
+      "solvesWithPendingOverSix": 34,
+      "runningMax": 1,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1334",
+      "solves": 33,
+      "status": {
+        "OPTIMAL": 13,
+        "FEASIBLE": 20
+      },
+      "pendingMin": 40,
+      "pendingP50": 51,
+      "pendingMax": 63,
+      "solvesWithPendingOverSix": 33,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1205",
+      "solves": 32,
+      "status": {
+        "FEASIBLE": 28,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 49,
+      "pendingP50": 56,
+      "pendingMax": 61,
+      "solvesWithPendingOverSix": 32,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1153",
+      "solves": 31,
+      "status": {
+        "FEASIBLE": 31
+      },
+      "pendingMin": 16,
+      "pendingP50": 43,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 31,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1330",
+      "solves": 31,
+      "status": {
+        "OPTIMAL": 6,
+        "FEASIBLE": 25
+      },
+      "pendingMin": 53,
+      "pendingP50": 56,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 31,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1328",
+      "solves": 31,
+      "status": {
+        "OPTIMAL": 10,
+        "FEASIBLE": 21
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 31,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1222",
+      "solves": 30,
+      "status": {
+        "FEASIBLE": 25,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 30,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1342",
+      "solves": 29,
+      "status": {
+        "FEASIBLE": 29
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 29,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1267",
+      "solves": 29,
+      "status": {
+        "FEASIBLE": 29
+      },
+      "pendingMin": 39,
+      "pendingP50": 53,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 29,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1142",
+      "solves": 29,
+      "status": {
+        "FEASIBLE": 25,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 45,
+      "pendingP50": 49,
+      "pendingMax": 54,
+      "solvesWithPendingOverSix": 29,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1157",
+      "solves": 28,
+      "status": {
+        "FEASIBLE": 24,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 56,
+      "pendingP50": 61,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 28,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1282",
+      "solves": 28,
+      "status": {
+        "FEASIBLE": 25,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 38,
+      "pendingP50": 50,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 28,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1210",
+      "solves": 27,
+      "status": {
+        "FEASIBLE": 27
+      },
+      "pendingMin": 52,
+      "pendingP50": 60,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 27,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1140",
+      "solves": 27,
+      "status": {
+        "OPTIMAL": 27
+      },
+      "pendingMin": 36,
+      "pendingP50": 51,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 27,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1241",
+      "solves": 27,
+      "status": {
+        "FEASIBLE": 25,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 27,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1299",
+      "solves": 26,
+      "status": {
+        "OPTIMAL": 3,
+        "FEASIBLE": 23
+      },
+      "pendingMin": 46,
+      "pendingP50": 56,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 26,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1146",
+      "solves": 26,
+      "status": {
+        "FEASIBLE": 26
+      },
+      "pendingMin": 52,
+      "pendingP50": 62,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 26,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1223",
+      "solves": 25,
+      "status": {
+        "FEASIBLE": 25
+      },
+      "pendingMin": 49,
+      "pendingP50": 56,
+      "pendingMax": 61,
+      "solvesWithPendingOverSix": 25,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1161",
+      "solves": 25,
+      "status": {
+        "FEASIBLE": 25
+      },
+      "pendingMin": 34,
+      "pendingP50": 41,
+      "pendingMax": 52,
+      "solvesWithPendingOverSix": 25,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1221",
+      "solves": 25,
+      "status": {
+        "FEASIBLE": 25
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 25,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1220",
+      "solves": 24,
+      "status": {
+        "FEASIBLE": 24
+      },
+      "pendingMin": 38,
+      "pendingP50": 44,
+      "pendingMax": 51,
+      "solvesWithPendingOverSix": 24,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1287",
+      "solves": 24,
+      "status": {
+        "FEASIBLE": 20,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 39,
+      "pendingP50": 55,
+      "pendingMax": 59,
+      "solvesWithPendingOverSix": 24,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1208",
+      "solves": 24,
+      "status": {
+        "OPTIMAL": 11,
+        "FEASIBLE": 13
+      },
+      "pendingMin": 51,
+      "pendingP50": 59,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 24,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1111",
+      "solves": 24,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 9
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 24,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1147",
+      "solves": 24,
+      "status": {
+        "FEASIBLE": 24
+      },
+      "pendingMin": 16,
+      "pendingP50": 30,
+      "pendingMax": 47,
+      "solvesWithPendingOverSix": 24,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1160",
+      "solves": 24,
+      "status": {
+        "FEASIBLE": 21,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 42,
+      "pendingP50": 51,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 24,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1350",
+      "solves": 24,
+      "status": {
+        "FEASIBLE": 24
+      },
+      "pendingMin": 61,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 24,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1132",
+      "solves": 24,
+      "status": {
+        "FEASIBLE": 23,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 46,
+      "pendingP50": 53,
+      "pendingMax": 61,
+      "solvesWithPendingOverSix": 24,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1156",
+      "solves": 24,
+      "status": {
+        "FEASIBLE": 22,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 1,
+      "pendingP50": 18,
+      "pendingMax": 32,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [1, 3, 5, 6]
+    },
+    {
+      "storeId": "yamaokaya-1312",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 23
+      },
+      "pendingMin": 47,
+      "pendingP50": 53,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1261",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 23
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1139",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 23
+      },
+      "pendingMin": 47,
+      "pendingP50": 54,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1309",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 23
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1354",
+      "solves": 23,
+      "status": {
+        "OPTIMAL": 2,
+        "FEASIBLE": 21
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1307",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 23
+      },
+      "pendingMin": 41,
+      "pendingP50": 51,
+      "pendingMax": 60,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1204",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 14,
+        "OPTIMAL": 9
+      },
+      "pendingMin": 54,
+      "pendingP50": 58,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1209",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 20,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 35,
+      "pendingP50": 48,
+      "pendingMax": 57,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1155",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 23
+      },
+      "pendingMin": 13,
+      "pendingP50": 24,
+      "pendingMax": 48,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1130",
+      "solves": 23,
+      "status": {
+        "FEASIBLE": 23
+      },
+      "pendingMin": 15,
+      "pendingP50": 36,
+      "pendingMax": 49,
+      "solvesWithPendingOverSix": 23,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1292",
+      "solves": 23,
+      "status": {
+        "OPTIMAL": 3,
+        "FEASIBLE": 20
+      },
+      "pendingMin": 1,
+      "pendingP50": 23,
+      "pendingMax": 46,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [1, 2, 3, 4, 5, 6]
+    },
+    {
+      "storeId": "yamaokaya-1329",
+      "solves": 22,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1243",
+      "solves": 22,
+      "status": {
+        "FEASIBLE": 14,
+        "OPTIMAL": 8
+      },
+      "pendingMin": 53,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1291",
+      "solves": 22,
+      "status": {
+        "FEASIBLE": 20,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1149",
+      "solves": 22,
+      "status": {
+        "FEASIBLE": 22
+      },
+      "pendingMin": 21,
+      "pendingP50": 33,
+      "pendingMax": 49,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1134",
+      "solves": 22,
+      "status": {
+        "FEASIBLE": 22
+      },
+      "pendingMin": 36,
+      "pendingP50": 51,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1271",
+      "solves": 22,
+      "status": {
+        "FEASIBLE": 21,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 52,
+      "pendingP50": 63,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1107",
+      "solves": 22,
+      "status": {
+        "FEASIBLE": 22
+      },
+      "pendingMin": 22,
+      "pendingP50": 38,
+      "pendingMax": 49,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1251",
+      "solves": 22,
+      "status": {
+        "OPTIMAL": 3,
+        "FEASIBLE": 19
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1361",
+      "solves": 22,
+      "status": {
+        "FEASIBLE": 21,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 22,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1121",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 20,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 54,
+      "pendingP50": 60,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 2,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1212",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 21
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1321",
+      "solves": 21,
+      "status": {
+        "OPTIMAL": 8,
+        "FEASIBLE": 13
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1246",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 20,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1122",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 18,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 61,
+      "pendingP50": 63,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1120",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 20,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1275",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1201",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 21
+      },
+      "pendingMin": 54,
+      "pendingP50": 57,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1158",
+      "solves": 21,
+      "status": {
+        "OPTIMAL": 6,
+        "FEASIBLE": 15
+      },
+      "pendingMin": 54,
+      "pendingP50": 61,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1315",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 18,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 44,
+      "pendingP50": 56,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1247",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 11,
+        "OPTIMAL": 10
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1356",
+      "solves": 21,
+      "status": {
+        "OPTIMAL": 8,
+        "FEASIBLE": 13
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1254",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 16,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1137",
+      "solves": 21,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 8
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 21,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1296",
+      "solves": 20,
+      "status": {
+        "OPTIMAL": 8,
+        "FEASIBLE": 12
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1278",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 20
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1362",
+      "solves": 20,
+      "status": {
+        "OPTIMAL": 1,
+        "FEASIBLE": 19
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1348",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 20
+      },
+      "pendingMin": 54,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1215",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 20
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1102",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 19,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 37,
+      "pendingP50": 40,
+      "pendingMax": 44,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 2,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1355",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 19,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1214",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 20
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1133",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 19,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1352",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 18,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1288",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1141",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 11,
+        "OPTIMAL": 9
+      },
+      "pendingMin": 34,
+      "pendingP50": 43,
+      "pendingMax": 50,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1341",
+      "solves": 20,
+      "status": {
+        "FEASIBLE": 20
+      },
+      "pendingMin": 46,
+      "pendingP50": 50,
+      "pendingMax": 57,
+      "solvesWithPendingOverSix": 20,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1154",
+      "solves": 20,
+      "status": {
+        "OPTIMAL": 3,
+        "FEASIBLE": 17
+      },
+      "pendingMin": 1,
+      "pendingP50": 15,
+      "pendingMax": 27,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [1, 2, 4, 5, 6]
+    },
+    {
+      "storeId": "yamaokaya-1316",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 18,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1346",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 19
+      },
+      "pendingMin": 50,
+      "pendingP50": 55,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1229",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1143",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1280",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 63,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1258",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1124",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 18,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 2,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1314",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 19
+      },
+      "pendingMin": 59,
+      "pendingP50": 63,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1226",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 19
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1216",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 18,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1304",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 19
+      },
+      "pendingMin": 55,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1269",
+      "solves": 19,
+      "status": {
+        "FEASIBLE": 19
+      },
+      "pendingMin": 46,
+      "pendingP50": 52,
+      "pendingMax": 60,
+      "solvesWithPendingOverSix": 19,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1317",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1358",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1364",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 18
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1357",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 14,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1345",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1290",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1351",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1213",
+      "solves": 18,
+      "status": {
+        "OPTIMAL": 2,
+        "FEASIBLE": 16
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1268",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 18
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1322",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 14,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1256",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 14,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1113",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 18
+      },
+      "pendingMin": 55,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 4,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1248",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 18
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1338",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 16,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1162",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1159",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 18
+      },
+      "pendingMin": 36,
+      "pendingP50": 51,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1238",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1217",
+      "solves": 18,
+      "status": {
+        "FEASIBLE": 17,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 60,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 18,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1311",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 14,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1138",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1264",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 61,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1262",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 17
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1125",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 17
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 2,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1301",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 17
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1131",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 17
+      },
+      "pendingMin": 18,
+      "pendingP50": 29,
+      "pendingMax": 38,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1117",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 17
+      },
+      "pendingMin": 18,
+      "pendingP50": 31,
+      "pendingMax": 40,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1234",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1344",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 14,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1257",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 16,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 59,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1297",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1118",
+      "solves": 17,
+      "status": {
+        "OPTIMAL": 6,
+        "FEASIBLE": 11
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1333",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 10,
+        "OPTIMAL": 7
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1255",
+      "solves": 17,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 17,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1343",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 14,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1236",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 12,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1260",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 16
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1363",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 16
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1284",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1295",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 11,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 62,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1325",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 12,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 61,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1233",
+      "solves": 16,
+      "status": {
+        "OPTIMAL": 4,
+        "FEASIBLE": 12
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1320",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1135",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1276",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 15,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1349",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 16
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1253",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 16
+      },
+      "pendingMin": 62,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1115",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 16
+      },
+      "pendingMin": 8,
+      "pendingP50": 19,
+      "pendingMax": 30,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1281",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 11,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1326",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 16
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1224",
+      "solves": 16,
+      "status": {
+        "FEASIBLE": 12,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 16,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1318",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 15
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1244",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 11,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1283",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 12,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1286",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1218",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 9,
+        "OPTIMAL": 6
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1232",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1219",
+      "solves": 15,
+      "status": {
+        "OPTIMAL": 1,
+        "FEASIBLE": 14
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1203",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 15
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1148",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 15
+      },
+      "pendingMin": 10,
+      "pendingP50": 20,
+      "pendingMax": 30,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1313",
+      "solves": 15,
+      "status": {
+        "FEASIBLE": 15
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 15,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1289",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1128",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 12,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 3,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1324",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1127",
+      "solves": 14,
+      "status": {
+        "OPTIMAL": 3,
+        "FEASIBLE": 11
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1270",
+      "solves": 14,
+      "status": {
+        "OPTIMAL": 5,
+        "FEASIBLE": 9
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1353",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 14
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1308",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1340",
+      "solves": 14,
+      "status": {
+        "OPTIMAL": 3,
+        "FEASIBLE": 11
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1105",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 3,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1347",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 11,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1323",
+      "solves": 14,
+      "status": {
+        "OPTIMAL": 4,
+        "FEASIBLE": 10
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1129",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 13,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1150",
+      "solves": 14,
+      "status": {
+        "FEASIBLE": 14
+      },
+      "pendingMin": 18,
+      "pendingP50": 28,
+      "pendingMax": 36,
+      "solvesWithPendingOverSix": 14,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1306",
+      "solves": 14,
+      "status": {
+        "OPTIMAL": 3,
+        "FEASIBLE": 11
+      },
+      "pendingMin": 1,
+      "pendingP50": 9,
+      "pendingMax": 17,
+      "solvesWithPendingOverSix": 9,
+      "runningMax": 0,
+      "placements": [1, 3, 4, 5, 6]
+    },
+    {
+      "storeId": "yamaokaya-1245",
+      "solves": 13,
+      "status": {
+        "FEASIBLE": 13
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1336",
+      "solves": 13,
+      "status": {
+        "FEASIBLE": 10,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1310",
+      "solves": 13,
+      "status": {
+        "FEASIBLE": 12,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1239",
+      "solves": 13,
+      "status": {
+        "FEASIBLE": 11,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1337",
+      "solves": 13,
+      "status": {
+        "FEASIBLE": 13
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1237",
+      "solves": 13,
+      "status": {
+        "OPTIMAL": 1,
+        "FEASIBLE": 12
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1339",
+      "solves": 13,
+      "status": {
+        "OPTIMAL": 7,
+        "FEASIBLE": 6
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1360",
+      "solves": 13,
+      "status": {
+        "FEASIBLE": 8,
+        "OPTIMAL": 5
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1332",
+      "solves": 13,
+      "status": {
+        "FEASIBLE": 13
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1359",
+      "solves": 13,
+      "status": {
+        "FEASIBLE": 12,
+        "OPTIMAL": 1
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 13,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1294",
+      "solves": 12,
+      "status": {
+        "OPTIMAL": 4,
+        "FEASIBLE": 8
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 12,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1249",
+      "solves": 12,
+      "status": {
+        "FEASIBLE": 9,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 12,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1230",
+      "solves": 12,
+      "status": {
+        "FEASIBLE": 10,
+        "OPTIMAL": 2
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 12,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1227",
+      "solves": 12,
+      "status": {
+        "FEASIBLE": 12
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 12,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1319",
+      "solves": 12,
+      "status": {
+        "FEASIBLE": 6,
+        "OPTIMAL": 6
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 12,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1126",
+      "solves": 12,
+      "status": {
+        "FEASIBLE": 8,
+        "OPTIMAL": 4
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 12,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1108",
+      "solves": 11,
+      "status": {
+        "FEASIBLE": 11
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 11,
+      "runningMax": 6,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1252",
+      "solves": 11,
+      "status": {
+        "FEASIBLE": 11
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 11,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1163",
+      "solves": 11,
+      "status": {
+        "OPTIMAL": 11
+      },
+      "pendingMin": 14,
+      "pendingP50": 24,
+      "pendingMax": 32,
+      "solvesWithPendingOverSix": 11,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1145",
+      "solves": 10,
+      "status": {
+        "FEASIBLE": 7,
+        "OPTIMAL": 3
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 10,
+      "runningMax": 0,
+      "placements": [6]
+    },
+    {
+      "storeId": "yamaokaya-1331",
+      "solves": 9,
+      "status": {
+        "OPTIMAL": 1,
+        "FEASIBLE": 8
+      },
+      "pendingMin": 64,
+      "pendingP50": 64,
+      "pendingMax": 64,
+      "solvesWithPendingOverSix": 9,
+      "runningMax": 0,
+      "placements": [6]
+    }
+  ]
+}

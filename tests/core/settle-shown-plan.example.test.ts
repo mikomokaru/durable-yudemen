@@ -39,6 +39,7 @@ const PRESETS: readonly NoodlePreset[] = [
 /** 1 ユニット（6 釜）・Boil_Sync は arms 1・許容 1%（塞ぐ Timer を動かさない値）。 */
 const PARAMS: SettleParams = {
   noodlePresets: PRESETS,
+  planner: "ts" as const,
   ...schedulingDefaults(1),
   toleranceRatio: 1,
   arms: 1,

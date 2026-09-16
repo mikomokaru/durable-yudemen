@@ -1,0 +1,289 @@
+{
+  "collectedAt": "2026-09-09T05:31:52.121Z",
+  "from": "2026-09-09T05:29:00Z",
+  "to": "2026-09-09T05:31:50.748Z",
+  "account": "305d89a643ac689b4204454c5493cbde",
+  "worker": "yude-men-cpsat-search",
+  "settings": {
+    "usageModel": "standard",
+    "limits": {
+      "cpu_ms": 1000
+    },
+    "compatibilityDate": "2026-09-09",
+    "compatibilityFlags": [
+      "no_nodejs_compat",
+      "no_nodejs_compat_v2"
+    ],
+    "bindings": [
+      {
+        "name": "CF_VERSION_METADATA",
+        "type": "version_metadata"
+      },
+      {
+        "name": "SEARCH_AUTH_TOKEN",
+        "type": "secret_text"
+      },
+      {
+        "name": "SEARCH_EXPIRES_AT",
+        "type": "plain_text"
+      }
+    ]
+  },
+  "deployments": [
+    {
+      "id": "5cc9c09d-4b03-44ee-ab12-d4650a466af2",
+      "created_on": "2026-09-09T05:29:24.918018Z",
+      "versions": [
+        {
+          "version_id": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e",
+          "percentage": 100
+        }
+      ]
+    }
+  ],
+  "priorPocDeployments": [
+    {
+      "id": "c9ffe305-05c8-433f-b6f1-f7993bd5cee3",
+      "created_on": "2026-09-08T11:44:17.104875Z",
+      "versions": [
+        {
+          "version_id": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+          "percentage": 100
+        }
+      ]
+    }
+  ],
+  "graphql": {
+    "query": "query Metrics($account: string, $worker: string, $from: string, $to: string) {\n  viewer { accounts(filter: {accountTag: $account}) {\n    workersInvocationsAdaptive(limit: 10000, filter: {scriptName: $worker, datetime_geq: $from, datetime_leq: $to}) {\n      dimensions { scriptName scriptVersion coloCode status datetime }\n      quantiles { cpuTimeP50 cpuTimeP99 wallTimeP50 wallTimeP99 }\n      max { cpuTime wallTime memoryUsageBytes wasmMemoryBytes }\n      sum { requests errors subrequests cpuTimeUs }\n      avg { sampleInterval }\n    }\n  } }\n  units: __type(name: \"AccountWorkersInvocationsAdaptiveMax\") { fields { name description } }\n  sums: __type(name: \"AccountWorkersInvocationsAdaptiveSum\") { fields { name description } }\n  averages: __type(name: \"AccountWorkersInvocationsAdaptiveAvg\") { fields { name description } }\n}",
+    "variables": {
+      "account": "305d89a643ac689b4204454c5493cbde",
+      "worker": "yude-men-cpsat-search",
+      "from": "2026-09-09T05:29:00Z",
+      "to": "2026-09-09T05:31:50.748Z"
+    },
+    "data": {
+      "averages": {
+        "fields": [
+          {
+            "description": "",
+            "name": "sampleInterval"
+          }
+        ]
+      },
+      "sums": {
+        "fields": [
+          {
+            "description": "Sum of client disconnects",
+            "name": "clientDisconnects"
+          },
+          {
+            "description": "Sum of cpu time in us",
+            "name": "cpuTimeUs"
+          },
+          {
+            "description": "Sum of Duration - GB*s",
+            "name": "duration"
+          },
+          {
+            "description": "Sum of Errors",
+            "name": "errors"
+          },
+          {
+            "description": "Sum of Request Duration in microseconds",
+            "name": "requestDuration"
+          },
+          {
+            "description": "Sum of Requests",
+            "name": "requests"
+          },
+          {
+            "description": "Sum of Response Body Sizes",
+            "name": "responseBodySize"
+          },
+          {
+            "description": "Sum of Subrequests",
+            "name": "subrequests"
+          },
+          {
+            "description": "Sum of Wall Time",
+            "name": "wallTime"
+          }
+        ]
+      },
+      "units": {
+        "fields": [
+          {
+            "description": "Maximum CPU time for one request - microseconds",
+            "name": "cpuTime"
+          },
+          {
+            "description": "Maximum duration of one request - GB*s",
+            "name": "duration"
+          },
+          {
+            "description": "Maximum V8 isolate memory usage across Worker invocations - bytes",
+            "name": "memoryUsageBytes"
+          },
+          {
+            "description": "Maximum Request Duration in microseconds",
+            "name": "requestDuration"
+          },
+          {
+            "description": "Maximum response body size for one request - bytes",
+            "name": "responseBodySize"
+          },
+          {
+            "description": "Maximum wall time for one request - microseconds",
+            "name": "wallTime"
+          },
+          {
+            "description": "Maximum WebAssembly linear memory usage across Worker invocations - bytes",
+            "name": "wasmMemoryBytes"
+          }
+        ]
+      },
+      "viewer": {
+        "accounts": [
+          {
+            "workersInvocationsAdaptive": [
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:31:00Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e",
+                  "status": "exceededResources"
+                },
+                "max": {
+                  "cpuTime": 1042070,
+                  "memoryUsageBytes": 43756795,
+                  "wallTime": 1059574,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1042070,
+                  "cpuTimeP99": 1042070,
+                  "wallTimeP50": 1059574,
+                  "wallTimeP99": 1059574
+                },
+                "sum": {
+                  "cpuTimeUs": 1042070,
+                  "errors": 1,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 3.5
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:29:54Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 864,
+                  "memoryUsageBytes": 3077715,
+                  "wallTime": 1449,
+                  "wasmMemoryBytes": 0
+                },
+                "quantiles": {
+                  "cpuTimeP50": 443,
+                  "cpuTimeP99": 864,
+                  "wallTimeP50": 954,
+                  "wallTimeP99": 1449
+                },
+                "sum": {
+                  "cpuTimeUs": 6862,
+                  "errors": 0,
+                  "requests": 14,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.2857142857142858
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:29:55Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 325662,
+                  "memoryUsageBytes": 40349805,
+                  "wallTime": 327499,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 609,
+                  "cpuTimeP99": 325662,
+                  "wallTimeP50": 1266,
+                  "wallTimeP99": 327499
+                },
+                "sum": {
+                  "cpuTimeUs": 433342,
+                  "errors": 0,
+                  "requests": 9,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:30:56Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 3457929,
+                  "memoryUsageBytes": 41262387,
+                  "wallTime": 3906951,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 845,
+                  "cpuTimeP99": 3457929,
+                  "wallTimeP50": 1203,
+                  "wallTimeP99": 3906951
+                },
+                "sum": {
+                  "cpuTimeUs": 3458774,
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "summary": {
+    "rows": 4,
+    "requests": 26,
+    "errors": 1,
+    "cpuTimeSeconds": 4.941048,
+    "maxSampleInterval": 3.5,
+    "statuses": [
+      "exceededResources",
+      "success"
+    ],
+    "maxCpuTimeMs": 3457.929,
+    "maxMemoryBytes": 43756795,
+    "maxWasmMemoryBytes": 33554432
+  }
+}

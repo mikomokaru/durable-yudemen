@@ -1,0 +1,377 @@
+{
+  "startedAt": "2026-09-12T11:06:09.756Z",
+  "storeId": "cpsat-transport-20260909-04",
+  "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+  "rounds": [
+    {
+      "round": 0,
+      "externalOrderId": "separation-0-38d0ded8",
+      "startedAt": 1789211169756,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 2640,
+      "gapBeforeMs": null
+    },
+    {
+      "round": 1,
+      "externalOrderId": "separation-1-5bfb0400",
+      "startedAt": 1789211173397,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 326,
+      "gapBeforeMs": 1000
+    },
+    {
+      "round": 2,
+      "externalOrderId": "separation-2-b107b1ac",
+      "startedAt": 1789211174723,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 270,
+      "gapBeforeMs": 1000
+    },
+    {
+      "round": 3,
+      "externalOrderId": "separation-3-55866272",
+      "startedAt": 1789211175994,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 276,
+      "gapBeforeMs": 1000
+    },
+    {
+      "round": 4,
+      "externalOrderId": "separation-4-8e7b9292",
+      "startedAt": 1789211177270,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 284,
+      "gapBeforeMs": 1000
+    },
+    {
+      "round": 5,
+      "externalOrderId": "separation-5-60152db0",
+      "startedAt": 1789211178555,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 115,
+      "gapBeforeMs": 1000
+    },
+    {
+      "round": 6,
+      "externalOrderId": "separation-6-d6b5a4ee",
+      "startedAt": 1789211179672,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 117,
+      "gapBeforeMs": 1000
+    },
+    {
+      "round": 7,
+      "externalOrderId": "separation-7-1fa0fa00",
+      "startedAt": 1789211180790,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 200,
+      "gapBeforeMs": 1000
+    },
+    {
+      "round": 8,
+      "externalOrderId": "separation-8-8b956e44",
+      "startedAt": 1789211181991,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 252,
+      "gapBeforeMs": 1000
+    },
+    {
+      "round": 9,
+      "externalOrderId": "separation-9-92120810",
+      "startedAt": 1789211184244,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 283,
+      "gapBeforeMs": 2000
+    },
+    {
+      "round": 10,
+      "externalOrderId": "separation-10-745689e9",
+      "startedAt": 1789211186528,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 243,
+      "gapBeforeMs": 2000
+    },
+    {
+      "round": 11,
+      "externalOrderId": "separation-11-9b78e457",
+      "startedAt": 1789211188772,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 398,
+      "gapBeforeMs": 2000
+    },
+    {
+      "round": 12,
+      "externalOrderId": "separation-12-275ef681",
+      "startedAt": 1789211191171,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 309,
+      "gapBeforeMs": 2000
+    },
+    {
+      "round": 13,
+      "externalOrderId": "separation-13-e1c5e05c",
+      "startedAt": 1789211193482,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 307,
+      "gapBeforeMs": 2000
+    },
+    {
+      "round": 14,
+      "externalOrderId": "separation-14-c6a30092",
+      "startedAt": 1789211195790,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 263,
+      "gapBeforeMs": 2000
+    },
+    {
+      "round": 15,
+      "externalOrderId": "separation-15-e4a09bbd",
+      "startedAt": 1789211198054,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 235,
+      "gapBeforeMs": 2000
+    },
+    {
+      "round": 16,
+      "externalOrderId": "separation-16-c01ce959",
+      "startedAt": 1789211200290,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 300,
+      "gapBeforeMs": 2000
+    },
+    {
+      "round": 17,
+      "externalOrderId": "separation-17-875e0549",
+      "startedAt": 1789211204591,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 219,
+      "gapBeforeMs": 4000
+    },
+    {
+      "round": 18,
+      "externalOrderId": "separation-18-c9189c6a",
+      "startedAt": 1789211208811,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 490,
+      "gapBeforeMs": 4000
+    },
+    {
+      "round": 19,
+      "externalOrderId": "separation-19-51ea9e80",
+      "startedAt": 1789211213301,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 342,
+      "gapBeforeMs": 4000
+    },
+    {
+      "round": 20,
+      "externalOrderId": "separation-20-8cfb6158",
+      "startedAt": 1789211217644,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 282,
+      "gapBeforeMs": 4000
+    },
+    {
+      "round": 21,
+      "externalOrderId": "separation-21-1d56bdce",
+      "startedAt": 1789211221927,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 235,
+      "gapBeforeMs": 4000
+    },
+    {
+      "round": 22,
+      "externalOrderId": "separation-22-a29c8860",
+      "startedAt": 1789211226163,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 506,
+      "gapBeforeMs": 4000
+    },
+    {
+      "round": 23,
+      "externalOrderId": "separation-23-ce327257",
+      "startedAt": 1789211230670,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 290,
+      "gapBeforeMs": 4000
+    },
+    {
+      "round": 24,
+      "externalOrderId": "separation-24-037902d2",
+      "startedAt": 1789211234962,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 133,
+      "gapBeforeMs": 4000
+    },
+    {
+      "round": 25,
+      "externalOrderId": "separation-25-4bcbab75",
+      "startedAt": 1789211243096,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 283,
+      "gapBeforeMs": 8000
+    },
+    {
+      "round": 26,
+      "externalOrderId": "separation-26-d2de66ba",
+      "startedAt": 1789211251380,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 242,
+      "gapBeforeMs": 8000
+    },
+    {
+      "round": 27,
+      "externalOrderId": "separation-27-d9565be8",
+      "startedAt": 1789211259623,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 239,
+      "gapBeforeMs": 8000
+    },
+    {
+      "round": 28,
+      "externalOrderId": "separation-28-15cedbfb",
+      "startedAt": 1789211267862,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 296,
+      "gapBeforeMs": 8000
+    },
+    {
+      "round": 29,
+      "externalOrderId": "separation-29-cb87be57",
+      "startedAt": 1789211276159,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 261,
+      "gapBeforeMs": 8000
+    },
+    {
+      "round": 30,
+      "externalOrderId": "separation-30-1ab3e861",
+      "startedAt": 1789211284421,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 263,
+      "gapBeforeMs": 8000
+    },
+    {
+      "round": 31,
+      "externalOrderId": "separation-31-462688ba",
+      "startedAt": 1789211292685,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 236,
+      "gapBeforeMs": 8000
+    },
+    {
+      "round": 32,
+      "externalOrderId": "separation-32-b403cc75",
+      "startedAt": 1789211300922,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 317,
+      "gapBeforeMs": 8000
+    },
+    {
+      "round": 33,
+      "externalOrderId": "separation-33-853e8f72",
+      "startedAt": 1789211316240,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 235,
+      "gapBeforeMs": 15000
+    },
+    {
+      "round": 34,
+      "externalOrderId": "separation-34-d6e4370b",
+      "startedAt": 1789211331476,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 194,
+      "gapBeforeMs": 15000
+    },
+    {
+      "round": 35,
+      "externalOrderId": "separation-35-d8f0000f",
+      "startedAt": 1789211346671,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 215,
+      "gapBeforeMs": 15000
+    },
+    {
+      "round": 36,
+      "externalOrderId": "separation-36-e6a1e895",
+      "startedAt": 1789211361887,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 150,
+      "gapBeforeMs": 15000
+    },
+    {
+      "round": 37,
+      "externalOrderId": "separation-37-a415569e",
+      "startedAt": 1789211377038,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 189,
+      "gapBeforeMs": 15000
+    },
+    {
+      "round": 38,
+      "externalOrderId": "separation-38-09ea5788",
+      "startedAt": 1789211392228,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 274,
+      "gapBeforeMs": 15000
+    },
+    {
+      "round": 39,
+      "externalOrderId": "separation-39-23b6c853",
+      "startedAt": 1789211407503,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 204,
+      "gapBeforeMs": 15000
+    },
+    {
+      "round": 40,
+      "externalOrderId": "separation-40-a527c85d",
+      "startedAt": 1789211422708,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 226,
+      "gapBeforeMs": 15000
+    }
+  ],
+  "finishedAt": "2026-09-12T11:10:23.009Z"
+}

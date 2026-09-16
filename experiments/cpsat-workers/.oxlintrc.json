@@ -1,0 +1,3 @@
+{
+  "ignorePatterns": ["vendor/cpsat_workers_poc_runtime.js"]
+}

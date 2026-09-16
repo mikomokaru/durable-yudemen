@@ -1,0 +1,67 @@
+import { pendingOrders, itemKeyOf } from "../domain/order";
+import { cpsatTargets } from "../cpsat/request";
+import { boilMillisOf } from "./boil";
+import { adjustedEndTime, tableKeyOf } from "./project";
+import { planTargets, type CookSchedule, type Placement, type PlanSlice } from "./schedule";
+import type { TimerState } from "./state";
+import type { SettleParams } from "./settle";
+import type { EpochMillis } from "./types";
+
+/** The CP-SAT mode has its own acceptance rule. Never re-score it with the TS
+ * objective or turn its soft overflow/distance preferences into legacy hard caps.
+ * New answers must cover the whole bounded cohort; retained answers can shed
+ * items that were started/cancelled while a replacement is being computed.
+ */
+export function cpsatSchedule(
+  state: TimerState, params: SettleParams, now: EpochMillis,
+  arrived?: CookSchedule,
+): CookSchedule | null {
+  const slotCount = params.unitOrigins.length * 6;
+  const pending = planTargets(pendingOrders(state.orderItems, state.timers, now), now);
+  const targets = cpsatTargets(pending, params.noodlePresets, slotCount);
+  const byKey = new Map(targets.map(item => [itemKeyOf(item), item]));
+  const original = (arrived?.slices ?? state.acceptedSlices).flatMap(slice => slice.placements);
+  const candidates = arrived ? original : original.filter(p => byKey.has(itemKeyOf(p)));
+  if (arrived && (candidates.length !== targets.length ||
+    new Set(candidates.map(itemKeyOf)).size !== targets.length)) return null;
+  // Receipt latency cannot make a recommendation start in the past. Shift the
+  // whole pending plan equally so its internal lift clusters stay intact.
+  const shift = candidates.length ? Math.max(0, now - Math.min(...candidates.map(p => p.startAt))) : 0;
+  const kept: Placement[] = [];
+  const claimed = new Set<string>();
+  for (const old of candidates) {
+    const item = byKey.get(itemKeyOf(old));
+    const p: Placement = {
+      ...old,
+      startAt: (old.startAt + shift) as EpochMillis,
+      serveAt: (old.serveAt + shift) as EpochMillis,
+      anchor: null,
+    };
+    const invalid = item === undefined || claimed.has(itemKeyOf(p)) ||
+      p.slotIds.length !== item.slotSpan || new Set(p.slotIds).size !== p.slotIds.length ||
+      p.slotIds.some(slot => !/^(0|[1-9][0-9]*)$/.test(slot) || Number(slot) >= slotCount) ||
+      p.serveAt - p.startAt !== boilMillisOf(item, params.noodlePresets) ||
+      p.startAt < now || p.serveAt > now + 14400000 ||
+      state.timers.some(timer => timer.slotIds.some(slot => p.slotIds.includes(slot)) &&
+        (timer.boiledAt !== null || adjustedEndTime(timer) <= now || p.startAt < adjustedEndTime(timer))) ||
+      kept.some(other => p.slotIds.some(slot => other.slotIds.includes(slot)) &&
+        p.startAt < other.serveAt && other.startAt < p.serveAt);
+    if (invalid) {
+      if (arrived) return null;
+      continue;
+    }
+    const anchor = state.timers.find(timer => timer.boiledAt === null &&
+      adjustedEndTime(timer) === p.serveAt && timer.orderItem?.tableId === item!.tableId);
+    kept.push({ ...p, anchor: anchor ? adjustedEndTime(anchor) : null });
+    claimed.add(itemKeyOf(p));
+  }
+  const groups = new Map<string, Placement[]>();
+  for (const p of kept) {
+    const key = tableKeyOf(byKey.get(itemKeyOf(p))!);
+    const group = groups.get(key) ?? [];
+    group.push(p);
+    groups.set(key, group);
+  }
+  const slices: PlanSlice[] = [...groups].map(([tableKey, placements]) => ({ tableKey, placements }));
+  return { slices };
+}

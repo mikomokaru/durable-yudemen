@@ -1,0 +1,38 @@
+[
+  {
+    "round": 0,
+    "solveStartedAfterAcceptMs": 0,
+    "solveFinishedAfterAcceptMs": 0,
+    "callbackAfterAcceptMs": 53,
+    "orderSentAtMs": 203,
+    "orderFinishedAtMs": 1466,
+    "solveFetchEndedAtMs": 1637
+  },
+  {
+    "round": 1,
+    "solveStartedAfterAcceptMs": 0,
+    "solveFinishedAfterAcceptMs": 0,
+    "callbackAfterAcceptMs": 53,
+    "orderSentAtMs": 202,
+    "orderFinishedAtMs": 408,
+    "solveFetchEndedAtMs": 870
+  },
+  {
+    "round": 2,
+    "solveStartedAfterAcceptMs": 0,
+    "solveFinishedAfterAcceptMs": 0,
+    "callbackAfterAcceptMs": 48,
+    "orderSentAtMs": 202,
+    "orderFinishedAtMs": 395,
+    "solveFetchEndedAtMs": 929
+  },
+  {
+    "round": 3,
+    "solveStartedAfterAcceptMs": 0,
+    "solveFinishedAfterAcceptMs": 0,
+    "callbackAfterAcceptMs": 1514,
+    "orderSentAtMs": 201,
+    "orderFinishedAtMs": 405,
+    "solveFetchEndedAtMs": 2507
+  }
+]

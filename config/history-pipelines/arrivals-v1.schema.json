@@ -1,0 +1,18 @@
+{
+  "fields": [
+    { "name": "dataset", "type": "string", "required": true },
+    { "name": "physicalVersion", "type": "int32", "required": true },
+    { "name": "payloadVersion", "type": "int32", "required": true },
+    { "name": "arrivalId", "type": "string", "required": true },
+    { "name": "eventId", "type": "string", "required": false },
+    { "name": "storeId", "type": "string", "required": true },
+    { "name": "source", "type": "string", "required": true },
+    { "name": "guarantee", "type": "string", "required": true },
+    { "name": "eventTime", "type": "int64", "required": true },
+    { "name": "observedAt", "type": "int64", "required": false },
+    { "name": "canonicalPayload", "type": "string", "required": true },
+    { "name": "sourceMetadata", "type": "string", "required": true },
+    { "name": "isSynthetic", "type": "bool", "required": true },
+    { "name": "probeId", "type": "string", "required": false }
+  ]
+}

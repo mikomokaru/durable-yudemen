@@ -1,0 +1,379 @@
+{
+  "measuredAt": "2026-09-08T12:37:41.971Z",
+  "host": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v26.7.0"
+  },
+  "repositoryBase": "477f1dd2071ff56e6423745c6f83a61eebbf01b0",
+  "toolchain": {
+    "native": "ortools==9.15.6755",
+    "wasmRevision": "e1453348bc43d3b0afc0c2e5a535f5c9b45326f4",
+    "emscripten": "4.0.20",
+    "wrangler": "4.105.0"
+  },
+  "localOnly": true,
+  "deploymentPerformed": false,
+  "seed": "real-orders-20260908-v1",
+  "assumptions": {
+    "storeCodeOffset": 1000,
+    "timezone": "+09:00",
+    "startEmpty": true,
+    "policySource": "user-approved local file; live equality unverified",
+    "adminSettings": "current, not historical",
+    "staff": "one start every seeded 1..6 seconds; complete at first one-second tick after adjusted end",
+    "actualHistoricalState": false,
+    "cpSatFeedbackIntoSimulation": false
+  },
+  "sourceHashes": {
+    "scenes": "1ef1641432e83a2925df537fbaa492ff6c776daa2fe7ee77477d98b826dfe6d9",
+    "admin": "ee724d006208836806e5a8e475c6fbe618efe79a262b33f3d71b8faf89bfff5a",
+    "policy": "9d30ff63679392440a54d51e634c5715fa46bae896be558a02edd54a38eae2b6",
+    "native": "55a4856571b7536cb93d29095ef9be87e5ec484deff9baeebb0c98b7c21df4b0",
+    "worker": "1a5db908fc8af57ed0e5cf0c6f8f292bdcb4d292526d5df9e2921c0167c2bcac"
+  },
+  "codeHashes": {
+    "cpp/cpsat_workers_poc.cc": "f62cf6895df573ad55925f6e935f8dfc084dbcea59ee4264185f55f208db21c4",
+    "src/index.ts": "5f009c67cab2d9e0e4006a9429aa3867936d5789c1fbe32a8b86049fb70d0076",
+    "src/runtime.ts": "7245e44db80bcd73aae1e5d68dd7dbd274f306e1400ed75c13fa66e0f28f9a50",
+    "scripts/prepare-real-scenes.ts": "b3122749747a106c1843001d1d523466cb472ec75ad873579fab16ed98813d35",
+    "native/real_orders.py": "6cdeaed4ad11997cf95372be71f39423b1c01a2ad5b1fe0e4fe6846e799cd29a",
+    "scripts/check-real-orders.ts": "371c017f23f885c975261dde79568ebe94d2ca7b35539bcaaf3eb7410a51fcea",
+    "scripts/benchmark-real-orders.mjs": "d6ff80ae99492b217826865a9cdecdbd00af62e00e346308319c780c755ada16",
+    "scripts/summarize-real-orders.mjs": "ad2a8f7417a278b2f4e49a972c9aec4bff005530dd59947f5a5fedddf80ee207",
+    "patches/or-tools-wasm-single-thread.patch": "cbef8b24e07c3b93d83426b2439432c126967117626236df350979eb0c46292b",
+    "vendor/cpsat_workers_poc_runtime.wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1"
+  },
+  "stores": [
+    {
+      "file": "store239_20260906T153611_20260906T160427.jsonl",
+      "sha256": "4d85b6c0f497a830e53e65763bdb1af96b562dce14b542a7a10e41281ec8f115",
+      "sampleStoreCode": "239",
+      "adminCode": "1239",
+      "orders": 30,
+      "items": 35,
+      "completed": 35,
+      "eligibleScenes": 101,
+      "eventIndex": 119,
+      "stoppedAt": 1788678886000
+    },
+    {
+      "file": "store247_20260906T142729_20260906T150205.jsonl",
+      "sha256": "78e22308002f715862195e59e87da761286bd53390550da2d569d9c1d1c868b3",
+      "sampleStoreCode": "247",
+      "adminCode": "1247",
+      "orders": 30,
+      "items": 39,
+      "completed": 39,
+      "eligibleScenes": 169,
+      "eventIndex": 131,
+      "stoppedAt": 1788675520000
+    },
+    {
+      "file": "store254_20260906T152045_20260906T155721.jsonl",
+      "sha256": "ccb1f007c1f55ef7b52f0a5ad429bb0cc4871d12d975739daa13aa60642db813",
+      "sampleStoreCode": "254",
+      "adminCode": "1254",
+      "orders": 30,
+      "items": 34,
+      "completed": 34,
+      "eligibleScenes": 102,
+      "eventIndex": 115,
+      "stoppedAt": 1788679192000
+    },
+    {
+      "file": "store275_20260906T154351_20260906T163145.jsonl",
+      "sha256": "50df663c9265e59dc8fb90970e1514746cbcf9b4ea22f346efd634d3df91c944",
+      "sampleStoreCode": "275",
+      "adminCode": "1275",
+      "orders": 30,
+      "items": 40,
+      "completed": 40,
+      "eligibleScenes": 62,
+      "eventIndex": 130,
+      "stoppedAt": 1788680265000
+    },
+    {
+      "file": "store284_20260906T140819_20260906T144240.jsonl",
+      "sha256": "197873ca895b5ab676828abe4be6665166c2b35ef7b778c89de1a37044f5da72",
+      "sampleStoreCode": "284",
+      "adminCode": "1284",
+      "orders": 30,
+      "items": 29,
+      "completed": 29,
+      "eligibleScenes": 201,
+      "eventIndex": 99,
+      "stoppedAt": 1788674884000
+    },
+    {
+      "file": "store336_20260906T142411_20260906T151751.jsonl",
+      "sha256": "4b7ee4c8f25f93da97942cd8e73580a0f156c5f275ad885339077a852bff16cf",
+      "sampleStoreCode": "336",
+      "adminCode": "1336",
+      "orders": 30,
+      "items": 42,
+      "completed": 42,
+      "eligibleScenes": 90,
+      "eventIndex": 136,
+      "stoppedAt": 1788675861000
+    },
+    {
+      "file": "store342_20260906T134813_20260906T142534.jsonl",
+      "sha256": "bda205de8817bbe849469fb1750ba3161b2723520dbc239ac15c262bcae49748",
+      "sampleStoreCode": "342",
+      "adminCode": "1342",
+      "orders": 30,
+      "items": 39,
+      "completed": 39,
+      "eligibleScenes": 83,
+      "eventIndex": 130,
+      "stoppedAt": 1788672758000
+    },
+    {
+      "file": "store355_20260906T151036_20260906T154843.jsonl",
+      "sha256": "17b4b6d1b52245d69d5467c7b8860c47b7c497b8e3b13db10504c25969cb8145",
+      "sampleStoreCode": "355",
+      "adminCode": "1355",
+      "orders": 30,
+      "items": 31,
+      "completed": 31,
+      "eligibleScenes": 30,
+      "eventIndex": 110,
+      "stoppedAt": 1788677717000
+    },
+    {
+      "file": "store362_20260906T161950_20260906T164523.jsonl",
+      "sha256": "147e1e235fe55df2093adb32c3b0dfa9df753172ff3b51176e3fa0515ecc81be",
+      "sampleStoreCode": "362",
+      "adminCode": "1362",
+      "orders": 30,
+      "items": 39,
+      "completed": 39,
+      "eligibleScenes": 132,
+      "eventIndex": 130,
+      "stoppedAt": 1788681861000
+    },
+    {
+      "file": "store364_20260906T170151_20260906T174711.jsonl",
+      "sha256": "19e7ce7fe9aa031b52f78611d3a8a26ed0eed388e3a05c6e3cbc1c63ed168ed3",
+      "sampleStoreCode": "364",
+      "adminCode": "1364",
+      "orders": 30,
+      "items": 31,
+      "completed": 31,
+      "eligibleScenes": 46,
+      "eventIndex": 109,
+      "stoppedAt": 1788684791000
+    }
+  ],
+  "scenes": 100,
+  "repeats": 5,
+  "allScenesFullyPinned": 30,
+  "objective": "sum(serveAt-now) milliseconds; NOT full engine score",
+  "anchorPolicy": "baseline anchor placements fixed; engine keepsAnchor checked afterwards",
+  "budget": 0.05,
+  "coverage": {
+    "pendingMin": 1,
+    "pendingMax": 14,
+    "runningScenes": 96,
+    "runningMax": 10,
+    "anchoredScenes": 48,
+    "freeItems": 359,
+    "pinnedItems": 91
+  },
+  "modelVariables": {
+    "min": 14,
+    "median": 40,
+    "p95": 154,
+    "max": 196
+  },
+  "modelConstraints": {
+    "min": 40,
+    "median": 104,
+    "p95": 364,
+    "max": 454
+  },
+  "protoBytes": {
+    "min": 1149,
+    "median": 3435,
+    "p95": 13197,
+    "max": 15781
+  },
+  "validation": [
+    {
+      "environment": "native",
+      "solves": 500,
+      "valid": 500,
+      "accepted": 80,
+      "statuses": {
+        "FEASIBLE": 150,
+        "OPTIMAL": 350
+      },
+      "failures": []
+    },
+    {
+      "environment": "host",
+      "solves": 500,
+      "valid": 500,
+      "accepted": 80,
+      "statuses": {
+        "FEASIBLE": 150,
+        "OPTIMAL": 350
+      },
+      "failures": []
+    },
+    {
+      "environment": "frozen",
+      "solves": 500,
+      "valid": 500,
+      "accepted": 80,
+      "statuses": {
+        "FEASIBLE": 150,
+        "OPTIMAL": 350
+      },
+      "failures": []
+    }
+  ],
+  "negativeControls": 709,
+  "liftNegativeControls": 44,
+  "parityMismatches": [],
+  "environments": [
+    {
+      "clock": "host",
+      "solves": 500,
+      "observedIsolates": 1,
+      "initializedRequests": 1,
+      "serverReadyMs": 733.516667,
+      "firstClientElapsedMs": 253.370042,
+      "firstInitializationMs": 8,
+      "warmClientElapsedMs": {
+        "min": 1.2257920000010927,
+        "median": 3.23725000000195,
+        "p95": 362.2977089999986,
+        "max": 756.3809170000022
+      },
+      "wasmCapacityBytes": {
+        "min": 33554432,
+        "median": 33554432,
+        "p95": 33554432,
+        "max": 33554432
+      },
+      "sharedMemory": false,
+      "frozenClockReads": {
+        "min": 0,
+        "median": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "deterministicConsumed": {
+        "min": 1e-8,
+        "median": 0.00006515199999999999,
+        "p95": 0.05027250944865686,
+        "max": 0.05357688177913564
+      },
+      "nativeDeterministicMaxDelta": 5.421010862427522e-20
+    },
+    {
+      "clock": "frozen",
+      "solves": 500,
+      "observedIsolates": 1,
+      "initializedRequests": 1,
+      "serverReadyMs": 817.559874999999,
+      "firstClientElapsedMs": 262.481541000001,
+      "firstInitializationMs": 8,
+      "warmClientElapsedMs": {
+        "min": 1.0594579999960843,
+        "median": 2.859834000002593,
+        "p95": 328.3238330000022,
+        "max": 575.5323330000101
+      },
+      "wasmCapacityBytes": {
+        "min": 33554432,
+        "median": 33554432,
+        "p95": 33554432,
+        "max": 33554432
+      },
+      "sharedMemory": false,
+      "frozenClockReads": {
+        "min": 263,
+        "median": 970,
+        "p95": 44107,
+        "max": 221212
+      },
+      "deterministicConsumed": {
+        "min": 1e-8,
+        "median": 0.00006515199999999999,
+        "p95": 0.05027250944865686,
+        "max": 0.05357688177913564
+      },
+      "nativeDeterministicMaxDelta": 5.421010862427522e-20
+    }
+  ],
+  "boundaries": [
+    {
+      "path": "/solve-model",
+      "status": 401
+    },
+    {
+      "path": "/solve-model",
+      "status": 405
+    },
+    {
+      "path": "/solve-model",
+      "status": 413
+    },
+    {
+      "path": "/solve-model",
+      "status": 413
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0",
+      "status": 400
+    },
+    {
+      "path": "/solve-model?clock=host",
+      "status": 500
+    },
+    {
+      "path": "/run?clock=host",
+      "status": 200,
+      "recovery": true
+    },
+    {
+      "path": "/solve-model",
+      "status": 401
+    },
+    {
+      "path": "/solve-model",
+      "status": 405
+    },
+    {
+      "path": "/solve-model",
+      "status": 413
+    },
+    {
+      "path": "/solve-model",
+      "status": 413
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0",
+      "status": 400
+    },
+    {
+      "path": "/solve-model?clock=frozen",
+      "status": 500
+    },
+    {
+      "path": "/run?clock=frozen",
+      "status": 200,
+      "recovery": true
+    }
+  ],
+  "limitations": [
+    "100 distinct single-table scenes, not 1000 independent problems",
+    "CP-SAT results are not fed back into the simulation",
+    "Full business/change objective not encoded",
+    "Baseline-anchored placements pinned; all baseline placements hinted",
+    "No remote real-order measurement; Wasm capacity is not peak isolate memory or proof of no leaks"
+  ]
+}

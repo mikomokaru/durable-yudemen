@@ -1,0 +1,4076 @@
+{
+  "measuredAt": "2026-09-13T05:58:14.306Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "seed": "cpsat-plan-quality-20260913",
+  "windowMinutes": 15,
+  "perFile": 5,
+  "maxScenes": 50,
+  "limits": [24],
+  "unguarded": false,
+  "legacyLiftCap": false,
+  "budgetCap": null,
+  "fatSlots": false,
+  "fatPairs": false,
+  "clusterCap": null,
+  "corpus": {
+    "files": 20,
+    "rows": 1919,
+    "stores": 10,
+    "menuItemConflicts": []
+  },
+  "sceneCount": 50,
+  "rows": [
+    {
+      "ordinal": 0,
+      "file": "239_20260905_1745_1945.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-05T09:24:00.000Z",
+      "recordCount": 12,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1916875504,
+      "ok": true,
+      "now": 1789279094540,
+      "liveCount": 19,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 36070,
+        "businessCost": 36070,
+        "changeCost": 0,
+        "waitTime": 20834,
+        "tableLag": 12180,
+        "orderSync": 90,
+        "affinity": 2516,
+        "liftOverflow": 450,
+        "placements": 19,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 19,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1475,
+          "status": "FEASIBLE",
+          "variables": 1194,
+          "memoryBytes": 33554432,
+          "reportedObjective": 308352,
+          "budget": 0.43,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 431,
+            "pair/equal+inversion+distance": 572,
+            "liftWindow+cluster": 190
+          },
+          "metrics": {
+            "e4Pairs": 9.200000000000001,
+            "e4Spread": 11.6,
+            "e7All": 8,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 15,
+            "used": 11
+          },
+          "placements": 19,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 19,
+          "composed": {
+            "total": 39142,
+            "businessCost": 36634,
+            "changeCost": 2508,
+            "waitTime": 20024,
+            "tableLag": 12090,
+            "orderSync": 1890,
+            "affinity": 2630,
+            "liftOverflow": 0,
+            "placements": 19,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 1,
+      "file": "239_20260905_1745_1945.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-05T09:45:06.000Z",
+      "recordCount": 14,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3199373279,
+      "ok": true,
+      "now": 1789279096037,
+      "liveCount": 18,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 29166,
+        "businessCost": 29166,
+        "changeCost": 0,
+        "waitTime": 15988,
+        "tableLag": 10440,
+        "orderSync": 90,
+        "affinity": 2288,
+        "liftOverflow": 360,
+        "placements": 18,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 18,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1567,
+          "status": "FEASIBLE",
+          "variables": 1278,
+          "memoryBytes": 33554432,
+          "reportedObjective": 214476,
+          "budget": 0.41,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 378,
+            "pair/equal+inversion+distance": 623,
+            "liftWindow+cluster": 276
+          },
+          "metrics": {
+            "e4Pairs": 30,
+            "e4Spread": 12.8,
+            "e7All": 65,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 17,
+            "used": 10
+          },
+          "placements": 18,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 18,
+          "composed": {
+            "total": 39905,
+            "businessCost": 33596,
+            "changeCost": 6309,
+            "waitTime": 15706,
+            "tableLag": 11040,
+            "orderSync": 4278,
+            "affinity": 2482,
+            "liftOverflow": 90,
+            "placements": 18,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 2,
+      "file": "239_20260905_1745_1945.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-05T10:33:14.000Z",
+      "recordCount": 13,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1992440597,
+      "ok": true,
+      "now": 1789279097615,
+      "liveCount": 13,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 24304,
+        "businessCost": 24304,
+        "changeCost": 0,
+        "waitTime": 14401,
+        "tableLag": 8250,
+        "orderSync": 45,
+        "affinity": 1338,
+        "liftOverflow": 270,
+        "placements": 13,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 13,
+          "ok": true,
+          "failure": null,
+          "solveMs": 902,
+          "status": "FEASIBLE",
+          "variables": 727,
+          "memoryBytes": 33554432,
+          "reportedObjective": 192986,
+          "budget": 0.31,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 289,
+            "pair/equal+inversion+distance": 375,
+            "liftWindow+cluster": 62
+          },
+          "metrics": {
+            "e4Pairs": 4.4,
+            "e4Spread": 5.4,
+            "e7All": 6,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 13,
+            "used": 9
+          },
+          "placements": 13,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 13,
+          "composed": {
+            "total": 27089,
+            "businessCost": 24867,
+            "changeCost": 2222,
+            "waitTime": 14581,
+            "tableLag": 7890,
+            "orderSync": 990,
+            "affinity": 1406,
+            "liftOverflow": 0,
+            "placements": 13,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 3,
+      "file": "239_20260908_2115_2315.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-08T12:59:42.000Z",
+      "recordCount": 12,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2424902838,
+      "ok": true,
+      "now": 1789279098526,
+      "liveCount": 12,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 19118,
+        "businessCost": 19118,
+        "changeCost": 0,
+        "waitTime": 10235,
+        "tableLag": 7320,
+        "orderSync": 0,
+        "affinity": 1248,
+        "liftOverflow": 315,
+        "placements": 12,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 12,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1030,
+          "status": "FEASIBLE",
+          "variables": 714,
+          "memoryBytes": 33554432,
+          "reportedObjective": 176862,
+          "budget": 0.29,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 300,
+            "pair/equal+inversion+distance": 358,
+            "liftWindow+cluster": 55
+          },
+          "metrics": {
+            "e4Pairs": 4.8,
+            "e4Spread": 8.200000000000001,
+            "e7All": 10,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 12,
+            "used": 8
+          },
+          "placements": 12,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 12,
+          "composed": {
+            "total": 21434,
+            "businessCost": 19077,
+            "changeCost": 2357,
+            "waitTime": 10010,
+            "tableLag": 7770,
+            "orderSync": 45,
+            "affinity": 1252,
+            "liftOverflow": 0,
+            "placements": 12,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 4,
+      "file": "247_20260906_1300_1500.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-06T04:31:13.000Z",
+      "recordCount": 4,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2488602743,
+      "ok": true,
+      "now": 1789279099564,
+      "liveCount": 5,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 2650,
+        "businessCost": 2650,
+        "changeCost": 0,
+        "waitTime": 2139,
+        "tableLag": 360,
+        "orderSync": 45,
+        "affinity": 16,
+        "liftOverflow": 90,
+        "placements": 5,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 5,
+          "ok": true,
+          "failure": null,
+          "solveMs": 77,
+          "status": "OPTIMAL",
+          "variables": 238,
+          "memoryBytes": 33554432,
+          "reportedObjective": 21672,
+          "budget": 0.15000000000000002,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 105,
+            "pair/equal+inversion+distance": 101,
+            "liftWindow+cluster": 31
+          },
+          "metrics": {
+            "e4Pairs": 2.4,
+            "e4Spread": 2.4,
+            "e7All": 1,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 5,
+            "used": 3
+          },
+          "placements": 5,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 5,
+          "composed": {
+            "total": 3161,
+            "businessCost": 2531,
+            "changeCost": 630,
+            "waitTime": 1734,
+            "tableLag": 720,
+            "orderSync": 45,
+            "affinity": 32,
+            "liftOverflow": 0,
+            "placements": 5,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 5,
+      "file": "247_20260906_1300_1500.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-06T04:52:03.000Z",
+      "recordCount": 16,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 854720687,
+      "ok": true,
+      "now": 1789279099648,
+      "liveCount": 15,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 26406,
+        "businessCost": 26406,
+        "changeCost": 0,
+        "waitTime": 16052,
+        "tableLag": 8160,
+        "orderSync": 180,
+        "affinity": 1654,
+        "liftOverflow": 360,
+        "placements": 15,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 15,
+          "ok": true,
+          "failure": null,
+          "solveMs": 935,
+          "status": "FEASIBLE",
+          "variables": 871,
+          "memoryBytes": 33554432,
+          "reportedObjective": 205710,
+          "budget": 0.35,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 363,
+            "pair/equal+inversion+distance": 466,
+            "liftWindow+cluster": 41
+          },
+          "metrics": {
+            "e4Pairs": 36.4,
+            "e4Spread": 19.8,
+            "e7All": 24,
+            "e7Adjacent": 3
+          },
+          "clusters": {
+            "cap": 15,
+            "used": 6
+          },
+          "placements": 15,
+          "slices": 1,
+          "acceptedSlices": 1,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 15,
+          "composed": {
+            "total": 26147,
+            "businessCost": 24084,
+            "changeCost": 2063,
+            "waitTime": 13277,
+            "tableLag": 8760,
+            "orderSync": 45,
+            "affinity": 1732,
+            "liftOverflow": 270,
+            "placements": 15,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 6,
+      "file": "247_20260906_1300_1500.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-06T05:02:03.000Z",
+      "recordCount": 25,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2680997226,
+      "ok": true,
+      "now": 1789279100594,
+      "liveCount": 26,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 58049,
+        "businessCost": 58049,
+        "changeCost": 0,
+        "waitTime": 29793,
+        "tableLag": 22200,
+        "orderSync": 0,
+        "affinity": 5426,
+        "liftOverflow": 630,
+        "placements": 26,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 2459,
+          "status": "FEASIBLE",
+          "variables": 1449,
+          "memoryBytes": 33554432,
+          "reportedObjective": 375086,
+          "budget": 0.53,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 552,
+            "pair/equal+inversion+distance": 837,
+            "liftWindow+cluster": 59
+          },
+          "metrics": {
+            "e4Pairs": 14.6,
+            "e4Spread": 17.6,
+            "e7All": 20,
+            "e7Adjacent": 5
+          },
+          "clusters": {
+            "cap": 21,
+            "used": 17
+          },
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 58049,
+            "businessCost": 58049,
+            "changeCost": 0,
+            "waitTime": 29793,
+            "tableLag": 22200,
+            "orderSync": 0,
+            "affinity": 5426,
+            "liftOverflow": 630,
+            "placements": 26,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 7,
+      "file": "247_20260908_1330_1530.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-08T04:53:41.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1495886724,
+      "ok": true,
+      "now": 1789279103071,
+      "liveCount": 12,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 16220,
+        "businessCost": 16220,
+        "changeCost": 0,
+        "waitTime": 13697,
+        "tableLag": 1080,
+        "orderSync": 45,
+        "affinity": 1128,
+        "liftOverflow": 270,
+        "placements": 12,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 12,
+          "ok": true,
+          "failure": null,
+          "solveMs": 994,
+          "status": "FEASIBLE",
+          "variables": 616,
+          "memoryBytes": 33554432,
+          "reportedObjective": 157014,
+          "budget": 0.29,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 252,
+            "pair/equal+inversion+distance": 303,
+            "liftWindow+cluster": 60
+          },
+          "metrics": {
+            "e4Pairs": 12.200000000000001,
+            "e4Spread": 10.2,
+            "e7All": 13,
+            "e7Adjacent": 3
+          },
+          "clusters": {
+            "cap": 11,
+            "used": 7
+          },
+          "placements": 12,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 12,
+          "composed": {
+            "total": 18573,
+            "businessCost": 16305,
+            "changeCost": 2268,
+            "waitTime": 12580,
+            "tableLag": 2282,
+            "orderSync": 180,
+            "affinity": 1128,
+            "liftOverflow": 135,
+            "placements": 12,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 8,
+      "file": "247_20260908_1330_1530.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-08T05:47:07.000Z",
+      "recordCount": 12,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2576238996,
+      "ok": true,
+      "now": 1789279104074,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 11680,
+        "businessCost": 11680,
+        "changeCost": 0,
+        "waitTime": 9900,
+        "tableLag": 810,
+        "orderSync": 0,
+        "affinity": 700,
+        "liftOverflow": 270,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 10,
+          "ok": true,
+          "failure": null,
+          "solveMs": 474,
+          "status": "FEASIBLE",
+          "variables": 521,
+          "memoryBytes": 33554432,
+          "reportedObjective": 125252,
+          "budget": 0.25,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 242,
+            "pair/equal+inversion+distance": 257,
+            "liftWindow+cluster": 21
+          },
+          "metrics": {
+            "e4Pairs": 25.8,
+            "e4Spread": 9.6,
+            "e7All": 20,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 10,
+            "used": 4
+          },
+          "placements": 10,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 10,
+          "composed": {
+            "total": 13113,
+            "businessCost": 11640,
+            "changeCost": 1473,
+            "waitTime": 8140,
+            "tableLag": 2530,
+            "orderSync": 0,
+            "affinity": 790,
+            "liftOverflow": 180,
+            "placements": 10,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 9,
+      "file": "247_20260908_1330_1530.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-08T05:51:20.000Z",
+      "recordCount": 19,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 987767545,
+      "ok": true,
+      "now": 1789279104556,
+      "liveCount": 17,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 29801,
+        "businessCost": 29801,
+        "changeCost": 0,
+        "waitTime": 18380,
+        "tableLag": 8850,
+        "orderSync": 0,
+        "affinity": 2166,
+        "liftOverflow": 405,
+        "placements": 17,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 17,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1055,
+          "status": "FEASIBLE",
+          "variables": 958,
+          "memoryBytes": 33554432,
+          "reportedObjective": 245826,
+          "budget": 0.39,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 389,
+            "pair/equal+inversion+distance": 523,
+            "liftWindow+cluster": 45
+          },
+          "metrics": {
+            "e4Pairs": 12.8,
+            "e4Spread": 14.8,
+            "e7All": 27,
+            "e7Adjacent": 4
+          },
+          "clusters": {
+            "cap": 16,
+            "used": 12
+          },
+          "placements": 17,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 17,
+          "composed": {
+            "total": 30363,
+            "businessCost": 27644,
+            "changeCost": 2719,
+            "waitTime": 15140,
+            "tableLag": 10230,
+            "orderSync": 45,
+            "affinity": 2184,
+            "liftOverflow": 45,
+            "placements": 17,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 10,
+      "file": "247_20260908_1330_1530.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-08T06:14:37.000Z",
+      "recordCount": 15,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3351248971,
+      "ok": true,
+      "now": 1789279105620,
+      "liveCount": 13,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 17663,
+        "businessCost": 17663,
+        "changeCost": 0,
+        "waitTime": 11215,
+        "tableLag": 4860,
+        "orderSync": 0,
+        "affinity": 1318,
+        "liftOverflow": 270,
+        "placements": 13,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 13,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1086,
+          "status": "FEASIBLE",
+          "variables": 655,
+          "memoryBytes": 33554432,
+          "reportedObjective": 167310,
+          "budget": 0.31,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 289,
+            "pair/equal+inversion+distance": 338,
+            "liftWindow+cluster": 27
+          },
+          "metrics": {
+            "e4Pairs": 44.599999999999994,
+            "e4Spread": 20,
+            "e7All": 43,
+            "e7Adjacent": 7
+          },
+          "clusters": {
+            "cap": 12,
+            "used": 5
+          },
+          "placements": 13,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 13,
+          "composed": {
+            "total": 17980,
+            "businessCost": 15384,
+            "changeCost": 2596,
+            "waitTime": 10000,
+            "tableLag": 3780,
+            "orderSync": 0,
+            "affinity": 1334,
+            "liftOverflow": 270,
+            "placements": 13,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 11,
+      "file": "247_20260908_1330_1530.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-08T06:29:19.000Z",
+      "recordCount": 8,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 874928108,
+      "ok": true,
+      "now": 1789279106713,
+      "liveCount": 5,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 3251,
+        "businessCost": 3251,
+        "changeCost": 0,
+        "waitTime": 2785,
+        "tableLag": 360,
+        "orderSync": 0,
+        "affinity": 16,
+        "liftOverflow": 90,
+        "placements": 5,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 5,
+          "ok": true,
+          "failure": null,
+          "solveMs": 66,
+          "status": "OPTIMAL",
+          "variables": 212,
+          "memoryBytes": 33554432,
+          "reportedObjective": 57504,
+          "budget": 0.15000000000000002,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 105,
+            "pair/equal+inversion+distance": 95,
+            "liftWindow+cluster": 11
+          },
+          "metrics": {
+            "e4Pairs": 4.8,
+            "e4Spread": 2.8,
+            "e7All": 4,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 5,
+            "used": 2
+          },
+          "placements": 5,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 5,
+          "composed": {
+            "total": 3386,
+            "businessCost": 2981,
+            "changeCost": 405,
+            "waitTime": 2560,
+            "tableLag": 360,
+            "orderSync": 0,
+            "affinity": 16,
+            "liftOverflow": 45,
+            "placements": 5,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 12,
+      "file": "254_20260905_1230_1430.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-05T04:13:04.000Z",
+      "recordCount": 13,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 4170080556,
+      "ok": true,
+      "now": 1789279106785,
+      "liveCount": 14,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 22599,
+        "businessCost": 22599,
+        "changeCost": 0,
+        "waitTime": 11764,
+        "tableLag": 9000,
+        "orderSync": 45,
+        "affinity": 1520,
+        "liftOverflow": 270,
+        "placements": 14,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 14,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1002,
+          "status": "FEASIBLE",
+          "variables": 712,
+          "memoryBytes": 33554432,
+          "reportedObjective": 207972,
+          "budget": 0.33,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 294,
+            "pair/equal+inversion+distance": 333,
+            "liftWindow+cluster": 84
+          },
+          "metrics": {
+            "e4Pairs": 7,
+            "e4Spread": 7,
+            "e7All": 0,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 11,
+            "used": 7
+          },
+          "placements": 14,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 14,
+          "composed": {
+            "total": 23183,
+            "businessCost": 21519,
+            "changeCost": 1664,
+            "waitTime": 12574,
+            "tableLag": 7380,
+            "orderSync": 45,
+            "affinity": 1520,
+            "liftOverflow": 0,
+            "placements": 14,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 13,
+      "file": "254_20260905_1230_1430.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-05T04:29:16.000Z",
+      "recordCount": 16,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2758942591,
+      "ok": true,
+      "now": 1789279107795,
+      "liveCount": 24,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 64170,
+        "businessCost": 64170,
+        "changeCost": 0,
+        "waitTime": 31171,
+        "tableLag": 26610,
+        "orderSync": 1305,
+        "affinity": 4544,
+        "liftOverflow": 540,
+        "placements": 24,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1573,
+          "status": "FEASIBLE",
+          "variables": 1582,
+          "memoryBytes": 33554432,
+          "reportedObjective": 413516,
+          "budget": 0.53,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 536,
+            "pair/equal+inversion+distance": 876,
+            "liftWindow+cluster": 169
+          },
+          "metrics": {
+            "e4Pairs": 8.2,
+            "e4Spread": 10.6,
+            "e7All": 14,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 21,
+            "used": 17
+          },
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 1,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 24,
+          "composed": {
+            "total": 60274,
+            "businessCost": 57216,
+            "changeCost": 3058,
+            "waitTime": 30181,
+            "tableLag": 19950,
+            "orderSync": 2565,
+            "affinity": 4520,
+            "liftOverflow": 0,
+            "placements": 24,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 14,
+      "file": "254_20260905_1230_1430.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-05T05:05:25.000Z",
+      "recordCount": 7,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1749230235,
+      "ok": true,
+      "now": 1789279109379,
+      "liveCount": 6,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 7294,
+        "businessCost": 7294,
+        "changeCost": 0,
+        "waitTime": 6812,
+        "tableLag": 360,
+        "orderSync": 0,
+        "affinity": 32,
+        "liftOverflow": 90,
+        "placements": 6,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 374,
+          "status": "FEASIBLE",
+          "variables": 319,
+          "memoryBytes": 33554432,
+          "reportedObjective": 80480,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 126,
+            "pair/equal+inversion+distance": 134,
+            "liftWindow+cluster": 58
+          },
+          "metrics": {
+            "e4Pairs": 4.4,
+            "e4Spread": 2.4,
+            "e7All": 2,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 6,
+            "used": 3
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 6,
+          "composed": {
+            "total": 8005,
+            "businessCost": 7579,
+            "changeCost": 426,
+            "waitTime": 6212,
+            "tableLag": 1020,
+            "orderSync": 270,
+            "affinity": 32,
+            "liftOverflow": 45,
+            "placements": 6,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 15,
+      "file": "254_20260907_1800_2000.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-07T10:13:08.000Z",
+      "recordCount": 22,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1365725165,
+      "ok": true,
+      "now": 1789279109759,
+      "liveCount": 20,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 38299,
+        "businessCost": 38299,
+        "changeCost": 0,
+        "waitTime": 21666,
+        "tableLag": 13020,
+        "orderSync": 45,
+        "affinity": 3118,
+        "liftOverflow": 450,
+        "placements": 20,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 881,
+          "status": "FEASIBLE",
+          "variables": 1107,
+          "memoryBytes": 33554432,
+          "reportedObjective": 331000,
+          "budget": 0.45,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 452,
+            "pair/equal+inversion+distance": 583,
+            "liftWindow+cluster": 71
+          },
+          "metrics": {
+            "e4Pairs": 8,
+            "e4Spread": 10,
+            "e7All": 6,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 16,
+            "used": 12
+          },
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 20,
+          "composed": {
+            "total": 39791,
+            "businessCost": 37681,
+            "changeCost": 2110,
+            "waitTime": 21981,
+            "tableLag": 12390,
+            "orderSync": 90,
+            "affinity": 3220,
+            "liftOverflow": 0,
+            "placements": 20,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 16,
+      "file": "254_20260907_1800_2000.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-07T10:24:49.000Z",
+      "recordCount": 28,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 534892574,
+      "ok": true,
+      "now": 1789279110650,
+      "liveCount": 29,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 79943,
+        "businessCost": 79943,
+        "changeCost": 0,
+        "waitTime": 39469,
+        "tableLag": 30870,
+        "orderSync": 2340,
+        "affinity": 6544,
+        "liftOverflow": 720,
+        "placements": 29,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 2708,
+          "status": "FEASIBLE",
+          "variables": 1567,
+          "memoryBytes": 33554432,
+          "reportedObjective": 395762,
+          "budget": 0.53,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 552,
+            "pair/equal+inversion+distance": 900,
+            "liftWindow+cluster": 114
+          },
+          "metrics": {
+            "e4Pairs": 8,
+            "e4Spread": 13.8,
+            "e7All": 15,
+            "e7Adjacent": 5
+          },
+          "clusters": {
+            "cap": 22,
+            "used": 18
+          },
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 79943,
+            "businessCost": 79943,
+            "changeCost": 0,
+            "waitTime": 39469,
+            "tableLag": 30870,
+            "orderSync": 2340,
+            "affinity": 6544,
+            "liftOverflow": 720,
+            "placements": 29,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 17,
+      "file": "254_20260907_1800_2000.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-07T10:34:24.000Z",
+      "recordCount": 19,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2744435533,
+      "ok": true,
+      "now": 1789279113376,
+      "liveCount": 19,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 39930,
+        "businessCost": 39930,
+        "changeCost": 0,
+        "waitTime": 22431,
+        "tableLag": 13020,
+        "orderSync": 1215,
+        "affinity": 2814,
+        "liftOverflow": 450,
+        "placements": 19,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 19,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1576,
+          "status": "FEASIBLE",
+          "variables": 1071,
+          "memoryBytes": 33554432,
+          "reportedObjective": 308004,
+          "budget": 0.43,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 431,
+            "pair/equal+inversion+distance": 545,
+            "liftWindow+cluster": 94
+          },
+          "metrics": {
+            "e4Pairs": 8,
+            "e4Spread": 10,
+            "e7All": 0,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 15,
+            "used": 11
+          },
+          "placements": 19,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 19,
+          "composed": {
+            "total": 40361,
+            "businessCost": 38494,
+            "changeCost": 1867,
+            "waitTime": 22881,
+            "tableLag": 12120,
+            "orderSync": 585,
+            "affinity": 2908,
+            "liftOverflow": 0,
+            "placements": 19,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 18,
+      "file": "275_20260906_1500_1700.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-06T07:25:11.000Z",
+      "recordCount": 6,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 121979978,
+      "ok": true,
+      "now": 1789279114961,
+      "liveCount": 9,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 8871,
+        "businessCost": 8871,
+        "changeCost": 0,
+        "waitTime": 7223,
+        "tableLag": 720,
+        "orderSync": 45,
+        "affinity": 658,
+        "liftOverflow": 225,
+        "placements": 9,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 9,
+          "ok": true,
+          "failure": null,
+          "solveMs": 648,
+          "status": "FEASIBLE",
+          "variables": 560,
+          "memoryBytes": 33554432,
+          "reportedObjective": 121382,
+          "budget": 0.22999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 221,
+            "pair/equal+inversion+distance": 254,
+            "liftWindow+cluster": 84
+          },
+          "metrics": {
+            "e4Pairs": 41.4,
+            "e4Spread": 13,
+            "e7All": 13,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 9,
+            "used": 3
+          },
+          "placements": 9,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 9,
+          "composed": {
+            "total": 11161,
+            "businessCost": 9406,
+            "changeCost": 1755,
+            "waitTime": 7133,
+            "tableLag": 900,
+            "orderSync": 450,
+            "affinity": 698,
+            "liftOverflow": 225,
+            "placements": 9,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 19,
+      "file": "275_20260906_1500_1700.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-06T07:47:44.000Z",
+      "recordCount": 9,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1935717190,
+      "ok": true,
+      "now": 1789279115616,
+      "liveCount": 12,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 20799,
+        "businessCost": 20799,
+        "changeCost": 0,
+        "waitTime": 12335,
+        "tableLag": 6810,
+        "orderSync": 225,
+        "affinity": 1114,
+        "liftOverflow": 315,
+        "placements": 12,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 12,
+          "ok": true,
+          "failure": null,
+          "solveMs": 853,
+          "status": "FEASIBLE",
+          "variables": 740,
+          "memoryBytes": 33554432,
+          "reportedObjective": 172966,
+          "budget": 0.29,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 300,
+            "pair/equal+inversion+distance": 364,
+            "liftWindow+cluster": 75
+          },
+          "metrics": {
+            "e4Pairs": 4,
+            "e4Spread": 11.4,
+            "e7All": 11,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 12,
+            "used": 8
+          },
+          "placements": 12,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 12,
+          "composed": {
+            "total": 23112,
+            "businessCost": 21132,
+            "changeCost": 1980,
+            "waitTime": 10640,
+            "tableLag": 7320,
+            "orderSync": 2070,
+            "affinity": 1102,
+            "liftOverflow": 0,
+            "placements": 12,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 20,
+      "file": "275_20260908_1130_1330.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-08T03:04:17.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1081214872,
+      "ok": true,
+      "now": 1789279116477,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 10656,
+        "businessCost": 10656,
+        "changeCost": 0,
+        "waitTime": 8536,
+        "tableLag": 900,
+        "orderSync": 225,
+        "affinity": 770,
+        "liftOverflow": 225,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 10,
+          "ok": true,
+          "failure": null,
+          "solveMs": 809,
+          "status": "FEASIBLE",
+          "variables": 529,
+          "memoryBytes": 33554432,
+          "reportedObjective": 133720,
+          "budget": 0.25,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 226,
+            "pair/equal+inversion+distance": 261,
+            "liftWindow+cluster": 41
+          },
+          "metrics": {
+            "e4Pairs": 37.2,
+            "e4Spread": 11.6,
+            "e7All": 15,
+            "e7Adjacent": 3
+          },
+          "clusters": {
+            "cap": 10,
+            "used": 4
+          },
+          "placements": 10,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 10,
+          "composed": {
+            "total": 11786,
+            "businessCost": 10304,
+            "changeCost": 1482,
+            "waitTime": 7040,
+            "tableLag": 2092,
+            "orderSync": 132,
+            "affinity": 860,
+            "liftOverflow": 180,
+            "placements": 10,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 21,
+      "file": "275_20260908_1130_1330.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-08T04:29:34.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3808933429,
+      "ok": true,
+      "now": 1789279117292,
+      "liveCount": 13,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 21374,
+        "businessCost": 21374,
+        "changeCost": 0,
+        "waitTime": 12250,
+        "tableLag": 7500,
+        "orderSync": 0,
+        "affinity": 1354,
+        "liftOverflow": 270,
+        "placements": 13,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 13,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1042,
+          "status": "FEASIBLE",
+          "variables": 654,
+          "memoryBytes": 33554432,
+          "reportedObjective": 180664,
+          "budget": 0.31,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 289,
+            "pair/equal+inversion+distance": 317,
+            "liftWindow+cluster": 47
+          },
+          "metrics": {
+            "e4Pairs": 20.2,
+            "e4Spread": 15.200000000000001,
+            "e7All": 30,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 11,
+            "used": 8
+          },
+          "placements": 13,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 13,
+          "composed": {
+            "total": 27232,
+            "businessCost": 24225,
+            "changeCost": 3007,
+            "waitTime": 11592,
+            "tableLag": 10376,
+            "orderSync": 768,
+            "affinity": 1444,
+            "liftOverflow": 45,
+            "placements": 13,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 22,
+      "file": "284_20260905_1945_2145.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-05T11:23:13.000Z",
+      "recordCount": 20,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3452630781,
+      "ok": true,
+      "now": 1789279118342,
+      "liveCount": 18,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 35950,
+        "businessCost": 35950,
+        "changeCost": 0,
+        "waitTime": 20109,
+        "tableLag": 12840,
+        "orderSync": 0,
+        "affinity": 2506,
+        "liftOverflow": 495,
+        "placements": 18,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 18,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1196,
+          "status": "FEASIBLE",
+          "variables": 1126,
+          "memoryBytes": 33554432,
+          "reportedObjective": 273836,
+          "budget": 0.41,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 458,
+            "pair/equal+inversion+distance": 600,
+            "liftWindow+cluster": 67
+          },
+          "metrics": {
+            "e4Pairs": 9.8,
+            "e4Spread": 21.799999999999997,
+            "e7All": 16,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 17,
+            "used": 13
+          },
+          "placements": 18,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 18,
+          "composed": {
+            "total": 38261,
+            "businessCost": 35251,
+            "changeCost": 3010,
+            "waitTime": 18804,
+            "tableLag": 13830,
+            "orderSync": 45,
+            "affinity": 2572,
+            "liftOverflow": 0,
+            "placements": 18,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 23,
+      "file": "284_20260905_1945_2145.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-05T12:37:41.000Z",
+      "recordCount": 10,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 697808532,
+      "ok": true,
+      "now": 1789279119547,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 9149,
+        "businessCost": 9149,
+        "changeCost": 0,
+        "waitTime": 7139,
+        "tableLag": 900,
+        "orderSync": 0,
+        "affinity": 840,
+        "liftOverflow": 270,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 10,
+          "ok": true,
+          "failure": null,
+          "solveMs": 639,
+          "status": "FEASIBLE",
+          "variables": 534,
+          "memoryBytes": 33554432,
+          "reportedObjective": 100168,
+          "budget": 0.25,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 242,
+            "pair/equal+inversion+distance": 260,
+            "liftWindow+cluster": 31
+          },
+          "metrics": {
+            "e4Pairs": 35.99999999999999,
+            "e4Spread": 11.6,
+            "e7All": 6,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 10,
+            "used": 3
+          },
+          "placements": 10,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 10,
+          "composed": {
+            "total": 9959,
+            "businessCost": 9149,
+            "changeCost": 810,
+            "waitTime": 7139,
+            "tableLag": 900,
+            "orderSync": 0,
+            "affinity": 840,
+            "liftOverflow": 270,
+            "placements": 10,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 24,
+      "file": "284_20260907_1215_1415.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-07T04:25:59.000Z",
+      "recordCount": 16,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3105410954,
+      "ok": true,
+      "now": 1789279120193,
+      "liveCount": 17,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 35952,
+        "businessCost": 35952,
+        "changeCost": 0,
+        "waitTime": 20452,
+        "tableLag": 11820,
+        "orderSync": 1170,
+        "affinity": 2060,
+        "liftOverflow": 450,
+        "placements": 17,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 17,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1378,
+          "status": "FEASIBLE",
+          "variables": 1077,
+          "memoryBytes": 33554432,
+          "reportedObjective": 277170,
+          "budget": 0.39,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 421,
+            "pair/equal+inversion+distance": 575,
+            "liftWindow+cluster": 80
+          },
+          "metrics": {
+            "e4Pairs": 6.199999999999999,
+            "e4Spread": 14,
+            "e7All": 4,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 17,
+            "used": 14
+          },
+          "placements": 17,
+          "slices": 1,
+          "acceptedSlices": 1,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 17,
+          "composed": {
+            "total": 33940,
+            "businessCost": 32423,
+            "changeCost": 1517,
+            "waitTime": 19042,
+            "tableLag": 10560,
+            "orderSync": 540,
+            "affinity": 2236,
+            "liftOverflow": 45,
+            "placements": 17,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 25,
+      "file": "284_20260907_1215_1415.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-07T04:45:06.000Z",
+      "recordCount": 10,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2168127188,
+      "ok": true,
+      "now": 1789279121581,
+      "liveCount": 13,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 22647,
+        "businessCost": 22647,
+        "changeCost": 0,
+        "waitTime": 12625,
+        "tableLag": 8250,
+        "orderSync": 225,
+        "affinity": 1232,
+        "liftOverflow": 315,
+        "placements": 13,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 13,
+          "ok": true,
+          "failure": null,
+          "solveMs": 754,
+          "status": "FEASIBLE",
+          "variables": 774,
+          "memoryBytes": 33554432,
+          "reportedObjective": 185214,
+          "budget": 0.31,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 305,
+            "pair/equal+inversion+distance": 386,
+            "liftWindow+cluster": 82
+          },
+          "metrics": {
+            "e4Pairs": 11.600000000000001,
+            "e4Spread": 14.000000000000002,
+            "e7All": 10,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 13,
+            "used": 9
+          },
+          "placements": 13,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 13,
+          "composed": {
+            "total": 23340,
+            "businessCost": 20640,
+            "changeCost": 2700,
+            "waitTime": 11905,
+            "tableLag": 6180,
+            "orderSync": 1215,
+            "affinity": 1340,
+            "liftOverflow": 0,
+            "placements": 13,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 26,
+      "file": "284_20260907_1215_1415.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-07T04:57:38.000Z",
+      "recordCount": 10,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3162105230,
+      "ok": true,
+      "now": 1789279122343,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 12317,
+        "businessCost": 12317,
+        "changeCost": 0,
+        "waitTime": 10390,
+        "tableLag": 810,
+        "orderSync": 45,
+        "affinity": 802,
+        "liftOverflow": 270,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 10,
+          "ok": true,
+          "failure": null,
+          "solveMs": 843,
+          "status": "FEASIBLE",
+          "variables": 566,
+          "memoryBytes": 33554432,
+          "reportedObjective": 137290,
+          "budget": 0.25,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 242,
+            "pair/equal+inversion+distance": 267,
+            "liftWindow+cluster": 56
+          },
+          "metrics": {
+            "e4Pairs": 41,
+            "e4Spread": 15.6,
+            "e7All": 22,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 10,
+            "used": 4
+          },
+          "placements": 10,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 10,
+          "composed": {
+            "total": 15354,
+            "businessCost": 13127,
+            "changeCost": 2227,
+            "waitTime": 10390,
+            "tableLag": 1710,
+            "orderSync": 45,
+            "affinity": 802,
+            "liftOverflow": 180,
+            "placements": 10,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 27,
+      "file": "336_20260906_1815_2015.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-06T10:15:44.000Z",
+      "recordCount": 6,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2719597298,
+      "ok": true,
+      "now": 1789279123193,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 9351,
+        "businessCost": 9351,
+        "changeCost": 0,
+        "waitTime": 7181,
+        "tableLag": 720,
+        "orderSync": 360,
+        "affinity": 820,
+        "liftOverflow": 270,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 10,
+          "ok": true,
+          "failure": null,
+          "solveMs": 702,
+          "status": "FEASIBLE",
+          "variables": 613,
+          "memoryBytes": 33554432,
+          "reportedObjective": 112714,
+          "budget": 0.25,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 242,
+            "pair/equal+inversion+distance": 284,
+            "liftWindow+cluster": 86
+          },
+          "metrics": {
+            "e4Pairs": 25,
+            "e4Spread": 9.200000000000001,
+            "e7All": 18,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 10,
+            "used": 4
+          },
+          "placements": 10,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 10,
+          "composed": {
+            "total": 12196,
+            "businessCost": 10216,
+            "changeCost": 1980,
+            "waitTime": 6826,
+            "tableLag": 1430,
+            "orderSync": 975,
+            "affinity": 760,
+            "liftOverflow": 225,
+            "placements": 10,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 28,
+      "file": "336_20260908_2145_2345.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-08T13:08:05.000Z",
+      "recordCount": 17,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 745489431,
+      "ok": true,
+      "now": 1789279123903,
+      "liveCount": 16,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 31538,
+        "businessCost": 31538,
+        "changeCost": 0,
+        "waitTime": 19459,
+        "tableLag": 8550,
+        "orderSync": 1035,
+        "affinity": 2044,
+        "liftOverflow": 450,
+        "placements": 16,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 843,
+          "status": "FEASIBLE",
+          "variables": 1012,
+          "memoryBytes": 33554432,
+          "reportedObjective": 259204,
+          "budget": 0.37,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 400,
+            "pair/equal+inversion+distance": 498,
+            "liftWindow+cluster": 113
+          },
+          "metrics": {
+            "e4Pairs": 6,
+            "e4Spread": 10,
+            "e7All": 0,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 14,
+            "used": 10
+          },
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 16,
+          "composed": {
+            "total": 32909,
+            "businessCost": 31403,
+            "changeCost": 1506,
+            "waitTime": 20134,
+            "tableLag": 8640,
+            "orderSync": 585,
+            "affinity": 2044,
+            "liftOverflow": 0,
+            "placements": 16,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 29,
+      "file": "336_20260908_2145_2345.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-08T13:24:46.000Z",
+      "recordCount": 13,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 4240548414,
+      "ok": true,
+      "now": 1789279124755,
+      "liveCount": 15,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 26880,
+        "businessCost": 26880,
+        "changeCost": 0,
+        "waitTime": 14935,
+        "tableLag": 9990,
+        "orderSync": 90,
+        "affinity": 1460,
+        "liftOverflow": 405,
+        "placements": 15,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 15,
+          "ok": true,
+          "failure": null,
+          "solveMs": 971,
+          "status": "FEASIBLE",
+          "variables": 970,
+          "memoryBytes": 33554432,
+          "reportedObjective": 207818,
+          "budget": 0.35,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 395,
+            "pair/equal+inversion+distance": 503,
+            "liftWindow+cluster": 71
+          },
+          "metrics": {
+            "e4Pairs": 4.4,
+            "e4Spread": 14.600000000000001,
+            "e7All": 6,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 15,
+            "used": 11
+          },
+          "placements": 15,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 15,
+          "composed": {
+            "total": 29179,
+            "businessCost": 27285,
+            "changeCost": 1894,
+            "waitTime": 14710,
+            "tableLag": 10440,
+            "orderSync": 945,
+            "affinity": 1190,
+            "liftOverflow": 0,
+            "placements": 15,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 30,
+      "file": "336_20260908_2145_2345.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-08T14:43:42.000Z",
+      "recordCount": 15,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2709438660,
+      "ok": true,
+      "now": 1789279125734,
+      "liveCount": 16,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 29762,
+        "businessCost": 29762,
+        "changeCost": 0,
+        "waitTime": 16768,
+        "tableLag": 10590,
+        "orderSync": 180,
+        "affinity": 1864,
+        "liftOverflow": 360,
+        "placements": 16,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1392,
+          "status": "FEASIBLE",
+          "variables": 832,
+          "memoryBytes": 33554432,
+          "reportedObjective": 243884,
+          "budget": 0.37,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 352,
+            "pair/equal+inversion+distance": 416,
+            "liftWindow+cluster": 63
+          },
+          "metrics": {
+            "e4Pairs": 15.200000000000001,
+            "e4Spread": 16.6,
+            "e7All": 11,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 13,
+            "used": 9
+          },
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 16,
+          "composed": {
+            "total": 32383,
+            "businessCost": 29453,
+            "changeCost": 2930,
+            "waitTime": 16138,
+            "tableLag": 10410,
+            "orderSync": 1035,
+            "affinity": 1870,
+            "liftOverflow": 0,
+            "placements": 16,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 31,
+      "file": "342_20260905_1145_1345.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-05T03:34:53.000Z",
+      "recordCount": 15,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 473619684,
+      "ok": true,
+      "now": 1789279127135,
+      "liveCount": 11,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 17710,
+        "businessCost": 17710,
+        "changeCost": 0,
+        "waitTime": 9878,
+        "tableLag": 6750,
+        "orderSync": 0,
+        "affinity": 812,
+        "liftOverflow": 270,
+        "placements": 11,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 11,
+          "ok": true,
+          "failure": null,
+          "solveMs": 672,
+          "status": "FEASIBLE",
+          "variables": 615,
+          "memoryBytes": 33554432,
+          "reportedObjective": 159180,
+          "budget": 0.27,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 279,
+            "pair/equal+inversion+distance": 302,
+            "liftWindow+cluster": 33
+          },
+          "metrics": {
+            "e4Pairs": 4.8,
+            "e4Spread": 8.2,
+            "e7All": 1,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 11,
+            "used": 7
+          },
+          "placements": 11,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 11,
+          "composed": {
+            "total": 18000,
+            "businessCost": 16876,
+            "changeCost": 1124,
+            "waitTime": 10418,
+            "tableLag": 5670,
+            "orderSync": 0,
+            "affinity": 788,
+            "liftOverflow": 0,
+            "placements": 11,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 32,
+      "file": "342_20260905_1145_1345.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-05T03:42:56.000Z",
+      "recordCount": 18,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3204173876,
+      "ok": true,
+      "now": 1789279127814,
+      "liveCount": 18,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 35439,
+        "businessCost": 35439,
+        "changeCost": 0,
+        "waitTime": 20481,
+        "tableLag": 12000,
+        "orderSync": 180,
+        "affinity": 2328,
+        "liftOverflow": 450,
+        "placements": 18,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 18,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1512,
+          "status": "FEASIBLE",
+          "variables": 1097,
+          "memoryBytes": 33554432,
+          "reportedObjective": 287142,
+          "budget": 0.41,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 426,
+            "pair/equal+inversion+distance": 588,
+            "liftWindow+cluster": 82
+          },
+          "metrics": {
+            "e4Pairs": 5,
+            "e4Spread": 8,
+            "e7All": 11,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 17,
+            "used": 13
+          },
+          "placements": 18,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 18,
+          "composed": {
+            "total": 36609,
+            "businessCost": 34252,
+            "changeCost": 2357,
+            "waitTime": 19851,
+            "tableLag": 11640,
+            "orderSync": 315,
+            "affinity": 2446,
+            "liftOverflow": 0,
+            "placements": 18,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 33,
+      "file": "342_20260907_1345_1545.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-07T06:01:07.000Z",
+      "recordCount": 7,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3011084347,
+      "ok": true,
+      "now": 1789279129336,
+      "liveCount": 8,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 8308,
+        "businessCost": 8308,
+        "changeCost": 0,
+        "waitTime": 6859,
+        "tableLag": 990,
+        "orderSync": 0,
+        "affinity": 324,
+        "liftOverflow": 135,
+        "placements": 8,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 8,
+          "ok": true,
+          "failure": null,
+          "solveMs": 530,
+          "status": "FEASIBLE",
+          "variables": 400,
+          "memoryBytes": 33554432,
+          "reportedObjective": 101816,
+          "budget": 0.21000000000000002,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 184,
+            "pair/equal+inversion+distance": 188,
+            "liftWindow+cluster": 27
+          },
+          "metrics": {
+            "e4Pairs": 9.8,
+            "e4Spread": 5.4,
+            "e7All": 6,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 8,
+            "used": 4
+          },
+          "placements": 8,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 8,
+          "composed": {
+            "total": 9451,
+            "businessCost": 8236,
+            "changeCost": 1215,
+            "waitTime": 6602,
+            "tableLag": 880,
+            "orderSync": 45,
+            "affinity": 574,
+            "liftOverflow": 135,
+            "placements": 8,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 34,
+      "file": "342_20260907_1345_1545.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-07T06:15:22.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1611972833,
+      "ok": true,
+      "now": 1789279129872,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 12707,
+        "businessCost": 12707,
+        "changeCost": 0,
+        "waitTime": 10765,
+        "tableLag": 1080,
+        "orderSync": 0,
+        "affinity": 682,
+        "liftOverflow": 180,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 10,
+          "ok": true,
+          "failure": null,
+          "solveMs": 664,
+          "status": "FEASIBLE",
+          "variables": 466,
+          "memoryBytes": 33554432,
+          "reportedObjective": 134542,
+          "budget": 0.25,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 210,
+            "pair/equal+inversion+distance": 224,
+            "liftWindow+cluster": 31
+          },
+          "metrics": {
+            "e4Pairs": 26,
+            "e4Spread": 13,
+            "e7All": 22,
+            "e7Adjacent": 6
+          },
+          "clusters": {
+            "cap": 9,
+            "used": 4
+          },
+          "placements": 10,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 10,
+          "composed": {
+            "total": 15774,
+            "businessCost": 13929,
+            "changeCost": 1845,
+            "waitTime": 10401,
+            "tableLag": 2668,
+            "orderSync": 0,
+            "affinity": 770,
+            "liftOverflow": 90,
+            "placements": 10,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 35,
+      "file": "355_20260905_1500_1700.jsonl",
+      "storeId": "355",
+      "cutAt": "2026-09-05T06:50:52.000Z",
+      "recordCount": 7,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3495909599,
+      "ok": true,
+      "now": 1789279130544,
+      "liveCount": 11,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 10418,
+        "businessCost": 10418,
+        "changeCost": 0,
+        "waitTime": 8286,
+        "tableLag": 900,
+        "orderSync": 0,
+        "affinity": 962,
+        "liftOverflow": 270,
+        "placements": 11,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 11,
+          "ok": true,
+          "failure": null,
+          "solveMs": 815,
+          "status": "FEASIBLE",
+          "variables": 602,
+          "memoryBytes": 33554432,
+          "reportedObjective": 118468,
+          "budget": 0.27,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 247,
+            "pair/equal+inversion+distance": 281,
+            "liftWindow+cluster": 73
+          },
+          "metrics": {
+            "e4Pairs": 43.599999999999994,
+            "e4Spread": 15,
+            "e7All": 23,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 10,
+            "used": 4
+          },
+          "placements": 11,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 11,
+          "composed": {
+            "total": 13477,
+            "businessCost": 11296,
+            "changeCost": 2181,
+            "waitTime": 8231,
+            "tableLag": 1164,
+            "orderSync": 669,
+            "affinity": 962,
+            "liftOverflow": 270,
+            "placements": 11,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 36,
+      "file": "355_20260905_1500_1700.jsonl",
+      "storeId": "355",
+      "cutAt": "2026-09-05T06:56:21.000Z",
+      "recordCount": 12,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2596303659,
+      "ok": true,
+      "now": 1789279131366,
+      "liveCount": 18,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 35065,
+        "businessCost": 35065,
+        "changeCost": 0,
+        "waitTime": 19163,
+        "tableLag": 12930,
+        "orderSync": 0,
+        "affinity": 2522,
+        "liftOverflow": 450,
+        "placements": 18,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 18,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1030,
+          "status": "FEASIBLE",
+          "variables": 1110,
+          "memoryBytes": 33554432,
+          "reportedObjective": 293122,
+          "budget": 0.41,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 426,
+            "pair/equal+inversion+distance": 551,
+            "liftWindow+cluster": 132
+          },
+          "metrics": {
+            "e4Pairs": 31.799999999999997,
+            "e4Spread": 27.8,
+            "e7All": 57,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 15,
+            "used": 10
+          },
+          "placements": 18,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 18,
+          "composed": {
+            "total": 55734,
+            "businessCost": 49921,
+            "changeCost": 5813,
+            "waitTime": 18926,
+            "tableLag": 22044,
+            "orderSync": 6300,
+            "affinity": 2516,
+            "liftOverflow": 135,
+            "placements": 18,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 37,
+      "file": "355_20260908_1845_2045.jsonl",
+      "storeId": "355",
+      "cutAt": "2026-09-08T10:41:46.000Z",
+      "recordCount": 16,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 721895446,
+      "ok": true,
+      "now": 1789279132406,
+      "liveCount": 16,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 29680,
+        "businessCost": 29680,
+        "changeCost": 0,
+        "waitTime": 17779,
+        "tableLag": 9690,
+        "orderSync": 45,
+        "affinity": 1806,
+        "liftOverflow": 360,
+        "placements": 16,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1014,
+          "status": "FEASIBLE",
+          "variables": 854,
+          "memoryBytes": 33554432,
+          "reportedObjective": 242384,
+          "budget": 0.37,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 368,
+            "pair/equal+inversion+distance": 422,
+            "liftWindow+cluster": 63
+          },
+          "metrics": {
+            "e4Pairs": 7.4,
+            "e4Spread": 9.8,
+            "e7All": 5,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 13,
+            "used": 9
+          },
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 16,
+          "composed": {
+            "total": 30426,
+            "businessCost": 28735,
+            "changeCost": 1691,
+            "waitTime": 18409,
+            "tableLag": 8430,
+            "orderSync": 90,
+            "affinity": 1806,
+            "liftOverflow": 0,
+            "placements": 16,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 38,
+      "file": "355_20260908_1845_2045.jsonl",
+      "storeId": "355",
+      "cutAt": "2026-09-08T11:01:28.000Z",
+      "recordCount": 7,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 660927859,
+      "ok": true,
+      "now": 1789279133428,
+      "liveCount": 9,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 11366,
+        "businessCost": 11366,
+        "changeCost": 0,
+        "waitTime": 7296,
+        "tableLag": 3300,
+        "orderSync": 0,
+        "affinity": 500,
+        "liftOverflow": 270,
+        "placements": 9,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 9,
+          "ok": true,
+          "failure": null,
+          "solveMs": 621,
+          "status": "FEASIBLE",
+          "variables": 559,
+          "memoryBytes": 33554432,
+          "reportedObjective": 93242,
+          "budget": 0.22999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 253,
+            "pair/equal+inversion+distance": 256,
+            "liftWindow+cluster": 49
+          },
+          "metrics": {
+            "e4Pairs": 27.400000000000002,
+            "e4Spread": 14,
+            "e7All": 16,
+            "e7Adjacent": 2
+          },
+          "clusters": {
+            "cap": 9,
+            "used": 5
+          },
+          "placements": 9,
+          "slices": 1,
+          "acceptedSlices": 1,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 9,
+          "composed": {
+            "total": 10839,
+            "businessCost": 9934,
+            "changeCost": 905,
+            "waitTime": 6801,
+            "tableLag": 2130,
+            "orderSync": 270,
+            "affinity": 598,
+            "liftOverflow": 135,
+            "placements": 9,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 39,
+      "file": "355_20260908_1845_2045.jsonl",
+      "storeId": "355",
+      "cutAt": "2026-09-08T11:19:22.000Z",
+      "recordCount": 22,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1941620849,
+      "ok": true,
+      "now": 1789279134057,
+      "liveCount": 28,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 75642,
+        "businessCost": 75642,
+        "changeCost": 0,
+        "waitTime": 37186,
+        "tableLag": 30240,
+        "orderSync": 1395,
+        "affinity": 6056,
+        "liftOverflow": 765,
+        "placements": 28,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1210,
+          "status": "FEASIBLE",
+          "variables": 1601,
+          "memoryBytes": 33554432,
+          "reportedObjective": 402838,
+          "budget": 0.53,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 600,
+            "pair/equal+inversion+distance": 891,
+            "liftWindow+cluster": 109
+          },
+          "metrics": {
+            "e4Pairs": 7,
+            "e4Spread": 23.400000000000002,
+            "e7All": 0,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 21,
+            "used": 17
+          },
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 75642,
+            "businessCost": 75642,
+            "changeCost": 0,
+            "waitTime": 37186,
+            "tableLag": 30240,
+            "orderSync": 1395,
+            "affinity": 6056,
+            "liftOverflow": 765,
+            "placements": 28,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 40,
+      "file": "362_20260905_2100_2300.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-05T12:49:14.000Z",
+      "recordCount": 10,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1511309843,
+      "ok": true,
+      "now": 1789279135286,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 9514,
+        "businessCost": 9514,
+        "changeCost": 0,
+        "waitTime": 7572,
+        "tableLag": 1080,
+        "orderSync": 0,
+        "affinity": 682,
+        "liftOverflow": 180,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 10,
+          "ok": true,
+          "failure": null,
+          "solveMs": 647,
+          "status": "FEASIBLE",
+          "variables": 453,
+          "memoryBytes": 33554432,
+          "reportedObjective": 111562,
+          "budget": 0.25,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 210,
+            "pair/equal+inversion+distance": 221,
+            "liftWindow+cluster": 21
+          },
+          "metrics": {
+            "e4Pairs": 24.6,
+            "e4Spread": 7.800000000000001,
+            "e7All": 6,
+            "e7Adjacent": 3
+          },
+          "clusters": {
+            "cap": 9,
+            "used": 3
+          },
+          "placements": 10,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 10,
+          "composed": {
+            "total": 10904,
+            "businessCost": 9622,
+            "changeCost": 1282,
+            "waitTime": 7572,
+            "tableLag": 1080,
+            "orderSync": 0,
+            "affinity": 790,
+            "liftOverflow": 180,
+            "placements": 10,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 41,
+      "file": "362_20260905_2100_2300.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-05T13:02:49.000Z",
+      "recordCount": 13,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2536212290,
+      "ok": true,
+      "now": 1789279135940,
+      "liveCount": 14,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 24971,
+        "businessCost": 24971,
+        "changeCost": 0,
+        "waitTime": 14881,
+        "tableLag": 8250,
+        "orderSync": 0,
+        "affinity": 1480,
+        "liftOverflow": 360,
+        "placements": 14,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 14,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1183,
+          "status": "FEASIBLE",
+          "variables": 758,
+          "memoryBytes": 33554432,
+          "reportedObjective": 212580,
+          "budget": 0.33,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 326,
+            "pair/equal+inversion+distance": 392,
+            "liftWindow+cluster": 39
+          },
+          "metrics": {
+            "e4Pairs": 62.199999999999996,
+            "e4Spread": 19,
+            "e7All": 27,
+            "e7Adjacent": 5
+          },
+          "clusters": {
+            "cap": 13,
+            "used": 4
+          },
+          "placements": 14,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 14,
+          "composed": {
+            "total": 29099,
+            "businessCost": 25752,
+            "changeCost": 3347,
+            "waitTime": 15211,
+            "tableLag": 7590,
+            "orderSync": 1035,
+            "affinity": 1556,
+            "liftOverflow": 360,
+            "placements": 14,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 42,
+      "file": "362_20260907_1115_1315.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-07T03:10:27.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1103096983,
+      "ok": true,
+      "now": 1789279137130,
+      "liveCount": 11,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 17405,
+        "businessCost": 17405,
+        "changeCost": 0,
+        "waitTime": 9278,
+        "tableLag": 6930,
+        "orderSync": 0,
+        "affinity": 882,
+        "liftOverflow": 315,
+        "placements": 11,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 11,
+          "ok": true,
+          "failure": null,
+          "solveMs": 719,
+          "status": "FEASIBLE",
+          "variables": 637,
+          "memoryBytes": 33554432,
+          "reportedObjective": 167894,
+          "budget": 0.27,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 295,
+            "pair/equal+inversion+distance": 308,
+            "liftWindow+cluster": 33
+          },
+          "metrics": {
+            "e4Pairs": 3,
+            "e4Spread": 12.6,
+            "e7All": 0,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 11,
+            "used": 8
+          },
+          "placements": 11,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 11,
+          "composed": {
+            "total": 18801,
+            "businessCost": 17465,
+            "changeCost": 1336,
+            "waitTime": 9863,
+            "tableLag": 6750,
+            "orderSync": 0,
+            "affinity": 852,
+            "liftOverflow": 0,
+            "placements": 11,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 43,
+      "file": "362_20260907_1115_1315.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-07T03:37:23.000Z",
+      "recordCount": 14,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 843036203,
+      "ok": true,
+      "now": 1789279137856,
+      "liveCount": 21,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 55920,
+        "businessCost": 55920,
+        "changeCost": 0,
+        "waitTime": 26196,
+        "tableLag": 25380,
+        "orderSync": 270,
+        "affinity": 3534,
+        "liftOverflow": 540,
+        "placements": 21,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 21,
+          "ok": true,
+          "failure": null,
+          "solveMs": 2192,
+          "status": "FEASIBLE",
+          "variables": 1486,
+          "memoryBytes": 33554432,
+          "reportedObjective": 329328,
+          "budget": 0.47,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 505,
+            "pair/equal+inversion+distance": 796,
+            "liftWindow+cluster": 184
+          },
+          "metrics": {
+            "e4Pairs": 12.2,
+            "e4Spread": 22.599999999999998,
+            "e7All": 7,
+            "e7Adjacent": 3
+          },
+          "clusters": {
+            "cap": 20,
+            "used": 16
+          },
+          "placements": 21,
+          "slices": 1,
+          "acceptedSlices": 1,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 21,
+          "composed": {
+            "total": 46282,
+            "businessCost": 43546,
+            "changeCost": 2736,
+            "waitTime": 23301,
+            "tableLag": 15420,
+            "orderSync": 1260,
+            "affinity": 3520,
+            "liftOverflow": 45,
+            "placements": 21,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 44,
+      "file": "362_20260907_1115_1315.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-07T04:03:09.000Z",
+      "recordCount": 7,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 167492488,
+      "ok": true,
+      "now": 1789279140059,
+      "liveCount": 6,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 5670,
+        "businessCost": 5670,
+        "changeCost": 0,
+        "waitTime": 5188,
+        "tableLag": 360,
+        "orderSync": 0,
+        "affinity": 32,
+        "liftOverflow": 90,
+        "placements": 6,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 349,
+          "status": "FEASIBLE",
+          "variables": 261,
+          "memoryBytes": 33554432,
+          "reportedObjective": 78560,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 126,
+            "pair/equal+inversion+distance": 121,
+            "liftWindow+cluster": 13
+          },
+          "metrics": {
+            "e4Pairs": 7.8,
+            "e4Spread": 2.4,
+            "e7All": 0,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 6,
+            "used": 2
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 6,
+          "composed": {
+            "total": 5850,
+            "businessCost": 5670,
+            "changeCost": 180,
+            "waitTime": 5188,
+            "tableLag": 360,
+            "orderSync": 0,
+            "affinity": 32,
+            "liftOverflow": 90,
+            "placements": 6,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 45,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:03:31.000Z",
+      "recordCount": 12,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 899310618,
+      "ok": true,
+      "now": 1789279140414,
+      "liveCount": 12,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 11694,
+        "businessCost": 11694,
+        "changeCost": 0,
+        "waitTime": 7750,
+        "tableLag": 1890,
+        "orderSync": 45,
+        "affinity": 1694,
+        "liftOverflow": 315,
+        "placements": 12,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 12,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1180,
+          "status": "FEASIBLE",
+          "variables": 765,
+          "memoryBytes": 33554432,
+          "reportedObjective": 132368,
+          "budget": 0.29,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 390,
+            "pair/equal+inversion+distance": 339,
+            "liftWindow+cluster": 35
+          },
+          "metrics": {
+            "e4Pairs": 30.2,
+            "e4Spread": 20.2,
+            "e7All": 26,
+            "e7Adjacent": 4
+          },
+          "clusters": {
+            "cap": 12,
+            "used": 6
+          },
+          "placements": 12,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 12,
+          "composed": {
+            "total": 16371,
+            "businessCost": 13357,
+            "changeCost": 3014,
+            "waitTime": 7810,
+            "tableLag": 2850,
+            "orderSync": 180,
+            "affinity": 2382,
+            "liftOverflow": 135,
+            "placements": 12,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 46,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:13:01.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 1839505075,
+      "ok": true,
+      "now": 1789279141603,
+      "liveCount": 11,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 14610,
+        "businessCost": 14610,
+        "changeCost": 0,
+        "waitTime": 11394,
+        "tableLag": 1710,
+        "orderSync": 0,
+        "affinity": 1236,
+        "liftOverflow": 270,
+        "placements": 11,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 11,
+          "ok": true,
+          "failure": null,
+          "solveMs": 987,
+          "status": "FEASIBLE",
+          "variables": 698,
+          "memoryBytes": 33554432,
+          "reportedObjective": 143582,
+          "budget": 0.27,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 363,
+            "pair/equal+inversion+distance": 301,
+            "liftWindow+cluster": 33
+          },
+          "metrics": {
+            "e4Pairs": 55.599999999999994,
+            "e4Spread": 20.6,
+            "e7All": 20,
+            "e7Adjacent": 3
+          },
+          "clusters": {
+            "cap": 11,
+            "used": 5
+          },
+          "placements": 11,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 11,
+          "composed": {
+            "total": 17178,
+            "businessCost": 14868,
+            "changeCost": 2310,
+            "waitTime": 10926,
+            "tableLag": 1744,
+            "orderSync": 45,
+            "affinity": 1928,
+            "liftOverflow": 225,
+            "placements": 11,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 47,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:18:00.000Z",
+      "recordCount": 16,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 4141671541,
+      "ok": true,
+      "now": 1789279142598,
+      "liveCount": 14,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 17715,
+        "businessCost": 17715,
+        "changeCost": 0,
+        "waitTime": 11712,
+        "tableLag": 2880,
+        "orderSync": 0,
+        "affinity": 2808,
+        "liftOverflow": 315,
+        "placements": 14,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 14,
+          "ok": true,
+          "failure": null,
+          "solveMs": 987,
+          "status": "FEASIBLE",
+          "variables": 864,
+          "memoryBytes": 33554432,
+          "reportedObjective": 210018,
+          "budget": 0.33,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 444,
+            "pair/equal+inversion+distance": 390,
+            "liftWindow+cluster": 29
+          },
+          "metrics": {
+            "e4Pairs": 6.4,
+            "e4Spread": 10.200000000000001,
+            "e7All": 2,
+            "e7Adjacent": 1
+          },
+          "clusters": {
+            "cap": 13,
+            "used": 9
+          },
+          "placements": 14,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 14,
+          "composed": {
+            "total": 23464,
+            "businessCost": 20682,
+            "changeCost": 2782,
+            "waitTime": 12372,
+            "tableLag": 5340,
+            "orderSync": 0,
+            "affinity": 2970,
+            "liftOverflow": 0,
+            "placements": 14,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 48,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:28:13.000Z",
+      "recordCount": 24,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 2633814748,
+      "ok": true,
+      "now": 1789279143593,
+      "liveCount": 23,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 47586,
+        "businessCost": 47586,
+        "changeCost": 0,
+        "waitTime": 24459,
+        "tableLag": 15480,
+        "orderSync": 0,
+        "affinity": 7062,
+        "liftOverflow": 585,
+        "placements": 23,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 23,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1340,
+          "status": "FEASIBLE",
+          "variables": 1571,
+          "memoryBytes": 33554432,
+          "reportedObjective": 378346,
+          "budget": 0.51,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 753,
+            "pair/equal+inversion+distance": 760,
+            "liftWindow+cluster": 57
+          },
+          "metrics": {
+            "e4Pairs": 8,
+            "e4Spread": 14,
+            "e7All": 0,
+            "e7Adjacent": 0
+          },
+          "clusters": {
+            "cap": 19,
+            "used": 15
+          },
+          "placements": 23,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 23,
+          "composed": {
+            "total": 50584,
+            "businessCost": 48336,
+            "changeCost": 2248,
+            "waitTime": 25884,
+            "tableLag": 15390,
+            "orderSync": 0,
+            "affinity": 7062,
+            "liftOverflow": 0,
+            "placements": 23,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 49,
+      "file": "364_20260907_0915_1115.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-07T00:46:59.000Z",
+      "recordCount": 20,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 960257097,
+      "ok": true,
+      "now": 1789279144944,
+      "liveCount": 16,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 20443,
+        "businessCost": 20443,
+        "changeCost": 0,
+        "waitTime": 13355,
+        "tableLag": 3240,
+        "orderSync": 0,
+        "affinity": 3488,
+        "liftOverflow": 360,
+        "placements": 16,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 24,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1310,
+          "status": "FEASIBLE",
+          "variables": 908,
+          "memoryBytes": 33554432,
+          "reportedObjective": 213944,
+          "budget": 0.37,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 454,
+            "pair/equal+inversion+distance": 410,
+            "liftWindow+cluster": 43
+          },
+          "metrics": {
+            "e4Pairs": 50.599999999999994,
+            "e4Spread": 26.400000000000002,
+            "e7All": 40,
+            "e7Adjacent": 4
+          },
+          "clusters": {
+            "cap": 13,
+            "used": 8
+          },
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 16,
+          "composed": {
+            "total": 28193,
+            "businessCost": 24043,
+            "changeCost": 4150,
+            "waitTime": 14255,
+            "tableLag": 5760,
+            "orderSync": 450,
+            "affinity": 3488,
+            "liftOverflow": 90,
+            "placements": 16,
+            "slices": 1
+          }
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

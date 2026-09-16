@@ -23,7 +23,7 @@ import type { QueueEntry, QueueSuggestion } from "../../src/client/components/qu
 import { noodleColors } from "../../src/client/components/noodleColor";
 import { FIRMNESS_LABEL } from "../../src/client/components/firmness";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
-import type { OrderItem } from "../../src/domain/order";
+import type { OrderItem, WireOrderItem } from "../../src/domain/order";
 import { isNonEmpty, type NonEmptyArray } from "../../src/domain/timer";
 
 // globals を有効にしていないため、自動 cleanup は働かない。描画を明示的に畳む
@@ -39,7 +39,7 @@ const NOODLE_MENU = ["Thin", "Thick", "Flat"] as const;
 const noodleColor = noodleColors([...NOODLE_MENU]);
 
 /** 1 品目の未着手オーダー。必要な事実だけを上書きする。 */
-function pendingOrder(overrides: Partial<OrderItem> = {}): OrderItem {
+function pendingOrder(overrides: Partial<WireOrderItem> = {}): WireOrderItem {
   return {
     externalOrderId: "o-1",
     itemIndex: 0,
@@ -293,5 +293,28 @@ describe("戻された品目の色分け（lift-order-numbering Component 4）",
     expect(text).toContain("Table 12");
     expect(text).toContain("01:23");
     expect(headingCount()).toBe(2);
+  });
+});
+
+// ── 札の反映（item-display-abbreviation Requirement 2.1） ────────────────────
+//
+// **空辞書を渡す既存のテストでは受け渡しを保証できない。** prop が途中で落ちていても、空辞書と
+// 「渡っていない」は同じ見え方になる。ゆえに非空の辞書で、札が実際に行へ出ることを問う。
+
+describe("札の反映", () => {
+  it("品目が札を持てば札で表示される", () => {
+    const order = pendingOrder({
+      itemName: "特味噌ネギラーメン",
+      sizeName: "中盛",
+      shortName: "特味噌ネギ",
+    });
+    render(railElement([queueEntry({ order })]));
+    expect(screen.getByText("特味噌ネギ中盛")).toBeTruthy();
+  });
+
+  it("札を持たなければ全名のまま（札は「あるかもしれないもの」）", () => {
+    const order = pendingOrder({ itemName: "辛味噌ネギラーメン", sizeName: "中盛" });
+    render(railElement([queueEntry({ order })]));
+    expect(screen.getByText("辛味噌ネギラーメン中盛")).toBeTruthy();
   });
 });

@@ -1,0 +1,11 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": { "lib": ["ES2023"], "types": [] },
+  "include": [
+    "index.ts",
+    "worker-configuration.d.ts",
+    "../src/runtime.ts",
+    "../src/vendor.d.ts",
+    "../vendor/cpsat_workers_poc_runtime.d.ts"
+  ]
+}

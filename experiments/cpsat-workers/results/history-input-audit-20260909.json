@@ -1,0 +1,1627 @@
+{
+  "rows": [
+    {
+      "id": "239_20260905_1745_1945",
+      "split": "exploration",
+      "orders": 148,
+      "parentItems": 425,
+      "mapped": 184,
+      "evalBowls": 102,
+      "span2": 55,
+      "unknownItems": 0,
+      "snowflakeMapped": 174,
+      "snowflakeSpan2": 18,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "239_20260908_2115_2315",
+      "split": "exploration",
+      "orders": 109,
+      "parentItems": 333,
+      "mapped": 121,
+      "evalBowls": 57,
+      "span2": 46,
+      "unknownItems": 0,
+      "snowflakeMapped": 116,
+      "snowflakeSpan2": 12,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "247_20260906_1300_1500",
+      "split": "exploration",
+      "orders": 112,
+      "parentItems": 345,
+      "mapped": 137,
+      "evalBowls": 74,
+      "span2": 56,
+      "unknownItems": 0,
+      "snowflakeMapped": 127,
+      "snowflakeSpan2": 19,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 360,
+            "soft": 480
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 390,
+            "normal": 510,
+            "soft": 630
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "247_20260908_1330_1530",
+      "split": "exploration",
+      "orders": 90,
+      "parentItems": 226,
+      "mapped": 87,
+      "evalBowls": 47,
+      "span2": 33,
+      "unknownItems": 0,
+      "snowflakeMapped": 82,
+      "snowflakeSpan2": 8,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 360,
+            "soft": 480
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 390,
+            "normal": 510,
+            "soft": 630
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "254_20260905_1230_1430",
+      "split": "exploration",
+      "orders": 106,
+      "parentItems": 311,
+      "mapped": 133,
+      "evalBowls": 66,
+      "span2": 44,
+      "unknownItems": 0,
+      "snowflakeMapped": 132,
+      "snowflakeSpan2": 13,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "254_20260907_1800_2000",
+      "split": "exploration",
+      "orders": 128,
+      "parentItems": 294,
+      "mapped": 127,
+      "evalBowls": 82,
+      "span2": 51,
+      "unknownItems": 0,
+      "snowflakeMapped": 122,
+      "snowflakeSpan2": 14,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "275_20260906_1500_1700",
+      "split": "exploration",
+      "orders": 77,
+      "parentItems": 305,
+      "mapped": 106,
+      "evalBowls": 43,
+      "span2": 30,
+      "unknownItems": 0,
+      "snowflakeMapped": 96,
+      "snowflakeSpan2": 16,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 360,
+            "soft": 480
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 390,
+            "normal": 510,
+            "soft": 630
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "275_20260908_1130_1330",
+      "split": "exploration",
+      "orders": 103,
+      "parentItems": 249,
+      "mapped": 116,
+      "evalBowls": 59,
+      "span2": 35,
+      "unknownItems": 0,
+      "snowflakeMapped": 113,
+      "snowflakeSpan2": 15,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 360,
+            "soft": 480
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 390,
+            "normal": 510,
+            "soft": 630
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "284_20260905_1945_2145",
+      "split": "exploration",
+      "orders": 103,
+      "parentItems": 295,
+      "mapped": 111,
+      "evalBowls": 53,
+      "span2": 53,
+      "unknownItems": 0,
+      "snowflakeMapped": 107,
+      "snowflakeSpan2": 20,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "284_20260907_1215_1415",
+      "split": "exploration",
+      "orders": 69,
+      "parentItems": 195,
+      "mapped": 87,
+      "evalBowls": 51,
+      "span2": 24,
+      "unknownItems": 0,
+      "snowflakeMapped": 86,
+      "snowflakeSpan2": 9,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "336_20260906_1815_2015",
+      "split": "validation",
+      "orders": 75,
+      "parentItems": 273,
+      "mapped": 101,
+      "evalBowls": 55,
+      "span2": 43,
+      "unknownItems": 0,
+      "snowflakeMapped": 94,
+      "snowflakeSpan2": 17,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "336_20260908_2145_2345",
+      "split": "validation",
+      "orders": 96,
+      "parentItems": 279,
+      "mapped": 97,
+      "evalBowls": 38,
+      "span2": 49,
+      "unknownItems": 0,
+      "snowflakeMapped": 91,
+      "snowflakeSpan2": 17,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "342_20260905_1145_1345",
+      "split": "exploration",
+      "orders": 97,
+      "parentItems": 271,
+      "mapped": 128,
+      "evalBowls": 64,
+      "span2": 45,
+      "unknownItems": 0,
+      "snowflakeMapped": 114,
+      "snowflakeSpan2": 19,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "342_20260907_1345_1545",
+      "split": "exploration",
+      "orders": 41,
+      "parentItems": 93,
+      "mapped": 45,
+      "evalBowls": 29,
+      "span2": 14,
+      "unknownItems": 0,
+      "snowflakeMapped": 43,
+      "snowflakeSpan2": 7,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "355_20260905_1500_1700",
+      "split": "validation",
+      "orders": 83,
+      "parentItems": 241,
+      "mapped": 107,
+      "evalBowls": 61,
+      "span2": 31,
+      "unknownItems": 0,
+      "snowflakeMapped": 103,
+      "snowflakeSpan2": 11,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "355_20260908_1845_2045",
+      "split": "validation",
+      "orders": 102,
+      "parentItems": 285,
+      "mapped": 120,
+      "evalBowls": 64,
+      "span2": 43,
+      "unknownItems": 0,
+      "snowflakeMapped": 115,
+      "snowflakeSpan2": 21,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "362_20260905_2100_2300",
+      "split": "validation",
+      "orders": 95,
+      "parentItems": 231,
+      "mapped": 111,
+      "evalBowls": 50,
+      "span2": 48,
+      "unknownItems": 0,
+      "snowflakeMapped": 108,
+      "snowflakeSpan2": 18,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "362_20260907_1115_1315",
+      "split": "validation",
+      "orders": 97,
+      "parentItems": 229,
+      "mapped": 114,
+      "evalBowls": 63,
+      "span2": 41,
+      "unknownItems": 0,
+      "snowflakeMapped": 112,
+      "snowflakeSpan2": 13,
+      "settingsSlots": 12,
+      "referenceSlots": 12,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 390,
+            "soft": 510
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 420,
+            "normal": 540,
+            "soft": 660
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "364_20260906_1830_2030",
+      "split": "exploration",
+      "orders": 89,
+      "parentItems": 254,
+      "mapped": 102,
+      "evalBowls": 66,
+      "span2": 49,
+      "unknownItems": 0,
+      "snowflakeMapped": 98,
+      "snowflakeSpan2": 23,
+      "settingsSlots": 18,
+      "referenceSlots": 18,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 360,
+            "soft": 480
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 390,
+            "normal": 510,
+            "soft": 630
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    },
+    {
+      "id": "364_20260907_0915_1115",
+      "split": "exploration",
+      "orders": 99,
+      "parentItems": 212,
+      "mapped": 101,
+      "evalBowls": 49,
+      "span2": 29,
+      "unknownItems": 0,
+      "snowflakeMapped": 97,
+      "snowflakeSpan2": 13,
+      "settingsSlots": 18,
+      "referenceSlots": 18,
+      "boilSeconds": [
+        {
+          "type": "REG",
+          "seconds": {
+            "extraHard": 120,
+            "hard": 240,
+            "normal": 360,
+            "soft": 480
+          }
+        },
+        {
+          "type": "つけ",
+          "seconds": {
+            "extraHard": 270,
+            "hard": 390,
+            "normal": 510,
+            "soft": 630
+          }
+        },
+        {
+          "type": "プレ",
+          "seconds": {
+            "extraHard": 30,
+            "hard": 150,
+            "normal": 210,
+            "soft": 330
+          }
+        },
+        {
+          "type": "朝麺",
+          "seconds": {
+            "extraHard": 20,
+            "hard": 40,
+            "normal": 50,
+            "soft": 90
+          }
+        },
+        {
+          "type": "なんこつ",
+          "seconds": {
+            "extraHard": 90,
+            "hard": 210,
+            "normal": 330,
+            "soft": 450
+          }
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "histories": 20,
+    "orders": 1919,
+    "mapped": 2235,
+    "unknown": 0,
+    "span2": 819,
+    "evaluationBowls": 1173,
+    "snowflakeMapped": 2130,
+    "snowflakeSpan2": 303
+  },
+  "unknownProducts": [],
+  "sizeCodes": [
+    {
+      "code": 19402,
+      "count": 243,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360,
+        480
+      ]
+    },
+    {
+      "code": 19403,
+      "count": 138,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360
+      ]
+    },
+    {
+      "code": 19401,
+      "count": 608,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360,
+        480
+      ]
+    },
+    {
+      "code": 19501,
+      "count": 190,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360
+      ]
+    },
+    {
+      "code": 19101,
+      "count": 230,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360,
+        240
+      ]
+    },
+    {
+      "code": 19107,
+      "count": 30,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360
+      ]
+    },
+    {
+      "code": 19207,
+      "count": 10,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390
+      ]
+    },
+    {
+      "code": 19601,
+      "count": 113,
+      "span": 1,
+      "noodle": "プレ",
+      "boil": [
+        210,
+        150
+      ]
+    },
+    {
+      "code": 19103,
+      "count": 52,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360
+      ]
+    },
+    {
+      "code": 19502,
+      "count": 74,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360,
+        240
+      ]
+    },
+    {
+      "code": 19749,
+      "count": 71,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360
+      ]
+    },
+    {
+      "code": 19104,
+      "count": 3,
+      "span": 1,
+      "noodle": "つけ",
+      "boil": [
+        540,
+        510
+      ]
+    },
+    {
+      "code": 19603,
+      "count": 27,
+      "span": 2,
+      "noodle": "プレ",
+      "boil": [
+        210
+      ]
+    },
+    {
+      "code": 19201,
+      "count": 89,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360,
+        480,
+        240
+      ]
+    },
+    {
+      "code": 19301,
+      "count": 57,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360
+      ]
+    },
+    {
+      "code": 19602,
+      "count": 37,
+      "span": 2,
+      "noodle": "プレ",
+      "boil": [
+        210,
+        150
+      ]
+    },
+    {
+      "code": 19102,
+      "count": 88,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360
+      ]
+    },
+    {
+      "code": 19202,
+      "count": 19,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360
+      ]
+    },
+    {
+      "code": 19203,
+      "count": 22,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360,
+        240
+      ]
+    },
+    {
+      "code": 19506,
+      "count": 3,
+      "span": 2,
+      "noodle": "つけ",
+      "boil": [
+        540,
+        510
+      ]
+    },
+    {
+      "code": 19750,
+      "count": 23,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360
+      ]
+    },
+    {
+      "code": 19302,
+      "count": 18,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        240,
+        360
+      ]
+    },
+    {
+      "code": 19751,
+      "count": 11,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360
+      ]
+    },
+    {
+      "code": 19503,
+      "count": 39,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360
+      ]
+    },
+    {
+      "code": 19504,
+      "count": 5,
+      "span": 1,
+      "noodle": "つけ",
+      "boil": [
+        540,
+        510
+      ]
+    },
+    {
+      "code": 19303,
+      "count": 8,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        360,
+        390
+      ]
+    },
+    {
+      "code": 19206,
+      "count": 3,
+      "span": 2,
+      "noodle": "つけ",
+      "boil": [
+        510,
+        540
+      ]
+    },
+    {
+      "code": 19105,
+      "count": 3,
+      "span": 2,
+      "noodle": "つけ",
+      "boil": [
+        390,
+        540,
+        510
+      ]
+    },
+    {
+      "code": 19621,
+      "count": 4,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360
+      ]
+    },
+    {
+      "code": 19106,
+      "count": 3,
+      "span": 2,
+      "noodle": "つけ",
+      "boil": [
+        510,
+        540
+      ]
+    },
+    {
+      "code": 19505,
+      "count": 1,
+      "span": 2,
+      "noodle": "つけ",
+      "boil": [
+        510
+      ]
+    },
+    {
+      "code": 19622,
+      "count": 3,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        360,
+        390
+      ]
+    },
+    {
+      "code": 19307,
+      "count": 2,
+      "span": 1,
+      "noodle": "REG",
+      "boil": [
+        390,
+        360
+      ]
+    },
+    {
+      "code": 19623,
+      "count": 1,
+      "span": 2,
+      "noodle": "REG",
+      "boil": [
+        390
+      ]
+    },
+    {
+      "code": 19205,
+      "count": 1,
+      "span": 2,
+      "noodle": "つけ",
+      "boil": [
+        540
+      ]
+    },
+    {
+      "code": 19204,
+      "count": 1,
+      "span": 1,
+      "noodle": "つけ",
+      "boil": [
+        540
+      ]
+    },
+    {
+      "code": 19681,
+      "count": 3,
+      "span": 1,
+      "noodle": "朝麺",
+      "boil": [
+        50
+      ]
+    },
+    {
+      "code": 19683,
+      "count": 2,
+      "span": 2,
+      "noodle": "朝麺",
+      "boil": [
+        50
+      ]
+    }
+  ]
+}

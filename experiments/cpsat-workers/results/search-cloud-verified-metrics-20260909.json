@@ -1,0 +1,2248 @@
+{
+  "collectedAt": "2026-09-09T05:36:32.157Z",
+  "from": "2026-09-09T05:33:00Z",
+  "to": "2026-09-09T05:36:28.099Z",
+  "account": "305d89a643ac689b4204454c5493cbde",
+  "worker": "yude-men-cpsat-search",
+  "settings": {
+    "usageModel": "standard",
+    "limits": {
+      "cpu_ms": 10000
+    },
+    "compatibilityDate": "2026-09-09",
+    "compatibilityFlags": [
+      "no_nodejs_compat",
+      "no_nodejs_compat_v2"
+    ],
+    "bindings": [
+      {
+        "name": "CF_VERSION_METADATA",
+        "type": "version_metadata"
+      },
+      {
+        "name": "SEARCH_AUTH_TOKEN",
+        "type": "secret_text"
+      },
+      {
+        "name": "SEARCH_EXPIRES_AT",
+        "type": "plain_text"
+      }
+    ]
+  },
+  "deployments": [
+    {
+      "id": "c878c137-9df3-45d1-91c9-622fa43e9246",
+      "created_on": "2026-09-09T05:32:39.219244Z",
+      "versions": [
+        {
+          "version_id": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+          "percentage": 100
+        }
+      ]
+    },
+    {
+      "id": "5cc9c09d-4b03-44ee-ab12-d4650a466af2",
+      "created_on": "2026-09-09T05:29:24.918018Z",
+      "versions": [
+        {
+          "version_id": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e",
+          "percentage": 100
+        }
+      ]
+    }
+  ],
+  "priorPocDeployments": [
+    {
+      "id": "c9ffe305-05c8-433f-b6f1-f7993bd5cee3",
+      "created_on": "2026-09-08T11:44:17.104875Z",
+      "versions": [
+        {
+          "version_id": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+          "percentage": 100
+        }
+      ]
+    }
+  ],
+  "graphql": {
+    "query": "query Metrics($account: string, $worker: string, $from: string, $to: string) {\n  viewer { accounts(filter: {accountTag: $account}) {\n    workersInvocationsAdaptive(limit: 10000, filter: {scriptName: $worker, datetime_geq: $from, datetime_leq: $to}) {\n      dimensions { scriptName scriptVersion coloCode status datetime }\n      quantiles { cpuTimeP50 cpuTimeP99 wallTimeP50 wallTimeP99 }\n      max { cpuTime wallTime memoryUsageBytes wasmMemoryBytes }\n      sum { requests errors subrequests cpuTimeUs }\n      avg { sampleInterval }\n    }\n  } }\n  units: __type(name: \"AccountWorkersInvocationsAdaptiveMax\") { fields { name description } }\n  sums: __type(name: \"AccountWorkersInvocationsAdaptiveSum\") { fields { name description } }\n  averages: __type(name: \"AccountWorkersInvocationsAdaptiveAvg\") { fields { name description } }\n}",
+    "variables": {
+      "account": "305d89a643ac689b4204454c5493cbde",
+      "worker": "yude-men-cpsat-search",
+      "from": "2026-09-09T05:33:00Z",
+      "to": "2026-09-09T05:36:28.099Z"
+    },
+    "data": {
+      "averages": {
+        "fields": [
+          {
+            "description": "",
+            "name": "sampleInterval"
+          }
+        ]
+      },
+      "sums": {
+        "fields": [
+          {
+            "description": "Sum of client disconnects",
+            "name": "clientDisconnects"
+          },
+          {
+            "description": "Sum of cpu time in us",
+            "name": "cpuTimeUs"
+          },
+          {
+            "description": "Sum of Duration - GB*s",
+            "name": "duration"
+          },
+          {
+            "description": "Sum of Errors",
+            "name": "errors"
+          },
+          {
+            "description": "Sum of Request Duration in microseconds",
+            "name": "requestDuration"
+          },
+          {
+            "description": "Sum of Requests",
+            "name": "requests"
+          },
+          {
+            "description": "Sum of Response Body Sizes",
+            "name": "responseBodySize"
+          },
+          {
+            "description": "Sum of Subrequests",
+            "name": "subrequests"
+          },
+          {
+            "description": "Sum of Wall Time",
+            "name": "wallTime"
+          }
+        ]
+      },
+      "units": {
+        "fields": [
+          {
+            "description": "Maximum CPU time for one request - microseconds",
+            "name": "cpuTime"
+          },
+          {
+            "description": "Maximum duration of one request - GB*s",
+            "name": "duration"
+          },
+          {
+            "description": "Maximum V8 isolate memory usage across Worker invocations - bytes",
+            "name": "memoryUsageBytes"
+          },
+          {
+            "description": "Maximum Request Duration in microseconds",
+            "name": "requestDuration"
+          },
+          {
+            "description": "Maximum response body size for one request - bytes",
+            "name": "responseBodySize"
+          },
+          {
+            "description": "Maximum wall time for one request - microseconds",
+            "name": "wallTime"
+          },
+          {
+            "description": "Maximum WebAssembly linear memory usage across Worker invocations - bytes",
+            "name": "wasmMemoryBytes"
+          }
+        ]
+      },
+      "viewer": {
+        "accounts": [
+          {
+            "workersInvocationsAdaptive": [
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:36:00Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 102795,
+                  "memoryUsageBytes": 52785209,
+                  "wallTime": 104166,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 32708,
+                  "cpuTimeP99": 102795,
+                  "wallTimeP50": 33774,
+                  "wallTimeP99": 104166
+                },
+                "sum": {
+                  "cpuTimeUs": 387970,
+                  "errors": 0,
+                  "requests": 8,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.1176470588235294
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:53Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1427182,
+                  "memoryUsageBytes": 51549398,
+                  "wallTime": 1482174,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 47635,
+                  "cpuTimeP99": 1427182,
+                  "wallTimeP50": 48903,
+                  "wallTimeP99": 1482174
+                },
+                "sum": {
+                  "cpuTimeUs": 3568170,
+                  "errors": 0,
+                  "requests": 19,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:56Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 864771,
+                  "memoryUsageBytes": 51798122,
+                  "wallTime": 871550,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 102737,
+                  "cpuTimeP99": 864771,
+                  "wallTimeP50": 103699,
+                  "wallTimeP99": 871550
+                },
+                "sum": {
+                  "cpuTimeUs": 2411288,
+                  "errors": 0,
+                  "requests": 14,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:57Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1301422,
+                  "memoryUsageBytes": 52161250,
+                  "wallTime": 1331036,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 166127,
+                  "cpuTimeP99": 1301422,
+                  "wallTimeP50": 167461,
+                  "wallTimeP99": 1331036
+                },
+                "sum": {
+                  "cpuTimeUs": 2570625,
+                  "errors": 0,
+                  "requests": 8,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:36Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 21961,
+                  "memoryUsageBytes": 45235481,
+                  "wallTime": 2027433,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 21961,
+                  "cpuTimeP99": 21961,
+                  "wallTimeP50": 2027433,
+                  "wallTimeP99": 2027433
+                },
+                "sum": {
+                  "cpuTimeUs": 21961,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:18Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1303,
+                  "memoryUsageBytes": 2814406,
+                  "wallTime": 1805,
+                  "wasmMemoryBytes": 0
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1303,
+                  "cpuTimeP99": 1303,
+                  "wallTimeP50": 1805,
+                  "wallTimeP99": 1805
+                },
+                "sum": {
+                  "cpuTimeUs": 1303,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:36:09Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 464553,
+                  "memoryUsageBytes": 43458054,
+                  "wallTime": 467646,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 464553,
+                  "cpuTimeP99": 464553,
+                  "wallTimeP50": 467646,
+                  "wallTimeP99": 467646
+                },
+                "sum": {
+                  "cpuTimeUs": 464553,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:51Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 778277,
+                  "memoryUsageBytes": 51275693,
+                  "wallTime": 784137,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 220628,
+                  "cpuTimeP99": 778277,
+                  "wallTimeP50": 225398,
+                  "wallTimeP99": 784137
+                },
+                "sum": {
+                  "cpuTimeUs": 1550240,
+                  "errors": 0,
+                  "requests": 4,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:37Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1983917,
+                  "memoryUsageBytes": 46070507,
+                  "wallTime": 2058004,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 665056,
+                  "cpuTimeP99": 1983917,
+                  "wallTimeP50": 670670,
+                  "wallTimeP99": 2058004
+                },
+                "sum": {
+                  "cpuTimeUs": 4209487,
+                  "errors": 0,
+                  "requests": 4,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:26Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 2154057,
+                  "memoryUsageBytes": 43953071,
+                  "wallTime": 2422741,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 272601,
+                  "cpuTimeP99": 2154057,
+                  "wallTimeP50": 274884,
+                  "wallTimeP99": 2422741
+                },
+                "sum": {
+                  "cpuTimeUs": 4199966,
+                  "errors": 0,
+                  "requests": 9,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:50Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1186712,
+                  "memoryUsageBytes": 51110262,
+                  "wallTime": 1200387,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 549360,
+                  "cpuTimeP99": 1186712,
+                  "wallTimeP50": 553439,
+                  "wallTimeP99": 1200387
+                },
+                "sum": {
+                  "cpuTimeUs": 2860731,
+                  "errors": 0,
+                  "requests": 4,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:43Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1620098,
+                  "memoryUsageBytes": 47037034,
+                  "wallTime": 1679406,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 87135,
+                  "cpuTimeP99": 1620098,
+                  "wallTimeP50": 87643,
+                  "wallTimeP99": 1679406
+                },
+                "sum": {
+                  "cpuTimeUs": 3159195,
+                  "errors": 0,
+                  "requests": 9,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:32Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 2098335,
+                  "memoryUsageBytes": 45140495,
+                  "wallTime": 2215776,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 770358,
+                  "cpuTimeP99": 2098335,
+                  "wallTimeP50": 776089,
+                  "wallTimeP99": 2215776
+                },
+                "sum": {
+                  "cpuTimeUs": 3835168,
+                  "errors": 0,
+                  "requests": 5,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:38Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1904971,
+                  "memoryUsageBytes": 46143761,
+                  "wallTime": 1997945,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1904971,
+                  "cpuTimeP99": 1904971,
+                  "wallTimeP50": 1997945,
+                  "wallTimeP99": 1997945
+                },
+                "sum": {
+                  "cpuTimeUs": 1904971,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:10Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 2847485,
+                  "memoryUsageBytes": 43097395,
+                  "wallTime": 3013682,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 2847485,
+                  "cpuTimeP99": 2847485,
+                  "wallTimeP50": 3013682,
+                  "wallTimeP99": 3013682
+                },
+                "sum": {
+                  "cpuTimeUs": 2847485,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:30Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1746830,
+                  "memoryUsageBytes": 44416195,
+                  "wallTime": 3441019,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1685902,
+                  "cpuTimeP99": 1746830,
+                  "wallTimeP50": 1752221,
+                  "wallTimeP99": 3441019
+                },
+                "sum": {
+                  "cpuTimeUs": 3432732,
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:22Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1609133,
+                  "memoryUsageBytes": 46528340,
+                  "wallTime": 1666690,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 22370,
+                  "cpuTimeP99": 1609133,
+                  "wallTimeP50": 22893,
+                  "wallTimeP99": 1666690
+                },
+                "sum": {
+                  "cpuTimeUs": 1631503,
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:38Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1035926,
+                  "memoryUsageBytes": 46170512,
+                  "wallTime": 1044412,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 796018,
+                  "cpuTimeP99": 1035926,
+                  "wallTimeP50": 800957,
+                  "wallTimeP99": 1044412
+                },
+                "sum": {
+                  "cpuTimeUs": 2015785,
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:34Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1953926,
+                  "memoryUsageBytes": 45210318,
+                  "wallTime": 4017731,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1879279,
+                  "cpuTimeP99": 1953926,
+                  "wallTimeP50": 1968699,
+                  "wallTimeP99": 4017731
+                },
+                "sum": {
+                  "cpuTimeUs": 3833205,
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 2.727272727272727
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:58Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 187898,
+                  "memoryUsageBytes": 52467826,
+                  "wallTime": 189276,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 9376,
+                  "cpuTimeP99": 187898,
+                  "wallTimeP50": 9795,
+                  "wallTimeP99": 189276
+                },
+                "sum": {
+                  "cpuTimeUs": 737686,
+                  "errors": 0,
+                  "requests": 30,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:45Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1207936,
+                  "memoryUsageBytes": 47969337,
+                  "wallTime": 1222905,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 170612,
+                  "cpuTimeP99": 1207936,
+                  "wallTimeP50": 172841,
+                  "wallTimeP99": 1222905
+                },
+                "sum": {
+                  "cpuTimeUs": 2303402,
+                  "errors": 0,
+                  "requests": 8,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:36:06Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 107068,
+                  "memoryUsageBytes": 53973210,
+                  "wallTime": 110461,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 107068,
+                  "cpuTimeP99": 107068,
+                  "wallTimeP50": 110461,
+                  "wallTimeP99": 110461
+                },
+                "sum": {
+                  "cpuTimeUs": 107068,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:36:10Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 212523,
+                  "memoryUsageBytes": 43552991,
+                  "wallTime": 215335,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 212523,
+                  "cpuTimeP99": 212523,
+                  "wallTimeP50": 215335,
+                  "wallTimeP99": 215335
+                },
+                "sum": {
+                  "cpuTimeUs": 212523,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:17Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1666852,
+                  "memoryUsageBytes": 44813062,
+                  "wallTime": 1740359,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1666852,
+                  "cpuTimeP99": 1666852,
+                  "wallTimeP50": 1740359,
+                  "wallTimeP99": 1740359
+                },
+                "sum": {
+                  "cpuTimeUs": 1666852,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:28Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1434373,
+                  "memoryUsageBytes": 44437979,
+                  "wallTime": 1495414,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1058438,
+                  "cpuTimeP99": 1434373,
+                  "wallTimeP50": 1069962,
+                  "wallTimeP99": 1495414
+                },
+                "sum": {
+                  "cpuTimeUs": 2741835,
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.0833333333333333
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:41Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1565964,
+                  "memoryUsageBytes": 46884500,
+                  "wallTime": 1614178,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 26149,
+                  "cpuTimeP99": 1565964,
+                  "wallTimeP50": 26859,
+                  "wallTimeP99": 1614178
+                },
+                "sum": {
+                  "cpuTimeUs": 3542544,
+                  "errors": 0,
+                  "requests": 13,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:36Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1191161,
+                  "memoryUsageBytes": 45506219,
+                  "wallTime": 1219150,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 871849,
+                  "cpuTimeP99": 1191161,
+                  "wallTimeP50": 875169,
+                  "wallTimeP99": 1219150
+                },
+                "sum": {
+                  "cpuTimeUs": 2063010,
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.3846153846153846
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:31Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 894034,
+                  "memoryUsageBytes": 44963621,
+                  "wallTime": 901201,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 20964,
+                  "cpuTimeP99": 894034,
+                  "wallTimeP50": 21613,
+                  "wallTimeP99": 901201
+                },
+                "sum": {
+                  "cpuTimeUs": 2200498,
+                  "errors": 0,
+                  "requests": 18,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:32Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 23291,
+                  "memoryUsageBytes": 44424768,
+                  "wallTime": 1829248,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 23291,
+                  "cpuTimeP99": 23291,
+                  "wallTimeP50": 1829248,
+                  "wallTimeP99": 1829248
+                },
+                "sum": {
+                  "cpuTimeUs": 23291,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.2727272727272727
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:30Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 739369,
+                  "memoryUsageBytes": 45161259,
+                  "wallTime": 741264,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 10063,
+                  "cpuTimeP99": 739369,
+                  "wallTimeP50": 10620,
+                  "wallTimeP99": 741264
+                },
+                "sum": {
+                  "cpuTimeUs": 1692578,
+                  "errors": 0,
+                  "requests": 14,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 2.5
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:44Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 567538,
+                  "memoryUsageBytes": 47702539,
+                  "wallTime": 571463,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 446099,
+                  "cpuTimeP99": 567538,
+                  "wallTimeP50": 449707,
+                  "wallTimeP99": 571463
+                },
+                "sum": {
+                  "cpuTimeUs": 6046831,
+                  "errors": 0,
+                  "requests": 15,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:33Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1357113,
+                  "memoryUsageBytes": 45288963,
+                  "wallTime": 1442281,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 767927,
+                  "cpuTimeP99": 1357113,
+                  "wallTimeP50": 772691,
+                  "wallTimeP99": 1442281
+                },
+                "sum": {
+                  "cpuTimeUs": 2680091,
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.2307692307692308
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:09Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 256013,
+                  "memoryUsageBytes": 40087661,
+                  "wallTime": 258203,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 435,
+                  "cpuTimeP99": 256013,
+                  "wallTimeP50": 689,
+                  "wallTimeP99": 258203
+                },
+                "sum": {
+                  "cpuTimeUs": 337870,
+                  "errors": 0,
+                  "requests": 16,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.0909090909090908
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:46Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1124171,
+                  "memoryUsageBytes": 48401058,
+                  "wallTime": 1156196,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 36502,
+                  "cpuTimeP99": 1124171,
+                  "wallTimeP50": 37401,
+                  "wallTimeP99": 1156196
+                },
+                "sum": {
+                  "cpuTimeUs": 3045535,
+                  "errors": 0,
+                  "requests": 24,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:27Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 29698,
+                  "memoryUsageBytes": 41271349,
+                  "wallTime": 2328971,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 29698,
+                  "cpuTimeP99": 29698,
+                  "wallTimeP50": 2328971,
+                  "wallTimeP99": 2328971
+                },
+                "sum": {
+                  "cpuTimeUs": 29698,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.375
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:36:01Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 68158,
+                  "memoryUsageBytes": 52778379,
+                  "wallTime": 69433,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 11723,
+                  "cpuTimeP99": 68158,
+                  "wallTimeP50": 12196,
+                  "wallTimeP99": 69433
+                },
+                "sum": {
+                  "cpuTimeUs": 265463,
+                  "errors": 0,
+                  "requests": 11,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 3.375
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:42Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 272753,
+                  "memoryUsageBytes": 46966218,
+                  "wallTime": 275844,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 2901,
+                  "cpuTimeP99": 272753,
+                  "wallTimeP50": 3301,
+                  "wallTimeP99": 275844
+                },
+                "sum": {
+                  "cpuTimeUs": 918926,
+                  "errors": 0,
+                  "requests": 27,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.4
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:40Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 130862,
+                  "memoryUsageBytes": 46901487,
+                  "wallTime": 133130,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 12002,
+                  "cpuTimeP99": 130862,
+                  "wallTimeP50": 12475,
+                  "wallTimeP99": 133130
+                },
+                "sum": {
+                  "cpuTimeUs": 248953,
+                  "errors": 0,
+                  "requests": 7,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:46Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1591513,
+                  "memoryUsageBytes": 50393906,
+                  "wallTime": 5470504,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1591513,
+                  "cpuTimeP99": 1591513,
+                  "wallTimeP50": 5470504,
+                  "wallTimeP99": 5470504
+                },
+                "sum": {
+                  "cpuTimeUs": 1591513,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:23Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 571964,
+                  "memoryUsageBytes": 43365937,
+                  "wallTime": 578039,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 125172,
+                  "cpuTimeP99": 571964,
+                  "wallTimeP50": 127680,
+                  "wallTimeP99": 578039
+                },
+                "sum": {
+                  "cpuTimeUs": 2792800,
+                  "errors": 0,
+                  "requests": 14,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:36:08Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1281262,
+                  "memoryUsageBytes": 43362728,
+                  "wallTime": 1330296,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1281262,
+                  "cpuTimeP99": 1281262,
+                  "wallTimeP50": 1330296,
+                  "wallTimeP99": 1330296
+                },
+                "sum": {
+                  "cpuTimeUs": 1281262,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:29Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 2267987,
+                  "memoryUsageBytes": 44843999,
+                  "wallTime": 2393187,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 800008,
+                  "cpuTimeP99": 2267987,
+                  "wallTimeP50": 804616,
+                  "wallTimeP99": 2393187
+                },
+                "sum": {
+                  "cpuTimeUs": 4464192,
+                  "errors": 0,
+                  "requests": 5,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.3125
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:54Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1033833,
+                  "memoryUsageBytes": 51854320,
+                  "wallTime": 1040165,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 25396,
+                  "cpuTimeP99": 1033833,
+                  "wallTimeP50": 25867,
+                  "wallTimeP99": 1040165
+                },
+                "sum": {
+                  "cpuTimeUs": 1936003,
+                  "errors": 0,
+                  "requests": 21,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:39Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1986677,
+                  "memoryUsageBytes": 46557616,
+                  "wallTime": 2102101,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 167712,
+                  "cpuTimeP99": 1986677,
+                  "wallTimeP50": 170216,
+                  "wallTimeP99": 2102101
+                },
+                "sum": {
+                  "cpuTimeUs": 5046211,
+                  "errors": 0,
+                  "requests": 7,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:22Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 452125,
+                  "memoryUsageBytes": 43098255,
+                  "wallTime": 453444,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 88194,
+                  "cpuTimeP99": 452125,
+                  "wallTimeP50": 89928,
+                  "wallTimeP99": 453444
+                },
+                "sum": {
+                  "cpuTimeUs": 2434947,
+                  "errors": 0,
+                  "requests": 20,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:15Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1641766,
+                  "memoryUsageBytes": 44415806,
+                  "wallTime": 1706568,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 20799,
+                  "cpuTimeP99": 1641766,
+                  "wallTimeP50": 21220,
+                  "wallTimeP99": 1706568
+                },
+                "sum": {
+                  "cpuTimeUs": 1662565,
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.2941176470588236
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:55Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 140405,
+                  "memoryUsageBytes": 52040278,
+                  "wallTime": 141153,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 17944,
+                  "cpuTimeP99": 140405,
+                  "wallTimeP50": 18536,
+                  "wallTimeP99": 141153
+                },
+                "sum": {
+                  "cpuTimeUs": 560172,
+                  "errors": 0,
+                  "requests": 22,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:50Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1712181,
+                  "memoryUsageBytes": 52117821,
+                  "wallTime": 5445808,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1712181,
+                  "cpuTimeP99": 1712181,
+                  "wallTimeP50": 5445808,
+                  "wallTimeP99": 5445808
+                },
+                "sum": {
+                  "cpuTimeUs": 1712181,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:49Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 743495,
+                  "memoryUsageBytes": 50974591,
+                  "wallTime": 745656,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 599767,
+                  "cpuTimeP99": 743495,
+                  "wallTimeP50": 601706,
+                  "wallTimeP99": 745656
+                },
+                "sum": {
+                  "cpuTimeUs": 2487687,
+                  "errors": 0,
+                  "requests": 5,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:18Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 29785,
+                  "memoryUsageBytes": 44821635,
+                  "wallTime": 30604,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 29785,
+                  "cpuTimeP99": 29785,
+                  "wallTimeP50": 30604,
+                  "wallTimeP99": 30604
+                },
+                "sum": {
+                  "cpuTimeUs": 29785,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:48Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1438552,
+                  "memoryUsageBytes": 50838531,
+                  "wallTime": 1487189,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 202352,
+                  "cpuTimeP99": 1438552,
+                  "wallTimeP50": 204787,
+                  "wallTimeP99": 1487189
+                },
+                "sum": {
+                  "cpuTimeUs": 4183925,
+                  "errors": 0,
+                  "requests": 9,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:27Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1013060,
+                  "memoryUsageBytes": 44305324,
+                  "wallTime": 1018664,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 343582,
+                  "cpuTimeP99": 1013060,
+                  "wallTimeP50": 346533,
+                  "wallTimeP99": 1018664
+                },
+                "sum": {
+                  "cpuTimeUs": 2101071,
+                  "errors": 0,
+                  "requests": 4,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:20Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1527730,
+                  "memoryUsageBytes": 46131473,
+                  "wallTime": 1589219,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1527730,
+                  "cpuTimeP99": 1527730,
+                  "wallTimeP50": 1589219,
+                  "wallTimeP99": 1589219
+                },
+                "sum": {
+                  "cpuTimeUs": 1527730,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:47Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 931679,
+                  "memoryUsageBytes": 48571413,
+                  "wallTime": 940194,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 134979,
+                  "cpuTimeP99": 931679,
+                  "wallTimeP50": 137372,
+                  "wallTimeP99": 940194
+                },
+                "sum": {
+                  "cpuTimeUs": 2833180,
+                  "errors": 0,
+                  "requests": 8,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:24Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 470723,
+                  "memoryUsageBytes": 43515466,
+                  "wallTime": 475929,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 117711,
+                  "cpuTimeP99": 470723,
+                  "wallTimeP50": 120840,
+                  "wallTimeP99": 475929
+                },
+                "sum": {
+                  "cpuTimeUs": 2006669,
+                  "errors": 0,
+                  "requests": 11,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.1818181818181819
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:59Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 38692,
+                  "memoryUsageBytes": 52533069,
+                  "wallTime": 39102,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 17857,
+                  "cpuTimeP99": 38692,
+                  "wallTimeP50": 18305,
+                  "wallTimeP99": 39102
+                },
+                "sum": {
+                  "cpuTimeUs": 226921,
+                  "errors": 0,
+                  "requests": 13,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:36:07Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 273409,
+                  "memoryUsageBytes": 54404764,
+                  "wallTime": 275647,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 105634,
+                  "cpuTimeP99": 273409,
+                  "wallTimeP50": 108249,
+                  "wallTimeP99": 275647
+                },
+                "sum": {
+                  "cpuTimeUs": 379043,
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:24Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1649538,
+                  "memoryUsageBytes": 46925596,
+                  "wallTime": 1710596,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1649538,
+                  "cpuTimeP99": 1649538,
+                  "wallTimeP50": 1710596,
+                  "wallTimeP99": 1710596
+                },
+                "sum": {
+                  "cpuTimeUs": 1649538,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:21Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 222307,
+                  "memoryUsageBytes": 41156447,
+                  "wallTime": 234711,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 8873,
+                  "cpuTimeP99": 222307,
+                  "wallTimeP50": 9577,
+                  "wallTimeP99": 234711
+                },
+                "sum": {
+                  "cpuTimeUs": 706274,
+                  "errors": 0,
+                  "requests": 20,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:26Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 3541208,
+                  "memoryUsageBytes": 47322463,
+                  "wallTime": 3882111,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1614143,
+                  "cpuTimeP99": 3541208,
+                  "wallTimeP50": 1665876,
+                  "wallTimeP99": 3882111
+                },
+                "sum": {
+                  "cpuTimeUs": 5181521,
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:34Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 2193681,
+                  "memoryUsageBytes": 45437042,
+                  "wallTime": 2339141,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 936164,
+                  "cpuTimeP99": 2193681,
+                  "wallTimeP50": 939281,
+                  "wallTimeP99": 2339141
+                },
+                "sum": {
+                  "cpuTimeUs": 3664608,
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:35Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 998020,
+                  "memoryUsageBytes": 45617051,
+                  "wallTime": 1000687,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 939017,
+                  "cpuTimeP99": 998020,
+                  "wallTimeP50": 944127,
+                  "wallTimeP99": 1000687
+                },
+                "sum": {
+                  "cpuTimeUs": 2847138,
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:13Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1815318,
+                  "memoryUsageBytes": 44018939,
+                  "wallTime": 1899524,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1815318,
+                  "cpuTimeP99": 1815318,
+                  "wallTimeP50": 1899524,
+                  "wallTimeP99": 1899524
+                },
+                "sum": {
+                  "cpuTimeUs": 1815318,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.9
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:25Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1069357,
+                  "memoryUsageBytes": 43706853,
+                  "wallTime": 1088825,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 64892,
+                  "cpuTimeP99": 1069357,
+                  "wallTimeP50": 65853,
+                  "wallTimeP99": 1088825
+                },
+                "sum": {
+                  "cpuTimeUs": 2527528,
+                  "errors": 0,
+                  "requests": 19,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.3
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:36:02Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 306941,
+                  "memoryUsageBytes": 52881067,
+                  "wallTime": 309449,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 8153,
+                  "cpuTimeP99": 306941,
+                  "wallTimeP50": 8596,
+                  "wallTimeP99": 309449
+                },
+                "sum": {
+                  "cpuTimeUs": 786601,
+                  "errors": 0,
+                  "requests": 13,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:48Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1862467,
+                  "memoryUsageBytes": 50791162,
+                  "wallTime": 5520507,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1862467,
+                  "cpuTimeP99": 1862467,
+                  "wallTimeP50": 5520507,
+                  "wallTimeP99": 5520507
+                },
+                "sum": {
+                  "cpuTimeUs": 1862467,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1.1666666666666667
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:35:52Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 742570,
+                  "memoryUsageBytes": 51492833,
+                  "wallTime": 747549,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 100181,
+                  "cpuTimeP99": 742570,
+                  "wallTimeP50": 104362,
+                  "wallTimeP99": 747549
+                },
+                "sum": {
+                  "cpuTimeUs": 1767844,
+                  "errors": 0,
+                  "requests": 7,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:42Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1841359,
+                  "memoryUsageBytes": 49194668,
+                  "wallTime": 5390566,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1642945,
+                  "cpuTimeP99": 1841359,
+                  "wallTimeP50": 1705809,
+                  "wallTimeP99": 5390566
+                },
+                "sum": {
+                  "cpuTimeUs": 5348491,
+                  "errors": 0,
+                  "requests": 5,
+                  "subrequests": 0
+                }
+              },
+              {
+                "avg": {
+                  "sampleInterval": 1
+                },
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-09T05:33:19Z",
+                  "scriptName": "yude-men-cpsat-search",
+                  "scriptVersion": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 1518578,
+                  "memoryUsageBytes": 45472073,
+                  "wallTime": 1563525,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 1518578,
+                  "cpuTimeP99": 1518578,
+                  "wallTimeP50": 1563525,
+                  "wallTimeP99": 1563525
+                },
+                "sum": {
+                  "cpuTimeUs": 1518578,
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "summary": {
+    "rows": 69,
+    "requests": 519,
+    "errors": 0,
+    "cpuTimeSeconds": 144.704755,
+    "maxSampleInterval": 3.375,
+    "statuses": [
+      "success"
+    ],
+    "maxCpuTimeMs": 3541.208,
+    "maxMemoryBytes": 54404764,
+    "maxWasmMemoryBytes": 33554432
+  }
+}

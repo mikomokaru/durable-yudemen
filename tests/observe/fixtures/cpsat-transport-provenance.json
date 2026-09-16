@@ -1,0 +1,86 @@
+[
+  {
+    "mode": "probe",
+    "origin": "probe",
+    "parentEventId": null,
+    "codecAccepted": true,
+    "transportAccepted": true
+  },
+  {
+    "mode": "probe",
+    "origin": "probe",
+    "parentEventId": "persist-1",
+    "codecAccepted": false,
+    "transportAccepted": false
+  },
+  {
+    "mode": "probe",
+    "origin": "engine",
+    "parentEventId": null,
+    "codecAccepted": false,
+    "transportAccepted": false
+  },
+  {
+    "mode": "probe",
+    "origin": "engine",
+    "parentEventId": "persist-1",
+    "codecAccepted": false,
+    "transportAccepted": false
+  },
+  {
+    "mode": "live",
+    "origin": "probe",
+    "parentEventId": null,
+    "codecAccepted": false,
+    "transportAccepted": false
+  },
+  {
+    "mode": "live",
+    "origin": "probe",
+    "parentEventId": "persist-1",
+    "codecAccepted": false,
+    "transportAccepted": false
+  },
+  {
+    "mode": "live",
+    "origin": "engine",
+    "parentEventId": null,
+    "codecAccepted": false,
+    "transportAccepted": false
+  },
+  {
+    "mode": "live",
+    "origin": "engine",
+    "parentEventId": "persist-1",
+    "codecAccepted": true,
+    "transportAccepted": true
+  },
+  {
+    "mode": "fake",
+    "origin": "probe",
+    "parentEventId": null,
+    "codecAccepted": true,
+    "transportAccepted": false
+  },
+  {
+    "mode": "fake",
+    "origin": "probe",
+    "parentEventId": "persist-1",
+    "codecAccepted": true,
+    "transportAccepted": false
+  },
+  {
+    "mode": "fake",
+    "origin": "engine",
+    "parentEventId": null,
+    "codecAccepted": true,
+    "transportAccepted": false
+  },
+  {
+    "mode": "fake",
+    "origin": "engine",
+    "parentEventId": "persist-1",
+    "codecAccepted": true,
+    "transportAccepted": false
+  }
+]
