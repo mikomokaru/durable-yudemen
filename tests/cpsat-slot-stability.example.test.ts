@@ -19,6 +19,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
+import { cpsatCorpusAvailable } from "./cpsat-corpus";
 
 interface Report {
   readonly rows: readonly {
@@ -63,16 +64,24 @@ async function churn(flags: readonly string[]): Promise<{ compared: number; chan
   return { compared, changed };
 }
 
-it("**連続する計画で釜が入れ替わらない**（前回の釜を hint に使う）", async () => {
-  const now = await churn([]);
-  expect(now.compared).toBeGreaterThan(20);
-  // 前回と同じ釜が使えるのに移った杯は 1 つも無い。
-  expect(now.changed).toBe(0);
-}, 180_000);
+it.skipIf(!cpsatCorpusAvailable)(
+  "**連続する計画で釜が入れ替わらない**（前回の釜を hint に使う）",
+  async () => {
+    const now = await churn([]);
+    expect(now.compared).toBeGreaterThan(20);
+    // 前回と同じ釜が使えるのに移った杯は 1 つも無い。
+    expect(now.changed).toBe(0);
+  },
+  180_000,
+);
 
-it("**負の対照**——前回の釜を見ない旧い形では、ほぼ全数が別の釜へ移る", async () => {
-  const legacy = await churn(["--legacy-hint-slots"]);
-  expect(legacy.compared).toBeGreaterThan(20);
-  // 本番の実測（16/16・23/23・22/22）と同じ桁の揺れが出る。**試験に歯があることの根拠。**
-  expect(legacy.changed / legacy.compared).toBeGreaterThan(0.5);
-}, 180_000);
+it.skipIf(!cpsatCorpusAvailable)(
+  "**負の対照**——前回の釜を見ない旧い形では、ほぼ全数が別の釜へ移る",
+  async () => {
+    const legacy = await churn(["--legacy-hint-slots"]);
+    expect(legacy.compared).toBeGreaterThan(20);
+    // 本番の実測（16/16・23/23・22/22）と同じ桁の揺れが出る。**試験に歯があることの根拠。**
+    expect(legacy.changed / legacy.compared).toBeGreaterThan(0.5);
+  },
+  180_000,
+);

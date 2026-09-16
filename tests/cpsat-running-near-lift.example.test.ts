@@ -22,6 +22,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
 import { CPSAT_DELIVERY_LEAD_MS } from "../src/cpsat/request";
+import { cpsatCorpusAvailable } from "./cpsat-corpus";
 
 interface Report {
   readonly rows: readonly { readonly results?: readonly { readonly ok: boolean }[] }[];
@@ -55,16 +56,24 @@ async function solved(endsInMs: number): Promise<{ ok: number; total: number }> 
   return { ok: results.filter((result) => result.ok).length, total: results.length };
 }
 
-it("**lead の窓の内側で上がる走行中があっても解ける**（残り 1 秒）", async () => {
-  // 1 秒後に上がる麺。lead（8 秒）よりずっと手前で、旧い実装はここで全滅した。
-  expect(CPSAT_DELIVERY_LEAD_MS).toBeGreaterThan(1_000);
-  const near = await solved(1_000);
-  expect(near.total).toBeGreaterThan(0);
-  expect(near.ok).toBe(near.total);
-}, 180_000);
+it.skipIf(!cpsatCorpusAvailable)(
+  "**lead の窓の内側で上がる走行中があっても解ける**（残り 1 秒）",
+  async () => {
+    // 1 秒後に上がる麺。lead（8 秒）よりずっと手前で、旧い実装はここで全滅した。
+    expect(CPSAT_DELIVERY_LEAD_MS).toBeGreaterThan(1_000);
+    const near = await solved(1_000);
+    expect(near.total).toBeGreaterThan(0);
+    expect(near.ok).toBe(near.total);
+  },
+  180_000,
+);
 
-it("lead の窓の外で上がる走行中でも従来どおり解ける（残り 20 秒）", async () => {
-  const far = await solved(20_000);
-  expect(far.total).toBeGreaterThan(0);
-  expect(far.ok).toBe(far.total);
-}, 180_000);
+it.skipIf(!cpsatCorpusAvailable)(
+  "lead の窓の外で上がる走行中でも従来どおり解ける（残り 20 秒）",
+  async () => {
+    const far = await solved(20_000);
+    expect(far.total).toBeGreaterThan(0);
+    expect(far.ok).toBe(far.total);
+  },
+  180_000,
+);

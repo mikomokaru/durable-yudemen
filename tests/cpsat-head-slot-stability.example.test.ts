@@ -20,6 +20,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
+import { cpsatCorpusAvailable } from "./cpsat-corpus";
 
 interface Chain {
   readonly compared: number;
@@ -98,9 +99,13 @@ it.skip("**間もなく始まる杯の釜は動かない**（既定の重み）"
   expect(now.headSlotChanged).toBe(0);
 }, 180_000);
 
-it("**負の対照**——重みを一律（倍率 1）に戻すと動く", async () => {
-  const flat = await churn(["--head-factor", "1"]);
-  expect(flat.headCompared).toBeGreaterThan(10);
-  // 本番と同じ桁の揺れが出る。**試験に歯があることの根拠。**
-  expect(flat.headSlotChanged).toBeGreaterThan(0);
-}, 180_000);
+it.skipIf(!cpsatCorpusAvailable)(
+  "**負の対照**——重みを一律（倍率 1）に戻すと動く",
+  async () => {
+    const flat = await churn(["--head-factor", "1"]);
+    expect(flat.headCompared).toBeGreaterThan(10);
+    // 本番と同じ桁の揺れが出る。**試験に歯があることの根拠。**
+    expect(flat.headSlotChanged).toBeGreaterThan(0);
+  },
+  180_000,
+);

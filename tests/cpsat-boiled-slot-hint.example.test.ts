@@ -23,6 +23,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
+import { cpsatCorpusAvailable } from "./cpsat-corpus";
 
 interface Report {
   readonly rows: readonly { readonly results?: readonly { readonly ok: boolean }[] }[];
@@ -57,22 +58,34 @@ async function solved(endsInMs: number, extra: readonly string[] = []) {
   return { ok: results.filter((result) => result.ok).length, total: results.length };
 }
 
-it("**既に上がっている走行中があっても解ける**（残り −60 秒）", async () => {
-  const past = await solved(-60_000);
-  expect(past.total).toBeGreaterThan(0);
-  expect(past.ok).toBe(past.total);
-}, 180_000);
+it.skipIf(!cpsatCorpusAvailable)(
+  "**既に上がっている走行中があっても解ける**（残り −60 秒）",
+  async () => {
+    const past = await solved(-60_000);
+    expect(past.total).toBeGreaterThan(0);
+    expect(past.ok).toBe(past.total);
+  },
+  180_000,
+);
 
-it("**その局面の hint 自体がモデルの制約を満たす**（固定して解けることで示す）", async () => {
-  // hint を固定して解いて答えが返れば、hint は実行可能である。旧実装はここで `INFEASIBLE` になった。
-  const pinned = await solved(-60_000, ["--fix-hints"]);
-  expect(pinned.total).toBeGreaterThan(0);
-  expect(pinned.ok).toBe(pinned.total);
-}, 180_000);
+it.skipIf(!cpsatCorpusAvailable)(
+  "**その局面の hint 自体がモデルの制約を満たす**（固定して解けることで示す）",
+  async () => {
+    // hint を固定して解いて答えが返れば、hint は実行可能である。旧実装はここで `INFEASIBLE` になった。
+    const pinned = await solved(-60_000, ["--fix-hints"]);
+    expect(pinned.total).toBeGreaterThan(0);
+    expect(pinned.ok).toBe(pinned.total);
+  },
+  180_000,
+);
 
-it("何日も前に上がったまま Complete されていない走行中でも解ける（実測にあった局面）", async () => {
-  // 本番の `yamaokaya-1125` に、12.07 日前（−1,043,026 秒）に上がったタイマーが 2 本あった。
-  const ancient = await solved(-1_043_026_000);
-  expect(ancient.total).toBeGreaterThan(0);
-  expect(ancient.ok).toBe(ancient.total);
-}, 180_000);
+it.skipIf(!cpsatCorpusAvailable)(
+  "何日も前に上がったまま Complete されていない走行中でも解ける（実測にあった局面）",
+  async () => {
+    // 本番の `yamaokaya-1125` に、12.07 日前（−1,043,026 秒）に上がったタイマーが 2 本あった。
+    const ancient = await solved(-1_043_026_000);
+    expect(ancient.total).toBeGreaterThan(0);
+    expect(ancient.ok).toBe(ancient.total);
+  },
+  180_000,
+);
