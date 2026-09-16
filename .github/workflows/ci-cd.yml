@@ -101,6 +101,14 @@ jobs:
       - name: Generate short-names Worker types
         run: pnpm short-names:types
 
+      # CP-SAT 側の Worker 型。`pnpm build` は `tsc --noEmit` を含むので、ci job と同じく
+      # ここでも生成しておく必要がある（2026-09-16、ci だけに足して deploy が落ちた）。
+      - name: Generate CP-SAT Worker types
+        run: pnpm cpsat:types
+
+      - name: Generate CP-SAT transport types
+        run: pnpm cpsat:transport:types
+
       # assets バインディング（dist）が必要なため、デプロイ前に本番ビルドする。
       # build = tsc --noEmit && vite build。OBSERVE_DEBUG は wrangler.jsonc 既定の "0" のまま。
       - name: Build
