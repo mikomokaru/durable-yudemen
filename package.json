@@ -19,7 +19,9 @@
     "poc:cpsat:bench": "node experiments/cpsat-workers/scripts/benchmark.mjs",
     "poc:cpsat:inspect": "node experiments/cpsat-workers/scripts/inspect-wasm.mjs",
     "poc:cpsat:typecheck": "tsc --noEmit --project experiments/cpsat-workers/tsconfig.json",
-    "poc:cpsat:types": "wrangler types experiments/cpsat-workers/worker-configuration.d.ts --config experiments/cpsat-workers/wrangler.jsonc --env-interface CpsatPocEnv"
+    "poc:cpsat:types": "wrangler types experiments/cpsat-workers/worker-configuration.d.ts --config experiments/cpsat-workers/wrangler.jsonc --env-interface CpsatPocEnv",
+    "cpsat:types": "wrangler types src/cpsat/worker-configuration.d.ts --config wrangler.cpsat-planner.jsonc --config wrangler.jsonc --env-interface CpsatPlannerEnv --include-runtime false",
+    "cpsat:transport:types": "wrangler types experiments/cpsat-workers/transport/worker-configuration.d.ts --config experiments/cpsat-workers/transport/wrangler.types.jsonc --env-interface CpsatTransportProbeEnv --include-runtime false"
   },
   "dependencies": {
     "jose": "^6.2.3",
