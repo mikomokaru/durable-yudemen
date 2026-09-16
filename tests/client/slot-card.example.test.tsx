@@ -24,6 +24,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { SlotCard, type SuggestionView } from "../../src/client/components/SlotCard";
 import type { GroupItem, SlotSuggestion } from "../../src/client/components/liftGroups";
 import type { SlotDisplay } from "../../src/client/components/slotDisplay";
+import type { WireOrderItem } from "../../src/domain/order";
 import { fadedTint, noodleColors } from "../../src/client/components/noodleColor";
 import {
   CANCEL_ARMED_BOUNCE_MS,
@@ -432,16 +433,34 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
     return screen.getByLabelText(/^(Boiling \d+[a-z]+|Ready): /) as HTMLElement;
   }
 
+  // ── 札の反映（item-display-abbreviation Requirements 2.1・2.2） ──────────────
+  //
+  // **可視の語と読み上げの双方に札が出る。** 一部だけ略せば同じ品目が画面で二つの名を持つ。
+  // 空辞書を渡す他のテストでは受け渡しを保証できない（prop が落ちていても同じ見え方になる）ため、
+  // ここだけ非空の辞書で問う。
+  it("品目が持つ札は、バッジの可視の語にも aria-label にも出る", () => {
+    const named: WireOrderItem = {
+      ...ITEM,
+      itemName: "特味噌ネギラーメン",
+      sizeName: "中盛",
+      shortName: "特味噌ネギ",
+    };
+    render(cardElement(running({ cluster: 4, branch: 2 }, named)));
+    const shown = badge();
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 4b: 特味噌ネギ中盛 · Table 12");
+    expect(shown.textContent).toBe("4b特味噌ネギ中盛 · 12");
+  });
+
   it("走行中：マーカーは上がり順（クラスタ番号＋枝・aria-hidden のチップ）、可視の語は卓を数だけにし、読み上げは `Table 卓` を残す", () => {
     render(cardElement(running({ cluster: 4, branch: 2 }, ITEM)));
 
     const shown = badge();
     // 読み上げ（accessible name）は卓を `Table {n}` と語る——文脈の無い読み上げで裸の数が何の数か分からなくなるため。
-    expect(shown.getAttribute("aria-label")).toBe("Boiling 4b: プレ塩 中盛 · Table 12");
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 4b: プレ塩中盛 · Table 12");
     // 上がり順は記号として先頭に置き（aria-hidden）、語がそれに続く。可視の語からは `Table` を省く。
     const marker = shown.querySelector("[aria-hidden]");
     expect(marker?.textContent).toBe("4b");
-    expect(shown.textContent).toBe("4bプレ塩 中盛 · 12");
+    expect(shown.textContent).toBe("4bプレ塩中盛 · 12");
     expect(shown.textContent).not.toContain("Table");
   });
 
@@ -450,7 +469,7 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
 
     const shown = badge();
     expect(shown.querySelector("[aria-hidden]")?.textContent).toBe("3a");
-    expect(shown.getAttribute("aria-label")).toBe("Boiling 3a: プレ塩 中盛 · Table 12");
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 3a: プレ塩中盛 · Table 12");
   });
 
   it("走行中：番号はバッジらしい丸チップ（濃色の地にピルと同じ tint を白抜き）で、点滅しない", () => {
@@ -471,8 +490,8 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
   it("走行中：卓を持たない品目は品名だけ（Table の語を出さない）", () => {
     render(cardElement(running({ cluster: 1, branch: 1 }, { ...ITEM, tableId: null })));
 
-    expect(badge().getAttribute("aria-label")).toBe("Boiling 1a: プレ塩 中盛");
-    expect(badge().textContent).toBe("1aプレ塩 中盛");
+    expect(badge().getAttribute("aria-label")).toBe("Boiling 1a: プレ塩中盛");
+    expect(badge().textContent).toBe("1aプレ塩中盛");
   });
 
   it("走行中：参照先が無ければ（アドホック・v12 由来）語は麺種だけで、番号は出る", () => {
@@ -486,10 +505,10 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
     render(cardElement(boiled(ITEM)));
 
     const shown = badge();
-    expect(shown.getAttribute("aria-label")).toBe("Ready: プレ塩 中盛 · Table 12");
+    expect(shown.getAttribute("aria-label")).toBe("Ready: プレ塩中盛 · Table 12");
     expect(shown.querySelector("[aria-hidden]")?.textContent).toBe("✓");
     // 可視の語は走行中と同じ規則で卓を数だけにする（読み上げは `Table 12` のまま）。
-    expect(shown.textContent).toBe("✓プレ塩 中盛 · 12");
+    expect(shown.textContent).toBe("✓プレ塩中盛 · 12");
   });
 
   it("茹で上がり：参照先が無ければ ✓ と麺種だけ（従来どおり）", () => {

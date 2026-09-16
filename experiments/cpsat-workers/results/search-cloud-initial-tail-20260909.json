@@ -1,0 +1,33 @@
+{
+  "events": [
+    {
+      "timestamp": 1788931920440,
+      "outcome": "ok",
+      "scriptVersion": {
+        "id": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e"
+      },
+      "cpuTime": 1,
+      "wallTime": 1,
+      "responseStatus": 200,
+      "exceptions": [],
+      "logs": []
+    },
+    {
+      "timestamp": 1788931920767,
+      "outcome": "exceededCpu",
+      "scriptVersion": {
+        "id": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e"
+      },
+      "cpuTime": 3500,
+      "wallTime": 3940,
+      "responseStatus": 503,
+      "exceptions": [
+        {
+          "name": "Error",
+          "message": "Worker exceeded CPU time limit."
+        }
+      ],
+      "logs": []
+    }
+  ]
+}

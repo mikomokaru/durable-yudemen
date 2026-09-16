@@ -137,7 +137,7 @@ describe("Feature: verified-wire-contract, Property 6: Decode_Failure の可観�
           itemIndex: 0,
         }),
       );
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForRecords(lines, 1);
     } finally {
       console.error = original;
     }

@@ -347,7 +347,7 @@ describe("Feature: lift-group-display, Property 3: 単調な出現（例外つ�
 });
 
 describe("Feature: lift-group-display, Property 5: 群の境界", () => {
-  it("ある群より前に started でない群があれば、その群の品目はどの釜にも現れない", () => {
+  it("**started でない群より後の開始時刻**の群は、その品目がどの釜にも現れない", () => {
     fc.assert(
       // Feature: lift-group-display, Property 5
       // Validates: Requirements 6.5, 2.9
@@ -360,7 +360,12 @@ describe("Feature: lift-group-display, Property 5: 群の境界", () => {
         );
         const firstStop = groups.findIndex((group) => !group.started);
         if (firstStop === -1) return;
+        // **同じ開始時刻の群は互いを待たない**（`verification/visible-groups-chain-20260915.md`）。
+        // 連鎖が隠すのは「次の群」——判断 7 の言葉で**時間的に後の群**である。改訂前はここを
+        // 「止まった群より後ろの群すべて」と読んでいたため、同時に始められる群まで隠れていた。
+        const blockedAt = groups[firstStop]!.items[0]!.recommendation.startAt;
         for (const group of groups.slice(firstStop + 1)) {
+          if (group.items[0]!.recommendation.startAt <= blockedAt) continue;
           for (const item of group.items) expect(shown.has(keyOf(item))).toBe(false);
         }
       }),

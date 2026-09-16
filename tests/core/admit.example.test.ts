@@ -49,7 +49,8 @@ const PRESETS: readonly NoodlePreset[] = [
 ];
 
 /** 1 ユニット（6 釜）・重みと許容幅は既定。 */
-const PARAMS: ScheduleParams = schedulingDefaults(1);
+/** 1 ユニット（6 釜）・重みと許容幅は既定。**計画器は TS**——この試験は改善判定が効く側を主張する。 */
+const PARAMS = { ...schedulingDefaults(1), planner: "ts" as const };
 
 /** 釜 1〜5 を遠い未来まで塞ぐ開始済み Timer。使える釜は 0 番だけになる。 */
 const BLOCKED: readonly Timer[] = [1, 2, 3, 4, 5].map((slot) =>
@@ -1054,7 +1055,10 @@ describe("admit — 置ける品目に限って計画対象と比べる（plan-s
   it("(c) 単体で上限（arms 2 + 2 = 4）を超える span 5 も同じ——置けない間は集合に無く、arms 3 で置けるようになれば欠落で落ちる", () => {
     const wide: OrderItem = { ...order("o-wide", "Short", "t-m"), slotSpan: 5 };
     const pendingWide = [LONG, M, wide];
-    const gateWide = (arrived: CookSchedule, params: ScheduleParams) =>
+    const gateWide = (
+      arrived: CookSchedule,
+      params: ScheduleParams & { readonly planner: "ts" | "cpsat" },
+    ) =>
       admit(
         arrived,
         committedSchedule([], pendingWide, BLOCKED, NOW, PRESETS, params, null),

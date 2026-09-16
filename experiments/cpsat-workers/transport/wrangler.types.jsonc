@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  // Local probe binding types only. No name, main, assets or deployment target.
+  // 生成物はそのまま置かない——runtime types と global Env の宣言を削り、interface だけを
+  // 残す。理由は worker-configuration.d.ts の冒頭に書いてある。
+  // The service name is the in-process Miniflare worker in check-app-local.mjs.
+  // This is not a cloud deployment configuration; do not add it to root bindings.
+  "compatibility_date": "2026-06-26",
+  // 求解 Worker への直接 binding は持たない。CP-SAT への到達手段は Queue だけである
+  // （design 第9節・2026-09-12）。ここに残すと生成される d.ts に型だけが残り、
+  // 設定から消しても型検査が呼び出しを通してしまう。
+  "queues": {
+    "producers": [{ "binding": "CPSAT_PLAN_QUEUE", "queue": "cpsat-plan-requests" }],
+  },
+}

@@ -1,0 +1,163 @@
+{
+  "collectedAt": "2026-09-09T05:30:35.814Z",
+  "from": "2026-09-09T05:30:00Z",
+  "to": "2026-09-09T05:30:33.743Z",
+  "account": "305d89a643ac689b4204454c5493cbde",
+  "worker": "yude-men-cpsat-search",
+  "settings": {
+    "usageModel": "standard",
+    "limits": {
+      "cpu_ms": 1000
+    },
+    "compatibilityDate": "2026-09-09",
+    "compatibilityFlags": [
+      "no_nodejs_compat",
+      "no_nodejs_compat_v2"
+    ],
+    "bindings": [
+      {
+        "name": "CF_VERSION_METADATA",
+        "type": "version_metadata"
+      },
+      {
+        "name": "SEARCH_AUTH_TOKEN",
+        "type": "secret_text"
+      },
+      {
+        "name": "SEARCH_EXPIRES_AT",
+        "type": "plain_text"
+      }
+    ]
+  },
+  "deployments": [
+    {
+      "id": "5cc9c09d-4b03-44ee-ab12-d4650a466af2",
+      "created_on": "2026-09-09T05:29:24.918018Z",
+      "versions": [
+        {
+          "version_id": "6fdc06a2-e955-4cbf-85f8-8ec7b4f2c71e",
+          "percentage": 100
+        }
+      ]
+    }
+  ],
+  "priorPocDeployments": [
+    {
+      "id": "c9ffe305-05c8-433f-b6f1-f7993bd5cee3",
+      "created_on": "2026-09-08T11:44:17.104875Z",
+      "versions": [
+        {
+          "version_id": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+          "percentage": 100
+        }
+      ]
+    }
+  ],
+  "graphql": {
+    "query": "query Metrics($account: string, $worker: string, $from: string, $to: string) {\n  viewer { accounts(filter: {accountTag: $account}) {\n    workersInvocationsAdaptive(limit: 10000, filter: {scriptName: $worker, datetime_geq: $from, datetime_leq: $to}) {\n      dimensions { scriptName scriptVersion coloCode status datetime }\n      quantiles { cpuTimeP50 cpuTimeP99 wallTimeP50 wallTimeP99 }\n      max { cpuTime wallTime memoryUsageBytes wasmMemoryBytes }\n      sum { requests errors subrequests }\n    }\n  } }\n  units: __type(name: \"AccountWorkersInvocationsAdaptiveMax\") { fields { name description } }\n  sums: __type(name: \"AccountWorkersInvocationsAdaptiveSum\") { fields { name description } }\n  averages: __type(name: \"AccountWorkersInvocationsAdaptiveAvg\") { fields { name description } }\n}",
+    "variables": {
+      "account": "305d89a643ac689b4204454c5493cbde",
+      "worker": "yude-men-cpsat-search",
+      "from": "2026-09-09T05:30:00Z",
+      "to": "2026-09-09T05:30:33.743Z"
+    },
+    "data": {
+      "averages": {
+        "fields": [
+          {
+            "description": "",
+            "name": "sampleInterval"
+          }
+        ]
+      },
+      "sums": {
+        "fields": [
+          {
+            "description": "Sum of client disconnects",
+            "name": "clientDisconnects"
+          },
+          {
+            "description": "Sum of cpu time in us",
+            "name": "cpuTimeUs"
+          },
+          {
+            "description": "Sum of Duration - GB*s",
+            "name": "duration"
+          },
+          {
+            "description": "Sum of Errors",
+            "name": "errors"
+          },
+          {
+            "description": "Sum of Request Duration in microseconds",
+            "name": "requestDuration"
+          },
+          {
+            "description": "Sum of Requests",
+            "name": "requests"
+          },
+          {
+            "description": "Sum of Response Body Sizes",
+            "name": "responseBodySize"
+          },
+          {
+            "description": "Sum of Subrequests",
+            "name": "subrequests"
+          },
+          {
+            "description": "Sum of Wall Time",
+            "name": "wallTime"
+          }
+        ]
+      },
+      "units": {
+        "fields": [
+          {
+            "description": "Maximum CPU time for one request - microseconds",
+            "name": "cpuTime"
+          },
+          {
+            "description": "Maximum duration of one request - GB*s",
+            "name": "duration"
+          },
+          {
+            "description": "Maximum V8 isolate memory usage across Worker invocations - bytes",
+            "name": "memoryUsageBytes"
+          },
+          {
+            "description": "Maximum Request Duration in microseconds",
+            "name": "requestDuration"
+          },
+          {
+            "description": "Maximum response body size for one request - bytes",
+            "name": "responseBodySize"
+          },
+          {
+            "description": "Maximum wall time for one request - microseconds",
+            "name": "wallTime"
+          },
+          {
+            "description": "Maximum WebAssembly linear memory usage across Worker invocations - bytes",
+            "name": "wasmMemoryBytes"
+          }
+        ]
+      },
+      "viewer": {
+        "accounts": [
+          {
+            "workersInvocationsAdaptive": []
+          }
+        ]
+      }
+    }
+  },
+  "summary": {
+    "rows": 0,
+    "requests": 0,
+    "errors": 0,
+    "statuses": [],
+    "maxCpuTimeMs": null,
+    "maxMemoryBytes": null,
+    "maxWasmMemoryBytes": null
+  }
+}

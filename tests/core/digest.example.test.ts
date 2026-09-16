@@ -25,6 +25,7 @@ const PARAMS: SettleParams = {
   arms: 2,
   toleranceRatio: 10,
   noodlePresets: DEFAULT_NOODLE_PRESETS,
+  planner: "ts" as const,
   orderSyncWeight: 3,
   tableSyncWeight: 2,
   affinityWeight: 1,

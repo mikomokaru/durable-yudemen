@@ -1717,7 +1717,28 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         occupiedSlotsOf([]),
         changeContext,
       );
-    const first = planWide(null);
+    // 過去の反例の配置を入力として固定する。現行の初回生成を期待値の代用にすると、候補改善でこの回帰が消える。
+    const generated = planWide(null);
+    const previousTimes = new Map<string, readonly [number, number]>([
+      ["o-2#0", [46000, 121000]],
+      ["o-2#1", [25000, 100000]],
+      ["o-3#0", [21000, 121000]],
+    ]);
+    const first = {
+      slices: generated.slices.map((slice) => ({
+        tableKey: slice.tableKey,
+        placements: slice.placements.map((p) => {
+          const times = previousTimes.get(`${p.externalOrderId}#${p.itemIndex}`);
+          return times === undefined
+            ? p
+            : {
+                ...p,
+                startAt: (NOW + times[0]) as EpochMillis,
+                serveAt: (NOW + times[1]) as EpochMillis,
+              };
+        }),
+      })),
+    };
     const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), [], pending);
 
     const second = planWide(changeContext);
@@ -1781,7 +1802,29 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         occupiedSlotsOf(running),
         changeContext,
       );
-    const first = planWide(null);
+    // 過去の反例の配置を入力として固定する。現行の初回生成を期待値の代用にすると、候補改善でこの回帰が消える。
+    const generated = planWide(null);
+    const previousTimes = new Map<string, readonly [number, number]>([
+      ["o-0#0", [28751, 80751]],
+      ["o-1#0", [5751, 80751]],
+      ["o-2#0", [5751, 80751]],
+      ["o-3#0", [23751, 75751]],
+    ]);
+    const first = {
+      slices: generated.slices.map((slice) => ({
+        tableKey: slice.tableKey,
+        placements: slice.placements.map((p) => {
+          const times = previousTimes.get(`${p.externalOrderId}#${p.itemIndex}`);
+          return times === undefined
+            ? p
+            : {
+                ...p,
+                startAt: (NOW + times[0]) as EpochMillis,
+                serveAt: (NOW + times[1]) as EpochMillis,
+              };
+        }),
+      })),
+    };
     const changeContext = changeContextOf(shownPlanOf(first, recommend(first)), running, pending);
 
     const second = planWide(changeContext);
@@ -2055,10 +2098,10 @@ describe("placeableTargets — 置ける品目（plan-stability Requirement 7・
     expect(new Set(placed.map((placement) => placement.externalOrderId))).toEqual(
       new Set(ids(placeable)),
     );
-    for (const slice of schedule.slices) expect(isStale(slice, placeable)).toBe(false);
+    for (const slice of schedule.slices) expect(isStale(slice, placeable, true)).toBe(false);
     // 正本のまま比べると、置けない品目の単独一片が「欠落」で落ちる（自前解はそれを置かない）——Requirement 7 の動機。
     const targets = planTargets(alive, NOW);
-    expect(schedule.slices.some((slice) => isStale(slice, targets))).toBe(false);
+    expect(schedule.slices.some((slice) => isStale(slice, targets, true))).toBe(false);
     expect(targets.filter((order) => !ids(placeable).includes(order.externalOrderId))).toHaveLength(
       2,
     );

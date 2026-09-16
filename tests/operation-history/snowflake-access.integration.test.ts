@@ -36,6 +36,7 @@ import {
   timerStateOf,
 } from "./support/tail-to-r2";
 import { arrivalEvidence, snowpipeIngest } from "./support/snowpipe";
+import { canonicalLinesOf } from "./support/canonical-capture";
 
 const DATABASE = "OPERATION_HISTORY";
 
@@ -147,7 +148,7 @@ async function readableContent() {
     before: timerStateOf([]),
     after: timerStateOf([producerTimer("readable", null, 0)]),
   });
-  const lines = log.mock.calls.map((call) => call[0] as string);
+  const lines = canonicalLinesOf(log.mock.calls);
 
   vi.spyOn(Date, "now").mockReturnValue(OBSERVED_AT);
   const pipeline = await runTailToR2([

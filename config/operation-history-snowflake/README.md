@@ -1,5 +1,7 @@
 # Operation History — Snowflake 側 object の宣言的正本
 
+> **2026-09-11: 旧Snowpipe方式の資料。** 現行の[統合spec](../../.kiro/specs/operation-history-log/requirements.md)はR2＋Icebergを共通保存先とし、Snowflakeは外部Icebergを読み取る。生ログの期間削除は行わない。本資料・付属SQL／Lifecycle設定は旧実装の記録であり、新方式へそのまま適用しない。runtime・設定・実環境の移行は未実施で、削除task／Lifecycleの停止も[移行タスク](../../.kiro/specs/operation-history-log/tasks.md)で実状態を確認して行う。
+
 `operation-history-log` の下流（Data Platform）が Snowflake に置く object の**宣言的な正本**。
 Snowflake は外部サービスゆえリポジトリからは適用できない。適用手順は次の二つに従ってユーザーが実行する。
 

@@ -205,24 +205,33 @@ describe("Operation History の Timer モデル規律", () => {
     expect(records[0]).not.toHaveProperty("Record_Seq");
     expect(records[0]).not.toHaveProperty("seq");
     expect(records[0]).not.toHaveProperty("nextSeq");
+    // 2026-09-16: console へ渡すのは文字列ではなく payload のオブジェクトになった。
+    // 属性の集合と並びは payload が決めるので、この snapshot がそのまま契約の姿である。
     expect(calls).toMatchInlineSnapshot(`
       [
         [
-          "{"storeId":"store-1","timerId":"timer-1","operationKind":"boil-started","eventTime":1700000000001,"slotIds":["slot-1","slot-2"],"noodleType":"Thin","firmness":"normal","startTime":1700000000000,"endTime":1700000060000}",
+          {
+            "endTime": 1700000060000,
+            "eventTime": 1700000000001,
+            "firmness": "normal",
+            "noodleType": "Thin",
+            "operationKind": "boil-started",
+            "slotIds": [
+              "slot-1",
+              "slot-2",
+            ],
+            "startTime": 1700000000000,
+            "storeId": "store-1",
+            "timerId": "timer-1",
+          },
         ],
       ]
     `);
-    const line = calls[0]?.[0];
-    expect(typeof line).toBe("string");
-    expect(JSON.parse(line as string)).not.toEqual(
-      expect.objectContaining({ Record_Seq: expect.anything() }),
-    );
-    expect(JSON.parse(line as string)).not.toEqual(
-      expect.objectContaining({ seq: expect.anything() }),
-    );
-    expect(JSON.parse(line as string)).not.toEqual(
-      expect.objectContaining({ nextSeq: expect.anything() }),
-    );
+    const payload = calls[0]?.[0];
+    expect(typeof payload).toBe("object");
+    expect(payload).not.toHaveProperty("Record_Seq");
+    expect(payload).not.toHaveProperty("seq");
+    expect(payload).not.toHaveProperty("nextSeq");
   });
 
   // order-lifecycle（タスク 3）：TimerFact に足された品目への参照 orderItem を、Operation History の読み手は無視する。
@@ -252,11 +261,13 @@ describe("Operation History の Timer モデル規律", () => {
       calls.push(args);
     });
     tryWriteOperationLines(true, observation);
-    const line = calls[0]?.[0];
-    expect(typeof line).toBe("string");
-    expect(line).not.toContain("orderItem");
-    expect(line).not.toContain("order-1");
-    expect(line).not.toContain("table-7");
+    const payload = calls[0]?.[0];
+    expect(typeof payload).toBe("object");
+    expect(payload).not.toHaveProperty("orderItem");
+    expect(payload).not.toHaveProperty("tableId");
+    // 値としても現れないことを、直列化した姿で押さえる。
+    expect(JSON.stringify(payload)).not.toContain("order-1");
+    expect(JSON.stringify(payload)).not.toContain("table-7");
   });
 
   it("Operation History の record／console 経路は採番フィールドを参照しない", () => {

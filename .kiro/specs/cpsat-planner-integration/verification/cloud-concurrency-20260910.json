@@ -1,0 +1,59 @@
+{
+  "startedAt": "2026-09-10T14:17:02.743Z",
+  "storeId": "cpsat-transport-20260909-02",
+  "rounds": [
+    {
+      "round": 0,
+      "requestId": "b3df3351-b784-403a-b394-9163274f8881",
+      "externalOrderId": "concurrency-0-86499b11",
+      "acceptStatus": 202,
+      "acceptBody": "{\"accepted\":true,\"requestId\":\"b3df3351-b784-403a-b394-9163274f8881\"}",
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderSentAtMs": 203,
+      "orderFinishedAtMs": 1466,
+      "solveFetchEndedAtMs": 1637,
+      "orderFinishedBeforeSolve": true
+    },
+    {
+      "round": 1,
+      "requestId": "461e8a72-2263-46cd-b3ca-d88227ffcc23",
+      "externalOrderId": "concurrency-1-0717d53a",
+      "acceptStatus": 202,
+      "acceptBody": "{\"accepted\":true,\"requestId\":\"461e8a72-2263-46cd-b3ca-d88227ffcc23\"}",
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderSentAtMs": 202,
+      "orderFinishedAtMs": 408,
+      "solveFetchEndedAtMs": 870,
+      "orderFinishedBeforeSolve": true
+    },
+    {
+      "round": 2,
+      "requestId": "ab03603f-c6be-41f9-bb34-a5ff458802e2",
+      "externalOrderId": "concurrency-2-3f947dd0",
+      "acceptStatus": 202,
+      "acceptBody": "{\"accepted\":true,\"requestId\":\"ab03603f-c6be-41f9-bb34-a5ff458802e2\"}",
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderSentAtMs": 202,
+      "orderFinishedAtMs": 395,
+      "solveFetchEndedAtMs": 929,
+      "orderFinishedBeforeSolve": true
+    },
+    {
+      "round": 3,
+      "requestId": "79727218-db8e-441c-aaf5-331a87ddee0f",
+      "externalOrderId": "concurrency-3-80fd0a8c",
+      "acceptStatus": 202,
+      "acceptBody": "{\"accepted\":true,\"requestId\":\"79727218-db8e-441c-aaf5-331a87ddee0f\"}",
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderSentAtMs": 201,
+      "orderFinishedAtMs": 405,
+      "solveFetchEndedAtMs": 2507,
+      "orderFinishedBeforeSolve": true
+    }
+  ],
+  "finishedAt": "2026-09-10T14:17:17.759Z"
+}

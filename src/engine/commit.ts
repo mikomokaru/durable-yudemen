@@ -19,6 +19,8 @@ import {
   cannotStart,
   initialRelease,
   isStale,
+  retainedSlice,
+  retimed,
   keepsAnchor,
   placeableTargets,
   refersTo,
@@ -64,7 +66,11 @@ export function committedSchedule(
   running: readonly Timer[],
   now: EpochMillis,
   presets: readonly NoodlePreset[],
-  params: ScheduleParams,
+  /**
+   * 採点パラメータに**計画器の選択**を添えたもの。CP-SAT モードでは尾部を自前解で埋めない（R1.4）。
+   * **省略できない**——省けば「どちらの規則で合成したか」が呼び出し側から読めなくなる。
+   */
+  params: ScheduleParams & { readonly planner: "ts" | "cpsat" },
   changeContext: ChangeContext | null,
 ): CookSchedule {
   // 計画対象は生きている待ち行列から（期限切れは `planTargets` が `now` で絞る・pending-order-expiry AC 2.1）のうち
@@ -80,8 +86,30 @@ export function committedSchedule(
   // （startable-placement 判断 1・8）。client の全釜 idle と同じ domain の述語。
   const occupied = occupiedSlotsOf(running);
   // 上げ表（「店舗全体でいつ上がるか」）も同じ走行中から引く第三の表（lift-group-planning 判断 20）。
+  // **保持している計画を、先頭が過去にならないよう全体で滑らせる（R5.9・design 第 5.4 節・2026-09-13）。**
+  //
+  // 人が推奨時刻に始めなければ、先頭の配置は過去になる。**旧い実装はそこで `cannotStart` が一片の
+  // 列を打ち切り、CP-SAT モードには作り直しが無いので画面が丸ごと空になった**——実測で
+  // 「届いてから 8 秒（＝lead）で全 24 片が消える」であり、注文が 10〜20 分に 1 件の店では
+  // ほぼ常に空だった（2026-09-13・1108 の観測）。
+  //
+  // **滑らせるのは全体を同じ幅だけである。** 相対関係（同時提供・順序・釜ごとの非重複・茹で時間）は
+  // すべて保たれるので、「遅れた分そのまま後ろへ倒れる」という現場の見え方になる。個別に動かせば
+  // 同時提供が壊れ、それは別の計画である。
+  //
+  // **上限を置かない（新着の 30 秒とは別）。** 新着の補正は「元の解が前提にした局面から遠すぎる
+  // 応答を採らない」ためのものだが、保持で滑るのは**人が始めなかった**という事実だけで、計画の
+  // 中身が古くなったわけではない。次の状態変化（新着・開始・完了）で新しい計画が来るまで、
+  // これが最良の手持ちである。滑らせた上で**物理の検査は一つも省かない**——下の `livePrefix` が
+  // 解放表・上げ表・錨を当て直す。
+  const slid =
+    params.planner === "cpsat"
+      ? (retimed({ slices: accepted }, now, Number.POSITIVE_INFINITY)?.plan.slices ?? accepted).map(
+          (slice) => ({ tableKey: slice.tableKey, placements: slice.placements }),
+        )
+      : accepted;
   const { prefix, release, lifts } = livePrefix(
-    accepted,
+    slid,
     targets,
     now,
     occupied,
@@ -91,6 +119,21 @@ export function committedSchedule(
     presets,
     params,
   );
+
+  // **CP-SAT モードでは尾部を自前解で埋めない（R1.4・2026-09-13）。**
+  //
+  // R1.4 は「CP-SAT の提案の尾部・欠落分・求解失敗を、**旧 TS 計画器による新しい提案で暗黙に
+  // 補完しない**」と定める。ここが補完の実体だった——CP-SAT の一片が 1 つも採られなければ、
+  // 確定計画は全部が新しい TS 提案になり、**画面は常に埋まる**。本番 165 店舗・334 件の受領すべてで
+  // 採用 0 件だったのに「推奨が出ている」ことを CP-SAT 由来と読み違えた原因である。
+  //
+  // **外すのは「新しい TS 提案の生成」だけで、「保持中の計画を残す」は残す。** 上の `livePrefix` が
+  // 採用済み一片の有効な残存配置を保つ（R5.9）——求解に失敗した瞬間に前回の提案まで消えるのは
+  // 別の欠陥である。
+  //
+  // 結果として CP-SAT モードで画面に出るのは 3 つだけになる：採用された CP-SAT の計画／保持中の
+  // 前回の計画／提案なし。**見えている提案はすべて CP-SAT のものだと言い切れる**（design 第 7.6 節）。
+  if (params.planner === "cpsat") return { slices: prefix };
 
   // 尾部の対象は「接頭辞が使わなかった計画対象」。全 Pending_Order から除くのではない——それでは
   // 65 件目以降が繰り上がって計画に現れ、計画対象を 64 件に限る AC 11.2 が破れる。
@@ -144,7 +187,8 @@ function livePrefix(
   initialLiftTable: LiftTable,
   members: TableMembers,
   presets: readonly NoodlePreset[],
-  params: ScheduleParams,
+  /** 計画器を含む（CP-SAT モードでは全件被覆を要求しない・R1.4）。 */
+  params: ScheduleParams & { readonly planner: "ts" | "cpsat" },
 ): {
   readonly prefix: readonly AcceptedSlice[];
   readonly release: SlotRelease;
@@ -153,8 +197,25 @@ function livePrefix(
   const prefix: AcceptedSlice[] = [];
   let release = initial;
   let lifts = initialLiftTable;
-  for (const slice of accepted) {
-    if (isStale(slice, targets) || cannotStart(slice, now, occupied)) break;
+  for (const whole of accepted) {
+    // **CP-SAT モードでは、対象から外れた配置だけを除いて残りを保持する（R5.9・2026-09-13）。**
+    //
+    // 実データの卓は 1 つなので配置は一片にまとまる。1 杯を開始するとその品目が計画対象から
+    // 外れ、`isStale` が一片ごと落とし、尾部の自前解も無いので（R1.4）**画面の推奨が全部消えた**。
+    // R5.9 は「1杯の開始や対象の繰り上がりで未配置品目が生じたことだけを理由に全提案を破棄
+    // しない」と定めている。述語は `retainedSlice`（schedule.ts）ただ一つで、`isStale` の部分被覆の
+    // 枝と同じ関数を通る。
+    //
+    // **TS モードは従来どおり一片ごと落とす。** あちらは全件被覆を保証として持ち（同一卓の配置は
+    // 互いの開始時刻を前提に提供時刻を揃える）、欠けた一片はもうその主張を満たさない。落ちた分は
+    // 尾部の自前解が置き直すので、画面が空になることもない。
+    const slice = params.planner === "cpsat" ? retainedSlice(whole, targets) : whole;
+    // 残りが無い卓は保持するものが無いだけで、後続の一片を止める理由にはならない
+    // （解放表も上げ表も進めないので、次の一片の判定は変わらない）。
+    if (slice.placements.length === 0) continue;
+    // 受理と同じ規則で見る（採用の基準と維持の基準を別に書けば黙ってずれる）。
+    if (isStale(slice, targets, params.planner !== "cpsat") || cannotStart(slice, now, occupied))
+      break;
     // 仲間が無い卓（null）でも通す——`anchor` の主張（AC 9.10 (a)）は仲間の有無に関わらず述語が見る。
     const siblings = members.get(slice.tableKey) ?? null;
     if (!keepsAnchor(slice.placements, release, lifts, siblings, targets, presets, params)) break;

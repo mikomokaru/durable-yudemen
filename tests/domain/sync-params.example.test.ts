@@ -42,7 +42,6 @@ describe("domain/store — 同期調整パラメータの固定境界", () => {
   });
 
   it.each([
-    [0, 5],
     [51, 5],
     [-1, 5],
     [1.5, 5],
@@ -53,6 +52,12 @@ describe("domain/store — 同期調整パラメータの固定境界", () => {
     [null, 5],
   ])("不正な toleranceRatio %s は既定値へ畳まれる", (raw, expected) => {
     expect(toToleranceRatio(raw)).toBe(expected);
+  });
+
+  // **0 は妥当な値である（2026-09-15 に下限を 1 → 0 へ変更）。** 調整機構そのものを止める指定で、
+  // 既定へ畳んではならない——畳むと「止めたつもりで 5% 動いている」状態になり、気づけない。
+  it("toleranceRatio 0 は調整を止める指定として保持する", () => {
+    expect(toToleranceRatio(0)).toBe(0);
   });
 
   it("arms の不正値だけを既定へ畳み、妥当な toleranceRatio は保持する", () => {

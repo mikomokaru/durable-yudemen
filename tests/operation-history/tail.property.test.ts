@@ -1,6 +1,9 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { printCanonicalOperationLine } from "../../src/operation-history/codec";
+import {
+  operationRecordPayload,
+  printCanonicalOperationLine,
+} from "../../src/operation-history/codec";
 import type { OperationRecord } from "../../src/operation-history/record";
 import { operationLinesFromTailEvents } from "../../src/operation-history/tail";
 
@@ -15,7 +18,8 @@ type CandidateBlueprint = {
   readonly scriptName: (typeof PRODUCER_SCRIPTS)[number] | (typeof OTHER_SCRIPTS)[number] | null;
   readonly level: "log" | "warn" | "error";
   readonly argumentCount: 0 | 1 | 2;
-  readonly argumentType: "string" | "number" | "object";
+  // "payload" は Producer がいま出す形（記録のオブジェクトそのもの）。"object" は名乗らないオブジェクト。
+  readonly argumentType: "string" | "number" | "object" | "payload";
   readonly lineValidity: "canonical" | "invalid-json" | "non-canonical" | "multiple-lines";
 };
 
@@ -28,12 +32,12 @@ const genCandidateBlueprint: fc.Arbitrary<CandidateBlueprint> = fc.record({
   ),
   level: fc.constantFrom("log", "warn", "error"),
   argumentCount: fc.constantFrom(0, 1, 2),
-  argumentType: fc.constantFrom("string", "number", "object"),
+  argumentType: fc.constantFrom("string", "number", "object", "payload"),
   lineValidity: fc.constantFrom("canonical", "invalid-json", "non-canonical", "multiple-lines"),
 });
 
-function canonicalLine(token: number): string {
-  return printCanonicalOperationLine({
+function recordOf(token: number): OperationRecord {
+  return {
     storeId: `store-${token}`,
     timerId: `timer-${token}`,
     operationKind: "completed",
@@ -41,7 +45,11 @@ function canonicalLine(token: number): string {
     slotIds: [`slot-${token}`],
     noodleType: `noodle-${token}`,
     firmness: "normal",
-  });
+  };
+}
+
+function canonicalLine(token: number): string {
+  return printCanonicalOperationLine(recordOf(token));
 }
 
 function stringArgument(blueprint: CandidateBlueprint): string {
@@ -65,7 +73,10 @@ function consoleArgument(blueprint: CandidateBlueprint): unknown {
     case "number":
       return blueprint.token;
     case "object":
+      // 名乗らないオブジェクト（他機能の構造化ログ）。
       return { line: stringArgument(blueprint) };
+    case "payload":
+      return operationRecordPayload(recordOf(blueprint.token));
   }
 }
 
@@ -81,15 +92,21 @@ function message(blueprint: CandidateBlueprint): readonly unknown[] {
   }
 }
 
-function isQueueCandidate(blueprint: CandidateBlueprint): boolean {
+/** 封筒までは同じ条件。中身の条件だけが姿ごとに違う。 */
+function passesEnvelope(blueprint: CandidateBlueprint): boolean {
   return (
     blueprint.scriptName !== null &&
     PRODUCER_SCRIPTS.includes(blueprint.scriptName as (typeof PRODUCER_SCRIPTS)[number]) &&
     blueprint.level === "log" &&
-    blueprint.argumentCount === 1 &&
-    blueprint.argumentType === "string" &&
-    blueprint.lineValidity === "canonical"
+    blueprint.argumentCount === 1
   );
+}
+
+function isQueueCandidate(blueprint: CandidateBlueprint): boolean {
+  if (!passesEnvelope(blueprint)) return false;
+  // オブジェクトで届く経路は `lineValidity`（文字列の壊し方）に左右されない。
+  if (blueprint.argumentType === "payload") return true;
+  return blueprint.argumentType === "string" && blueprint.lineValidity === "canonical";
 }
 
 describe("Property 11: Tail envelope filtering", () => {
@@ -103,9 +120,10 @@ describe("Property 11: Tail envelope filtering", () => {
             scriptName: blueprint.scriptName,
             logs: [{ level: blueprint.level, message: message(blueprint) }],
           }));
-          const expected = blueprints
-            .filter(isQueueCandidate)
-            .map((blueprint) => canonicalLine(blueprint.token));
+          const expected = blueprints.filter(isQueueCandidate).map((blueprint) => ({
+            line: canonicalLine(blueprint.token),
+            record: recordOf(blueprint.token),
+          }));
 
           expect(operationLinesFromTailEvents(events).candidates).toEqual(expected);
         },

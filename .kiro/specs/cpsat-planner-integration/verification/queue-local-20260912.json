@@ -1,0 +1,409 @@
+{
+  "measuredAt": "2026-09-12T07:40:26.140Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "problem": {
+    "sha256": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+    "budget": 0.14
+  },
+  "wasmSha256": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1",
+  "toolchain": {
+    "node": "v26.7.0",
+    "wrangler": "4.105.0",
+    "miniflare": "4.20260625.0"
+  },
+  "handlerReturn": {
+    "viaServiceBinding": {
+      "n": 10,
+      "min": 250,
+      "p50": 254,
+      "max": 443,
+      "all": [250, 251, 253, 253, 254, 254, 254, 254, 255, 443]
+    },
+    "viaQueue": {
+      "n": 10,
+      "min": 0,
+      "p50": 0,
+      "max": 2,
+      "all": [0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
+    },
+    "note": [
+      "同一 harness・同一問題で交互に測った。差は要求元が求解を待つかどうかだけに由来する。",
+      "絶対値は代表値ではない。ローカルの Queue は実配送ではなく、cloud の send() の往復を含まない。"
+    ]
+  },
+  "delivery": {
+    "callbackReturnedRows": 20,
+    "solveFinishedRows": 20,
+    "allQueuedDelivered": true
+  },
+  "deadLetter": {
+    "reached": true,
+    "busyReceipts": [
+      {
+        "attempts": 1,
+        "outcome": "busy"
+      },
+      {
+        "attempts": 2,
+        "outcome": "busy"
+      },
+      {
+        "attempts": 3,
+        "outcome": "busy"
+      },
+      {
+        "attempts": 4,
+        "outcome": "busy"
+      }
+    ],
+    "dlqArrivals": [
+      {
+        "attempts": 1
+      }
+    ],
+    "note": "DLQ へ到達する経路は busy の連続だけである。deliver 失敗は attempts 2 で ack され DLQ へ行かない。"
+  },
+  "notMeasurableHere": [
+    "求解中に要求元が他の通信を捌けるか。Miniflare は全 Worker を 1 プロセスで動かすため、Queue にしてもスレッドが共有される。ここでの値は evidence にしない。cloud の測定（連鎖の外の DO が自店舗の求解中も 39〜52ms で応答）が判定を担う。",
+    "素の配送遅延（R5.10）。ローカルの Queue は実配送ではない。",
+    "isolate をまたぐ再利用と memory growth。"
+  ],
+  "measurementRows": [
+    {
+      "requestId": "eb55abb7-3bdd-43e4-91d7-6decd8c59213",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 241
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 240
+    },
+    {
+      "requestId": "0fc04ad9-8e8d-4fd4-9a28-b740eb733a05",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 236
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 235
+    },
+    {
+      "requestId": "f4313a93-d949-4471-95a1-ca793f061f11",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 237
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 236
+    },
+    {
+      "requestId": "e83f6f64-391d-47e5-ab64-0706eb6131e8",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 234
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 233
+    },
+    {
+      "requestId": "7b4ec37e-9c19-4cbe-b767-f57f1ad2d746",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 234
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 234
+    },
+    {
+      "requestId": "f5a84451-18e4-4701-9d31-ae5eb828529d",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 237
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 236
+    },
+    {
+      "requestId": "f6a89749-d4bc-44df-a841-20e7016d11aa",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 237
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 236
+    },
+    {
+      "requestId": "ac8186a3-9eda-4a32-92a6-4f4c0487b0fc",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 236
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 236
+    },
+    {
+      "requestId": "87284bd7-db29-4037-87d0-d37a6f2526c3",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 237
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 236
+    },
+    {
+      "requestId": "ad364aa0-4312-4760-a325-77f5266d1e37",
+      "status": "UNKNOWN",
+      "solveCallbackWallMs": {
+        "bound": "exact",
+        "from": "solve-started",
+        "source": "host-clock",
+        "to": "callback-returned",
+        "value": 237
+      },
+      "consumedDeterministic": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "solver",
+        "to": "checkpoint",
+        "value": 0.140242550894
+      },
+      "wasmBytes": {
+        "bound": "exact",
+        "from": "checkpoint",
+        "source": "wasm",
+        "to": "checkpoint",
+        "value": 33554432
+      },
+      "waitUntilWallMs": {
+        "reason": "not-applicable",
+        "value": null
+      },
+      "solveStartedToFinishedMs": 236
+    }
+  ],
+  "clockSpans": {
+    "queue": {
+      "n": 10,
+      "min": 233,
+      "p50": 236,
+      "max": 240,
+      "all": [233, 234, 235, 236, 236, 236, 236, 236, 236, 240]
+    },
+    "fetch": {
+      "n": 10,
+      "min": 232,
+      "p50": 235,
+      "max": 416,
+      "all": [232, 233, 233, 233, 234, 235, 235, 236, 237, 416]
+    },
+    "note": "両方に幅が出るなら、幅はローカル workerd の時計の性質であって Queue 経路の成果ではない。cloud の再確認が要る。"
+  },
+  "consumerReceipts": [
+    {
+      "outcome": "busy",
+      "attempts": 1
+    },
+    {
+      "outcome": "busy",
+      "attempts": 2
+    },
+    {
+      "outcome": "busy",
+      "attempts": 3
+    },
+    {
+      "outcome": "busy",
+      "attempts": 4
+    }
+  ]
+}

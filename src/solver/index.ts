@@ -97,13 +97,17 @@ async function deliver(request: PlanRequest, env: SolverEnv, deadline: number): 
 /**
  * 予算の内側で最良の計画を求める。予算が尽きていれば null（送るものが無い）。
  *
+ * **公開しているのは試験のためである**（2026-09-13）。「この解は engine の自前解と同一ゆえ採用され得ない」
+ * という主張を、写しを作らずに確かめる唯一の手段である——標本外の店舗で SOLVER を呼ばない判断が
+ * この主張に乗っている（`tests/core/solver-baseline-identity.example.test.ts`）。
+ *
  * **この段の候補は 1 つだけである**（自前解と同値）。予算を「候補を作る前に問う」形に置くのは、探索本体を
  * 入れる段が同じ問いを候補ごとに繰り返す形へそのまま広がるためで、いま無いループを先回りで置かない。
  *
  * `now` は自分の時計から採る。往路のボディは `now` を運ばない——Input_Fingerprint が `now` を畳まないのと
  * 同じ理由（時間の経過は状態変化ごとの再評価が扱うもので、外部へ問い直す入力ではない）。
  */
-function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null {
+export function searchPlan(request: PlanRequest, deadline: number): CookSchedule | null {
   if (Date.now() >= deadline) return null;
   const now = Date.now() as EpochMillis;
   // 置ける場所の全体＝ユニット数 × ユニットあたりの slot 数。ユニット原点の数が unitCount を表す

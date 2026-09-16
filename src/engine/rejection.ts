@@ -17,7 +17,12 @@ export type Rejection =
   // 指した品目が調理中（自分を指す生きた Timer が在る・order-lifecycle 判断 12）。done・期限切れ・不在は上の
   // OrderItemNotFound のまま——調理中だけを分けるのは、他端末が直前に開始した品目への二重調理を現場が
   // 「無い」ではなく「もう始まっている」と読めるようにするためである。
-  | { readonly code: "OrderItemCooking"; readonly message: string };
+  | { readonly code: "OrderItemCooking"; readonly message: string }
+  // **その釜に生きた Timer が在る**（2026-09-14）。「1 釜 ≤ 1 Timer」は既に不変条件として宣言されて
+  // いるが（`degraded-slot-superimposition` bugfix）、開始の側で検査していなかったため、**釜の本数を
+  // 超える Timer を持つ状態が正本に作れた**——物理的に存在しない状態である。AC 8.3 は「推奨との
+  // 不一致を理由に拒否しない」であって「同じ釜への二重投入を許す」ではない。
+  | { readonly code: "SlotOccupied"; readonly message: string };
 
 /** shell 側で扱う、core の外側の失敗（永続・スキーマに由来する）。 */
 export type ShellFailure =

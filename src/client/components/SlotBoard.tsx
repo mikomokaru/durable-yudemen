@@ -33,6 +33,12 @@ import { noodleColors } from "./noodleColor";
 interface SlotBoardProps {
   readonly connection: TimerConnection;
   readonly units: readonly number[];
+  /**
+   * 札の辞書（item-display-abbreviation）。`App` が起動時に一度取得して渡す。
+   *
+   * `ClientView` に入れない——あちらは WS 由来の事実の写しであり、HTTP で取る別系統の値を混ぜれば
+   * 出所が読めなくなる。空でも取得に失敗していても表示は成立する（全名に落ちるだけ）。
+   */
   /** 指定操作（Start 押下/麺選択確定/Cancel/Complete/茹で加減変更）に相乗りさせる Touch_Cue の再生口。best-effort・no-op しうる（要件1）。 */
   readonly playTouchCue: () => void;
 }

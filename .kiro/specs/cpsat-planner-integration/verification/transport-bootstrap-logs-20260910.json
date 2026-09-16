@@ -1,0 +1,60 @@
+{
+  "collectedAt": "2026-09-10T11:25:59.967Z",
+  "accountId": "305d89a643ac689b4204454c5493cbde",
+  "queries": [
+    {
+      "worker": "yude-men-cpsat-planner-dev",
+      "query": {
+        "queryId": "cpsat-transport-bootstrap",
+        "dry": true,
+        "view": "events",
+        "limit": 1000,
+        "timeframe": {
+          "from": 1789039260000,
+          "to": 1789039559967
+        },
+        "parameters": {
+          "filters": [
+            {
+              "key": "$metadata.service",
+              "operation": "eq",
+              "type": "string",
+              "value": "yude-men-cpsat-planner-dev"
+            }
+          ]
+        }
+      },
+      "status": 403,
+      "success": false,
+      "errorCodes": [10000],
+      "events": null
+    },
+    {
+      "worker": "yude-men-cpsat-transport-shim-dev",
+      "query": {
+        "queryId": "cpsat-transport-bootstrap",
+        "dry": true,
+        "view": "events",
+        "limit": 1000,
+        "timeframe": {
+          "from": 1789039260000,
+          "to": 1789039559967
+        },
+        "parameters": {
+          "filters": [
+            {
+              "key": "$metadata.service",
+              "operation": "eq",
+              "type": "string",
+              "value": "yude-men-cpsat-transport-shim-dev"
+            }
+          ]
+        }
+      },
+      "status": 403,
+      "success": false,
+      "errorCodes": [10000],
+      "events": null
+    }
+  ]
+}

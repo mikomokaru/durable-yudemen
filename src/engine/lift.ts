@@ -136,15 +136,38 @@ function originsContaining(lifts: LiftTable, t: EpochMillis, params: LiftParams)
   return origins;
 }
 
-/** 起点 x の窓 [x, x + L) に上がる本数（既存の表だけ）。 */
-function loadAt(lifts: LiftTable, origin: EpochMillis, params: LiftParams): number {
-  const upper = origin + windowMillis(params);
+/**
+ * t を含む窓を起点順に走査する。窓へ入る分を足し、外れる分を引くので、一度の検査は O(n)。
+ * CP-SAT の上げ窓検証で確認した将来側の負荷も含め、最大負荷と最初の過負荷を同じ走査で求める。
+ * 上限を指定した場合は最初の過負荷で止める（firstFit が飛ばす最早の起点）。
+ */
+function scanWindows(
+  lifts: LiftTable,
+  t: EpochMillis,
+  params: LiftParams,
+  limit = Number.POSITIVE_INFINITY,
+): { readonly load: number; readonly overloadedAt: EpochMillis | null } {
+  const origins = originsContaining(lifts, t, params);
+  const length = windowMillis(params);
+  let left = 0;
+  while (left < lifts.length && lifts[left]!.at < origins[0]!) left += 1;
+  let right = left;
   let load = 0;
-  for (const lift of lifts) {
-    if (lift.at >= upper) break; // 昇順ゆえ以降はすべて窓の外
-    if (lift.at >= origin) load += lift.span;
+  let max = 0;
+  for (const origin of origins) {
+    const upper = origin + length;
+    while (right < lifts.length && lifts[right]!.at < upper) {
+      load += lifts[right]!.span;
+      right += 1;
+    }
+    while (left < right && lifts[left]!.at < origin) {
+      load -= lifts[left]!.span;
+      left += 1;
+    }
+    if (load > limit) return { load, overloadedAt: origin };
+    if (load > max) max = load;
   }
-  return load;
+  return { load: max, overloadedAt: null };
 }
 
 /**
@@ -160,12 +183,7 @@ export function loadWith(
   span: number,
   params: LiftParams,
 ): number {
-  let max = 0;
-  for (const origin of originsContaining(lifts, t, params)) {
-    const load = loadAt(lifts, origin, params) + span;
-    if (load > max) max = load;
-  }
-  return max;
+  return scanWindows(lifts, t, params).load + span;
 }
 
 /**
@@ -191,13 +209,7 @@ export function firstFit(
   const length = windowMillis(params);
   let candidate = t;
   for (;;) {
-    let overloadedAt: EpochMillis | null = null;
-    for (const origin of originsContaining(lifts, candidate, params)) {
-      if (loadAt(lifts, origin, params) + span > cap) {
-        overloadedAt = origin; // 昇順ゆえ最初に見つかった起点が最早
-        break;
-      }
-    }
+    const { overloadedAt } = scanWindows(lifts, candidate, params, cap - span);
     if (overloadedAt === null) return candidate;
     candidate = (overloadedAt + length) as EpochMillis;
   }

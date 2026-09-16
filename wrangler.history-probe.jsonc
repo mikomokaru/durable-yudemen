@@ -1,0 +1,21 @@
+{
+  // 合成プローブの Producer（operation-history-log 要件 7.3）。console → Tail → Pipelines → Iceberg の
+  // 経路が生きているかを定期的に確かめるためだけの Worker。業務データを扱わない。
+  //
+  // **検証用。** 経路の確認が済んだら、常用するかどうかをタスク 1.4 の監視設計と一緒に決める。
+  "name": "yude-men-history-probe",
+  "main": "src/data-platform/history-probe.ts",
+  "compatibility_date": "2026-06-26",
+  "observability": {
+    "enabled": true,
+  },
+  // 公開の入口を持たない。到達経路は下の定期実行だけで、fetch handler も route も無い。
+  "workers_dev": false,
+  "preview_urls": false,
+  // 毎分。周期の確定は実測後（タスク 1.4）。
+  "triggers": {
+    "crons": ["* * * * *"],
+  },
+  // 合成行を業務行と同じ Tail へ流す。Tail 側は script 名で合成と判別する。
+  "tail_consumers": [{ "service": "yude-men-history-tail" }],
+}

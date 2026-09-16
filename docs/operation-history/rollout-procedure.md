@@ -1,5 +1,7 @@
 # Observability_Pipeline を段階 rollout する手順（operation-history-log）
 
+> **2026-09-11: 旧Snowpipe方式の資料。** 現行の[統合spec](../../.kiro/specs/operation-history-log/requirements.md)はR2＋Icebergを共通保存先とし、Snowflakeは外部Icebergを読み取る。生ログの期間削除は行わない。本資料・付属SQL／Lifecycle設定は旧実装の記録であり、新方式へそのまま適用しない。runtime・設定・実環境の移行は未実施で、削除task／Lifecycleの停止も[移行タスク](../../.kiro/specs/operation-history-log/tasks.md)で実状態を確認して行う。
+
 > 対象 spec: `operation-history-log` / タスク 15.2「下流 smoke」・15.3「Tail fixture smoke」・15.4「最終
 > attachment／Logpush 有効化」・15.5「Producer 逆呼出しゼロの観測」
 > 種別: ［手続き＋記録］（実デプロイ、account plan 確認、credential を要する操作はすべて**ユーザー実行**。

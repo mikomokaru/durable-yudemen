@@ -1,0 +1,1384 @@
+{
+  "measuredAt": "2026-09-13T05:30:40.620Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "seed": "cpsat-plan-quality-20260913",
+  "windowMinutes": 60,
+  "perFile": 2,
+  "maxScenes": 12,
+  "limits": [6, 16, 24, 32, 48, 64],
+  "unguarded": false,
+  "legacyLiftCap": false,
+  "budgetCap": null,
+  "fatSlots": false,
+  "fatPairs": false,
+  "corpus": {
+    "files": 20,
+    "rows": 1919,
+    "stores": 10,
+    "menuItemConflicts": []
+  },
+  "sceneCount": 12,
+  "rows": [
+    {
+      "ordinal": 0,
+      "file": "239_20260908_2115_2315.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-08T14:12:16.000Z",
+      "recordCount": 56,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2350054345,
+      "ok": true,
+      "now": 1789277440837,
+      "liveCount": 64,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 443992,
+        "businessCost": 443992,
+        "changeCost": 0,
+        "waitTime": 234443,
+        "tableLag": 174540,
+        "orderSync": 1620,
+        "affinity": 31814,
+        "liftOverflow": 1575,
+        "placements": 64,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 649,
+          "status": "FEASIBLE",
+          "variables": 412,
+          "memoryBytes": 33554432,
+          "reportedObjective": 239838,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 126,
+            "pair/equal+inversion+distance": 140,
+            "liftWindow+cluster": 145
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 443992,
+            "businessCost": 443992,
+            "changeCost": 0,
+            "waitTime": 234443,
+            "tableLag": 174540,
+            "orderSync": 1620,
+            "affinity": 31814,
+            "liftOverflow": 1575,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 1106
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 2090
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 2245
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 3
+        },
+        {
+          "limit": 64,
+          "targets": 64,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        }
+      ]
+    },
+    {
+      "ordinal": 1,
+      "file": "254_20260907_1800_2000.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-07T10:33:05.000Z",
+      "recordCount": 74,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3963363649,
+      "ok": true,
+      "now": 1789277447023,
+      "liveCount": 64,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 444172,
+        "businessCost": 444172,
+        "changeCost": 0,
+        "waitTime": 239681,
+        "tableLag": 169650,
+        "orderSync": 1485,
+        "affinity": 31826,
+        "liftOverflow": 1530,
+        "placements": 64,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 499,
+          "status": "FEASIBLE",
+          "variables": 418,
+          "memoryBytes": 83689472,
+          "reportedObjective": 242600,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 126,
+            "pair/equal+inversion+distance": 141,
+            "liftWindow+cluster": 150
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 444172,
+            "businessCost": 444172,
+            "changeCost": 0,
+            "waitTime": 239681,
+            "tableLag": 169650,
+            "orderSync": 1485,
+            "affinity": 31826,
+            "liftOverflow": 1530,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1137,
+          "status": "FEASIBLE",
+          "variables": 1596,
+          "memoryBytes": 83689472,
+          "reportedObjective": 678054,
+          "budget": 0.37,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 368,
+            "pair/equal+inversion+distance": 547,
+            "liftWindow+cluster": 680
+          },
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 444172,
+            "businessCost": 444172,
+            "changeCost": 0,
+            "waitTime": 239681,
+            "tableLag": 169650,
+            "orderSync": 1485,
+            "affinity": 31826,
+            "liftOverflow": 1530,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1921,
+          "status": "FEASIBLE",
+          "variables": 2964,
+          "memoryBytes": 83689472,
+          "reportedObjective": 1057274,
+          "budget": 0.53,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 552,
+            "pair/equal+inversion+distance": 1015,
+            "liftWindow+cluster": 1396
+          },
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 444172,
+            "businessCost": 444172,
+            "changeCost": 0,
+            "waitTime": 239681,
+            "tableLag": 169650,
+            "orderSync": 1485,
+            "affinity": 31826,
+            "liftOverflow": 1530,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": true,
+          "failure": null,
+          "solveMs": 2488,
+          "status": "FEASIBLE",
+          "variables": 4724,
+          "memoryBytes": 83689472,
+          "reportedObjective": 1465232,
+          "budget": 0.6900000000000001,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 752,
+            "pair/equal+inversion+distance": 1613,
+            "liftWindow+cluster": 2358
+          },
+          "placements": 32,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 444172,
+            "businessCost": 444172,
+            "changeCost": 0,
+            "waitTime": 239681,
+            "tableLag": 169650,
+            "orderSync": 1485,
+            "affinity": 31826,
+            "liftOverflow": 1530,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        },
+        {
+          "limit": 64,
+          "targets": 64,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 4
+        }
+      ]
+    },
+    {
+      "ordinal": 2,
+      "file": "254_20260907_1800_2000.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-07T10:39:01.000Z",
+      "recordCount": 77,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1873789989,
+      "ok": true,
+      "now": 1789277453238,
+      "liveCount": 64,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 476181,
+        "businessCost": 476181,
+        "changeCost": 0,
+        "waitTime": 242829,
+        "tableLag": 198120,
+        "orderSync": 2115,
+        "affinity": 31632,
+        "liftOverflow": 1485,
+        "placements": 64,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 470,
+          "status": "FEASIBLE",
+          "variables": 412,
+          "memoryBytes": 83689472,
+          "reportedObjective": 246214,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 142,
+            "pair/equal+inversion+distance": 144,
+            "liftWindow+cluster": 125
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 476181,
+            "businessCost": 476181,
+            "changeCost": 0,
+            "waitTime": 242829,
+            "tableLag": 198120,
+            "orderSync": 2115,
+            "affinity": 31632,
+            "liftOverflow": 1485,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1056,
+          "status": "FEASIBLE",
+          "variables": 1594,
+          "memoryBytes": 83689472,
+          "reportedObjective": 693532,
+          "budget": 0.37,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 384,
+            "pair/equal+inversion+distance": 554,
+            "liftWindow+cluster": 655
+          },
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 476181,
+            "businessCost": 476181,
+            "changeCost": 0,
+            "waitTime": 242829,
+            "tableLag": 198120,
+            "orderSync": 2115,
+            "affinity": 31632,
+            "liftOverflow": 1485,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1781,
+          "status": "FEASIBLE",
+          "variables": 2970,
+          "memoryBytes": 83689472,
+          "reportedObjective": 1084296,
+          "budget": 0.53,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 584,
+            "pair/equal+inversion+distance": 1024,
+            "liftWindow+cluster": 1361
+          },
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 476181,
+            "businessCost": 476181,
+            "changeCost": 0,
+            "waitTime": 242829,
+            "tableLag": 198120,
+            "orderSync": 2115,
+            "affinity": 31632,
+            "liftOverflow": 1485,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": true,
+          "failure": null,
+          "solveMs": 2321,
+          "status": "FEASIBLE",
+          "variables": 4679,
+          "memoryBytes": 83689472,
+          "reportedObjective": 1495400,
+          "budget": 0.6900000000000001,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 752,
+            "pair/equal+inversion+distance": 1603,
+            "liftWindow+cluster": 2323
+          },
+          "placements": 32,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 476181,
+            "businessCost": 476181,
+            "changeCost": 0,
+            "waitTime": 242829,
+            "tableLag": 198120,
+            "orderSync": 2115,
+            "affinity": 31632,
+            "liftOverflow": 1485,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        },
+        {
+          "limit": 64,
+          "targets": 64,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        }
+      ]
+    },
+    {
+      "ordinal": 3,
+      "file": "275_20260906_1500_1700.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-06T07:10:47.000Z",
+      "recordCount": 38,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2518705607,
+      "ok": true,
+      "now": 1789277459010,
+      "liveCount": 53,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 336023,
+        "businessCost": 336023,
+        "changeCost": 0,
+        "waitTime": 182021,
+        "tableLag": 128820,
+        "orderSync": 1485,
+        "affinity": 22302,
+        "liftOverflow": 1395,
+        "placements": 53,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 381,
+          "status": "FEASIBLE",
+          "variables": 451,
+          "memoryBytes": 83689472,
+          "reportedObjective": 231354,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 174,
+            "pair/equal+inversion+distance": 161,
+            "liftWindow+cluster": 115
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 336023,
+            "businessCost": 336023,
+            "changeCost": 0,
+            "waitTime": 182021,
+            "tableLag": 128820,
+            "orderSync": 1485,
+            "affinity": 22302,
+            "liftOverflow": 1395,
+            "placements": 53,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 1760
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 1697
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 2224
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        },
+        {
+          "limit": 64,
+          "targets": 53,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        }
+      ]
+    },
+    {
+      "ordinal": 4,
+      "file": "284_20260905_1945_2145.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-05T12:15:08.000Z",
+      "recordCount": 51,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3272178752,
+      "ok": true,
+      "now": 1789277465118,
+      "liveCount": 51,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 328865,
+        "businessCost": 328865,
+        "changeCost": 0,
+        "waitTime": 174859,
+        "tableLag": 130230,
+        "orderSync": 2655,
+        "affinity": 19816,
+        "liftOverflow": 1305,
+        "placements": 51,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 489,
+          "status": "FEASIBLE",
+          "variables": 425,
+          "memoryBytes": 83689472,
+          "reportedObjective": 245310,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 158,
+            "pair/equal+inversion+distance": 151,
+            "liftWindow+cluster": 115
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 328865,
+            "businessCost": 328865,
+            "changeCost": 0,
+            "waitTime": 174859,
+            "tableLag": 130230,
+            "orderSync": 2655,
+            "affinity": 19816,
+            "liftOverflow": 1305,
+            "placements": 51,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1024,
+          "status": "FEASIBLE",
+          "variables": 1642,
+          "memoryBytes": 83689472,
+          "reportedObjective": 700756,
+          "budget": 0.37,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 432,
+            "pair/equal+inversion+distance": 574,
+            "liftWindow+cluster": 635
+          },
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 328865,
+            "businessCost": 328865,
+            "changeCost": 0,
+            "waitTime": 174859,
+            "tableLag": 130230,
+            "orderSync": 2655,
+            "affinity": 19816,
+            "liftOverflow": 1305,
+            "placements": 51,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1740,
+          "status": "FEASIBLE",
+          "variables": 3107,
+          "memoryBytes": 83689472,
+          "reportedObjective": 1092784,
+          "budget": 0.53,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 616,
+            "pair/equal+inversion+distance": 1063,
+            "liftWindow+cluster": 1427
+          },
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 328865,
+            "businessCost": 328865,
+            "changeCost": 0,
+            "waitTime": 174859,
+            "tableLag": 130230,
+            "orderSync": 2655,
+            "affinity": 19816,
+            "liftOverflow": 1305,
+            "placements": 51,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 2320
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 5
+        },
+        {
+          "limit": 64,
+          "targets": 51,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        }
+      ]
+    },
+    {
+      "ordinal": 5,
+      "file": "284_20260907_1215_1415.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-07T04:21:41.000Z",
+      "recordCount": 37,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1678202637,
+      "ok": true,
+      "now": 1789277470773,
+      "liveCount": 54,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 320208,
+        "businessCost": 320208,
+        "changeCost": 0,
+        "waitTime": 169886,
+        "tableLag": 123630,
+        "orderSync": 3150,
+        "affinity": 22282,
+        "liftOverflow": 1260,
+        "placements": 54,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 484,
+          "status": "FEASIBLE",
+          "variables": 399,
+          "memoryBytes": 83689472,
+          "reportedObjective": 241758,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 126,
+            "pair/equal+inversion+distance": 137,
+            "liftWindow+cluster": 135
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 320208,
+            "businessCost": 320208,
+            "changeCost": 0,
+            "waitTime": 169886,
+            "tableLag": 123630,
+            "orderSync": 3150,
+            "affinity": 22282,
+            "liftOverflow": 1260,
+            "placements": 54,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 1149
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 1727
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "std::bad_alloc: std::bad_alloc",
+          "solveMs": 1872
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 1
+        },
+        {
+          "limit": 64,
+          "targets": 54,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        }
+      ]
+    },
+    {
+      "ordinal": 6,
+      "file": "336_20260908_2145_2345.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-08T14:28:43.000Z",
+      "recordCount": 41,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 239711710,
+      "ok": true,
+      "now": 1789277476056,
+      "liveCount": 38,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 191358,
+        "businessCost": 191358,
+        "changeCost": 0,
+        "waitTime": 115248,
+        "tableLag": 62790,
+        "orderSync": 1485,
+        "affinity": 10890,
+        "liftOverflow": 945,
+        "placements": 38,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 493,
+          "status": "FEASIBLE",
+          "variables": 399,
+          "memoryBytes": 100466688,
+          "reportedObjective": 241038,
+          "budget": 0.16999999999999998,
+          "bySection": {
+            "other": 1,
+            "item/time+slot": 142,
+            "pair/equal+inversion+distance": 141,
+            "liftWindow+cluster": 115
+          },
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 191358,
+            "businessCost": 191358,
+            "changeCost": 0,
+            "waitTime": 115248,
+            "tableLag": 62790,
+            "orderSync": 1485,
+            "affinity": 10890,
+            "liftOverflow": 945,
+            "placements": 38,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "std::bad_alloc: std::bad_alloc",
+          "solveMs": 344
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "std::bad_alloc: std::bad_alloc",
+          "solveMs": 29
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "RuntimeError: Aborted(native code called abort())",
+          "solveMs": 12
+        },
+        {
+          "limit": 48,
+          "targets": 38,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 14
+        },
+        {
+          "limit": 64,
+          "targets": 38,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 15
+        }
+      ]
+    },
+    {
+      "ordinal": 7,
+      "file": "342_20260907_1345_1545.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-07T06:37:58.000Z",
+      "recordCount": 20,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2182810771,
+      "ok": true,
+      "now": 1789277476990,
+      "liveCount": 21,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 79963,
+        "businessCost": 79963,
+        "changeCost": 0,
+        "waitTime": 62965,
+        "tableLag": 13290,
+        "orderSync": 45,
+        "affinity": 3168,
+        "liftOverflow": 495,
+        "placements": 21,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "std::bad_alloc: std::bad_alloc",
+          "solveMs": 1
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "RuntimeError: Aborted(native code called abort())",
+          "solveMs": 3
+        },
+        {
+          "limit": 24,
+          "targets": 21,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 5
+        },
+        {
+          "limit": 32,
+          "targets": 21,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 5
+        },
+        {
+          "limit": 48,
+          "targets": 21,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 4
+        },
+        {
+          "limit": 64,
+          "targets": 21,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 5
+        }
+      ]
+    },
+    {
+      "ordinal": 8,
+      "file": "355_20260908_1845_2045.jsonl",
+      "storeId": "355",
+      "cutAt": "2026-09-08T11:22:26.000Z",
+      "recordCount": 63,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1711441304,
+      "ok": true,
+      "now": 1789277477024,
+      "liveCount": 64,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 472670,
+        "businessCost": 472670,
+        "changeCost": 0,
+        "waitTime": 221979,
+        "tableLag": 215640,
+        "orderSync": 1305,
+        "affinity": 32036,
+        "liftOverflow": 1710,
+        "placements": 64,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "RuntimeError: Aborted(native code called abort())",
+          "solveMs": 1
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 2
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 6
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 8
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 3
+        },
+        {
+          "limit": 64,
+          "targets": 64,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        }
+      ]
+    },
+    {
+      "ordinal": 9,
+      "file": "362_20260905_2100_2300.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-05T13:54:26.000Z",
+      "recordCount": 46,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 728293579,
+      "ok": true,
+      "now": 1789277477084,
+      "liveCount": 53,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 338652,
+        "businessCost": 338652,
+        "changeCost": 0,
+        "waitTime": 168216,
+        "tableLag": 144540,
+        "orderSync": 2340,
+        "affinity": 22116,
+        "liftOverflow": 1440,
+        "placements": 53,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 1
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 3
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 6
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 8
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 1
+        },
+        {
+          "limit": 64,
+          "targets": 53,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        }
+      ]
+    },
+    {
+      "ordinal": 10,
+      "file": "362_20260907_1115_1315.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-07T03:25:18.000Z",
+      "recordCount": 49,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 399839444,
+      "ok": true,
+      "now": 1789277477130,
+      "liveCount": 57,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 367442,
+        "businessCost": 367442,
+        "changeCost": 0,
+        "waitTime": 182413,
+        "tableLag": 157710,
+        "orderSync": 1215,
+        "affinity": 24754,
+        "liftOverflow": 1350,
+        "placements": 57,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "RuntimeError: Aborted(native code called abort())",
+          "solveMs": 1
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 3
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 4
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 10
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 1
+        },
+        {
+          "limit": 64,
+          "targets": 57,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 1
+        }
+      ]
+    },
+    {
+      "ordinal": 11,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:53:00.000Z",
+      "recordCount": 57,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 2456066814,
+      "ok": true,
+      "now": 1789277477180,
+      "liveCount": 63,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 402284,
+        "businessCost": 402284,
+        "changeCost": 0,
+        "waitTime": 196146,
+        "tableLag": 146220,
+        "orderSync": 900,
+        "affinity": 57398,
+        "liftOverflow": 1620,
+        "placements": 63,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 1
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 3
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 6
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: Model allocation failed",
+          "solveMs": 9
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 1
+        },
+        {
+          "limit": 64,
+          "targets": 63,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds the bounded runtime",
+          "solveMs": 2
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

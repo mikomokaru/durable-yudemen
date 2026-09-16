@@ -1,0 +1,2184 @@
+{
+  "measuredAt": "2026-09-13T04:39:25.177Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "seed": "cpsat-plan-quality-20260913",
+  "windowMinutes": 15,
+  "perFile": 3,
+  "maxScenes": 30,
+  "limits": [6, 16],
+  "unguarded": false,
+  "legacyLiftCap": true,
+  "budgetCap": null,
+  "fatSlots": false,
+  "corpus": {
+    "files": 20,
+    "rows": 1919,
+    "stores": 10,
+    "menuItemConflicts": []
+  },
+  "sceneCount": 30,
+  "rows": [
+    {
+      "ordinal": 0,
+      "file": "239_20260905_1745_1945.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-05T09:45:06.000Z",
+      "recordCount": 14,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 195524645,
+      "ok": true,
+      "now": 1789274365304,
+      "liveCount": 18,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 29166,
+        "businessCost": 29166,
+        "changeCost": 0,
+        "waitTime": 15988,
+        "tableLag": 10440,
+        "orderSync": 90,
+        "affinity": 2288,
+        "liftOverflow": 360,
+        "placements": 18,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 336,
+          "status": "FEASIBLE",
+          "variables": 643,
+          "memoryBytes": 33554432,
+          "reportedObjective": 63154,
+          "budget": 0.052860000000000004,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 29166,
+            "businessCost": 29166,
+            "changeCost": 0,
+            "waitTime": 15988,
+            "tableLag": 10440,
+            "orderSync": 90,
+            "affinity": 2288,
+            "liftOverflow": 360,
+            "placements": 18,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 471
+        }
+      ]
+    },
+    {
+      "ordinal": 1,
+      "file": "239_20260905_1745_1945.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-05T09:56:12.000Z",
+      "recordCount": 24,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1983211713,
+      "ok": true,
+      "now": 1789274366132,
+      "liveCount": 29,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 78219,
+        "businessCost": 78219,
+        "changeCost": 0,
+        "waitTime": 37011,
+        "tableLag": 33990,
+        "orderSync": 450,
+        "affinity": 6138,
+        "liftOverflow": 630,
+        "placements": 29,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 187,
+          "status": "FEASIBLE",
+          "variables": 599,
+          "memoryBytes": 33554432,
+          "reportedObjective": 67836,
+          "budget": 0.05198,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 78219,
+            "businessCost": 78219,
+            "changeCost": 0,
+            "waitTime": 37011,
+            "tableLag": 33990,
+            "orderSync": 450,
+            "affinity": 6138,
+            "liftOverflow": 630,
+            "placements": 29,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 493
+        }
+      ]
+    },
+    {
+      "ordinal": 2,
+      "file": "239_20260908_2115_2315.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-08T12:45:32.000Z",
+      "recordCount": 10,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 4192671841,
+      "ok": true,
+      "now": 1789274366833,
+      "liveCount": 12,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 21749,
+        "businessCost": 21749,
+        "changeCost": 0,
+        "waitTime": 11931,
+        "tableLag": 7680,
+        "orderSync": 900,
+        "affinity": 968,
+        "liftOverflow": 270,
+        "placements": 12,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 193,
+          "status": "FEASIBLE",
+          "variables": 552,
+          "memoryBytes": 33554432,
+          "reportedObjective": 73864,
+          "budget": 0.05104,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 21749,
+            "businessCost": 21749,
+            "changeCost": 0,
+            "waitTime": 11931,
+            "tableLag": 7680,
+            "orderSync": 900,
+            "affinity": 968,
+            "liftOverflow": 270,
+            "placements": 12,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 12,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 336
+        }
+      ]
+    },
+    {
+      "ordinal": 3,
+      "file": "247_20260906_1300_1500.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-06T04:31:13.000Z",
+      "recordCount": 4,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2288723005,
+      "ok": true,
+      "now": 1789274367373,
+      "liveCount": 5,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 2650,
+        "businessCost": 2650,
+        "changeCost": 0,
+        "waitTime": 2139,
+        "tableLag": 360,
+        "orderSync": 45,
+        "affinity": 16,
+        "liftOverflow": 90,
+        "placements": 5,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 5,
+          "ok": true,
+          "failure": null,
+          "solveMs": 86,
+          "status": "OPTIMAL",
+          "variables": 404,
+          "memoryBytes": 33554432,
+          "reportedObjective": 21672,
+          "budget": 0.04808,
+          "placements": 5,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 5,
+          "composed": {
+            "total": 3161,
+            "businessCost": 2531,
+            "changeCost": 630,
+            "waitTime": 1734,
+            "tableLag": 720,
+            "orderSync": 45,
+            "affinity": 32,
+            "liftOverflow": 0,
+            "placements": 5,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 5,
+          "ok": true,
+          "failure": null,
+          "solveMs": 87,
+          "status": "OPTIMAL",
+          "variables": 404,
+          "memoryBytes": 33554432,
+          "reportedObjective": 21672,
+          "budget": 0.04808,
+          "placements": 5,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 5,
+          "composed": {
+            "total": 3161,
+            "businessCost": 2531,
+            "changeCost": 630,
+            "waitTime": 1734,
+            "tableLag": 720,
+            "orderSync": 45,
+            "affinity": 32,
+            "liftOverflow": 0,
+            "placements": 5,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 4,
+      "file": "247_20260908_1330_1530.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-08T05:51:20.000Z",
+      "recordCount": 19,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 854677952,
+      "ok": true,
+      "now": 1789274367554,
+      "liveCount": 17,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 29801,
+        "businessCost": 29801,
+        "changeCost": 0,
+        "waitTime": 18380,
+        "tableLag": 8850,
+        "orderSync": 0,
+        "affinity": 2166,
+        "liftOverflow": 405,
+        "placements": 17,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 80,
+          "status": "OPTIMAL",
+          "variables": 520,
+          "memoryBytes": 33554432,
+          "reportedObjective": 77904,
+          "budget": 0.0504,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 29801,
+            "businessCost": 29801,
+            "changeCost": 0,
+            "waitTime": 18380,
+            "tableLag": 8850,
+            "orderSync": 0,
+            "affinity": 2166,
+            "liftOverflow": 405,
+            "placements": 17,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 481
+        }
+      ]
+    },
+    {
+      "ordinal": 5,
+      "file": "254_20260905_1230_1430.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-05T04:47:48.000Z",
+      "recordCount": 12,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 780701185,
+      "ok": true,
+      "now": 1789274368127,
+      "liveCount": 17,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 32058,
+        "businessCost": 32058,
+        "changeCost": 0,
+        "waitTime": 18054,
+        "tableLag": 10680,
+        "orderSync": 1080,
+        "affinity": 1884,
+        "liftOverflow": 360,
+        "placements": 17,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 175,
+          "status": "FEASIBLE",
+          "variables": 529,
+          "memoryBytes": 33554432,
+          "reportedObjective": 78474,
+          "budget": 0.05058,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 32058,
+            "businessCost": 32058,
+            "changeCost": 0,
+            "waitTime": 18054,
+            "tableLag": 10680,
+            "orderSync": 1080,
+            "affinity": 1884,
+            "liftOverflow": 360,
+            "placements": 17,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 433
+        }
+      ]
+    },
+    {
+      "ordinal": 6,
+      "file": "254_20260907_1800_2000.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-07T09:54:50.000Z",
+      "recordCount": 13,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2333209753,
+      "ok": true,
+      "now": 1789274368748,
+      "liveCount": 15,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 25776,
+        "businessCost": 25776,
+        "changeCost": 0,
+        "waitTime": 13986,
+        "tableLag": 9750,
+        "orderSync": 0,
+        "affinity": 1680,
+        "liftOverflow": 360,
+        "placements": 15,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 188,
+          "status": "FEASIBLE",
+          "variables": 576,
+          "memoryBytes": 33554432,
+          "reportedObjective": 82196,
+          "budget": 0.05152,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 25776,
+            "businessCost": 25776,
+            "changeCost": 0,
+            "waitTime": 13986,
+            "tableLag": 9750,
+            "orderSync": 0,
+            "affinity": 1680,
+            "liftOverflow": 360,
+            "placements": 15,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 15,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 417
+        }
+      ]
+    },
+    {
+      "ordinal": 7,
+      "file": "254_20260907_1800_2000.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-07T10:13:08.000Z",
+      "recordCount": 22,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3432428830,
+      "ok": true,
+      "now": 1789274369363,
+      "liveCount": 20,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 38299,
+        "businessCost": 38299,
+        "changeCost": 0,
+        "waitTime": 21666,
+        "tableLag": 13020,
+        "orderSync": 45,
+        "affinity": 3118,
+        "liftOverflow": 450,
+        "placements": 20,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 171,
+          "status": "FEASIBLE",
+          "variables": 575,
+          "memoryBytes": 33554432,
+          "reportedObjective": 83888,
+          "budget": 0.051500000000000004,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 38299,
+            "businessCost": 38299,
+            "changeCost": 0,
+            "waitTime": 21666,
+            "tableLag": 13020,
+            "orderSync": 45,
+            "affinity": 3118,
+            "liftOverflow": 450,
+            "placements": 20,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 482
+        }
+      ]
+    },
+    {
+      "ordinal": 8,
+      "file": "254_20260907_1800_2000.jsonl",
+      "storeId": "254",
+      "cutAt": "2026-09-07T10:34:24.000Z",
+      "recordCount": 19,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1764748162,
+      "ok": true,
+      "now": 1789274370031,
+      "liveCount": 19,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 39930,
+        "businessCost": 39930,
+        "changeCost": 0,
+        "waitTime": 22431,
+        "tableLag": 13020,
+        "orderSync": 1215,
+        "affinity": 2814,
+        "liftOverflow": 450,
+        "placements": 19,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 178,
+          "status": "FEASIBLE",
+          "variables": 576,
+          "memoryBytes": 33554432,
+          "reportedObjective": 82706,
+          "budget": 0.05152,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 39930,
+            "businessCost": 39930,
+            "changeCost": 0,
+            "waitTime": 22431,
+            "tableLag": 13020,
+            "orderSync": 1215,
+            "affinity": 2814,
+            "liftOverflow": 450,
+            "placements": 19,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 482
+        }
+      ]
+    },
+    {
+      "ordinal": 9,
+      "file": "275_20260906_1500_1700.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-06T06:16:37.000Z",
+      "recordCount": 14,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3070293094,
+      "ok": true,
+      "now": 1789274370704,
+      "liveCount": 14,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 22016,
+        "businessCost": 22016,
+        "changeCost": 0,
+        "waitTime": 12834,
+        "tableLag": 7290,
+        "orderSync": 45,
+        "affinity": 1442,
+        "liftOverflow": 405,
+        "placements": 14,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 179,
+          "status": "FEASIBLE",
+          "variables": 585,
+          "memoryBytes": 33554432,
+          "reportedObjective": 85958,
+          "budget": 0.0517,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 22016,
+            "businessCost": 22016,
+            "changeCost": 0,
+            "waitTime": 12834,
+            "tableLag": 7290,
+            "orderSync": 45,
+            "affinity": 1442,
+            "liftOverflow": 405,
+            "placements": 14,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 14,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 479
+        }
+      ]
+    },
+    {
+      "ordinal": 10,
+      "file": "275_20260906_1500_1700.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-06T06:44:02.000Z",
+      "recordCount": 5,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 694149567,
+      "ok": true,
+      "now": 1789274371371,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 9281,
+        "businessCost": 9281,
+        "changeCost": 0,
+        "waitTime": 7116,
+        "tableLag": 900,
+        "orderSync": 270,
+        "affinity": 770,
+        "liftOverflow": 225,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 165,
+          "status": "FEASIBLE",
+          "variables": 585,
+          "memoryBytes": 33554432,
+          "reportedObjective": 49242,
+          "budget": 0.0517,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 9281,
+            "businessCost": 9281,
+            "changeCost": 0,
+            "waitTime": 7116,
+            "tableLag": 900,
+            "orderSync": 270,
+            "affinity": 770,
+            "liftOverflow": 225,
+            "placements": 10,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 10,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 273
+        }
+      ]
+    },
+    {
+      "ordinal": 11,
+      "file": "275_20260906_1500_1700.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-06T07:47:44.000Z",
+      "recordCount": 9,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 995668907,
+      "ok": true,
+      "now": 1789274371818,
+      "liveCount": 12,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 20799,
+        "businessCost": 20799,
+        "changeCost": 0,
+        "waitTime": 12335,
+        "tableLag": 6810,
+        "orderSync": 225,
+        "affinity": 1114,
+        "liftOverflow": 315,
+        "placements": 12,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 176,
+          "status": "FEASIBLE",
+          "variables": 637,
+          "memoryBytes": 33554432,
+          "reportedObjective": 83378,
+          "budget": 0.05274,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 20799,
+            "businessCost": 20799,
+            "changeCost": 0,
+            "waitTime": 12335,
+            "tableLag": 6810,
+            "orderSync": 225,
+            "affinity": 1114,
+            "liftOverflow": 315,
+            "placements": 12,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 12,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 343
+        }
+      ]
+    },
+    {
+      "ordinal": 12,
+      "file": "275_20260908_1130_1330.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-08T02:47:40.000Z",
+      "recordCount": 12,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1665860535,
+      "ok": true,
+      "now": 1789274372346,
+      "liveCount": 19,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 34754,
+        "businessCost": 34754,
+        "changeCost": 0,
+        "waitTime": 20945,
+        "tableLag": 10800,
+        "orderSync": 0,
+        "affinity": 2604,
+        "liftOverflow": 405,
+        "placements": 19,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 175,
+          "status": "FEASIBLE",
+          "variables": 538,
+          "memoryBytes": 33554432,
+          "reportedObjective": 82482,
+          "budget": 0.05076,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 34754,
+            "businessCost": 34754,
+            "changeCost": 0,
+            "waitTime": 20945,
+            "tableLag": 10800,
+            "orderSync": 0,
+            "affinity": 2604,
+            "liftOverflow": 405,
+            "placements": 19,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 447
+        }
+      ]
+    },
+    {
+      "ordinal": 13,
+      "file": "275_20260908_1130_1330.jsonl",
+      "storeId": "275",
+      "cutAt": "2026-09-08T03:27:53.000Z",
+      "recordCount": 15,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3419751411,
+      "ok": true,
+      "now": 1789274372980,
+      "liveCount": 14,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 26123,
+        "businessCost": 26123,
+        "changeCost": 0,
+        "waitTime": 13823,
+        "tableLag": 10470,
+        "orderSync": 0,
+        "affinity": 1470,
+        "liftOverflow": 360,
+        "placements": 14,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 201,
+          "status": "FEASIBLE",
+          "variables": 599,
+          "memoryBytes": 33554432,
+          "reportedObjective": 81430,
+          "budget": 0.05198,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 26123,
+            "businessCost": 26123,
+            "changeCost": 0,
+            "waitTime": 13823,
+            "tableLag": 10470,
+            "orderSync": 0,
+            "affinity": 1470,
+            "liftOverflow": 360,
+            "placements": 14,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 14,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 402
+        }
+      ]
+    },
+    {
+      "ordinal": 14,
+      "file": "284_20260905_1945_2145.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-05T12:37:41.000Z",
+      "recordCount": 10,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1801267690,
+      "ok": true,
+      "now": 1789274373592,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 9149,
+        "businessCost": 9149,
+        "changeCost": 0,
+        "waitTime": 7139,
+        "tableLag": 900,
+        "orderSync": 0,
+        "affinity": 840,
+        "liftOverflow": 270,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 179,
+          "status": "FEASIBLE",
+          "variables": 576,
+          "memoryBytes": 33554432,
+          "reportedObjective": 58914,
+          "budget": 0.05152,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 9149,
+            "businessCost": 9149,
+            "changeCost": 0,
+            "waitTime": 7139,
+            "tableLag": 900,
+            "orderSync": 0,
+            "affinity": 840,
+            "liftOverflow": 270,
+            "placements": 10,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 10,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 279
+        }
+      ]
+    },
+    {
+      "ordinal": 15,
+      "file": "284_20260907_1215_1415.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-07T03:51:13.000Z",
+      "recordCount": 6,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 9981533,
+      "ok": true,
+      "now": 1789274374062,
+      "liveCount": 12,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 19848,
+        "businessCost": 19848,
+        "changeCost": 0,
+        "waitTime": 9749,
+        "tableLag": 8340,
+        "orderSync": 405,
+        "affinity": 1084,
+        "liftOverflow": 270,
+        "placements": 12,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 193,
+          "status": "FEASIBLE",
+          "variables": 561,
+          "memoryBytes": 33554432,
+          "reportedObjective": 66272,
+          "budget": 0.05122,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 19848,
+            "businessCost": 19848,
+            "changeCost": 0,
+            "waitTime": 9749,
+            "tableLag": 8340,
+            "orderSync": 405,
+            "affinity": 1084,
+            "liftOverflow": 270,
+            "placements": 12,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 12,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 334
+        }
+      ]
+    },
+    {
+      "ordinal": 16,
+      "file": "284_20260907_1215_1415.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-07T04:44:46.000Z",
+      "recordCount": 9,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 4253527958,
+      "ok": true,
+      "now": 1789274374597,
+      "liveCount": 12,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 21382,
+        "businessCost": 21382,
+        "changeCost": 0,
+        "waitTime": 11545,
+        "tableLag": 8250,
+        "orderSync": 225,
+        "affinity": 1092,
+        "liftOverflow": 270,
+        "placements": 12,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 192,
+          "status": "FEASIBLE",
+          "variables": 561,
+          "memoryBytes": 33554432,
+          "reportedObjective": 79170,
+          "budget": 0.05122,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 21382,
+            "businessCost": 21382,
+            "changeCost": 0,
+            "waitTime": 11545,
+            "tableLag": 8250,
+            "orderSync": 225,
+            "affinity": 1092,
+            "liftOverflow": 270,
+            "placements": 12,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 12,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 328
+        }
+      ]
+    },
+    {
+      "ordinal": 17,
+      "file": "336_20260908_2145_2345.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-08T13:08:05.000Z",
+      "recordCount": 17,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1520616461,
+      "ok": true,
+      "now": 1789274375128,
+      "liveCount": 16,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 31538,
+        "businessCost": 31538,
+        "changeCost": 0,
+        "waitTime": 19459,
+        "tableLag": 8550,
+        "orderSync": 1035,
+        "affinity": 2044,
+        "liftOverflow": 450,
+        "placements": 16,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 178,
+          "status": "FEASIBLE",
+          "variables": 717,
+          "memoryBytes": 33554432,
+          "reportedObjective": 89604,
+          "budget": 0.05434,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 31538,
+            "businessCost": 31538,
+            "changeCost": 0,
+            "waitTime": 19459,
+            "tableLag": 8550,
+            "orderSync": 1035,
+            "affinity": 2044,
+            "liftOverflow": 450,
+            "placements": 16,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 477
+        }
+      ]
+    },
+    {
+      "ordinal": 18,
+      "file": "336_20260908_2145_2345.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-08T13:24:46.000Z",
+      "recordCount": 13,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1547043701,
+      "ok": true,
+      "now": 1789274375793,
+      "liveCount": 15,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 26880,
+        "businessCost": 26880,
+        "changeCost": 0,
+        "waitTime": 14935,
+        "tableLag": 9990,
+        "orderSync": 90,
+        "affinity": 1460,
+        "liftOverflow": 405,
+        "placements": 15,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 169
+        },
+        {
+          "limit": 16,
+          "targets": 15,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 463
+        }
+      ]
+    },
+    {
+      "ordinal": 19,
+      "file": "342_20260905_1145_1345.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-05T03:32:48.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 614574262,
+      "ok": true,
+      "now": 1789274376433,
+      "liveCount": 8,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 7908,
+        "businessCost": 7908,
+        "changeCost": 0,
+        "waitTime": 6474,
+        "tableLag": 810,
+        "orderSync": 0,
+        "affinity": 444,
+        "liftOverflow": 180,
+        "placements": 8,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 203
+        },
+        {
+          "limit": 16,
+          "targets": 8,
+          "ok": true,
+          "failure": null,
+          "solveMs": 239,
+          "status": "FEASIBLE",
+          "variables": 973,
+          "memoryBytes": 33554432,
+          "reportedObjective": 100174,
+          "budget": 0.05946,
+          "placements": 8,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 8,
+          "composed": {
+            "total": 10330,
+            "businessCost": 9093,
+            "changeCost": 1237,
+            "waitTime": 6643,
+            "tableLag": 1688,
+            "orderSync": 183,
+            "affinity": 444,
+            "liftOverflow": 135,
+            "placements": 8,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 20,
+      "file": "342_20260907_1345_1545.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-07T05:36:56.000Z",
+      "recordCount": 4,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1851759193,
+      "ok": true,
+      "now": 1789274376882,
+      "liveCount": 5,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 4063,
+        "businessCost": 4063,
+        "changeCost": 0,
+        "waitTime": 3497,
+        "tableLag": 270,
+        "orderSync": 0,
+        "affinity": 116,
+        "liftOverflow": 180,
+        "placements": 5,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 5,
+          "ok": true,
+          "failure": null,
+          "solveMs": 172,
+          "status": "FEASIBLE",
+          "variables": 536,
+          "memoryBytes": 33554432,
+          "reportedObjective": 68588,
+          "budget": 0.05072,
+          "placements": 5,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 5,
+          "composed": {
+            "total": 9286,
+            "businessCost": 7981,
+            "changeCost": 1305,
+            "waitTime": 4299,
+            "tableLag": 2416,
+            "orderSync": 1014,
+            "affinity": 162,
+            "liftOverflow": 90,
+            "placements": 5,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 5,
+          "ok": true,
+          "failure": null,
+          "solveMs": 168,
+          "status": "FEASIBLE",
+          "variables": 536,
+          "memoryBytes": 33554432,
+          "reportedObjective": 68588,
+          "budget": 0.05072,
+          "placements": 5,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 5,
+          "composed": {
+            "total": 9286,
+            "businessCost": 7981,
+            "changeCost": 1305,
+            "waitTime": 4299,
+            "tableLag": 2416,
+            "orderSync": 1014,
+            "affinity": 162,
+            "liftOverflow": 90,
+            "placements": 5,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 21,
+      "file": "342_20260907_1345_1545.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-07T06:15:22.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1146681281,
+      "ok": true,
+      "now": 1789274377230,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 12707,
+        "businessCost": 12707,
+        "changeCost": 0,
+        "waitTime": 10765,
+        "tableLag": 1080,
+        "orderSync": 0,
+        "affinity": 682,
+        "liftOverflow": 180,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 93,
+          "status": "OPTIMAL",
+          "variables": 520,
+          "memoryBytes": 33554432,
+          "reportedObjective": 76566,
+          "budget": 0.0504,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 12707,
+            "businessCost": 12707,
+            "changeCost": 0,
+            "waitTime": 10765,
+            "tableLag": 1080,
+            "orderSync": 0,
+            "affinity": 682,
+            "liftOverflow": 180,
+            "placements": 10,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 10,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 276
+        }
+      ]
+    },
+    {
+      "ordinal": 22,
+      "file": "355_20260905_1500_1700.jsonl",
+      "storeId": "355",
+      "cutAt": "2026-09-05T07:34:21.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1227462829,
+      "ok": true,
+      "now": 1789274377607,
+      "liveCount": 14,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 26459,
+        "businessCost": 26459,
+        "changeCost": 0,
+        "waitTime": 16324,
+        "tableLag": 8250,
+        "orderSync": 45,
+        "affinity": 1480,
+        "liftOverflow": 360,
+        "placements": 14,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 185,
+          "status": "FEASIBLE",
+          "variables": 608,
+          "memoryBytes": 33554432,
+          "reportedObjective": 81464,
+          "budget": 0.05216,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 26459,
+            "businessCost": 26459,
+            "changeCost": 0,
+            "waitTime": 16324,
+            "tableLag": 8250,
+            "orderSync": 45,
+            "affinity": 1480,
+            "liftOverflow": 360,
+            "placements": 14,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 14,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 392
+        }
+      ]
+    },
+    {
+      "ordinal": 23,
+      "file": "355_20260908_1845_2045.jsonl",
+      "storeId": "355",
+      "cutAt": "2026-09-08T11:17:42.000Z",
+      "recordCount": 19,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 489091668,
+      "ok": true,
+      "now": 1789274378195,
+      "liveCount": 25,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 62759,
+        "businessCost": 62759,
+        "changeCost": 0,
+        "waitTime": 29697,
+        "tableLag": 26370,
+        "orderSync": 1395,
+        "affinity": 4622,
+        "liftOverflow": 675,
+        "placements": 25,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 174,
+          "status": "FEASIBLE",
+          "variables": 529,
+          "memoryBytes": 33554432,
+          "reportedObjective": 67314,
+          "budget": 0.05058,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 62759,
+            "businessCost": 62759,
+            "changeCost": 0,
+            "waitTime": 29697,
+            "tableLag": 26370,
+            "orderSync": 1395,
+            "affinity": 4622,
+            "liftOverflow": 675,
+            "placements": 25,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 469
+        }
+      ]
+    },
+    {
+      "ordinal": 24,
+      "file": "362_20260905_2100_2300.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-05T12:49:14.000Z",
+      "recordCount": 10,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 1614924514,
+      "ok": true,
+      "now": 1789274378854,
+      "liveCount": 10,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 9514,
+        "businessCost": 9514,
+        "changeCost": 0,
+        "waitTime": 7572,
+        "tableLag": 1080,
+        "orderSync": 0,
+        "affinity": 682,
+        "liftOverflow": 180,
+        "placements": 10,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 155
+        },
+        {
+          "limit": 16,
+          "targets": 10,
+          "ok": true,
+          "failure": null,
+          "solveMs": 264,
+          "status": "FEASIBLE",
+          "variables": 1246,
+          "memoryBytes": 33554432,
+          "reportedObjective": 118902,
+          "budget": 0.06492,
+          "placements": 10,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 0,
+          "blockedBy": [],
+          "keptInComposed": 10,
+          "composed": {
+            "total": 12693,
+            "businessCost": 10848,
+            "changeCost": 1845,
+            "waitTime": 7693,
+            "tableLag": 2338,
+            "orderSync": 0,
+            "affinity": 682,
+            "liftOverflow": 135,
+            "placements": 10,
+            "slices": 1
+          }
+        }
+      ]
+    },
+    {
+      "ordinal": 25,
+      "file": "362_20260905_2100_2300.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-05T13:02:49.000Z",
+      "recordCount": 13,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 2912675375,
+      "ok": true,
+      "now": 1789274379281,
+      "liveCount": 14,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 24971,
+        "businessCost": 24971,
+        "changeCost": 0,
+        "waitTime": 14881,
+        "tableLag": 8250,
+        "orderSync": 0,
+        "affinity": 1480,
+        "liftOverflow": 360,
+        "placements": 14,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 178,
+          "status": "FEASIBLE",
+          "variables": 567,
+          "memoryBytes": 33554432,
+          "reportedObjective": 85926,
+          "budget": 0.05134,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 24971,
+            "businessCost": 24971,
+            "changeCost": 0,
+            "waitTime": 14881,
+            "tableLag": 8250,
+            "orderSync": 0,
+            "affinity": 1480,
+            "liftOverflow": 360,
+            "placements": 14,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 14,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 412
+        }
+      ]
+    },
+    {
+      "ordinal": 26,
+      "file": "362_20260907_1115_1315.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-07T03:10:27.000Z",
+      "recordCount": 11,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3637661294,
+      "ok": true,
+      "now": 1789274379881,
+      "liveCount": 11,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 17405,
+        "businessCost": 17405,
+        "changeCost": 0,
+        "waitTime": 9278,
+        "tableLag": 6930,
+        "orderSync": 0,
+        "affinity": 882,
+        "liftOverflow": 315,
+        "placements": 11,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 182,
+          "status": "FEASIBLE",
+          "variables": 576,
+          "memoryBytes": 33554432,
+          "reportedObjective": 82256,
+          "budget": 0.05152,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 17405,
+            "businessCost": 17405,
+            "changeCost": 0,
+            "waitTime": 9278,
+            "tableLag": 6930,
+            "orderSync": 0,
+            "affinity": 882,
+            "liftOverflow": 315,
+            "placements": 11,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 11,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 323
+        }
+      ]
+    },
+    {
+      "ordinal": 27,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:18:00.000Z",
+      "recordCount": 16,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 3652340188,
+      "ok": true,
+      "now": 1789274380393,
+      "liveCount": 14,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 17715,
+        "businessCost": 17715,
+        "changeCost": 0,
+        "waitTime": 11712,
+        "tableLag": 2880,
+        "orderSync": 0,
+        "affinity": 2808,
+        "liftOverflow": 315,
+        "placements": 14,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 183,
+          "status": "FEASIBLE",
+          "variables": 608,
+          "memoryBytes": 33554432,
+          "reportedObjective": 84324,
+          "budget": 0.05216,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 17715,
+            "businessCost": 17715,
+            "changeCost": 0,
+            "waitTime": 11712,
+            "tableLag": 2880,
+            "orderSync": 0,
+            "affinity": 2808,
+            "liftOverflow": 315,
+            "placements": 14,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 14,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 414
+        }
+      ]
+    },
+    {
+      "ordinal": 28,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:28:13.000Z",
+      "recordCount": 24,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 1759004071,
+      "ok": true,
+      "now": 1789274381001,
+      "liveCount": 23,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 47586,
+        "businessCost": 47586,
+        "changeCost": 0,
+        "waitTime": 24459,
+        "tableLag": 15480,
+        "orderSync": 0,
+        "affinity": 7062,
+        "liftOverflow": 585,
+        "placements": 23,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 165
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 510
+        }
+      ]
+    },
+    {
+      "ordinal": 29,
+      "file": "364_20260907_0915_1115.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-07T02:09:49.000Z",
+      "recordCount": 14,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 2336886328,
+      "ok": true,
+      "now": 1789274381687,
+      "liveCount": 16,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 19035,
+        "businessCost": 19035,
+        "changeCost": 0,
+        "waitTime": 13133,
+        "tableLag": 2160,
+        "orderSync": 0,
+        "affinity": 3382,
+        "liftOverflow": 360,
+        "placements": 16,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 6,
+          "targets": 6,
+          "ok": true,
+          "failure": null,
+          "solveMs": 177,
+          "status": "FEASIBLE",
+          "variables": 556,
+          "memoryBytes": 33554432,
+          "reportedObjective": 82080,
+          "budget": 0.05112,
+          "placements": 6,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "blockedBy": ["stale"],
+          "keptInComposed": 0,
+          "composed": {
+            "total": 19035,
+            "businessCost": 19035,
+            "changeCost": 0,
+            "waitTime": 13133,
+            "tableLag": 2160,
+            "orderSync": 0,
+            "affinity": 3382,
+            "liftOverflow": 360,
+            "placements": 16,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": false,
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 492
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

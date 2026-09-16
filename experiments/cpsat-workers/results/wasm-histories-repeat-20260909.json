@@ -1,0 +1,61 @@
+{
+  "runtime": {
+    "kind": "ready",
+    "runtime": "wasm-workerd",
+    "localOnly": true,
+    "clock": "frozen",
+    "startupMs": 833.612791,
+    "requestWatchdogMs": 35000,
+    "wasmSha256": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1",
+    "nodeVersion": "v26.7.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "captureSha256": "045ec0536eb271b51417a4214f5d568d641c94c86826255c67bd5996269f120e",
+  "nativeSolverForbidden": true,
+  "allRepeatedOutcomesIdentical": true,
+  "rows": [
+    {
+      "capture": 0,
+      "repeat": 0,
+      "status": "OPTIMAL",
+      "wasmMemoryBytes": 33554432,
+      "clientElapsedMs": 141.787375
+    },
+    {
+      "capture": 0,
+      "repeat": 1,
+      "status": "OPTIMAL",
+      "wasmMemoryBytes": 33554432,
+      "clientElapsedMs": 19.32837500000005
+    },
+    {
+      "capture": 1,
+      "repeat": 0,
+      "status": "FEASIBLE",
+      "wasmMemoryBytes": 33554432,
+      "clientElapsedMs": 668.762291
+    },
+    {
+      "capture": 1,
+      "repeat": 1,
+      "status": "FEASIBLE",
+      "wasmMemoryBytes": 33554432,
+      "clientElapsedMs": 627.753792
+    },
+    {
+      "capture": 2,
+      "repeat": 0,
+      "status": "FEASIBLE",
+      "wasmMemoryBytes": 33554432,
+      "clientElapsedMs": 614.0350000000003
+    },
+    {
+      "capture": 2,
+      "repeat": 1,
+      "status": "FEASIBLE",
+      "wasmMemoryBytes": 33554432,
+      "clientElapsedMs": 615.164792
+    }
+  ]
+}

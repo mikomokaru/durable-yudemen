@@ -6,6 +6,8 @@ dist/
 
 # wrangler types output (regenerate with `pnpm cf-typegen`)
 worker-configuration.d.ts
+# 札の Worker の Env 型（regenerate with `pnpm short-names:types`）
+src/display/worker-configuration.d.ts
 
 # Kiro ローカル設定（MCP の認証トークン等の機微情報を含むため追跡しない）
 .kiro/settings/
@@ -35,3 +37,9 @@ worker-configuration.d.ts
 # この機械のセッション識別子（chatSessionId）と実行時刻の記録であり、spec の内容ではない。
 # タスクの完了状態は tasks.md のチェックボックスが正本。
 .kiro/specs/*/tasks.meta.json
+
+# CP-SAT 実注文試験の原本・取得設定。コードと集計結果だけを追跡する。
+/docs/data_samples/kenbaiki_orders/*.jsonl
+/docs/data_samples/noodle_plan_histories/
+/experiments/cpsat-workers/fixtures/local/
+/experiments/cpsat-workers/**/__pycache__/

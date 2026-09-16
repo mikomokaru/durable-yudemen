@@ -89,14 +89,27 @@ function compareItems(a: LiftItem, b: LiftItem): number {
  *
  * 先頭は常に表示できる。以降は直前までがすべて started の間だけ続き、started でない群で連鎖が止まる
  * ——その群の 1 本目が始まるまで後続を解禁しない（AC 2.9 / 2.10）。
+ *
+ * **ただし同じ開始時刻の群は互いを待たない（ADR-0017・2026-09-15）。** 規則が隠したいのは
+ * 「**次の**群」——判断 7 の言葉で時間的に後の群である。同時に始められる群は「次」ではない。
+ * 隠せば、腕が空いているのに 1 つずつしか出せず**現場の手が余る**。
+ *
+ * **CP-SAT モードで表面化した。** あちらは `anchor` を常に null で出すので、どの群も
+ * `started`（`anchor > now`）にならず、**連鎖が最初の群で永久に止まる**。TS 側は走行中の仲間へ
+ * 合流した配置に錨を付けるため、1 本始まれば次が解禁されていた。根（CP-SAT が錨を出さない）は
+ * 別途直す——本改訂は表示の側だけで、`keepsAnchor` も変更費用も触らない。
  */
 export function visibleGroupsOf<T extends LiftItem>(
   groups: readonly LiftGroupOf<T>[],
 ): readonly LiftGroupOf<T>[] {
   const visible: LiftGroupOf<T>[] = [];
+  let blockedAt: number | null = null;
   for (const group of groups) {
+    const startAt = group.items[0].recommendation.startAt;
+    // 連鎖が止まった時刻より後の群は出さない。**同じ時刻の群は出す**——「次」ではないからである。
+    if (blockedAt !== null && startAt > blockedAt) break;
     visible.push(group);
-    if (!group.started) break;
+    if (!group.started && blockedAt === null) blockedAt = startAt;
   }
   return visible;
 }

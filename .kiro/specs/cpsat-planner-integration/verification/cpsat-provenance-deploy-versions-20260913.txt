@@ -1,0 +1,13 @@
+# 配備前の現行版（2026-09-13T03:30:36Z）
+## yude-men-timer
+  deployments: 10
+  現行 deployment: 58aae809-bc6a-4f9e-bfa3-0c94fe389a92 2026-09-13T01:17:40.402071Z
+  現行 version  : 16dd7046-6a64-4d54-8e7e-8ec8983b5308 pct 100
+## yude-men-cpsat-planner-dev
+  deployments: 10
+  現行 deployment: 8e8ccc59-dd42-4672-8f0a-bcb26b11f669 2026-09-13T01:20:16.040851Z
+  現行 version  : a910005c-1e3a-4b44-9853-633ad1eae763 pct 100
+## yude-men-cpsat-transport-shim-dev
+  deployments: 6
+  現行 deployment: c625403a-a6b8-4b49-a2e9-783e2664d5e6 2026-09-12T09:49:55.562371Z
+  現行 version  : cead8fe7-1c1a-4e04-81bd-d4673d581093 pct 100

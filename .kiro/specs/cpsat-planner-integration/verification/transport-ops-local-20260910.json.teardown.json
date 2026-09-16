@@ -1,0 +1,30 @@
+{
+  "closes": [
+    {
+      "confirmed": true,
+      "waitedMs": 2000
+    },
+    {
+      "confirmed": true,
+      "waitedMs": 2000
+    }
+  ],
+  "ledger": {
+    "dispatch": 11,
+    "operation": 3,
+    "connection": 4,
+    "inFlight": 0,
+    "openConnections": 0,
+    "unconfirmedConnections": 0,
+    "unsettledFromEarlierRuns": {
+      "dispatch": 0,
+      "operation": 0,
+      "connection": 0
+    },
+    "observedDispatches": 7,
+    "stopIsRederivable": null,
+    "unattributedDispatches": 0,
+    "stopped": null
+  },
+  "error": null
+}

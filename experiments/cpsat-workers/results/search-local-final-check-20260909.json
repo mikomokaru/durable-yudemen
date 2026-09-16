@@ -1,0 +1,713 @@
+{
+  "startedAt": "2026-09-09T05:37:09.577Z",
+  "runtime": {
+    "kind": "ready",
+    "runtime": "wasm-search-local",
+    "origin": "http://127.0.0.1:8793",
+    "versionId": "cf68cc49-52aa-4ae3-a7e0-109cf6ea8f13",
+    "wasmSha256": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1",
+    "clock": "frozen",
+    "cpuLimitMs": 10000,
+    "expiresAt": "2026-09-10T06:00:00Z",
+    "healthElapsedMs": 17.886375000000005,
+    "cfRay": null
+  },
+  "capturesSha256": "045ec0536eb271b51417a4214f5d568d641c94c86826255c67bd5996269f120e",
+  "boundaries": [
+    {
+      "path": "/health",
+      "status": 401
+    },
+    {
+      "path": "/health",
+      "status": 401
+    },
+    {
+      "path": "/solve-model",
+      "status": 405
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0.1",
+      "status": 415
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0",
+      "status": 400
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0.201",
+      "status": 400
+    },
+    {
+      "path": "/solve-model?deterministicLimit=NaN",
+      "status": 400
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0.1&repeat=2",
+      "status": 400
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0.1&clock=host",
+      "status": 400
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0.1&deterministicLimit=0.1",
+      "status": 400
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0.1",
+      "status": 413
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0.1",
+      "status": 413
+    },
+    {
+      "path": "/solve-model?deterministicLimit=0.1",
+      "status": 422
+    }
+  ],
+  "rows": [
+    {
+      "parallel": 1,
+      "requests": 12,
+      "elapsedMs": 5144.689625000001,
+      "isolateCount": 1,
+      "results": [
+        {
+          "index": 0,
+          "status": "OPTIMAL",
+          "elapsedMs": 17.611125000000015,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 1,
+          "status": "FEASIBLE",
+          "elapsedMs": 690.8634589999999,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 2,
+          "status": "FEASIBLE",
+          "elapsedMs": 638.0032500000001,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 3,
+          "status": "OPTIMAL",
+          "elapsedMs": 11.497000000000071,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 4,
+          "status": "FEASIBLE",
+          "elapsedMs": 624.2682919999997,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 5,
+          "status": "FEASIBLE",
+          "elapsedMs": 629.0711249999999,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 6,
+          "status": "OPTIMAL",
+          "elapsedMs": 10.714958000000024,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 7,
+          "status": "FEASIBLE",
+          "elapsedMs": 640.8294999999998,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 8,
+          "status": "FEASIBLE",
+          "elapsedMs": 621.4889580000004,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 9,
+          "status": "OPTIMAL",
+          "elapsedMs": 12.150625000000218,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 10,
+          "status": "FEASIBLE",
+          "elapsedMs": 610.9326250000004,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 11,
+          "status": "FEASIBLE",
+          "elapsedMs": 621.8738749999993,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        }
+      ]
+    },
+    {
+      "parallel": 2,
+      "requests": 12,
+      "elapsedMs": 4901.225625000001,
+      "isolateCount": 1,
+      "results": [
+        {
+          "index": 0,
+          "status": "OPTIMAL",
+          "elapsedMs": 11.340665999999146,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 1,
+          "status": "FEASIBLE",
+          "elapsedMs": 616.4746250000007,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 2,
+          "status": "FEASIBLE",
+          "elapsedMs": 1213.1120419999997,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 3,
+          "status": "OPTIMAL",
+          "elapsedMs": 617.1822499999998,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 4,
+          "status": "FEASIBLE",
+          "elapsedMs": 621.7524579999999,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 5,
+          "status": "FEASIBLE",
+          "elapsedMs": 1221.9645419999997,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 6,
+          "status": "OPTIMAL",
+          "elapsedMs": 618.0698750000001,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 7,
+          "status": "FEASIBLE",
+          "elapsedMs": 609.4942080000001,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 8,
+          "status": "FEASIBLE",
+          "elapsedMs": 1216.0143749999997,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 9,
+          "status": "OPTIMAL",
+          "elapsedMs": 624.1833749999987,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 10,
+          "status": "FEASIBLE",
+          "elapsedMs": 610.9394589999993,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 11,
+          "status": "FEASIBLE",
+          "elapsedMs": 1207.3012089999993,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        }
+      ]
+    },
+    {
+      "parallel": 4,
+      "requests": 12,
+      "elapsedMs": 4927.3461670000015,
+      "isolateCount": 1,
+      "results": [
+        {
+          "index": 0,
+          "status": "OPTIMAL",
+          "elapsedMs": 11.449083999999857,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 1,
+          "status": "FEASIBLE",
+          "elapsedMs": 1236.5240409999988,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 2,
+          "status": "FEASIBLE",
+          "elapsedMs": 1237.3904160000002,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 3,
+          "status": "OPTIMAL",
+          "elapsedMs": 21.18737499999952,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 4,
+          "status": "FEASIBLE",
+          "elapsedMs": 2463.8438750000005,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 5,
+          "status": "FEASIBLE",
+          "elapsedMs": 2453.183459,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 6,
+          "status": "OPTIMAL",
+          "elapsedMs": 1247.5212499999998,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 7,
+          "status": "FEASIBLE",
+          "elapsedMs": 1848.8335420000003,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 8,
+          "status": "FEASIBLE",
+          "elapsedMs": 1831.4190839999992,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 9,
+          "status": "OPTIMAL",
+          "elapsedMs": 621.1798330000001,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 10,
+          "status": "FEASIBLE",
+          "elapsedMs": 1821.8358339999995,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        },
+        {
+          "index": 11,
+          "status": "FEASIBLE",
+          "elapsedMs": 1837.9319159999995,
+          "memoryBytes": 33554432,
+          "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+          "cfRay": null
+        }
+      ]
+    }
+  ],
+  "completedRequests": [
+    {
+      "parallel": 1,
+      "index": 0,
+      "status": "OPTIMAL",
+      "elapsedMs": 17.611125000000015,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 1,
+      "status": "FEASIBLE",
+      "elapsedMs": 690.8634589999999,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 2,
+      "status": "FEASIBLE",
+      "elapsedMs": 638.0032500000001,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 3,
+      "status": "OPTIMAL",
+      "elapsedMs": 11.497000000000071,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 4,
+      "status": "FEASIBLE",
+      "elapsedMs": 624.2682919999997,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 5,
+      "status": "FEASIBLE",
+      "elapsedMs": 629.0711249999999,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 6,
+      "status": "OPTIMAL",
+      "elapsedMs": 10.714958000000024,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 7,
+      "status": "FEASIBLE",
+      "elapsedMs": 640.8294999999998,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 8,
+      "status": "FEASIBLE",
+      "elapsedMs": 621.4889580000004,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 9,
+      "status": "OPTIMAL",
+      "elapsedMs": 12.150625000000218,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 10,
+      "status": "FEASIBLE",
+      "elapsedMs": 610.9326250000004,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 1,
+      "index": 11,
+      "status": "FEASIBLE",
+      "elapsedMs": 621.8738749999993,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 0,
+      "status": "OPTIMAL",
+      "elapsedMs": 11.340665999999146,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 1,
+      "status": "FEASIBLE",
+      "elapsedMs": 616.4746250000007,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 2,
+      "status": "FEASIBLE",
+      "elapsedMs": 1213.1120419999997,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 3,
+      "status": "OPTIMAL",
+      "elapsedMs": 617.1822499999998,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 4,
+      "status": "FEASIBLE",
+      "elapsedMs": 621.7524579999999,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 5,
+      "status": "FEASIBLE",
+      "elapsedMs": 1221.9645419999997,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 6,
+      "status": "OPTIMAL",
+      "elapsedMs": 618.0698750000001,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 7,
+      "status": "FEASIBLE",
+      "elapsedMs": 609.4942080000001,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 8,
+      "status": "FEASIBLE",
+      "elapsedMs": 1216.0143749999997,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 9,
+      "status": "OPTIMAL",
+      "elapsedMs": 624.1833749999987,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 10,
+      "status": "FEASIBLE",
+      "elapsedMs": 610.9394589999993,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 2,
+      "index": 11,
+      "status": "FEASIBLE",
+      "elapsedMs": 1207.3012089999993,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 0,
+      "status": "OPTIMAL",
+      "elapsedMs": 11.449083999999857,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 3,
+      "status": "OPTIMAL",
+      "elapsedMs": 21.18737499999952,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 1,
+      "status": "FEASIBLE",
+      "elapsedMs": 1236.5240409999988,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 2,
+      "status": "FEASIBLE",
+      "elapsedMs": 1237.3904160000002,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 5,
+      "status": "FEASIBLE",
+      "elapsedMs": 2453.183459,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 4,
+      "status": "FEASIBLE",
+      "elapsedMs": 2463.8438750000005,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 6,
+      "status": "OPTIMAL",
+      "elapsedMs": 1247.5212499999998,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 7,
+      "status": "FEASIBLE",
+      "elapsedMs": 1848.8335420000003,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 9,
+      "status": "OPTIMAL",
+      "elapsedMs": 621.1798330000001,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 8,
+      "status": "FEASIBLE",
+      "elapsedMs": 1831.4190839999992,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 10,
+      "status": "FEASIBLE",
+      "elapsedMs": 1821.8358339999995,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    },
+    {
+      "parallel": 4,
+      "index": 11,
+      "status": "FEASIBLE",
+      "elapsedMs": 1837.9319159999995,
+      "memoryBytes": 33554432,
+      "isolateId": "a6e999f7-f3fc-4137-8da9-33cf2bfd9732",
+      "cfRay": null
+    }
+  ],
+  "allOutcomesEqualLocalWasm": true,
+  "warmupMs": 121.47745800000001,
+  "completedAt": "2026-09-09T05:37:24.719Z"
+}

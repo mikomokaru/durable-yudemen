@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { tryWriteOperationLines } from "../../src/operation-history/producer";
 import type { OperationObservation } from "../../src/operation-history/derive";
+import { canonicalLinesOf } from "./support/canonical-capture";
 import {
   PRODUCER_SCRIPT,
   producerTimer,
@@ -31,7 +32,7 @@ function producerLines() {
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
   tryWriteOperationLines(true, boiledObservation);
   const trace = (): readonly unknown[][] => log.mock.calls.map((call) => [...call]);
-  return { lines: log.mock.calls.map((call) => call[0] as string), trace };
+  return { lines: canonicalLinesOf(log.mock.calls), trace };
 }
 
 afterEach(() => {
@@ -83,8 +84,9 @@ describe("Tail → Queue → Consumer → R2 の一方向搬送", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const events = [
       tailEvent(PRODUCER_SCRIPT, [
-        { level: "log", message: ["not-json"] },
-        { level: "log", message: ['{"storeId":"store-1"}'] },
+        // 操作記録を名乗る行だけが codec へ進む（2026-09-16 の変更）。
+        { level: "log", message: ['{"operationKind":"completed"'] },
+        { level: "log", message: ['{"operationKind":"completed","storeId":"store-1"}'] },
       ]),
     ];
 

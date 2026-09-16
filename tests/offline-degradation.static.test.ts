@@ -616,12 +616,52 @@ describe("(e) クライアント純粋遷移層が暗黙の作用に触れない
  */
 const ALLOWED_FIRMNESS_LABELS = ["バリカタ", "かため", "ふつう", "やわめ"] as const;
 
+/**
+ * 英語 UI の 2 つ目の例外＝麺量の語（item-display-abbreviation 判断 8・2026-09-15）。
+ *
+ * **同じ理由で許す。** 茹で加減と同じく麺量はラーメン調理の母語であり、`中盛` / `大盛` / `半玉` は POS が
+ * 伝票へ印字する語そのもので、画面にもその語のまま出る（`普通` は表示されないが、表を引くための鍵として
+ * 同じ場所に書かれる）。
+ *
+ * **`src/display/` へ逃がして検査を通す道は採らなかった。** ファイルの置き場を変えても `中盛` / `大盛` /
+ * `半玉` が画面へ出る事実は変わらず、規則の趣旨（UI は英語）を迂回するだけである。例外は正直に挙げて
+ * 最小に閉じ込める。
+ *
+ * **例外は `SIZE_LABEL` の定義の中だけに効く。** 語を client 全体から無条件に取り除くと、麺量と無関係な
+ * `<button>中</button>` まで通ってしまう。ゆえに除くのは下の初期化子 1 箇所で、そこに現れる日本語が
+ * この確定集合に収まることも併せて検査する（例外が黙って広がらない）。
+ */
+const ALLOWED_SIZE_LABELS = ["普通", "中盛", "大盛", "半玉"] as const;
+
+/** 麺量表の定義（`queueDisplay.ts`）。この初期化子の中だけが麺量の語を持てる。 */
+const SIZE_LABEL_DEFINITION =
+  /const SIZE_LABEL: ReadonlyMap<string, string> = new Map\(\[[\s\S]*?\]\);/;
+
+/**
+ * 麺量表の初期化子を取り除いたコードを返す。**表の中身が確定集合に収まることを確かめてから**取り除く
+ * ——確かめずに落とせば、あの括弧の中へ何を書いても英語 UI の検査を通り抜ける穴になる。
+ */
+function withoutSizeLabelDefinition(code: string): string {
+  const found = SIZE_LABEL_DEFINITION.exec(code);
+  if (found === null) return code;
+  const block = found[0];
+  let remainder = block;
+  for (const label of ALLOWED_SIZE_LABELS) remainder = remainder.split(label).join("");
+  expect(
+    JAPANESE.exec(remainder),
+    `SIZE_LABEL の定義に確定集合の外の日本語が現れる（例外が広がっている）`,
+  ).toBeNull();
+  return code.split(block).join("");
+}
+
 describe("(f) ユーザー向け画面コンテンツは英語・コードコメントは日本語（要件13.6）", () => {
-  it("client のユーザー向け文字列・JSX に日本語が現れない（茹で加減ラベルのみ例外・英語 UI）", () => {
+  it("client のユーザー向け文字列・JSX に日本語が現れない（茹で加減ラベルと麺量表のみ例外・英語 UI）", () => {
     for (const file of CLIENT_FILES) {
       // コメント（日本語可）を除き、文字列リテラル・JSX テキストを残したテキストを検査する。
-      // 茹で加減ラベル（合意済みの調理母語）は取り除いてから日本語混入を判定する。
-      let code = readCodeWithStrings(file);
+      // 調理母語は取り除いてから判定する——茹で加減ラベルは client 全体で、麺量の語は `SIZE_LABEL` の
+      // 定義の中だけで許す。
+      // 麺量の語は `SIZE_LABEL` の定義の中だけで許す（その外に現れれば従来どおり弾く）。
+      let code = withoutSizeLabelDefinition(readCodeWithStrings(file));
       for (const label of ALLOWED_FIRMNESS_LABELS) {
         code = code.split(label).join("");
       }

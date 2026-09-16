@@ -89,6 +89,11 @@ export function migrate(raw: unknown): MigrationOutcome {
     ok: true,
     snapshot: {
       version: CURRENT_SCHEMA_VERSION,
+      // **釜の重複はここでは直さない（ADR-0015・2026-09-14 の判断）。** 「移行は Timer を落とさない」は
+      // `migrate` の性質として固定されており（Property 5・5.8・12）、それを緩めるには実害が要る。
+      // 本番の実測では重複は **0 件**（失敗 111 件のうち `INFEASIBLE` 0）で、直すべき既存データが
+      // そもそも無い。`decide` の不変条件が**新しい重複を作らせない**ので、既存の重複が万一在っても
+      // 茹で上がりと完了で自然に消える。**起きていない欠陥のために移行の契約を緩めない。**
       timers,
       nextSeq,
       // 上限を当てるのはここ（order-item-truncation AC 2.2 / 4.2）。検証（解釈できるか・reviveOrderItems）と

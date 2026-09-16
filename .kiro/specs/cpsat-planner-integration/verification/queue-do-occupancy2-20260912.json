@@ -1,0 +1,132 @@
+{
+  "startedAt": "2026-09-12T09:55:39.049Z",
+  "storeId": "cpsat-transport-20260909-04",
+  "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+  "window": {
+    "notBefore": 1789206547133,
+    "expiresAt": 1789211947133
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 202,
+          "firstFrameMs": 203
+        },
+        {
+          "status": 101,
+          "upgradedMs": 120,
+          "firstFrameMs": 120
+        }
+      ],
+      "busy": {
+        "status": 101,
+        "upgradedMs": 89,
+        "firstFrameMs": 89
+      },
+      "busyProbeSentAfterOrderMs": 4004,
+      "busyProbeFinishedAfterOrderMs": 4093,
+      "order": {
+        "externalOrderId": "occupancy-r0-762f8a09",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789206940513,
+        "wallMs": 624
+      },
+      "orderFinishedAfterMs": 624
+    },
+    {
+      "round": 1,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 159,
+          "firstFrameMs": 159
+        },
+        {
+          "status": 101,
+          "upgradedMs": 107,
+          "firstFrameMs": 107
+        }
+      ],
+      "busy": {
+        "status": 101,
+        "upgradedMs": 90,
+        "firstFrameMs": 90
+      },
+      "busyProbeSentAfterOrderMs": 4002,
+      "busyProbeFinishedAfterOrderMs": 4092,
+      "order": {
+        "externalOrderId": "occupancy-r1-67e343b0",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789206952924,
+        "wallMs": 576
+      },
+      "orderFinishedAfterMs": 577
+    },
+    {
+      "round": 2,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 143,
+          "firstFrameMs": 229
+        },
+        {
+          "status": 101,
+          "upgradedMs": 147,
+          "firstFrameMs": 147
+        }
+      ],
+      "busy": {
+        "status": 101,
+        "upgradedMs": 184,
+        "firstFrameMs": 185
+      },
+      "busyProbeSentAfterOrderMs": 4053,
+      "busyProbeFinishedAfterOrderMs": 4238,
+      "order": {
+        "externalOrderId": "occupancy-r2-ac5fbb4a",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789206965408,
+        "wallMs": 495
+      },
+      "orderFinishedAfterMs": 495
+    },
+    {
+      "round": 3,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 184,
+          "firstFrameMs": 184
+        },
+        {
+          "status": 101,
+          "upgradedMs": 233,
+          "firstFrameMs": 233
+        }
+      ],
+      "busy": {
+        "status": 101,
+        "upgradedMs": 171,
+        "firstFrameMs": 171
+      },
+      "busyProbeSentAfterOrderMs": 4002,
+      "busyProbeFinishedAfterOrderMs": 4173,
+      "order": {
+        "externalOrderId": "occupancy-r3-71421cb0",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789206978067,
+        "wallMs": 548
+      },
+      "orderFinishedAfterMs": 548
+    }
+  ],
+  "finishedAt": "2026-09-12T09:56:22.299Z"
+}

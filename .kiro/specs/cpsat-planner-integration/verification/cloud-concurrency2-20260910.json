@@ -1,0 +1,87 @@
+{
+  "startedAt": "2026-09-10T14:21:15.999Z",
+  "storeId": "cpsat-transport-20260909-02",
+  "watch": {
+    "status": 101,
+    "framesOnOpen": 2,
+    "close": {
+      "code": 1000,
+      "reason": "run finished"
+    }
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "requestId": "90078c3a-6f02-4838-b908-eb6832f846d4",
+      "externalOrderId": "concurrency-0-b08e6536",
+      "acceptStatus": 202,
+      "acceptBody": "{\"accepted\":true,\"requestId\":\"90078c3a-6f02-4838-b908-eb6832f846d4\"}",
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderSentAtMs": 210,
+      "orderFinishedAtMs": 439,
+      "solveFetchEndedAtMs": 1631,
+      "orderFinishedBeforeSolve": true,
+      "broadcast": {
+        "type": "snapshot",
+        "afterOrderMs": -4
+      },
+      "broadcastBeforeSolve": true
+    },
+    {
+      "round": 1,
+      "requestId": "09dd6baa-7cde-4bcb-b39c-023764b265b9",
+      "externalOrderId": "concurrency-1-ae6a1f50",
+      "acceptStatus": 202,
+      "acceptBody": "{\"accepted\":true,\"requestId\":\"09dd6baa-7cde-4bcb-b39c-023764b265b9\"}",
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderSentAtMs": 202,
+      "orderFinishedAtMs": 421,
+      "solveFetchEndedAtMs": 1352,
+      "orderFinishedBeforeSolve": true,
+      "broadcast": {
+        "type": "snapshot",
+        "afterOrderMs": -2
+      },
+      "broadcastBeforeSolve": true
+    },
+    {
+      "round": 2,
+      "requestId": "ab5ebdd7-9c07-4a7e-accc-275ae6c660d2",
+      "externalOrderId": "concurrency-2-0c056e1e",
+      "acceptStatus": 202,
+      "acceptBody": "{\"accepted\":true,\"requestId\":\"ab5ebdd7-9c07-4a7e-accc-275ae6c660d2\"}",
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderSentAtMs": 203,
+      "orderFinishedAtMs": 423,
+      "solveFetchEndedAtMs": 3316,
+      "orderFinishedBeforeSolve": true,
+      "broadcast": {
+        "type": "snapshot",
+        "afterOrderMs": 26
+      },
+      "broadcastBeforeSolve": true
+    },
+    {
+      "round": 3,
+      "requestId": "6eab1147-4ae2-4583-ae78-d7286e419351",
+      "externalOrderId": "concurrency-3-7a45920f",
+      "acceptStatus": 202,
+      "acceptBody": "{\"accepted\":true,\"requestId\":\"6eab1147-4ae2-4583-ae78-d7286e419351\"}",
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderSentAtMs": 201,
+      "orderFinishedAtMs": 369,
+      "solveFetchEndedAtMs": 1573,
+      "orderFinishedBeforeSolve": true,
+      "broadcast": {
+        "type": "snapshot",
+        "afterOrderMs": -9
+      },
+      "broadcastBeforeSolve": true
+    }
+  ],
+  "finishedAt": "2026-09-10T14:21:34.904Z"
+}

@@ -233,7 +233,7 @@ export function reasonOf(
   params: ScheduleParams,
   physicalOnly = false,
 ): Reason | null {
-  if (isStale(slice, targets)) return "stale";
+  if (isStale(slice, targets, true)) return "stale";
   if (!physicalOnly && cannotStart(slice, now, occupied)) return "cannotStart";
   if (feasibleRelease(slice.placements, release, targets, presets) === null) return "release";
   const siblings = members.get(slice.tableKey) ?? null;

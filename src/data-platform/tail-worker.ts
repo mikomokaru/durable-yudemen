@@ -48,8 +48,8 @@ export function operationRecordMessagesFromTailEvents(
   for (const event of events) {
     const observed = operationLinesFromTailEvents([event]);
     const producerScript = event.scriptName ?? "";
-    for (const canonicalLine of observed.candidates) {
-      messages.push({ canonicalLine, firstObservedAt, producerScript });
+    for (const { line } of observed.candidates) {
+      messages.push({ canonicalLine: line, firstObservedAt, producerScript });
     }
     failures.push(...observed.failures);
   }

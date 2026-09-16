@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  // Deployment sequence step 4: the shim gains its CP-SAT binding.
+  //
+  // Only the binding changes. The trial manifest stays disabled, so this alone
+  // still sends and solves nothing; a time-bounded enablement and ledger-backed
+  // requests are what produce observations. No application binding points here
+  // yet — that is step 6, and it is a separate approval.
+  "name": "yude-men-cpsat-transport-shim-dev",
+  "account_id": "305d89a643ac689b4204454c5493cbde",
+  "main": "./shim.ts",
+  "compatibility_date": "2026-09-09",
+  "compatibility_flags": ["no_nodejs_compat", "no_nodejs_compat_v2"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  // 求解 Worker への直接 binding は持たない。持てば呼べてしまい、呼出元を求解に
+  // 握らせる連鎖が復活する。CP-SAT への到達手段は Queue だけである。
+  "services": [{ "binding": "SOLVER", "service": "yude-men-solver" }],
+  "queues": {
+    "producers": [{ "binding": "CPSAT_PLAN_QUEUE", "queue": "cpsat-plan-requests" }],
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": true, "persist": true },
+  },
+}

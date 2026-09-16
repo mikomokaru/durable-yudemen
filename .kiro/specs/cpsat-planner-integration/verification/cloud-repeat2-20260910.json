@@ -1,0 +1,129 @@
+{
+  "startedAt": "2026-09-10T14:05:22.734Z",
+  "problem": "hard",
+  "requested": 20,
+  "runs": [
+    {
+      "index": 0,
+      "requestId": "1c614f09-013e-4c6a-a39f-2ebddd4a2f9b",
+      "status": 202,
+      "wallMs": 4657
+    },
+    {
+      "index": 1,
+      "requestId": "e463564b-cfcd-434e-8c8c-78dcb1bc5253",
+      "status": 202,
+      "wallMs": 1718
+    },
+    {
+      "index": 2,
+      "requestId": "a1e60329-97fd-4ef8-9432-d4834569b332",
+      "status": 202,
+      "wallMs": 1115
+    },
+    {
+      "index": 3,
+      "requestId": "5e864bbe-9bb6-4057-88b7-3f6b1208ba4d",
+      "status": 202,
+      "wallMs": 1045
+    },
+    {
+      "index": 4,
+      "requestId": "dca6d684-08c8-464c-b8ac-008b9c0d02a8",
+      "status": 202,
+      "wallMs": 1592
+    },
+    {
+      "index": 5,
+      "requestId": "2099010b-9913-49b5-b5e5-52746502ee59",
+      "status": 202,
+      "wallMs": 934
+    },
+    {
+      "index": 6,
+      "requestId": "305c9d4d-4e09-41e9-a855-2982dc76e604",
+      "status": 202,
+      "wallMs": 2394
+    },
+    {
+      "index": 7,
+      "requestId": "379e8394-3594-4852-963b-d9b940d0d5ac",
+      "status": 202,
+      "wallMs": 1891
+    },
+    {
+      "index": 8,
+      "requestId": "fabc6f69-0e49-4575-ab4c-59205dbf251d",
+      "status": 202,
+      "wallMs": 1970
+    },
+    {
+      "index": 9,
+      "requestId": "0b148b10-2d1e-4416-a6dc-50d1cf1fee9c",
+      "status": 202,
+      "wallMs": 979
+    },
+    {
+      "index": 10,
+      "requestId": "85b214d6-c167-4691-900e-dd2354d1b174",
+      "status": 202,
+      "wallMs": 798
+    },
+    {
+      "index": 11,
+      "requestId": "f16c68a6-6482-46d9-b472-ff67904041fc",
+      "status": 202,
+      "wallMs": 4411
+    },
+    {
+      "index": 12,
+      "requestId": "398dddd4-0b6d-45f7-9a20-4b0e7ef88e19",
+      "status": 202,
+      "wallMs": 828
+    },
+    {
+      "index": 13,
+      "requestId": "36c5164a-95a2-4216-b379-221b2c94f667",
+      "status": 202,
+      "wallMs": 1051
+    },
+    {
+      "index": 14,
+      "requestId": "461a19d0-8533-4312-933e-7cfc6eec052b",
+      "status": 202,
+      "wallMs": 788
+    },
+    {
+      "index": 15,
+      "requestId": "c16acf72-082d-439c-ad82-c9fd80a74221",
+      "status": 202,
+      "wallMs": 870
+    },
+    {
+      "index": 16,
+      "requestId": "4693c6d5-506b-4962-a395-20691895fc79",
+      "status": 202,
+      "wallMs": 2251
+    },
+    {
+      "index": 17,
+      "requestId": "63d32223-342f-4a6a-96fe-a818cfa9423d",
+      "status": 202,
+      "wallMs": 977
+    },
+    {
+      "index": 18,
+      "requestId": "38887ffb-2241-483e-957b-636f0f21d436",
+      "status": 202,
+      "wallMs": 856
+    },
+    {
+      "index": 19,
+      "requestId": "aab19ed8-987b-47d0-90b1-40bc4011b195",
+      "status": 202,
+      "wallMs": 3944
+    }
+  ],
+  "finishedAt": "2026-09-10T14:06:54.861Z",
+  "accepted": 20
+}

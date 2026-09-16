@@ -1,0 +1,1389 @@
+{
+  "status": "failed",
+  "searchRuntime": "wasm-cloud",
+  "startedAt": "2026-09-09T05:35:15.674443+00:00",
+  "updatedAt": "2026-09-09T06:04:03.682064+00:00",
+  "elapsedSeconds": 756.6412097499997,
+  "parallelHistories": 4,
+  "attemptedSolves": 3774,
+  "completedReplays": 13,
+  "completedReplaySolves": 3400,
+  "totalFallbacks": 0,
+  "evaluatedConfigurations": 0,
+  "trainingStop": null,
+  "baselinePreferences": {
+    "liftOverflowCost": 60,
+    "severeLiftOverflowCost": 600,
+    "clusterCost": 30,
+    "gapShortfallWeight": 2,
+    "simultaneousDistanceWeight": 1,
+    "multiSlotDistanceWeight": 60,
+    "peripheralWeight": 1,
+    "centralWeight": 1,
+    "purchaseInversionCost": 20,
+    "orderFragmentCost": 30,
+    "orderDistanceWeight": 1,
+    "slotChangeCost": 10
+  },
+  "selectedPreferences": null,
+  "baselineTrainScore": null,
+  "selectedTrainScore": null,
+  "baselineHoldoutScore": null,
+  "selectedHoldoutScore": null,
+  "localOnly": false,
+  "nativeSolverUsed": false,
+  "manifest": {
+    "transport": {
+      "kind": "ready",
+      "runtime": "wasm-cloud",
+      "origin": "https://yude-men-cpsat-search.yamaokaya.workers.dev",
+      "versionId": "0e997cbe-4a89-47cf-9ba7-2eb958fb6c83",
+      "wasmSha256": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1",
+      "clock": "frozen",
+      "cpuLimitMs": 10000,
+      "expiresAt": "2026-09-10T06:00:00Z",
+      "healthElapsedMs": 488.798,
+      "cfRay": "a383d42ccba4ebfb-NRT"
+    },
+    "args": {
+      "output": "experiments/cpsat-workers/fixtures/local/cloud-search-20260909a",
+      "corpus": "docs/data_samples/noodle_plan_histories",
+      "parallel": 4,
+      "trials": 12,
+      "seed": 20260909,
+      "max_seconds": 3600,
+      "max_requests": 50000,
+      "validation_seconds": 600,
+      "validation_requests": 12000
+    },
+    "versions": {
+      "smac": "2.4.0",
+      "ConfigSpace": "1.2.2",
+      "ortools": "9.15.6755",
+      "numpy": "2.5.3",
+      "scikit-learn": "1.8.0"
+    },
+    "sourceSha256": {
+      "tuning/test_cloud_search.py": "9f9e5247cd375997d27a19cd4306f21d6815305c58c408c56b31661bc7d1140c",
+      "tuning/schedule.test.ts": "cb00ba647a88f023eaed8121b629b586989ffe9a0469b8c70d243486f18263a5",
+      "tuning/defaults.json": "d75fa64f54a519bc92e1af07be29650b0998a89dfd51531d3389c035fc66bbfe",
+      "tuning/schedule.ts": "a7da2681c8922e41b674849369088bd88ede11bddfc7311929530766888cfb44",
+      "tuning/native_bridge.py": "5ecc53de995009feaf3df673b4013ce27d0d9a868e738739c398c73d4e1fd69c",
+      "tuning/wasm_transport.py": "26e24e807487be68883f50809680a68388809a92be42772b9a95a0cbcd0dbbd9",
+      "tuning/cloud_transport.py": "48f9bd58b5dad3782f9903e0509a451efd512b4f624fdc2f312b45c308c5dd56",
+      "tuning/summarize.mjs": "047c44ab719b7dd981b40f3ccf82823a17c234fb721c947b5aa05f2adcebe7b7",
+      "tuning/cli.ts": "e660820f725373158f03c1d48fed69ac104b805b6bc035c54f13b30dd85ecd42",
+      "tuning/check-wasm-transport.py": "d0f75bf2045718f5290d482e48234c3ae6f5943f155222c420f403c851d4937e",
+      "tuning/test_encoding.py": "eb293af4e0fe324c020c35434737e51c966031a6213752ed1c21411e8e377a21",
+      "tuning/audit-histories.ts": "6ab373af3a2d1931f851441f0f5f4f612c43b2ca40bcb95ac5a48f207dc7d7ec",
+      "tuning/validate-solution.test.mjs": "f14bfa60c2f7b2a16a4092e9c0d22c18a3f719a39a05d74f1a684c39360e8309",
+      "tuning/wasm-bridge.mjs": "b6cb928ddfe029a3d684dc9cf5c17218f6ffbf420d8e0e325812ef48bc226677",
+      "tuning/cloud-bridge.mjs": "4c5f10fc766324c37a2443f01c5d14d42880892347f15ac37938e965feaf9cf4",
+      "tuning/check-cloud.mjs": "d1528216ed6e2b3a019241b3ab8d4f61f8b8eae2043831e64345de5bf1b3d0bd",
+      "tuning/search.py": "0130ca7843dd54f9441e0b12390ab5ccf2f9611c0d849742bd49c34fb04063df",
+      "tuning/tsconfig.json": "5939a2482828e706006910437b530715cba55d985ed01a2c2d2b6b484e25e472",
+      "tuning/check-wasm.mjs": "ee583b475e5db5b56f09fc219a9ada6a5868e6126ed9bd302654226dea2eb415",
+      "tuning/cloud-client.mjs": "8d27424df3ad4f0feff1946fac1775391951113ed1106be8e7c73ee29495de1e",
+      "tuning/vitest.config.ts": "7563adfa9c6d23fc7375d524e82d997b2cc07d0ef8e6fee3d96f182b4688b77e",
+      "tuning/search-cloud.py": "4eacf36e4f24eee0fe140b51d51de2105838c0cdb114d0b241fd08d1ba08fb3c",
+      "tuning/validate-solution.mjs": "59cdfe168db30c44cd7937c1544bd1369df1de362d2d87f9a3d351f362d00dc7",
+      "tuning/requirements.lock": "35eb23663becb19f04f4413445e9f4c8287d2d7164cce3bc18bc86b0eae7fa0e",
+      "search-worker/collect-metrics.mjs": "05c972835d0fb8aa4ac7d9a4fb577e413326a5d9e832f14795ed2622d139148e",
+      "search-worker/wrangler.jsonc": "eef363d49b72514af6f9b60c2e24633320cbb9dfb0d0f18a948eaa6219963389",
+      "search-worker/check-local.mjs": "42012579207c536184fac7b1d829b6a5b881d50a33a234aa533c4c42260af104",
+      "search-worker/tail-safe.mjs": "ae159ff2d85d3cb487310ebf159ef117c2b5538d496e7062919156482710aa0a",
+      "search-worker/init-secret.mjs": "565219195a92c08413df35e7f9305f68cc534908fff61820bf183be6e2f26874",
+      "search-worker/tsconfig.json": "b4e3ea1f6b317bbfb145841018ebd940a61cbe799ba94eb7bf65e1f2c05652e3",
+      "search-worker/index.ts": "16d2b3b5e0778dd6d898aa943eb518c7c779fc9c70e36430b17e9520c9edba3c",
+      "search-worker/worker-configuration.d.ts": "cb36f017c3d75700e38b389378839bcc588dc9a4aabf1cbe2d6a9e5dcc915a5d",
+      "src/vendor.d.ts": "8301ac01215cf8bfd129aaa88b2a1c941cfdad4297e96b01b6a393b564cb4f2e",
+      "src/runtime.ts": "7245e44db80bcd73aae1e5d68dd7dbd274f306e1400ed75c13fa66e0f28f9a50",
+      "src/index.ts": "5f009c67cab2d9e0e4006a9429aa3867936d5789c1fbe32a8b86049fb70d0076"
+    },
+    "inputVersion": "smac-replay-cohort-v2",
+    "policySha256": "9d30ff63679392440a54d51e634c5715fa46bae896be558a02edd54a38eae2b6",
+    "adminSha256": "ee724d006208836806e5a8e475c6fbe618efe79a262b33f3d71b8faf89bfff5a",
+    "corpusManifestSha256": "a60672278dc24f517797f02338b72d95a0cc649701547395922a0c1b70a8eacf",
+    "histories": [
+      {
+        "id": "239_20260905_1745_1945",
+        "storeCode": "239",
+        "split": "exploration",
+        "loadClass": "high",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "58400aaf48c1bd09923318fca8f66fa3154ab48bb103691faee1109785c1064b",
+        "orders": 148,
+        "parentItems": 425,
+        "boilableItems": 184,
+        "origin": 1788597900
+      },
+      {
+        "id": "239_20260908_2115_2315",
+        "storeCode": "239",
+        "split": "exploration",
+        "loadClass": "low",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "53c2300895c1d2d1ab04d0ad4661579f13332263de6d9b12912fb9e5dba863d1",
+        "orders": 109,
+        "parentItems": 333,
+        "boilableItems": 121,
+        "origin": 1788869700
+      },
+      {
+        "id": "247_20260906_1300_1500",
+        "storeCode": "247",
+        "split": "exploration",
+        "loadClass": "high",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "3754053950b6306e291e4a1d8548a6b7d516efc15d223e6210b23670cf62e179",
+        "orders": 112,
+        "parentItems": 345,
+        "boilableItems": 137,
+        "origin": 1788667200
+      },
+      {
+        "id": "247_20260908_1330_1530",
+        "storeCode": "247",
+        "split": "exploration",
+        "loadClass": "normal",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "66a5e3925f332e0b00fbaee487e336e10cc22854d315bd2308541d4e27eaf9a0",
+        "orders": 90,
+        "parentItems": 226,
+        "boilableItems": 87,
+        "origin": 1788841800
+      },
+      {
+        "id": "254_20260905_1230_1430",
+        "storeCode": "254",
+        "split": "exploration",
+        "loadClass": "normal",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "b77bd3c8dbe90a1f8c387e2222503b0e9d99d2f92693b2bbd7664dc6e0764746",
+        "orders": 106,
+        "parentItems": 311,
+        "boilableItems": 133,
+        "origin": 1788579000
+      },
+      {
+        "id": "254_20260907_1800_2000",
+        "storeCode": "254",
+        "split": "exploration",
+        "loadClass": "high",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "4e8cd202ca5eaeba6b7660f8e10db949db17cccdd4c469b835403bcd51c1a054",
+        "orders": 128,
+        "parentItems": 294,
+        "boilableItems": 127,
+        "origin": 1788771600
+      },
+      {
+        "id": "275_20260906_1500_1700",
+        "storeCode": "275",
+        "split": "exploration",
+        "loadClass": "low",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "6a9fbf60ead85cef8100e9fff51d4a7c762dc89eb5b62252b08fb6ddec1e886c",
+        "orders": 77,
+        "parentItems": 305,
+        "boilableItems": 106,
+        "origin": 1788674400
+      },
+      {
+        "id": "275_20260908_1130_1330",
+        "storeCode": "275",
+        "split": "exploration",
+        "loadClass": "high",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "8dd8ba3c09f7c716a9d401d9fc78b3d5eadd006bf773fe4997e08a29ee0bdc14",
+        "orders": 103,
+        "parentItems": 249,
+        "boilableItems": 116,
+        "origin": 1788834600
+      },
+      {
+        "id": "284_20260905_1945_2145",
+        "storeCode": "284",
+        "split": "exploration",
+        "loadClass": "high",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "846cd9253cc04779b351c4b57d01d393b7b68cacf41da98bdf5da245880fde33",
+        "orders": 103,
+        "parentItems": 295,
+        "boilableItems": 111,
+        "origin": 1788605100
+      },
+      {
+        "id": "284_20260907_1215_1415",
+        "storeCode": "284",
+        "split": "exploration",
+        "loadClass": "normal",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "da5c5717eeceed1f9ba71882c9a0f827101fd78c7dd4123006d480655f54ef9e",
+        "orders": 69,
+        "parentItems": 195,
+        "boilableItems": 87,
+        "origin": 1788750900
+      },
+      {
+        "id": "336_20260906_1815_2015",
+        "storeCode": "336",
+        "split": "validation",
+        "loadClass": "normal",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "b21f00ea92431b1a9262a9ca36c956f3df26d81a7962e4832bc45f04f21aab3a",
+        "orders": 75,
+        "parentItems": 273,
+        "boilableItems": 101,
+        "origin": 1788686100
+      },
+      {
+        "id": "336_20260908_2145_2345",
+        "storeCode": "336",
+        "split": "validation",
+        "loadClass": "low",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "9eadd704d3fbb9b2de05783262ee986ad8724c25ed783540280d091f73506427",
+        "orders": 96,
+        "parentItems": 279,
+        "boilableItems": 97,
+        "origin": 1788871500
+      },
+      {
+        "id": "342_20260905_1145_1345",
+        "storeCode": "342",
+        "split": "exploration",
+        "loadClass": "high",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "241b0bec0e67953001f383503b26dc63eb0f766964fe583be3dc3eb453e6c2db",
+        "orders": 97,
+        "parentItems": 271,
+        "boilableItems": 128,
+        "origin": 1788576300
+      },
+      {
+        "id": "342_20260907_1345_1545",
+        "storeCode": "342",
+        "split": "exploration",
+        "loadClass": "low",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "3e60c8e766b70d329b0ab5363185c7b7ab0f4ebd16037378cfa59ced34539a38",
+        "orders": 41,
+        "parentItems": 93,
+        "boilableItems": 45,
+        "origin": 1788756300
+      },
+      {
+        "id": "355_20260905_1500_1700",
+        "storeCode": "355",
+        "split": "validation",
+        "loadClass": "normal",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "bd3ccfcd0ef118f84546cbc6436b8e4d3ab262449e8cd8e214a5e3e56298d08c",
+        "orders": 83,
+        "parentItems": 241,
+        "boilableItems": 107,
+        "origin": 1788588000
+      },
+      {
+        "id": "355_20260908_1845_2045",
+        "storeCode": "355",
+        "split": "validation",
+        "loadClass": "high",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "7de1117fb577c7a68b4fa343e5f5b649fd1257d932558bb7771e7680d682c1fc",
+        "orders": 102,
+        "parentItems": 285,
+        "boilableItems": 120,
+        "origin": 1788860700
+      },
+      {
+        "id": "362_20260905_2100_2300",
+        "storeCode": "362",
+        "split": "validation",
+        "loadClass": "low",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "89da6cab446c9ea4022fb15d7b3253fbcf9f79c336eb8097bbabca1e63a2017b",
+        "orders": 95,
+        "parentItems": 231,
+        "boilableItems": 111,
+        "origin": 1788609600
+      },
+      {
+        "id": "362_20260907_1115_1315",
+        "storeCode": "362",
+        "split": "validation",
+        "loadClass": "normal",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "fb4fff347fe456e3817aa5ec3037786a396bd194e038e617792e09313374b651",
+        "orders": 97,
+        "parentItems": 229,
+        "boilableItems": 114,
+        "origin": 1788747300
+      },
+      {
+        "id": "364_20260906_1830_2030",
+        "storeCode": "364",
+        "split": "exploration",
+        "loadClass": "high",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "e90d10fa0777b0d27fdbd4034e76649ccef8606a05ded0d9870edb8838a66ee1",
+        "orders": 89,
+        "parentItems": 254,
+        "boilableItems": 102,
+        "origin": 1788687000
+      },
+      {
+        "id": "364_20260907_0915_1115",
+        "storeCode": "364",
+        "split": "exploration",
+        "loadClass": "normal",
+        "evaluationWindow": {
+          "start": 1800,
+          "end": 5400
+        },
+        "sourceSha256": "9f2436b8fae481af0454a36364d50c364ed9a7225ff87cedce1929c6a3c01e0b",
+        "orders": 99,
+        "parentItems": 212,
+        "boilableItems": 101,
+        "origin": 1788740100
+      }
+    ]
+  },
+  "requestMetrics": {
+    "attempts": 3774,
+    "completed": 3773,
+    "errors": 1,
+    "validated": 3773,
+    "statuses": {
+      "OPTIMAL": 2947,
+      "FEASIBLE": 826
+    },
+    "isolateCount": 12,
+    "maxMemoryBytes": 48365568,
+    "maxVariables": 4834,
+    "meanRequestMs": 506.6920106851314,
+    "p95RequestMs": 2288.788959000027,
+    "maxRequestMs": 3838.5807919999934
+  },
+  "evaluations": [],
+  "rows": [
+    {
+      "history": "247_20260908_1330_1530",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 87,
+      "evaluatedItems": 47,
+      "waitSummary": {
+        "total": 15784,
+        "mean": 335.82978723404256,
+        "p95": 470,
+        "max": 495,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 15784,
+        "liftOverflow": 10,
+        "severeLiftOverflow": 0,
+        "clusters": 34,
+        "gapShortfallSeconds": 96,
+        "simultaneousDistance": 58.79999999999999,
+        "multiSlotDistance": 1.7999999999999998,
+        "peripheral": 38,
+        "central": 118.79999999999995,
+        "purchaseInversions": 16,
+        "orderFragments": 1,
+        "orderDistance": 0.4,
+        "slotChanges": 10
+      },
+      "fixedScore": 18380.866666666665,
+      "fragmentMinutes": 3.8833333333333333,
+      "distanceMinutes": 2.4333333333333336,
+      "solveCount": 218,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 206,
+        "FEASIBLE": 12
+      },
+      "cloud": {
+        "solves": 218,
+        "validatedSolutions": 218,
+        "statusCounts": {
+          "OPTIMAL": 206,
+          "FEASIBLE": 12
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 169.7326255458716,
+        "p95RequestMs": 726.8562920000004,
+        "maxRequestMs": 1183.659541000001
+      },
+      "maxVariables": 2272,
+      "maxConstraints": 3845,
+      "maxDeterministicTime": 0.08598832562373156,
+      "optimalObjectiveChecks": 206,
+      "feasibleObjectiveChecks": 12,
+      "reportedObjectiveMismatches": 1,
+      "maxReportedObjectiveGap": 24,
+      "replaySha256": "0ba532665898ae9f95478cb2c2525c1c395ad3d0ece27979a018598ae4db6c0b"
+    },
+    {
+      "history": "247_20260906_1300_1500",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 137,
+      "evaluatedItems": 74,
+      "waitSummary": {
+        "total": 25396,
+        "mean": 343.18918918918916,
+        "p95": 535,
+        "max": 629,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 25396,
+        "liftOverflow": 23,
+        "severeLiftOverflow": 1,
+        "clusters": 53,
+        "gapShortfallSeconds": 283,
+        "simultaneousDistance": 116.00000000000004,
+        "multiSlotDistance": 8.2,
+        "peripheral": 99.59999999999998,
+        "central": 284.80000000000007,
+        "purchaseInversions": 29,
+        "orderFragments": 3,
+        "orderDistance": 5.4,
+        "slotChanges": 100
+      },
+      "fixedScore": 32259.93,
+      "fragmentMinutes": 12.916666666666668,
+      "distanceMinutes": 26.36333333333333,
+      "solveCount": 331,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 249,
+        "FEASIBLE": 82
+      },
+      "cloud": {
+        "solves": 331,
+        "validatedSolutions": 331,
+        "statusCounts": {
+          "OPTIMAL": 249,
+          "FEASIBLE": 82
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 405.97844676737213,
+        "p95RequestMs": 1251.3921250000021,
+        "maxRequestMs": 1515.9292910000077
+      },
+      "maxVariables": 3435,
+      "maxConstraints": 5675,
+      "maxDeterministicTime": 0.10884005079626881,
+      "optimalObjectiveChecks": 249,
+      "feasibleObjectiveChecks": 82,
+      "reportedObjectiveMismatches": 4,
+      "maxReportedObjectiveGap": 20,
+      "replaySha256": "07f874029935d22a885cb709c971dc297ee3cb19d6cd1bfcb9f8b9ffe449a7fb"
+    },
+    {
+      "history": "239_20260908_2115_2315",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 121,
+      "evaluatedItems": 57,
+      "waitSummary": {
+        "total": 24353,
+        "mean": 427.2456140350877,
+        "p95": 649,
+        "max": 712,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 24353,
+        "liftOverflow": 8,
+        "severeLiftOverflow": 0,
+        "clusters": 45,
+        "gapShortfallSeconds": 127,
+        "simultaneousDistance": 45.199999999999996,
+        "multiSlotDistance": 5.200000000000001,
+        "peripheral": 78.8,
+        "central": 136,
+        "purchaseInversions": 24,
+        "orderFragments": 2,
+        "orderDistance": 5.199999999999999,
+        "slotChanges": 72
+      },
+      "fixedScore": 28315.936666666665,
+      "fragmentMinutes": 8.333333333333332,
+      "distanceMinutes": 23.60333333333333,
+      "solveCount": 303,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 262,
+        "FEASIBLE": 41
+      },
+      "cloud": {
+        "solves": 303,
+        "validatedSolutions": 303,
+        "statusCounts": {
+          "OPTIMAL": 262,
+          "FEASIBLE": 41
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 481.2984179240916,
+        "p95RequestMs": 2102.832042000009,
+        "maxRequestMs": 3360.2419170000067
+      },
+      "maxVariables": 4104,
+      "maxConstraints": 6964,
+      "maxDeterministicTime": 0.12208437701834805,
+      "optimalObjectiveChecks": 262,
+      "feasibleObjectiveChecks": 41,
+      "reportedObjectiveMismatches": 4,
+      "maxReportedObjectiveGap": 82,
+      "replaySha256": "2c05b6be8ad81cc5d4c0664a37598348832c0b355f205f93d789f426b7704b94"
+    },
+    {
+      "history": "275_20260906_1500_1700",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 106,
+      "evaluatedItems": 43,
+      "waitSummary": {
+        "total": 15363,
+        "mean": 357.27906976744185,
+        "p95": 418,
+        "max": 525,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 15363,
+        "liftOverflow": 7,
+        "severeLiftOverflow": 0,
+        "clusters": 27,
+        "gapShortfallSeconds": 64,
+        "simultaneousDistance": 37.4,
+        "multiSlotDistance": 0,
+        "peripheral": 60.79999999999998,
+        "central": 51.599999999999994,
+        "purchaseInversions": 5,
+        "orderFragments": 0,
+        "orderDistance": 0,
+        "slotChanges": 0
+      },
+      "fixedScore": 16990.316666666666,
+      "fragmentMinutes": 1.8333333333333333,
+      "distanceMinutes": 1.1833333333333333,
+      "solveCount": 243,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 234,
+        "FEASIBLE": 9
+      },
+      "cloud": {
+        "solves": 243,
+        "validatedSolutions": 243,
+        "statusCounts": {
+          "OPTIMAL": 234,
+          "FEASIBLE": 9
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 170.50525033744867,
+        "p95RequestMs": 605.0863750000008,
+        "maxRequestMs": 1317.5262919999986
+      },
+      "maxVariables": 2345,
+      "maxConstraints": 3935,
+      "maxDeterministicTime": 0.08690760822863364,
+      "optimalObjectiveChecks": 234,
+      "feasibleObjectiveChecks": 9,
+      "reportedObjectiveMismatches": 0,
+      "maxReportedObjectiveGap": 0,
+      "replaySha256": "1dd64bb70192e137282c882dfe104f7739477faa43751fbe8e3fbdb5a12856ab"
+    },
+    {
+      "history": "254_20260905_1230_1430",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 133,
+      "evaluatedItems": 66,
+      "waitSummary": {
+        "total": 33328,
+        "mean": 504.969696969697,
+        "p95": 670,
+        "max": 764,
+        "over720Seconds": 1
+      },
+      "features": {
+        "waitSeconds": 33328,
+        "liftOverflow": 13,
+        "severeLiftOverflow": 0,
+        "clusters": 44,
+        "gapShortfallSeconds": 296,
+        "simultaneousDistance": 49.4,
+        "multiSlotDistance": 6.4,
+        "peripheral": 162.40000000000003,
+        "central": 175.59999999999997,
+        "purchaseInversions": 17,
+        "orderFragments": 8,
+        "orderDistance": 21,
+        "slotChanges": 111
+      },
+      "fixedScore": 38792.99333333333,
+      "fragmentMinutes": 44.20000000000001,
+      "distanceMinutes": 109.59333333333333,
+      "solveCount": 313,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 170,
+        "FEASIBLE": 143
+      },
+      "cloud": {
+        "solves": 313,
+        "validatedSolutions": 313,
+        "statusCounts": {
+          "OPTIMAL": 170,
+          "FEASIBLE": 143
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 727.3967571757184,
+        "p95RequestMs": 1698.5609579999873,
+        "maxRequestMs": 2001.3395420000015
+      },
+      "maxVariables": 4590,
+      "maxConstraints": 7782,
+      "maxDeterministicTime": 0.13195356289387045,
+      "optimalObjectiveChecks": 170,
+      "feasibleObjectiveChecks": 143,
+      "reportedObjectiveMismatches": 12,
+      "maxReportedObjectiveGap": 46,
+      "replaySha256": "20befed0ef65bdaa05f9ec7fff999889a4b088a882007c3a8c9e6e83e5f7a47b"
+    },
+    {
+      "history": "275_20260908_1130_1330",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 116,
+      "evaluatedItems": 59,
+      "waitSummary": {
+        "total": 22145,
+        "mean": 375.33898305084745,
+        "p95": 495,
+        "max": 552,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 22145,
+        "liftOverflow": 11,
+        "severeLiftOverflow": 0,
+        "clusters": 45,
+        "gapShortfallSeconds": 86,
+        "simultaneousDistance": 44.19999999999999,
+        "multiSlotDistance": 0,
+        "peripheral": 66.79999999999998,
+        "central": 143.99999999999997,
+        "purchaseInversions": 12,
+        "orderFragments": 0,
+        "orderDistance": 0,
+        "slotChanges": 2
+      },
+      "fixedScore": 24842,
+      "fragmentMinutes": 0,
+      "distanceMinutes": 0,
+      "solveCount": 288,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 263,
+        "FEASIBLE": 25
+      },
+      "cloud": {
+        "solves": 288,
+        "validatedSolutions": 288,
+        "statusCounts": {
+          "OPTIMAL": 263,
+          "FEASIBLE": 25
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 254.24190898611127,
+        "p95RequestMs": 1023.5482080000002,
+        "maxRequestMs": 1435.6150419999976
+      },
+      "maxVariables": 3166,
+      "maxConstraints": 5347,
+      "maxDeterministicTime": 0.1033498628452653,
+      "optimalObjectiveChecks": 263,
+      "feasibleObjectiveChecks": 25,
+      "reportedObjectiveMismatches": 0,
+      "maxReportedObjectiveGap": 5.820766091346741e-12,
+      "replaySha256": "16a460f063bc13741201ceb86becc65e2782ca8b6ee89b66f34780fe0f72e555"
+    },
+    {
+      "history": "284_20260907_1215_1415",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 87,
+      "evaluatedItems": 51,
+      "waitSummary": {
+        "total": 19587,
+        "mean": 384.05882352941177,
+        "p95": 469,
+        "max": 524,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 19587,
+        "liftOverflow": 13,
+        "severeLiftOverflow": 0,
+        "clusters": 33,
+        "gapShortfallSeconds": 97,
+        "simultaneousDistance": 53.19999999999999,
+        "multiSlotDistance": 0.4,
+        "peripheral": 81.59999999999998,
+        "central": 54.4,
+        "purchaseInversions": 2,
+        "orderFragments": 2,
+        "orderDistance": 2.4,
+        "slotChanges": 6
+      },
+      "fixedScore": 22017.743333333336,
+      "fragmentMinutes": 13.750000000000002,
+      "distanceMinutes": 16.043333333333337,
+      "solveCount": 198,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 184,
+        "FEASIBLE": 14
+      },
+      "cloud": {
+        "solves": 198,
+        "validatedSolutions": 198,
+        "statusCounts": {
+          "OPTIMAL": 184,
+          "FEASIBLE": 14
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 185.2568077020201,
+        "p95RequestMs": 773.2865410000013,
+        "maxRequestMs": 1123.6058340000009
+      },
+      "maxVariables": 3000,
+      "maxConstraints": 4969,
+      "maxDeterministicTime": 0.10001575270247141,
+      "optimalObjectiveChecks": 184,
+      "feasibleObjectiveChecks": 14,
+      "reportedObjectiveMismatches": 0,
+      "maxReportedObjectiveGap": 0,
+      "replaySha256": "15f3b1dda5ebae2c36ba237fedb04d19a84e70fd0831b2c07a5c24d3450a4186"
+    },
+    {
+      "history": "254_20260907_1800_2000",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 127,
+      "evaluatedItems": 82,
+      "waitSummary": {
+        "total": 41105,
+        "mean": 501.280487804878,
+        "p95": 756,
+        "max": 980,
+        "over720Seconds": 8
+      },
+      "features": {
+        "waitSeconds": 41105,
+        "liftOverflow": 14,
+        "severeLiftOverflow": 0,
+        "clusters": 64,
+        "gapShortfallSeconds": 282,
+        "simultaneousDistance": 51.599999999999994,
+        "multiSlotDistance": 8,
+        "peripheral": 162,
+        "central": 297.20000000000005,
+        "purchaseInversions": 45,
+        "orderFragments": 5,
+        "orderDistance": 12.6,
+        "slotChanges": 153
+      },
+      "fixedScore": 47988.38999999999,
+      "fragmentMinutes": 11.166666666666666,
+      "distanceMinutes": 26.923333333333336,
+      "solveCount": 325,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 213,
+        "FEASIBLE": 112
+      },
+      "cloud": {
+        "solves": 325,
+        "validatedSolutions": 325,
+        "statusCounts": {
+          "OPTIMAL": 213,
+          "FEASIBLE": 112
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 598.8151636984617,
+        "p95RequestMs": 1701.7986250000104,
+        "maxRequestMs": 2197.3342089999933
+      },
+      "maxVariables": 4711,
+      "maxConstraints": 8125,
+      "maxDeterministicTime": 0.13425352704257268,
+      "optimalObjectiveChecks": 213,
+      "feasibleObjectiveChecks": 112,
+      "reportedObjectiveMismatches": 3,
+      "maxReportedObjectiveGap": 80,
+      "replaySha256": "3ed5153525a5ff39592a56ee113080608e491b73d93dadad169b7d8535d0ac85"
+    },
+    {
+      "history": "342_20260907_1345_1545",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 45,
+      "evaluatedItems": 29,
+      "waitSummary": {
+        "total": 10856,
+        "mean": 374.3448275862069,
+        "p95": 416,
+        "max": 424,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 10856,
+        "liftOverflow": 3,
+        "severeLiftOverflow": 0,
+        "clusters": 22,
+        "gapShortfallSeconds": 6,
+        "simultaneousDistance": 18.200000000000003,
+        "multiSlotDistance": 0,
+        "peripheral": 14.399999999999999,
+        "central": 57.19999999999999,
+        "purchaseInversions": 4,
+        "orderFragments": 0,
+        "orderDistance": 0,
+        "slotChanges": 0
+      },
+      "fixedScore": 11877.800000000001,
+      "fragmentMinutes": 0,
+      "distanceMinutes": 0,
+      "solveCount": 108,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 108
+      },
+      "cloud": {
+        "solves": 108,
+        "validatedSolutions": 108,
+        "statusCounts": {
+          "OPTIMAL": 108
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 2,
+        "meanRequestMs": 127.77547874074078,
+        "p95RequestMs": 301.2039999999997,
+        "maxRequestMs": 988.0120000000006
+      },
+      "maxVariables": 1478,
+      "maxConstraints": 2457,
+      "maxDeterministicTime": 0.04230418861557016,
+      "optimalObjectiveChecks": 108,
+      "feasibleObjectiveChecks": 0,
+      "reportedObjectiveMismatches": 0,
+      "maxReportedObjectiveGap": 0,
+      "replaySha256": "254f4020c71c64f6f3368f17f2a1efc4a550f167052fb8f981bff33b994ceb74"
+    },
+    {
+      "history": "284_20260905_1945_2145",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 111,
+      "evaluatedItems": 53,
+      "waitSummary": {
+        "total": 22305,
+        "mean": 420.8490566037736,
+        "p95": 575,
+        "max": 761,
+        "over720Seconds": 1
+      },
+      "features": {
+        "waitSeconds": 22305,
+        "liftOverflow": 3,
+        "severeLiftOverflow": 0,
+        "clusters": 42,
+        "gapShortfallSeconds": 0,
+        "simultaneousDistance": 27.4,
+        "multiSlotDistance": 0.4,
+        "peripheral": 52.39999999999999,
+        "central": 197.60000000000008,
+        "purchaseInversions": 14,
+        "orderFragments": 2,
+        "orderDistance": 5.4,
+        "slotChanges": 27
+      },
+      "fixedScore": 24738.483333333337,
+      "fragmentMinutes": 11.06666666666667,
+      "distanceMinutes": 31.416666666666675,
+      "solveCount": 277,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 240,
+        "FEASIBLE": 37
+      },
+      "cloud": {
+        "solves": 277,
+        "validatedSolutions": 277,
+        "statusCounts": {
+          "OPTIMAL": 240,
+          "FEASIBLE": 37
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 2,
+        "meanRequestMs": 284.1025893501802,
+        "p95RequestMs": 1090.8383329999924,
+        "maxRequestMs": 1410.1186249999955
+      },
+      "maxVariables": 3690,
+      "maxConstraints": 6050,
+      "maxDeterministicTime": 0.11430915930211066,
+      "optimalObjectiveChecks": 240,
+      "feasibleObjectiveChecks": 37,
+      "reportedObjectiveMismatches": 0,
+      "maxReportedObjectiveGap": 0,
+      "replaySha256": "b1bfa5ba4e3efdb63aad801999e8314bdd98977bb113107b7dad6e339da31658"
+    },
+    {
+      "history": "364_20260907_0915_1115",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 101,
+      "evaluatedItems": 49,
+      "waitSummary": {
+        "total": 15977,
+        "mean": 326.0612244897959,
+        "p95": 395,
+        "max": 495,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 15977,
+        "liftOverflow": 5,
+        "severeLiftOverflow": 0,
+        "clusters": 41,
+        "gapShortfallSeconds": 70,
+        "simultaneousDistance": 22.4,
+        "multiSlotDistance": 0,
+        "peripheral": 100.79999999999998,
+        "central": 194.39999999999998,
+        "purchaseInversions": 15,
+        "orderFragments": 1,
+        "orderDistance": 1,
+        "slotChanges": 0
+      },
+      "fixedScore": 18324.183333333338,
+      "fragmentMinutes": 5.416666666666666,
+      "distanceMinutes": 5.416666666666666,
+      "solveCount": 265,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 264,
+        "FEASIBLE": 1
+      },
+      "cloud": {
+        "solves": 265,
+        "validatedSolutions": 265,
+        "statusCounts": {
+          "OPTIMAL": 264,
+          "FEASIBLE": 1
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 123.62373596981129,
+        "p95RequestMs": 343.5722910000004,
+        "maxRequestMs": 984.9618330000012
+      },
+      "maxVariables": 3278,
+      "maxConstraints": 5541,
+      "maxDeterministicTime": 0.09779713276496968,
+      "optimalObjectiveChecks": 264,
+      "feasibleObjectiveChecks": 1,
+      "reportedObjectiveMismatches": 0,
+      "maxReportedObjectiveGap": 0,
+      "replaySha256": "ffe2882c4c54f7b76099a475123aa1dfdddbc71de5ef8a24293ff0dbf23ad9cf"
+    },
+    {
+      "history": "342_20260905_1145_1345",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 128,
+      "evaluatedItems": 64,
+      "waitSummary": {
+        "total": 26805,
+        "mean": 418.828125,
+        "p95": 555,
+        "max": 591,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 26805,
+        "liftOverflow": 9,
+        "severeLiftOverflow": 0,
+        "clusters": 46,
+        "gapShortfallSeconds": 145,
+        "simultaneousDistance": 61.8,
+        "multiSlotDistance": 0.8,
+        "peripheral": 138.39999999999998,
+        "central": 206.4,
+        "purchaseInversions": 18,
+        "orderFragments": 6,
+        "orderDistance": 13.8,
+        "slotChanges": 39
+      },
+      "fixedScore": 30647.530000000002,
+      "fragmentMinutes": 35.06666666666667,
+      "distanceMinutes": 77.26333333333335,
+      "solveCount": 289,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 241,
+        "FEASIBLE": 48
+      },
+      "cloud": {
+        "solves": 289,
+        "validatedSolutions": 289,
+        "statusCounts": {
+          "OPTIMAL": 241,
+          "FEASIBLE": 48
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 350.43536692387585,
+        "p95RequestMs": 1251.8113750000048,
+        "maxRequestMs": 1916.9890409999934
+      },
+      "maxVariables": 3858,
+      "maxConstraints": 6612,
+      "maxDeterministicTime": 0.117172088405946,
+      "optimalObjectiveChecks": 241,
+      "feasibleObjectiveChecks": 48,
+      "reportedObjectiveMismatches": 1,
+      "maxReportedObjectiveGap": 3,
+      "replaySha256": "59c98999133cab3410303d7893f47755126cd2b51f8de3b0d73f6c0180ba72eb"
+    },
+    {
+      "history": "364_20260906_1830_2030",
+      "preferences": {
+        "liftOverflowCost": 60,
+        "severeLiftOverflowCost": 600,
+        "clusterCost": 30,
+        "gapShortfallWeight": 2,
+        "simultaneousDistanceWeight": 1,
+        "multiSlotDistanceWeight": 60,
+        "peripheralWeight": 1,
+        "centralWeight": 1,
+        "purchaseInversionCost": 20,
+        "orderFragmentCost": 30,
+        "orderDistanceWeight": 1,
+        "slotChangeCost": 10
+      },
+      "baseline": true,
+      "selected": false,
+      "split": "train",
+      "completedItems": 102,
+      "evaluatedItems": 66,
+      "waitSummary": {
+        "total": 24627,
+        "mean": 373.1363636363636,
+        "p95": 438,
+        "max": 506,
+        "over720Seconds": 0
+      },
+      "features": {
+        "waitSeconds": 24627,
+        "liftOverflow": 17,
+        "severeLiftOverflow": 0,
+        "clusters": 47,
+        "gapShortfallSeconds": 224,
+        "simultaneousDistance": 94,
+        "multiSlotDistance": 0,
+        "peripheral": 91.19999999999999,
+        "central": 829.2000000000004,
+        "purchaseInversions": 13,
+        "orderFragments": 1,
+        "orderDistance": 2,
+        "slotChanges": 24
+      },
+      "fixedScore": 29100.35,
+      "fragmentMinutes": 6.683333333333334,
+      "distanceMinutes": 14.116666666666667,
+      "solveCount": 242,
+      "fallbackCount": 0,
+      "statuses": {
+        "OPTIMAL": 216,
+        "FEASIBLE": 26
+      },
+      "cloud": {
+        "solves": 242,
+        "validatedSolutions": 242,
+        "statusCounts": {
+          "OPTIMAL": 216,
+          "FEASIBLE": 26
+        },
+        "maxMemoryBytes": 33554432,
+        "isolateCount": 1,
+        "meanRequestMs": 297.75994885537204,
+        "p95RequestMs": 1081.2837909999944,
+        "maxRequestMs": 1560.2814579999977
+      },
+      "maxVariables": 3735,
+      "maxConstraints": 6175,
+      "maxDeterministicTime": 0.11471893676345976,
+      "optimalObjectiveChecks": 216,
+      "feasibleObjectiveChecks": 26,
+      "reportedObjectiveMismatches": 0,
+      "maxReportedObjectiveGap": 0,
+      "replaySha256": "d7dda2b22084add92457f4adc498b2d9250ff54cdd051d1b19252494bb80f67f"
+    }
+  ]
+}

@@ -28,6 +28,7 @@ import {
   snowflakeArrivalNotificationTransition,
 } from "../../src/operation-history/slo";
 import { operationArrivalQualityFromEvidence } from "../../src/operation-history/correlation";
+import { canonicalLinesOf } from "./support/canonical-capture";
 import {
   BOIL_DURATION,
   PRODUCER_SCRIPT,
@@ -149,7 +150,7 @@ type Staged = {
 async function staged(): Promise<Staged> {
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
   for (const observation of observations) tryWriteOperationLines(true, observation);
-  const lines = log.mock.calls.map((call) => call[0] as string);
+  const lines = canonicalLinesOf(log.mock.calls);
 
   vi.spyOn(Date, "now").mockReturnValue(OBSERVED_AT);
   const pipeline = await runTailToR2([

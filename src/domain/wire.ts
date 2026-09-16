@@ -22,7 +22,7 @@ import type { ClientMessage, CookRecommendation, ServerMessage } from "./message
 import { isNonEmpty, type NonEmptyArray, type TimerFact } from "./timer";
 import { isFirmness } from "./firmness";
 import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";
-import type { OrderItem } from "./order";
+import type { WireOrderItem } from "./order";
 import {
   DEFAULT_LIFT_INTERVAL_SECONDS,
   SLOTS_PER_UNIT,
@@ -210,7 +210,7 @@ function toOrderItemRef(value: unknown): TimerFact["orderItem"] | undefined {
  * presets 照合をしない——サーバが送った待ち行列の写しであり、整合は送り手が既に確立している。
  * 同じ形に見えて義務が違う二つの検証は、一つに畳まない。
  */
-function toOrderItemFromWire(value: unknown): OrderItem | null {
+function toOrderItemFromWire(value: unknown): WireOrderItem | null {
   if (!isRecord(value)) return null;
   const { externalOrderId, itemIndex, noodleType, firmness, arrivalTime, slotSpan } = value;
   if (!isNonEmptyString(externalOrderId)) return null;
@@ -231,7 +231,15 @@ function toOrderItemFromWire(value: unknown): OrderItem | null {
   if (completedAt === undefined) return null;
   const interruptedAt = toRecordedAt(value.interruptedAt);
   if (interruptedAt === undefined) return null;
+  // 札は**任意**である（item-display-abbreviation 判断 24）。欠如は「札が無い」で、受け手は全名へ戻る。
+  // 空文字は持たないものとして扱う——通せば「札がある」と「無い」を区別できなくなる。**Decode_Failure に
+  // しない**のは、札が表示だけの被せ物であり、1 件の不備でその snapshot 全体を落とす価値が無いためである。
+  const shortName =
+    typeof value.shortName === "string" && value.shortName.length > 0
+      ? { shortName: value.shortName }
+      : {};
   return {
+    ...shortName,
     externalOrderId,
     itemIndex,
     noodleType,

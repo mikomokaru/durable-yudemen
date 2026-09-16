@@ -627,7 +627,8 @@ function isLegal(planning: Planning, slices: readonly PlanSlice[]): boolean {
   for (const slice of slices) {
     const siblings = members.get(slice.tableKey) ?? null;
     if (
-      isStale(slice, targets) ||
+      // engine 自身の計画の自己検査。**全件被覆を要求する**（自前解は常に全件を置く）。
+      isStale(slice, targets, true) ||
       feasibleRelease(slice.placements, free, targets, presets) === null ||
       !keepsAnchor(slice.placements, free, ends, siblings, targets, presets, params) ||
       !withinLiftCap(ends, liftsOf(slice.placements), params)
@@ -796,7 +797,7 @@ function revalidate(
       keepsAnchor(placements, freeAhead, ends, siblings, targets, presets, params) &&
       withinLiftCap(ends, liftsOf(placements), params);
     let placements = restored;
-    if (isStale(slice, targets) || !legal(restored)) {
+    if (isStale(slice, targets, true) || !legal(restored)) {
       const own = slice.placements.filter((placement) => fixed.has(itemKeyOf(placement)));
       const group: TableGroup = {
         tableKey: slice.tableKey,
@@ -1092,14 +1093,40 @@ function isPlaceable(order: OrderItem, presets: readonly NoodlePreset[], cap: nu
  * （AC 7.3）——本数の一致と「計画対象 ⊆ 一片」の走査がそのまま両方を言う。全 Pending_Order を渡して内部で切り直すと、
  * 一片ごとに同じ整列を繰り返すうえ、呼び出し側が既に持っている範囲と別の範囲を指す余地が生まれる。
  */
-export function isStale(slice: PlanSlice, targets: readonly OrderItem[]): boolean {
+export function isStale(
+  slice: PlanSlice,
+  targets: readonly OrderItem[],
+  /**
+   * 卓の計画対象を**全件**置いていることを要求するか。
+   *
+   * **`true`（TS モードと engine の自己検査）** — 陳腐化A「一片 ⊆ 計画対象」と陳腐化B「計画対象 ⊆ 一片」の
+   * 両方を見る。同一卓の配置は互いの開始時刻を前提に提供時刻を揃えているので、新着が加われば
+   * その一片が主張していた同時提供はもう成り立たない。
+   *
+   * **`false`（CP-SAT モード・2026-09-13 ユーザー判断）** — 陳腐化A だけを見る。CP-SAT は天井
+   * （`CPSAT_TARGET_LIMIT`）で切った部分集合を計画するので、全件被覆を課すと**構造上どの計画も
+   * 採用されない**（本番実測で 165 店舗・334 件すべてが被覆で棄却された）。同時提供の主張は
+   * 部分計画では初めから持てないので、これを外すのは保証を失うのではなく**持っていない保証を
+   * 要求しない**ことである。置いた品目が現在の計画対象に在り、その品目の現在の slotSpan を
+   * 満たすことは引き続き要求する。
+   */
+  requireFullCoverage: boolean,
+): boolean {
   // 品目を持たない一片は採用/棄却の単位になり得ない（baselineSchedule も空の一片を作らない）。
   if (slice.placements.length === 0) return true;
 
   const group = targets.filter((order) => tableKeyOf(order) === slice.tableKey);
   // 本数が違えば集合は一致しない。以降の走査で「計画対象 ⊆ 一片」だけを見れば足りる形にする
   // （本数が等しく計画対象を覆うなら、一片の側に余りも重複も残らない）。
-  if (group.length !== slice.placements.length) return true;
+  if (requireFullCoverage && group.length !== slice.placements.length) return true;
+  if (!requireFullCoverage) {
+    // 部分被覆。**一片 ⊆ 計画対象**だけを見る——置いた品目が現在の計画対象に在り、その品目の
+    // 現在の slotSpan を満たすこと。余り（計画対象の側に置かれていない品目）は許す。
+    if (slice.placements.length > group.length) return true;
+    // 述語は `stillPlanned` ただ一つ。**保持（`livePrefix`）が落とす配置と、ここで陳腐化と
+    // 呼ぶ配置が同じものである**ことを、同じ関数を通すことで保証する。
+    return slice.placements.some((placement) => !stillPlanned(placement, group));
+  }
   // 品目が在るだけでなく、配置がその品目の**現在の** slotSpan を満たしていること。採用済み一片は
   // 採用時の slotSpan の上に組まれており、品目が同じでも要る釜数が変われば（v9 の採用済み計画は
   // slotSpan を読まずに 1 釜で組まれている・サイズ変更の再送）配置はもうその品目の計画ではない。
@@ -1107,6 +1134,107 @@ export function isStale(slice: PlanSlice, targets: readonly OrderItem[]): boolea
     const placement = slice.placements.find((candidate) => refersTo(candidate, order));
     return placement === undefined || !occupiesSlotSpan(placement, order);
   });
+}
+
+/**
+ * 遅延補正の上限（design 第 5.3 節 手順 4・R5.5）。初期の許容は 30 秒である。
+ *
+ * これを超える遅れは「補正不能」——補正すれば元の解が前提にした釜の解放・走行中との関係から
+ * 遠く離れるので、ずらして通すより棄却して次の要求を待つほうが正しい。
+ */
+export const MAX_RETIME_MS = 30_000;
+
+/**
+ * retimed — **遅れで開始が過去になった計画を、一度だけ、同じ幅だけ後ろへずらす**（R5.5・design 第 5.3 節 手順 4）。
+ *
+ * 要求を出してから応答が届くまでに時刻は進む（本番実測 p50 2,648 / max 6,619 ms・2026-09-13）。
+ * 受領時刻の解放表は `now` に床を張る（`initialRelease`）ので、**計画の先頭は過去開始になり
+ * `feasibleRelease` が落とす**。実データの卓は 1 つなので、それは計画全体の棄却になる。
+ *
+ * **ずらすのは全配置を同じ非負の幅だけである。** 相対関係（同時提供・順序・釜ごとの非重複・
+ * 茹で時間）はすべて保たれる——だから「補正しても計画としての形は崩れない」と言える。
+ * 個別にずらせば同時提供が壊れ、それは別の計画になる。
+ *
+ * **補正しても検査は省かない。** 返すのはずらした計画だけで、陳腐化・錨・上げ窓・解放表の
+ * 再検証は呼び出し側（`admit`）がそのまま行う。ずらすことで通るようになるのは「過去開始」
+ * ただ一つであり、釜が塞がっていれば `feasibleRelease` が引き続き落とす。
+ *
+ * **一度だけである。** 足りなければ足す、という繰り返しはしない——`now` は動かないので
+ * 一度で足りる幅が決まる。
+ *
+ * @returns ずらした計画と幅。幅が上限を超えるなら `null`（補正不能・応答全体を棄却する）。
+ */
+export function retimed(
+  plan: CookSchedule,
+  now: EpochMillis,
+  /**
+   * 許す補正の上限。**新着の受理は既定（30 秒）**——それを超えて届いた応答は、元の解が前提にした
+   * 釜の解放・走行中との関係から遠すぎる。**保持は `Number.POSITIVE_INFINITY` を渡す**——あちらは
+   * 「人が推奨時刻に始めなかった」だけで、計画の中身が古くなったわけではない（2026-09-13）。
+   */
+  maxMs: number = MAX_RETIME_MS,
+): { readonly plan: CookSchedule; readonly byMs: number } | null {
+  const starts = plan.slices.flatMap((slice) =>
+    slice.placements.map((placement) => placement.startAt),
+  );
+  if (starts.length === 0) return { plan, byMs: 0 };
+  const byMs = Math.max(0, now - Math.min(...starts));
+  if (byMs === 0) return { plan, byMs: 0 };
+  if (byMs > maxMs) return null;
+  return {
+    byMs,
+    plan: {
+      slices: plan.slices.map((slice) => ({
+        tableKey: slice.tableKey,
+        placements: slice.placements.map((placement) => ({
+          ...placement,
+          startAt: (placement.startAt + byMs) as EpochMillis,
+          serveAt: (placement.serveAt + byMs) as EpochMillis,
+          // **錨は動かさない。** 錨は走行中の実効 endTime という外の事実であって、計画の内側の
+          // 時刻ではない。ずらした結果その錨に合流できていなければ `keepsAnchor` が落とす
+          // ——補正の側で辻褄を合わせない。
+        })),
+      })),
+    },
+  };
+}
+
+/**
+ * stillPlanned — その配置は**いまも計画対象の品目を指しているか**（陳腐化A の 1 配置ぶん）。
+ *
+ * 2 つを見る。品目が計画対象に在ること、そして配置がその品目の**現在の** slotSpan を満たすこと。
+ * 品目が同じでも要る釜数が変われば、配置はもうその品目の計画ではない。
+ *
+ * **`isStale` の部分被覆の枝と `retainedSlice` が同じこの関数を通る。** 別々に書けば、
+ * 「陳腐化と呼ぶ配置」と「保持で落とす配置」が黙ってずれる。
+ */
+function stillPlanned(placement: Placement, group: readonly OrderItem[]): boolean {
+  const order = group.find((candidate) => refersTo(placement, candidate));
+  return order !== undefined && occupiesSlotSpan(placement, order);
+}
+
+/**
+ * retainedSlice — 採用済み一片から、**いまも計画対象を指している配置だけ**を残す（R5.9・2026-09-13）。
+ *
+ * **保持は新着の受理と規則が違う。** 新着の応答は欠落・重複・不正配置があれば一括で棄却するが
+ * （R5.4）、保持中の計画は「開始・完了・注文削除・期限切れなどで現在の未着手対象から外れた品目の
+ * 配置を除き、**有効な残りを保持する**」——R5.9 は続けてこう書いている：
+ *
+ * > 1杯の開始や対象の繰り上がりで未配置品目が生じたことだけを理由に全提案を破棄しない。
+ *
+ * **実装はこれに反していた（2026-09-13・現場の操作で判明）。** 実データの卓は 1 つなので配置は
+ * 一片にまとまる。1 杯を開始するとその品目が計画対象から外れ、`isStale` が**一片ごと**落とし、
+ * CP-SAT モードには尾部の自前解も無いので（R1.4）**画面の推奨が全部消えた**。
+ * 「2 つ候補が出る → 1 つ開始する → もう片方も消える」がその形である。
+ *
+ * 残った配置の物理検査は呼び出し側がそのまま行う（`cannotStart` / `keepsAnchor` / `withinLiftCap`）
+ * ——ここは「対象から外れた配置を除く」だけで、除いたことで通るようになる検査は無い。
+ */
+export function retainedSlice(slice: PlanSlice, targets: readonly OrderItem[]): PlanSlice {
+  const group = targets.filter((order) => tableKeyOf(order) === slice.tableKey);
+  const placements = slice.placements.filter((placement) => stillPlanned(placement, group));
+  // 1 つも落ちなければ同じ参照を返す（呼び出し側が「変わった」を参照で判定できる）。
+  return placements.length === slice.placements.length ? slice : { ...slice, placements };
 }
 
 /**
@@ -1861,12 +1989,11 @@ const MILLIS_PER_SECOND = 1000;
  *   - S > arms + HELPER_ARMS：どの時刻にも入らない列なので、**候補の窓の残り容量**（上限 − 既存の負荷。残りが
  *     先頭の品目に足りなければ上限）に収まる最長の非空の接頭辞と残りに割って再帰する（先頭の品目は必ず上限に
  *     収まる——1 品で超える品目は placeGroup が列に入れない・AC 9.12）。
- *   - S ≤ arms：手伝いが要らないので pack（全員を firstFit の時刻へ）。前回の提案が在れば、前回のまとまり・先頭を
- *     残す分割も候補になる（窓が埋まって pack が次の窓へ動くとき、先頭の 1 本だけなら今の窓に残れることがある）。
- *   - その間：pack（全員を同じ窓へ・手伝いを頼む）と split（arms に収まる最長の非空の接頭辞を先に、残りを
- *     進めた表の上で再帰）の**両方を同じ既存の表に対して実際に作り**、局所の費用で安い方を置く。同点は pack。
- *     **品目は不可分**——接頭辞が空（先頭の品目の span が arms を超える・例：arms 1 の大盛）なら split は候補に
- *     ならず pack を置く。
+ *   - S ≤ arms + HELPER_ARMS：pack（全員を firstFit の時刻へ）と、残り容量／arms で切る split を
+ *     同じ既存の表に対して作り、局所費用で比べる。分割は min(arms, 残り容量)、arms の順に最長接頭辞を取り、
+ *     空・全列・重複は除く。列だけなら S ≤ arms でも、走行中の負荷で pack が遅れると分割が有利になり得る。
+ *     同点は pack、分割同士は残り容量を使う方。前回の提案が在れば、前回を保つ候補をさらに優先する。
+ *     品目は不可分で、接頭辞を置いた後の表で残りを再帰する。
  *
  * 局所の費用 cost(c) = Σ 待ち（serve − 到着・候補を後ろへ動かした分を含む）
  *                   + w_table × Σ 卓の遅れ（走行中の仲間と先に置いた配置を含む成員の、最遅からの差）
@@ -1944,7 +2071,7 @@ function placeWithLifts(
   // S ≤ arms + HELPER_ARMS なので firstFit は必ず時刻を返す（null は span が上限を超えるときだけ）。
   const pack = placeAt(column, firstFit(lifts, t0, total, params)!);
   // 候補は優先順（同点はこの順で先の側）：前回の配置を再現する分割・前回のまとまりを保つ分割・前回の先頭を今の窓に
-  // 残す分割・pack・split。前回の提案が無ければ前者 3 つは無い。
+  // 残す分割・pack・残り容量の split・arms の split。前回の提案が無ければ前者 3 つは無い。
   const keeping =
     continuity === null
       ? []
@@ -1953,24 +2080,36 @@ function placeWithLifts(
           keepPrevious(column, t0, lifts, members, params, continuity),
           keepHeads(column, t0, lifts, members, params, continuity),
         ];
-  // S ≤ arms：手伝いが要らないので pack——ただし窓が埋まっていて pack が次の窓へ動くとき、前回の先頭やまとまりを
-  // 今の窓に残す分割は候補になる（列の全員が窓に入らなくても、先頭の 1 本は入ることがある）。
-  if (total <= params.arms)
+  // 列だけなら腕に収まっても、将来の走行中が窓を占めると pack は丸ごと後ろへ動く。
+  // 残り容量で先頭を切る候補も作る。従来の arms 分割を残し、同費用の分割同士なら先頭を早く置ける方を先にする。
+  // 空／全列の接頭辞は分割ではない。同じ接頭辞は一度だけ評価する（品目は不可分）。
+  // pack が候補時刻に入るなら残り容量で切る必要はない。特に腕以内の列は従来どおり比較を終える。
+  if (total <= params.arms && pack[0]!.serveAt === t0)
     return cheapest([...keeping, pack], column, lifts, members, params, continuity);
-  const prefix = longestPrefixWithin(column, params.arms);
-  if (prefix.length === 0)
-    return cheapest([...keeping, pack], column, lifts, members, params, continuity);
-  const placedPrefix = placeAt(prefix, firstFit(lifts, t0, spanOf(prefix), params)!);
-  const placedRest = placeWithLifts(
-    column.slice(prefix.length),
-    t0,
-    advanceLifts(lifts, liftsOf(placedPrefix)),
-    [...members, ...placedPrefix.map((placement) => placement.serveAt)],
-    params,
-    after(continuity, placedPrefix),
-  );
-  const split = [...placedPrefix, ...placedRest];
-  return cheapest([...keeping, pack, split], column, lifts, members, params, continuity);
+  const capacities = [params.arms];
+  if (pack[0]!.serveAt > t0) {
+    const room = cap - loadWith(lifts, t0, 0, params);
+    if (room > 0 && room < params.arms) capacities.unshift(room);
+  }
+  const splits: (readonly Placement[])[] = [];
+  const lengths = new Set<number>();
+  for (const capacity of capacities) {
+    const prefix = longestPrefixWithin(column, capacity);
+    if (prefix.length === 0 || prefix.length === column.length || lengths.has(prefix.length))
+      continue;
+    lengths.add(prefix.length);
+    const placedPrefix = placeAt(prefix, firstFit(lifts, t0, spanOf(prefix), params)!);
+    const placedRest = placeWithLifts(
+      column.slice(prefix.length),
+      t0,
+      advanceLifts(lifts, liftsOf(placedPrefix)),
+      [...members, ...placedPrefix.map((placement) => placement.serveAt)],
+      params,
+      after(continuity, placedPrefix),
+    );
+    splits.push([...placedPrefix, ...placedRest]);
+  }
+  return cheapest([...keeping, pack, ...splits], column, lifts, members, params, continuity);
 }
 
 /** 候補（優先順・null は候補にならなかったもの）のうち局所費用が最小のもの。同点は先の候補。 */

@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "yude-men-cpsat-search",
+  "account_id": "305d89a643ac689b4204454c5493cbde",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-09",
+  // Emscripten targets worker, not Node. Explicit opt-out is needed since
+  // nodejs_compat is enabled by default for dates >= 2026-08-04.
+  "compatibility_flags": ["no_nodejs_compat", "no_nodejs_compat_v2"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "secrets": { "required": ["SEARCH_AUTH_TOKEN"] },
+  "vars": { "SEARCH_EXPIRES_AT": "2026-09-10T06:00:00Z" },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  "limits": { "cpu_ms": 10000 },
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+}

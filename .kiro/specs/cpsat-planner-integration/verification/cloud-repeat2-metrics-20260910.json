@@ -1,0 +1,379 @@
+{
+  "perRun": [
+    {
+      "i": 0,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 3522,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 1,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 572,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 2,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 141,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 3,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 80,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 4,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 364,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 5,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 56,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 6,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 976,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 7,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 425,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 8,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 652,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 9,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 74,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 10,
+      "rows": 10,
+      "facts": 3,
+      "m": {
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 11,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 2620,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 12,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 48,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 13,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 102,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 14,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 69,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 15,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 46,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 16,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 1107,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 17,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 164,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 18,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 42,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    },
+    {
+      "i": 19,
+      "rows": 16,
+      "facts": 4,
+      "m": {
+        "isolate-bytes": "unavailable",
+        "wait-until-wall-ms": "unavailable",
+        "invocation-wall-ms": "unavailable",
+        "cpu-ms": "unavailable",
+        "solve-callback-wall-ms": 2000,
+        "model-bytes": 604697,
+        "constraints": 22495,
+        "variables": 500,
+        "wasm-bytes": 33554432,
+        "consumed-deterministic": 0.140242550894,
+        "budget-deterministic": 0.14,
+        "cpu-limit-ms": 10000
+      }
+    }
+  ]
+}

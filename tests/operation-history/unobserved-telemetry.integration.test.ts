@@ -28,6 +28,7 @@ import {
   operationArrivalQualityFromEvidence,
 } from "../../src/operation-history/correlation";
 import { operationQualityAssessmentFromCounts } from "../../src/operation-history/quality";
+import { canonicalLinesOf } from "./support/canonical-capture";
 import {
   BOIL_DURATION,
   PRODUCER_SCRIPT,
@@ -131,7 +132,7 @@ async function observedOnlyRun(
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
   log.mockClear();
   for (const observation of produced) tryWriteOperationLines(true, observation);
-  const producedLines = log.mock.calls.map((call) => call[0] as string);
+  const producedLines = canonicalLinesOf(log.mock.calls);
   const producerTrace = log.mock.calls.map((call) => call.slice());
 
   const observedLines = observed(producedLines);

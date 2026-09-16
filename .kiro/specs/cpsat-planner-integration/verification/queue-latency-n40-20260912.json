@@ -1,0 +1,328 @@
+{
+  "startedAt": "2026-09-12T10:52:49.701Z",
+  "storeId": "cpsat-transport-20260909-04",
+  "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+  "rounds": [
+    {
+      "round": 0,
+      "externalOrderId": "separation-0-a1a00f05",
+      "startedAt": 1789210369701,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 2466
+    },
+    {
+      "round": 1,
+      "externalOrderId": "separation-1-744b37e8",
+      "startedAt": 1789210376168,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 551
+    },
+    {
+      "round": 2,
+      "externalOrderId": "separation-2-2d0e90d2",
+      "startedAt": 1789210380721,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 199
+    },
+    {
+      "round": 3,
+      "externalOrderId": "separation-3-d1cc6242",
+      "startedAt": 1789210384921,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 280
+    },
+    {
+      "round": 4,
+      "externalOrderId": "separation-4-c98e18fa",
+      "startedAt": 1789210389203,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 286
+    },
+    {
+      "round": 5,
+      "externalOrderId": "separation-5-8722faa3",
+      "startedAt": 1789210393490,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 265
+    },
+    {
+      "round": 6,
+      "externalOrderId": "separation-6-ef7bf713",
+      "startedAt": 1789210397756,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 748
+    },
+    {
+      "round": 7,
+      "externalOrderId": "separation-7-b40eb248",
+      "startedAt": 1789210402506,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 194
+    },
+    {
+      "round": 8,
+      "externalOrderId": "separation-8-67b2bbca",
+      "startedAt": 1789210406702,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 264
+    },
+    {
+      "round": 9,
+      "externalOrderId": "separation-9-cd13720d",
+      "startedAt": 1789210410967,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 365
+    },
+    {
+      "round": 10,
+      "externalOrderId": "separation-10-1412e144",
+      "startedAt": 1789210415333,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 1529
+    },
+    {
+      "round": 11,
+      "externalOrderId": "separation-11-176fccca",
+      "startedAt": 1789210420863,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 301
+    },
+    {
+      "round": 12,
+      "externalOrderId": "separation-12-8a4b79f2",
+      "startedAt": 1789210425165,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 325
+    },
+    {
+      "round": 13,
+      "externalOrderId": "separation-13-988c3876",
+      "startedAt": 1789210429491,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 296
+    },
+    {
+      "round": 14,
+      "externalOrderId": "separation-14-929878c7",
+      "startedAt": 1789210433787,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 282
+    },
+    {
+      "round": 15,
+      "externalOrderId": "separation-15-5f1906c1",
+      "startedAt": 1789210438070,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 272
+    },
+    {
+      "round": 16,
+      "externalOrderId": "separation-16-203592d8",
+      "startedAt": 1789210442343,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 297
+    },
+    {
+      "round": 17,
+      "externalOrderId": "separation-17-d542e2a9",
+      "startedAt": 1789210446641,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 339
+    },
+    {
+      "round": 18,
+      "externalOrderId": "separation-18-99495121",
+      "startedAt": 1789210450981,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 291
+    },
+    {
+      "round": 19,
+      "externalOrderId": "separation-19-317f1e73",
+      "startedAt": 1789210455272,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 337
+    },
+    {
+      "round": 20,
+      "externalOrderId": "separation-20-aad88e24",
+      "startedAt": 1789210459610,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 240
+    },
+    {
+      "round": 21,
+      "externalOrderId": "separation-21-3f460415",
+      "startedAt": 1789210463852,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 432
+    },
+    {
+      "round": 22,
+      "externalOrderId": "separation-22-f5736caa",
+      "startedAt": 1789210468284,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 274
+    },
+    {
+      "round": 23,
+      "externalOrderId": "separation-23-eb8051ed",
+      "startedAt": 1789210472559,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 380
+    },
+    {
+      "round": 24,
+      "externalOrderId": "separation-24-927401ed",
+      "startedAt": 1789210476940,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 259
+    },
+    {
+      "round": 25,
+      "externalOrderId": "separation-25-92cf7531",
+      "startedAt": 1789210481199,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 1771
+    },
+    {
+      "round": 26,
+      "externalOrderId": "separation-26-af5d85cc",
+      "startedAt": 1789210486970,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 390
+    },
+    {
+      "round": 27,
+      "externalOrderId": "separation-27-6e6e7a92",
+      "startedAt": 1789210491362,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 257
+    },
+    {
+      "round": 28,
+      "externalOrderId": "separation-28-8b9d77a6",
+      "startedAt": 1789210495620,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 205
+    },
+    {
+      "round": 29,
+      "externalOrderId": "separation-29-0f80d8fa",
+      "startedAt": 1789210499826,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 371
+    },
+    {
+      "round": 30,
+      "externalOrderId": "separation-30-d889419c",
+      "startedAt": 1789210504196,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 299
+    },
+    {
+      "round": 31,
+      "externalOrderId": "separation-31-47a098db",
+      "startedAt": 1789210508497,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 261
+    },
+    {
+      "round": 32,
+      "externalOrderId": "separation-32-6ebe0535",
+      "startedAt": 1789210512760,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 298
+    },
+    {
+      "round": 33,
+      "externalOrderId": "separation-33-86cfd9e3",
+      "startedAt": 1789210517060,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 301
+    },
+    {
+      "round": 34,
+      "externalOrderId": "separation-34-728a7a20",
+      "startedAt": 1789210521362,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 318
+    },
+    {
+      "round": 35,
+      "externalOrderId": "separation-35-c20a127a",
+      "startedAt": 1789210525681,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 239
+    },
+    {
+      "round": 36,
+      "externalOrderId": "separation-36-61a3d20e",
+      "startedAt": 1789210529921,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 455
+    },
+    {
+      "round": 37,
+      "externalOrderId": "separation-37-c762a5b1",
+      "startedAt": 1789210534377,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 223
+    },
+    {
+      "round": 38,
+      "externalOrderId": "separation-38-7dc8173d",
+      "startedAt": 1789210538601,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 367
+    },
+    {
+      "round": 39,
+      "externalOrderId": "separation-39-8948f43f",
+      "startedAt": 1789210542968,
+      "orderStatus": 200,
+      "orderBody": "{\"accepted\":true}",
+      "orderWallMs": 251
+    }
+  ],
+  "finishedAt": "2026-09-12T10:55:43.258Z"
+}

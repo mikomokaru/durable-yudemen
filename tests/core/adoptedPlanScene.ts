@@ -37,6 +37,7 @@ const ADOPTED_PLAN_PRESETS: readonly NoodlePreset[] = [
 /** 1 ユニット・arms 2・許容 1%。近い 2 本は一つの Sync_Set に入り、遠い塞ぎ Timer は入らない。 */
 export const ADOPTED_PLAN_PARAMS: SettleParams = {
   noodlePresets: ADOPTED_PLAN_PRESETS,
+  planner: "ts" as const,
   ...schedulingDefaults(1),
   toleranceRatio: 1,
   arms: 2,

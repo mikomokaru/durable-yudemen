@@ -199,7 +199,9 @@
 3. THE Client_Decide および純粋層 SHALL fast-check を用いた property-based test を含む Vitest 検証スイートを、失敗テスト 0 件で通過する。
 4. THE 純粋層のテスト SHALL `Date.now` 等のスタブを用いず、時刻を引数として渡す方式で検証する。
 5. WHERE PWA のビルドにツールを要する場合、THE 本機能 SHALL pnpm / Vite スタックと整合する vite-plugin-pwa / Workbox を用い、新たなパッケージマネージャを導入しない。
-6. THE iPad_Client SHALL 全てのユーザー向け画面コンテンツを英語で提示し、コードコメントを日本語で記述する。
+6. THE iPad_Client SHALL 全てのユーザー向け画面コンテンツを英語で提示し、コードコメントを日本語で記述する。**例外は調理母語の 2 つだけである。**
+   - **茹で加減の表示ラベル**（`バリカタ` / `かため` / `ふつう` / `やわめ`）。英語に対応語を持たない調理の語であり、店舗運用者の合意のもと日本語で表示する。
+   - **麺量の語**（`中` / `大` / `半`・item-display-abbreviation 判断 8・2026-09-15 追加）。同じく調理の語で、出所は POS が伝票へ印字する `中盛` / `大盛` / `半玉` である（`普通` は表示しない）。**この例外は `src/client/components/queueDisplay.ts` の `SIZE_LABEL` の定義の中だけに効く**——client 全体で語を許すと、麺量と無関係な `<button>中</button>` まで通る。検査は当該初期化子を取り除いてから日本語混入を判定し、その初期化子に現れる日本語が確定集合に収まることも併せて見る（`tests/offline-degradation.static.test.ts`）。
 
 ### 要件 14: デバッグ用フォルトインジェクション（擬似切断・dev 限定）
 

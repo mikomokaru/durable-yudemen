@@ -86,7 +86,16 @@ export function tableMembers(running: readonly Timer[]): TableMembers {
 }
 
 /**
- * Table_Group の識別子。tableId を持たない品目は「その品目だけの単独グループ」へ写す。
+ * Table_Group の識別子。tableId を持たない品目は**同じ伝票（`externalOrderId`）ごと**のグループへ写す。
+ *
+ * **落とし先を品目ごとから伝票ごとへ変えた（2026-09-13）。** 上流の POS は卓が特定できない受注に
+ * 既定値を入れて送るので（`toTableId`）、卓なしは例外ではなく**多数派**である。品目ごとに割ると、
+ * 同じ 1 枚の伝票に載った 2 杯——同じお客の 2 杯——が別の群になり、一緒に上げる理由が費用から
+ * 消える。実データでは **2 杯以上の注文が 27.1%、そこに載る杯が全体の 45.9%** であり、
+ * 半分近くの杯が同期の対象から外れることになる。
+ *
+ * 伝票は「同じお客のひとまとまり」を表す唯一の申告値である。卓が分かるならそちらが優先されるのは
+ * 変わらない——同じ卓に相席・追加注文が来れば、伝票が違っても一緒に上げたいからである。
  *
  * 単独キーの区切りに NUL を使う。tableId は任意の非空文字列を採れるため、単独キーが本物の卓 id と
  * 衝突すれば、卓に紐づかない品目が黙って一つの卓へ束ねられる（objective.ts の品目鍵と同じ規律）。
@@ -103,5 +112,5 @@ export function tableKeyOf(order: {
   readonly itemIndex: number;
   readonly tableId: string | null;
 }): string {
-  return order.tableId ?? `\u0000${order.externalOrderId}\u0000${order.itemIndex}`;
+  return order.tableId ?? `\u0000${order.externalOrderId}`;
 }

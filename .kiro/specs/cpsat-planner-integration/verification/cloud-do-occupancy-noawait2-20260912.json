@@ -1,0 +1,102 @@
+{
+  "startedAt": "2026-09-12T05:27:31.237Z",
+  "storeId": "cpsat-transport-20260909-04",
+  "storeRef": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90",
+  "window": {
+    "notBefore": 1789189051184,
+    "expiresAt": 1789191751184
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 124,
+          "firstFrameMs": 125
+        },
+        {
+          "status": 101,
+          "upgradedMs": 114,
+          "firstFrameMs": 114
+        }
+      ],
+      "busy": {
+        "status": 101,
+        "upgradedMs": 466,
+        "firstFrameMs": 466
+      },
+      "busyProbeSentAfterOrderMs": 256,
+      "busyProbeFinishedAfterOrderMs": 722,
+      "order": {
+        "externalOrderId": "occupancy-r0-76190cb6",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789190852552,
+        "wallMs": 717
+      },
+      "orderFinishedAfterMs": 717
+    },
+    {
+      "round": 1,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 150,
+          "firstFrameMs": 150
+        },
+        {
+          "status": 101,
+          "upgradedMs": 194,
+          "firstFrameMs": 195
+        }
+      ],
+      "busy": {
+        "status": 101,
+        "upgradedMs": 456,
+        "firstFrameMs": 456
+      },
+      "busyProbeSentAfterOrderMs": 251,
+      "busyProbeFinishedAfterOrderMs": 707,
+      "order": {
+        "externalOrderId": "occupancy-r1-828bfcd0",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789190861723,
+        "wallMs": 704
+      },
+      "orderFinishedAfterMs": 704
+    },
+    {
+      "round": 2,
+      "idle": [
+        {
+          "status": 101,
+          "upgradedMs": 126,
+          "firstFrameMs": 126
+        },
+        {
+          "status": 101,
+          "upgradedMs": 116,
+          "firstFrameMs": 116
+        }
+      ],
+      "busy": {
+        "status": 101,
+        "upgradedMs": 492,
+        "firstFrameMs": 492
+      },
+      "busyProbeSentAfterOrderMs": 252,
+      "busyProbeFinishedAfterOrderMs": 744,
+      "order": {
+        "externalOrderId": "occupancy-r2-3b6efa95",
+        "status": 200,
+        "body": "{\"accepted\":true}",
+        "startedAt": 1789190870778,
+        "wallMs": 742
+      },
+      "orderFinishedAfterMs": 742
+    }
+  ],
+  "finishedAt": "2026-09-12T05:27:51.609Z"
+}

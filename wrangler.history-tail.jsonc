@@ -1,0 +1,46 @@
+{
+  // 共通の履歴基盤の入口（operation-history-log 要件 4.1）。Producer の実行完了後に別 Worker 実行として
+  // 起動し、canonical 行を物理行へ写して Pipelines の Stream へ直接送る。
+  //
+  // 所有者は Data Platform である。root（wrangler.jsonc）は Producer 設定の正本であり、そこに置くのは
+  // この Worker を指す tail_consumers attachment だけとする。Stream binding をこちら側へ分けることで、
+  // StoreTimerDO の env から下流へ到達できないことを設定構造が保証する。
+  //
+  // **まだデプロイしていない。** Stream の作成はタスク 3.1、attachment の有効化はタスク 7.2。
+  // 旧 Snowpipe 方式の wrangler.telemetry-tail.jsonc / wrangler.raw-arrival-consumer.jsonc は旧構成の
+  // 記録として残す。新旧を同時に attach しない。
+  "name": "yude-men-history-tail",
+  "main": "src/data-platform/history-tail.ts",
+  // root と同一の日付に揃える（tooling.md の確定値）。Worker 間で挙動の既定が食い違わないようにする。
+  "compatibility_date": "2026-06-26",
+  // 送信失敗・送らなかった行の診断はこの Worker のログにしか残らない。status が読む唯一の経路ゆえ
+  // 有効にする。保持期間と取得経路の確定はタスク 1.4（design.md「status の参照元」）。
+  "observability": {
+    "enabled": true,
+  },
+  // ネットワークへ露出させない。この Worker への正当な到達経路は Producer の tail attachment だけであり、
+  // fetch handler も route も持たない。Producer を起動できる経路（route、Service binding、
+  // DO namespace／stub、STORE_TIMER_DO）をここへ一切置かない。
+  "workers_dev": false,
+  "preview_urls": false,
+  // Pipelines の Stream binding。`stream` は作成時に発行される Stream **ID** であり名前ではない。
+  // 2026-09-12 に作成した operation_arrivals_v1 の ID（config/history-pipelines/README.md）。
+  // dataset ごとに Stream を分ける。共有した Stream へ pipeline SQL で振り分ける形だと、SQL を後から
+  // 変更できない以上、dataset を足すたびに operation 側の pipeline を作り直すことになる（要件 4.9）。
+  "pipelines": [
+    {
+      "binding": "HISTORY_ARRIVALS",
+      "stream": "19673a8daaed45379ea5f491e8ecf660",
+    },
+    {
+      // 2026-09-16 に作成した lift_delay_arrivals_v1。
+      "binding": "LIFT_DELAY_ARRIVALS",
+      "stream": "f620eedb2b9943ada520664aab522173",
+    },
+    {
+      // 2026-09-16 に作成した order_arrival_arrivals_v1（注文到着・order-arrival-log）。
+      "binding": "ORDER_ARRIVAL_ARRIVALS",
+      "stream": "9e33d35d79f645e4a9c68d2cb563ffa3",
+    },
+  ],
+}

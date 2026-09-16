@@ -20,6 +20,7 @@ import rawArrivalConsumer, {
   type RawArrivalConsumerEnv,
 } from "../../src/data-platform/raw-arrival-consumer";
 import { nonEmpty } from "../nonEmpty";
+import { canonicalLinesOf } from "./support/canonical-capture";
 
 // root wrangler.jsonc の "name" と一致する、現存するただ一つの Producer script。
 const PRODUCER_SCRIPT = "yude-men-timer";
@@ -66,7 +67,7 @@ const boiledObservation: OperationObservation = {
 function producerLines(): readonly string[] {
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
   tryWriteOperationLines(true, boiledObservation);
-  const lines = log.mock.calls.map((call) => call[0] as string);
+  const lines = canonicalLinesOf(log.mock.calls);
   log.mockRestore();
   return lines;
 }

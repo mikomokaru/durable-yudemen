@@ -173,6 +173,7 @@ export const genScheduledScene: fc.Arbitrary<ScheduledScene> = fc
     const pending = toPending(seed.orders);
     const params: SettleParams = {
       noodlePresets: DEFAULT_NOODLE_PRESETS,
+      planner: "ts" as const,
       ...seed.schedule,
       toleranceRatio: seed.toleranceRatio,
       // arms は同期と採点で一つ（SettleParams の実体は一つ）。場面の arms を採点側にも通す。

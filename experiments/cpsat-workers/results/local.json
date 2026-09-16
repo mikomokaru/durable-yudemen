@@ -1,0 +1,2151 @@
+{
+  "measuredAt": "2026-09-08T11:18:13.624Z",
+  "host": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v26.7.0"
+  },
+  "toolchain": {
+    "orToolsNative": "9.15.6755",
+    "orToolsWasmRevision": "e1453348bc43d3b0afc0c2e5a535f5c9b45326f4",
+    "emscripten": "4.0.20"
+  },
+  "artifacts": {
+    "wasmBytes": 6775868,
+    "glueBytes": 104791,
+    "sha256": [
+      "97317c9671f86511c7279c5a1ade297d245ab71cabd5bd8c00282f28d03ecbe9  cpsat_workers_poc_runtime.js",
+      "f74093b5d7b901101a1b4b6478d49118a026c822c747e7fe5688c426d39fb930  cpsat_workers_poc_runtime.wasm"
+    ],
+    "inspection": {
+      "byteLength": 6775868,
+      "imports": [
+        {
+          "module": "env",
+          "name": "invoke_iijj",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_viii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__cxa_find_matching_catch_2",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iij",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_vii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_v",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_jii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_viiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_viiiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__cxa_find_matching_catch_3",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__resumeException",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_ii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iid",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iiiiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__cxa_begin_catch",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_vi",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__cxa_end_catch",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__cxa_throw",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "exit",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "emscripten_errn",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "emscripten_stack_snapshot",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "emscripten_stack_unwind_buffer",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "emscripten_asm_const_int",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "HaveOffsetConverter",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "emscripten_pc_get_function",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__syscall_fcntl64",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__syscall_ioctl",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "fd_close",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "fd_read",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "fd_write",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "_tzset_js",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "proc_exit",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "_abort_js",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "clock_time_get",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__syscall_openat",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "random_get",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "environ_sizes_get",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "environ_get",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "emscripten_get_now",
+          "kind": "function"
+        },
+        {
+          "module": "wasi_snapshot_preview1",
+          "name": "fd_seek",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "_munmap_js",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__syscall_stat64",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "emscripten_resize_heap",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_j",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__cxa_rethrow",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__cxa_uncaught_exceptions",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iiiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iiiiij",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iiiiid",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iiiiiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_jiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_fiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_diii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_i",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_viiiiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_iiiiiiiiiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_viiiiiiiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "invoke_viiiiiiiiiiiiiii",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "emscripten_get_heap_max",
+          "kind": "function"
+        },
+        {
+          "module": "env",
+          "name": "__assert_fail",
+          "kind": "function"
+        }
+      ],
+      "exports": [
+        {
+          "name": "memory",
+          "kind": "memory"
+        },
+        {
+          "name": "__wasm_call_ctors",
+          "kind": "function"
+        },
+        {
+          "name": "cpsat_solve",
+          "kind": "function"
+        },
+        {
+          "name": "__indirect_function_table",
+          "kind": "table"
+        },
+        {
+          "name": "malloc",
+          "kind": "function"
+        },
+        {
+          "name": "__cxa_free_exception",
+          "kind": "function"
+        },
+        {
+          "name": "fflush",
+          "kind": "function"
+        },
+        {
+          "name": "strerror",
+          "kind": "function"
+        },
+        {
+          "name": "free",
+          "kind": "function"
+        },
+        {
+          "name": "emscripten_builtin_memalign",
+          "kind": "function"
+        },
+        {
+          "name": "emscripten_stack_get_end",
+          "kind": "function"
+        },
+        {
+          "name": "emscripten_stack_get_base",
+          "kind": "function"
+        },
+        {
+          "name": "setThrew",
+          "kind": "function"
+        },
+        {
+          "name": "_emscripten_tempret_set",
+          "kind": "function"
+        },
+        {
+          "name": "emscripten_stack_init",
+          "kind": "function"
+        },
+        {
+          "name": "emscripten_stack_get_free",
+          "kind": "function"
+        },
+        {
+          "name": "_emscripten_stack_restore",
+          "kind": "function"
+        },
+        {
+          "name": "_emscripten_stack_alloc",
+          "kind": "function"
+        },
+        {
+          "name": "emscripten_stack_get_current",
+          "kind": "function"
+        },
+        {
+          "name": "__cxa_decrement_exception_refcount",
+          "kind": "function"
+        },
+        {
+          "name": "__cxa_increment_exception_refcount",
+          "kind": "function"
+        },
+        {
+          "name": "__get_exception_message",
+          "kind": "function"
+        },
+        {
+          "name": "__cxa_can_catch",
+          "kind": "function"
+        },
+        {
+          "name": "__cxa_get_exception_ptr",
+          "kind": "function"
+        }
+      ],
+      "importedMemoryCount": 0,
+      "importsPthreadRuntime": false,
+      "exportsSolver": true,
+      "exportsMemory": true
+    }
+  },
+  "native": {
+    "small": [
+      {
+        "case": "small",
+        "status": "OPTIMAL",
+        "objective": 5,
+        "bestBound": 5,
+        "solution": [
+          2,
+          1,
+          0
+        ],
+        "modelVariables": 3,
+        "modelConstraints": 1,
+        "requestedTimeLimitMs": 1000,
+        "solverWallTimeMs": 18.908,
+        "conflicts": 0,
+        "branches": 22,
+        "searchWorkers": 1
+      },
+      {
+        "case": "small",
+        "status": "OPTIMAL",
+        "objective": 5,
+        "bestBound": 5,
+        "solution": [
+          2,
+          1,
+          0
+        ],
+        "modelVariables": 3,
+        "modelConstraints": 1,
+        "requestedTimeLimitMs": 1000,
+        "solverWallTimeMs": 0.336,
+        "conflicts": 0,
+        "branches": 22,
+        "searchWorkers": 1
+      },
+      {
+        "case": "small",
+        "status": "OPTIMAL",
+        "objective": 5,
+        "bestBound": 5,
+        "solution": [
+          2,
+          1,
+          0
+        ],
+        "modelVariables": 3,
+        "modelConstraints": 1,
+        "requestedTimeLimitMs": 1000,
+        "solverWallTimeMs": 0.264,
+        "conflicts": 0,
+        "branches": 22,
+        "searchWorkers": 1
+      },
+      {
+        "case": "small",
+        "status": "OPTIMAL",
+        "objective": 5,
+        "bestBound": 5,
+        "solution": [
+          2,
+          1,
+          0
+        ],
+        "modelVariables": 3,
+        "modelConstraints": 1,
+        "requestedTimeLimitMs": 1000,
+        "solverWallTimeMs": 0.23800000000000002,
+        "conflicts": 0,
+        "branches": 22,
+        "searchWorkers": 1
+      },
+      {
+        "case": "small",
+        "status": "OPTIMAL",
+        "objective": 5,
+        "bestBound": 5,
+        "solution": [
+          2,
+          1,
+          0
+        ],
+        "modelVariables": 3,
+        "modelConstraints": 1,
+        "requestedTimeLimitMs": 1000,
+        "solverWallTimeMs": 0.229,
+        "conflicts": 0,
+        "branches": 22,
+        "searchWorkers": 1
+      }
+    ],
+    "hard": [
+      {
+        "case": "hard",
+        "status": "UNKNOWN",
+        "objective": 0,
+        "bestBound": 0,
+        "solution": [],
+        "modelVariables": 500,
+        "modelConstraints": 22495,
+        "requestedTimeLimitMs": 50,
+        "solverWallTimeMs": 50.453,
+        "conflicts": 0,
+        "branches": 0,
+        "searchWorkers": 1
+      },
+      {
+        "case": "hard",
+        "status": "UNKNOWN",
+        "objective": 0,
+        "bestBound": 0,
+        "solution": [],
+        "modelVariables": 500,
+        "modelConstraints": 22495,
+        "requestedTimeLimitMs": 50,
+        "solverWallTimeMs": 48.294000000000004,
+        "conflicts": 0,
+        "branches": 0,
+        "searchWorkers": 1
+      },
+      {
+        "case": "hard",
+        "status": "UNKNOWN",
+        "objective": 0,
+        "bestBound": 0,
+        "solution": [],
+        "modelVariables": 500,
+        "modelConstraints": 22495,
+        "requestedTimeLimitMs": 50,
+        "solverWallTimeMs": 49.13,
+        "conflicts": 0,
+        "branches": 0,
+        "searchWorkers": 1
+      }
+    ]
+  },
+  "worker": {
+    "readyMs": 831.729916,
+    "coldSmall": {
+      "clientElapsedMs": 89.04445800000008,
+      "body": {
+        "runtime": {
+          "orToolsVersion": "9.15",
+          "sourceRevision": "e1453348bc43d3b0afc0c2e5a535f5c9b45326f4",
+          "searchWorkers": 1,
+          "pthreadsLinked": false,
+          "initializedNow": true,
+          "initializationMs": 12
+        },
+        "requestElapsedMs": 85,
+        "samples": [
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 63.000064,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 73,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          }
+        ]
+      }
+    },
+    "warmSmall": {
+      "clientElapsedMs": 41.62741599999981,
+      "body": {
+        "runtime": {
+          "orToolsVersion": "9.15",
+          "sourceRevision": "e1453348bc43d3b0afc0c2e5a535f5c9b45326f4",
+          "searchWorkers": 1,
+          "pthreadsLinked": false,
+          "initializedNow": false,
+          "initializationMs": 0
+        },
+        "requestElapsedMs": 39,
+        "samples": [
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 2.999808,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 3,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 2.000128,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 2,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 1.000192,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 2.000128,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 2,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 1.000192,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 5.999872,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 6,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 2.000128,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 2,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 1.999872,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 2,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 2,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 3.000064,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 3,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 2.000128,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 2,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 2.000128,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 2,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          }
+        ]
+      }
+    },
+    "hard": {
+      "clientElapsedMs": 1259.689625,
+      "body": {
+        "runtime": {
+          "orToolsVersion": "9.15",
+          "sourceRevision": "e1453348bc43d3b0afc0c2e5a535f5c9b45326f4",
+          "searchWorkers": 1,
+          "pthreadsLinked": false,
+          "initializedNow": false,
+          "initializationMs": 0
+        },
+        "requestElapsedMs": 1258,
+        "samples": [
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 56.999936,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 69,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 60.999936,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 70,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 56,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 65,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 56,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 63,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 56,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 64,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 49.000192,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 57,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 56,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 64,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 53.999872,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 62,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 48.999936,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 57,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 54.000128,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 62,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 55.000064,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 63,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 53.999872,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 62,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 55.000064,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 62,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 54.999808,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 63,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 54.000128,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 62,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 55.000064,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 63,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 53.999872,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 62,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 55.000064,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 63,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 53.999872,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 62,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "hard",
+            "status": "UNKNOWN",
+            "objective": 0,
+            "bestBound": 0,
+            "solution": [],
+            "modelVariables": 500,
+            "modelConstraints": 22495,
+            "requestedTimeLimitMs": 50,
+            "solverWallTimeMs": 55.000064,
+            "deterministicTime": 0,
+            "conflicts": 0,
+            "branches": 0,
+            "booleans": 0,
+            "hostElapsedMs": 62,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          }
+        ]
+      }
+    },
+    "afterHardSmall": {
+      "clientElapsedMs": 16.428292000000056,
+      "body": {
+        "runtime": {
+          "orToolsVersion": "9.15",
+          "sourceRevision": "e1453348bc43d3b0afc0c2e5a535f5c9b45326f4",
+          "searchWorkers": 1,
+          "pthreadsLinked": false,
+          "initializedNow": false,
+          "initializationMs": 0
+        },
+        "requestElapsedMs": 15,
+        "samples": [
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 2,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 1.000192,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 1.000192,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 1.000192,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 0,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          },
+          {
+            "case": "small",
+            "status": "OPTIMAL",
+            "objective": 5,
+            "bestBound": 5,
+            "solution": [
+              2,
+              1,
+              0
+            ],
+            "modelVariables": 3,
+            "modelConstraints": 1,
+            "requestedTimeLimitMs": 1000,
+            "solverWallTimeMs": 0.999936,
+            "deterministicTime": 0.000031,
+            "conflicts": 0,
+            "branches": 22,
+            "booleans": 9,
+            "hostElapsedMs": 1,
+            "wasmMemoryBytes": 33554432,
+            "sharedWasmMemory": false
+          }
+        ]
+      }
+    }
+  },
+  "checks": {
+    "smallExpected": {
+      "status": "OPTIMAL",
+      "objective": 5,
+      "solution": [
+        2,
+        1,
+        0
+      ]
+    },
+    "nativeMatches": true,
+    "nativeHardCutOff": true,
+    "wasmMatches": true,
+    "hardCutOff": true,
+    "noSharedMemory": true,
+    "continuousRuns": 71,
+    "continuousRunsPassed": true,
+    "maxWasmMemoryBytes": 33554432,
+    "stableWasmMemory": true,
+    "wasmMemoryBelowConfiguredMaximum": true
+  }
+}

@@ -50,6 +50,18 @@ import type { CookRecommendation, ServerMessage } from "../domain/messages";
 export interface SettleParams extends SyncParams, ScheduleParams {
   /** 麺種ごとの硬さ別茹で時間。startAt と serveAt を結ぶ唯一の値（StoreConfig と同名・同形）。 */
   readonly noodlePresets: readonly NoodlePreset[];
+  /**
+   * いま選ばれている計画器（R1.1 の `PLANNER_BACKEND`・既定は `"ts"`）。
+   *
+   * **engine の合成と採否の規則が計画器で変わる**ので、engine が知る必要がある。
+   *   ・`"cpsat"` のとき、確定計画の尾部を**自前解で埋めない**（R1.4——CP-SAT の尾部・欠落分・
+   *     求解失敗を旧 TS 計画器の新しい提案で暗黙に補完しない）。
+   *   ・`"cpsat"` のとき、`admit` は**有効性の検査だけ**で採る（改善判定を課さない）。
+   *
+   * **応答の申告（`planner: "cpsat"`）ではなく、アプリの設定を出所とする。** 外から届いた値で
+   * ゲートの厳しさが変わってはならない。shell が env から組んで渡す（`settleParams()`）。
+   */
+  readonly planner: "ts" | "cpsat";
 }
 
 /**

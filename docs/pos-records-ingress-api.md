@@ -50,11 +50,12 @@ User-Agent: {送信元識別子}
         "order_items": [
           {
             "plu_no": 11421,
+            "item_name": "特味噌ネギラーメン",
             "item_type": 1,
             "qty": 1,
             "child_items": [
-              { "plu_no": 19401, "s_class_code": 65 },
-              { "plu_no": 10010, "s_class_code": 66 }
+              { "plu_no": 19401, "item_name": "普通", "s_class_code": 65 },
+              { "plu_no": 10010, "item_name": "かため", "s_class_code": 66 }
             ]
           }
         ]
@@ -125,10 +126,14 @@ Record直下の余剰フィールドは処理に使われない。`payload` の�
 | `table_no` | 任意 | non-empty string または finite number | 卓番号。欠落または `0` は卓指定なし |
 | `order_items` | 任意 | array | 注文品目。欠落または配列以外なら茹で対象0件 |
 | `order_items[].plu_no` | 品目による | positive integer | 親商品の商品コード |
+| `order_items[].item_name` | 任意 | non-empty string | 親商品の商品名（伝票に印字される文字列）。**画面の表示名の出所である**。欠落・空文字・型違いは表示で麺種名へ代替する |
 | `order_items[].child_items` | 任意 | array | 麺量・硬さなどの子商品 |
 | `order_items[].child_items[].plu_no` | 子商品による | positive integer | 子商品の商品コード |
+| `order_items[].child_items[].item_name` | 任意 | non-empty string | 子商品の商品名。麺量（`s_class_code: 65`）のものだけが表示に使われる（`普通` / `中盛` / `大盛` / `半玉`） |
 
 商品コードは数値文字列ではなくJSON numberで送る。`item_type`、`qty`、`s_class_code` は現在の麺種・硬さ判定には使われないが、Ingestでは削らずPOS由来の `payload` を保持する。
+
+**`item_name` は判定に一切効かない。** 麺種・茹で加減・スロット幅はすべて商品コードを対応表と突き合わせて定め、名前は表示のためだけに運ぶ（`slot-suggested-start` 判断 8・`src/ingress/noodle-spec.ts`）。改名がそのまま解釈の変化にならないのはこのためである。半角カナ（例 `旨辛ｽﾀﾐﾅﾗｰﾒﾝ`）はそのまま受け、正規化は表示時に行う。
 
 商品コードから麺種、硬さ、使用スロット数への変換は受信側の店舗設定で行う。対応表にない商品は茹で対象にならないが、それだけを理由にHTTPリクエストは失敗しない。
 

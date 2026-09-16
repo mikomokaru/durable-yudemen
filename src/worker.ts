@@ -1,7 +1,11 @@
+import { waitUntil } from "cloudflare:workers";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { isValidStoreId } from "./registry/slug";
 import type { Identity, StoreId } from "./registry/ideal";
 import { type ArrivalRecord, toArrivalBatch } from "./ingress/batch";
+import { toUniqueKey } from "./ingress/unique-key";
+import { tryWriteOrderArrivalLines } from "./order-arrival/producer";
+import { declaredItemNames } from "./ingress/declared-item-names";
 import { readDeclaredText } from "./ingress/declared-text";
 import { type PoisonReason, toRecordOutcome } from "./ingress/outcome";
 import { groupByStoreCode } from "./ingress/store-code";
@@ -33,6 +37,40 @@ const STORE_SCREEN_PATTERN = /^\/s\/([^/]+)(?:\/.*)?$/;
 // `orders` と名付けないのは、この経路が Order_Path と Status_Path の双方を含む Record 群を受けるためで、
 // `orders` と名付ければ Status_Path を受けることが名前と矛盾する。
 const POS_RECORDS_PATH = "/pos/records";
+
+/**
+ * 注文到着の観測ゲート（order-arrival-log）。操作履歴・遅延ログとも共有しない独立の旗である
+ * ——片方だけを有効にして比べられるようにするため。既定は無効（"0"）。
+ */
+function orderArrivalEnabled(env: Env): boolean {
+  return (env.ORDER_ARRIVAL_ENABLED as string) === "1";
+}
+
+/**
+ * 届いた商品名を札の Worker へ知らせる（初出の検出の起動・Requirement 3.1）。
+ *
+ * **応答を読まず、失敗も飲み込む。** 生成は取り込みの成否に一切効かない（Requirement 3.2 / 3.8）。
+ * 呼び出し側は `ctx.waitUntil` でこれを投げっぱなしにし、札の Worker 側も 202 を即返して自分の
+ * `waitUntil` で走らせる——AI の遅さが POS の応答へ波及する経路が二重に断たれている。
+ */
+async function notifyShortNames(
+  env: Env,
+  storeId: string,
+  names: readonly string[],
+): Promise<void> {
+  if (names.length === 0) return;
+  try {
+    await env.SHORT_NAMES_WORKER.fetch(
+      new Request("https://short-names.invalid/display/observed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeId, names }),
+      }),
+    );
+  } catch {
+    // 不達は「何も起きない」に収束する。辞書にエントリが残らないだけで、表示は全名のまま正しい。
+  }
+}
 
 /**
  * SIGNIN_ENTRY_PATH — 認証を経て店舗画面へ導く通し口の接頭（`/entry/signin/{storeId}`・要件4.5 / 4.6）。
@@ -349,15 +387,17 @@ async function deliverRecords(
   env: Env,
   storeCode: string,
   records: readonly ArrivalRecord[],
-): Promise<StoreDelivery> {
+): Promise<{ readonly delivery: StoreDelivery; readonly storeId: StoreId | null }> {
   const storeId = await resolveStoreId(env, storeCode);
   if (storeId === undefined) {
-    return { kind: "unresolved" };
+    return { delivery: { kind: "unresolved" }, storeId: null };
   }
   const id = env.STORE_TIMER_DO.idFromName(storeId);
   const stub = env.STORE_TIMER_DO.get(id, { locationHint: "apac-ne" });
   // 到着順は groupByStoreCode が保った並びのまま渡す（同一 Store_Code 内は直列・AC 5.3）。
-  return stub.receiveRecords(records);
+  // **解決済みの StoreId も返す。** 札の押し込み先はこの値であり、POS の Store_Code ではない
+  // （item-display-abbreviation Requirement 7.1）。ここでしか判らないので、外へ渡す。
+  return { delivery: await stub.receiveRecords(records), storeId };
 }
 
 // 認可の純粋ロジック（isAdminAuthorized / timingSafeEqual）は src/worker-auth.ts へ隔離した。
@@ -549,17 +589,34 @@ export default {
       // 異なる Store_Code へは並列に委譲してよい（Store_Code 間の順序は上流も保証しない・AC 5.4）。
       // 同一 Store_Code は Map の 1 要素ゆえ 1 回の委譲に畳まれ、宛先の照会も 1 回で済む（AC 4.7・5.2）。
       const delivered = await Promise.all(
-        [...groups.byStoreCode].map(async ([storeCode, records]) => ({
-          storeCode,
-          records,
-          delivery: await deliverRecords(env, storeCode, records),
-        })),
+        [...groups.byStoreCode].map(async ([storeCode, records]) => {
+          const { delivery, storeId } = await deliverRecords(env, storeCode, records);
+          return { storeCode, records, delivery, storeId };
+        }),
       );
       // 宛先店舗数に比例する処理の継続機構は持たない（残作業＋Alarm 継続を本経路に持ち込まない・AC 5.9）。
       // 未完了は一時的失敗として上流の再送に委ねる。
       let transient = false;
       const unrouted: { readonly storeCode: string; readonly records: readonly ArrivalRecord[] }[] =
         [];
+      // 注文到着の観測（order-arrival-log）。**宛先が解けた Record を、配送の結果に関わらず出す。**
+      // 記録するのは「POS が届けた」という事実であって、店舗 DO が受理したかどうかではない。
+      // 結果で絞れば、DO 側が一時的に失敗した注文だけが到着の記録から消え、欠落が偏る。
+      //
+      // 宛先未解決（`unresolved`）の Record はここに現れない——我々の店舗 slug が無く、物理行の
+      // storeId を埋められないためである。保留された注文が到着の記録に出ないことは既知の穴である。
+      for (const { records, storeId } of delivered) {
+        if (storeId === null) continue;
+        tryWriteOrderArrivalLines(orderArrivalEnabled(env), {
+          storeId,
+          records: records.flatMap((record) => {
+            const externalOrderId = toUniqueKey(record.payload);
+            // 到達しない分岐である（Unique_Key を導けた Record だけが deliverable になる）。
+            // それでも黙って落とさず、導けなければ観測しない。
+            return externalOrderId === null ? [] : [{ record, externalOrderId }];
+          }),
+        });
+      }
       for (const { storeCode, records, delivery } of delivered) {
         switch (delivery.kind) {
           case "settled":
@@ -627,6 +684,14 @@ export default {
       // 出力はここ 1 箇所で、応答の分岐より前に置く。分岐の内側へ入れれば行が 2 通りになり、「1 リクエスト
       // につき 1 行」が応答の種類に依存する（一時的失敗のリクエストだけ観測が欠ける形を作らない）。
       logPosIngress(classified.tally, classified.diagnostics);
+      // 札の初出検出（item-display-abbreviation Requirement 3.1・3.2・7.1）。**受理の判定が済んだ後に
+      // 起動し、応答を待たない。** 宛先は解決済みの StoreId で、店舗ごとに分けて知らせる——押し込み先は
+      // 「その名前を観測した店舗」に限るためである（全店 fan-out はしない）。届かなかった店舗
+      // （`unresolved` 等）の名前は送らない。
+      for (const { storeId, records, delivery } of delivered) {
+        if (storeId === null || delivery.kind !== "settled") continue;
+        waitUntil(notifyShortNames(env, storeId, declaredItemNames(records)));
+      }
       if (transient) {
         return new Response("Retry", { status: 503 });
       }

@@ -1,0 +1,53 @@
+{
+  "enabled": false,
+  "notBefore": 0,
+  "expiresAt": 0,
+  "origin": "",
+  "requestTokenSha256": "",
+  "code": "transport-fixed-v1",
+  "codec": "ortools-9.15.6755-export",
+  "profile": "327cf74f5b2fca79f43f691c6b0ea808025d7f96109b452093e58c1d1987ed07",
+  "wasm": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1",
+  "glue": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+  "maxDispatches": 128,
+  "cpuLimitMs": 10000,
+  "problems": [
+    {
+      "name": "small",
+      "sha256": "f8700dfccaa4a8d8c087781a9add2eb8afd9c75830790b6cc01ec0c74bcdd8b2",
+      "budget": 0.01
+    },
+    {
+      "name": "hard",
+      "sha256": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+      "budget": 0.14
+    }
+  ],
+  "stores": [
+    {
+      "id": "cpsat-transport-20260909-01",
+      "series": "direct",
+      "problem": "small",
+      "ref": "84a289f12785ab4ce909aab636db88514863c1b154b596922d61b94b1b6abb74"
+    },
+    {
+      "id": "cpsat-transport-20260909-02",
+      "series": "direct",
+      "problem": "hard",
+      "ref": "e6264383e4710dc3739975f151e44f6e5ec967f8d4783b5549f8951f27d4f882"
+    },
+    {
+      "id": "cpsat-transport-20260909-03",
+      "series": "shim",
+      "problem": "small",
+      "ref": "e24db9065ae0d4ccef5f911d0daab64b9a0118128f8f45e500f6806d25496068"
+    },
+    {
+      "id": "cpsat-transport-20260909-04",
+      "series": "shim",
+      "problem": "hard",
+      "ref": "714ce67c593ffb1395da4cd52349c384e9fd16d94450ef4ad2566b558adeaa90"
+    }
+  ],
+  "identity": "transport@invalid.example"
+}

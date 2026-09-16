@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  // Initial private installation only. Checked-in manifest stays disabled.
+  // This consumes the first of the two allowed trial solver deployments.
+  "name": "yude-men-cpsat-planner-dev",
+  "account_id": "305d89a643ac689b4204454c5493cbde",
+  "main": "./solver.ts",
+  "compatibility_date": "2026-09-09",
+  "compatibility_flags": ["no_nodejs_compat", "no_nodejs_compat_v2"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "limits": { "cpu_ms": 10000 },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STORE_TIMER_DO",
+        "class_name": "StoreTimerDO",
+        "script_name": "yude-men-timer",
+      },
+    ],
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": true, "persist": true },
+  },
+}

@@ -1,0 +1,5617 @@
+{
+  "note": "after-replay (72) and after-staggered (24) measured firstFit fix before helper fix; final-replay (24) measured both fixes. All ordinary orderedHint=true, bill*=false, inversionCost default20.",
+  "runs": {
+    "before-replay": {
+      "measuredAt": "2026-09-15T09:01:14.553Z",
+      "sourceReport": "/tmp/cpsat-hint-before-replay.json",
+      "sha256": "4b28fb0cdc399c2d56f01e107afee43332ad64489c9e83f1ad2c1996c2ccce0f",
+      "count": 24,
+      "solved": 23,
+      "feasibleHints": 21,
+      "rows": [
+        {
+          "file": "239_20260905_1745_1945.jsonl",
+          "cutAt": "2026-09-05T10:08:49.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2121,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 8,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 15,
+            "bowls": 24,
+            "maxWait": 2575,
+            "p90Wait": 2561,
+            "p99Wait": 2575,
+            "oldestWaits": [2379, 2575, 2561],
+            "alpha0": 36859,
+            "alpha1": 58824,
+            "spread": 90,
+            "solo": {
+              "bills": 9,
+              "p50": 2458,
+              "p90": 2542
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2470,
+              "p90": 2575
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:53:51.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "INFEASIBLE",
+          "failure": null,
+          "solveMs": 1998,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 6,
+            "headCompared": 2,
+            "headSlotChanged": 1,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 1925,
+            "p90Wait": 1908,
+            "p99Wait": 1925,
+            "oldestWaits": [1925, 1832, 1908],
+            "alpha0": 33966,
+            "alpha1": 40885,
+            "spread": 90,
+            "solo": {
+              "bills": 17,
+              "p50": 1690,
+              "p90": 1908
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1740,
+              "p90": 1832
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:54:15.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "INFEASIBLE",
+          "failure": null,
+          "solveMs": 2035,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2846,
+            "p90Wait": 2577,
+            "p99Wait": 2846,
+            "oldestWaits": [1949, 2846, 2577],
+            "alpha0": 34208,
+            "alpha1": 42258,
+            "spread": 2025,
+            "solo": {
+              "bills": 17,
+              "p50": 1691,
+              "p90": 1949
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1764,
+              "p90": 2846
+            },
+            "inversions": 50
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T06:13:59.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": false,
+          "hintFeasible": "INFEASIBLE",
+          "failure": "Error: Invalid CP-SAT solution: no solution (status=UNKNOWN)",
+          "solveMs": 1902,
+          "chain": null,
+          "billCpsat": null
+        },
+        {
+          "file": "254_20260907_1800_2000.jsonl",
+          "cutAt": "2026-09-07T10:12:45.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 3053,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2719,
+            "p90Wait": 2666,
+            "p99Wait": 2719,
+            "oldestWaits": [2666, 2626, 2586],
+            "alpha0": 49512,
+            "alpha1": 59466,
+            "spread": 45,
+            "solo": {
+              "bills": 16,
+              "p50": 2433,
+              "p90": 2666
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2546,
+              "p90": 2586
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:03:01.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2153,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 7,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 13,
+            "bowls": 23,
+            "maxWait": 2061,
+            "p90Wait": 1995,
+            "p99Wait": 2061,
+            "oldestWaits": [1916, 1995, 2061],
+            "alpha0": 21870,
+            "alpha1": 38809,
+            "spread": 1088,
+            "solo": {
+              "bills": 6,
+              "p50": 1886,
+              "p90": 1995
+            },
+            "party": {
+              "bills": 7,
+              "p50": 1620,
+              "p90": 2061
+            },
+            "inversions": 4
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:47:38.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1595,
+          "chain": {
+            "compared": 17,
+            "slotChanged": 3,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 12,
+            "bowls": 18,
+            "maxWait": 2837,
+            "p90Wait": 1932,
+            "p99Wait": 2837,
+            "oldestWaits": [2837, 1920, 1932],
+            "alpha0": 19147,
+            "alpha1": 29291,
+            "spread": 1439,
+            "solo": {
+              "bills": 6,
+              "p50": 1558,
+              "p90": 1932
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1576,
+              "p90": 2837
+            },
+            "inversions": 18
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:53:08.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2432,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 23,
+            "maxWait": 2174,
+            "p90Wait": 2043,
+            "p99Wait": 2174,
+            "oldestWaits": [2174, 2043, 2033],
+            "alpha0": 31248,
+            "alpha1": 39721,
+            "spread": 285,
+            "solo": {
+              "bills": 13,
+              "p50": 1622,
+              "p90": 2043
+            },
+            "party": {
+              "bills": 5,
+              "p50": 1610,
+              "p90": 1981
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T03:27:59.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1743,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2257,
+            "p90Wait": 2173,
+            "p99Wait": 2257,
+            "oldestWaits": [1937, 2040, 2052],
+            "alpha0": 41558,
+            "alpha1": 49733,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 2101,
+              "p90": 2173
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2052,
+              "p90": 2070
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T04:11:15.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1791,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 7,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2246,
+            "p90Wait": 2216,
+            "p99Wait": 2246,
+            "oldestWaits": [2003, 1990, 2246],
+            "alpha0": 41805,
+            "alpha1": 50264,
+            "spread": 0,
+            "solo": {
+              "bills": 16,
+              "p50": 2074,
+              "p90": 2212
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2186,
+              "p90": 2216
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260905_1945_2145.jsonl",
+          "cutAt": "2026-09-05T12:12:50.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1834,
+          "chain": {
+            "compared": 17,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 13,
+            "bowls": 18,
+            "maxWait": 2784,
+            "p90Wait": 2548,
+            "p99Wait": 2784,
+            "oldestWaits": [2784, 2548, 1438],
+            "alpha0": 20004,
+            "alpha1": 27939,
+            "spread": 1379,
+            "solo": {
+              "bills": 9,
+              "p50": 1359,
+              "p90": 2784
+            },
+            "party": {
+              "bills": 4,
+              "p50": 1451,
+              "p90": 2548
+            },
+            "inversions": 21
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:30:15.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1568,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 4,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2682,
+            "p90Wait": 2608,
+            "p99Wait": 2682,
+            "oldestWaits": [2590, 2682, 2590],
+            "alpha0": 36433,
+            "alpha1": 52973,
+            "spread": 270,
+            "solo": {
+              "bills": 11,
+              "p50": 1861,
+              "p90": 2590
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2447,
+              "p90": 2608
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:35:42.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1692,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 3871,
+            "p90Wait": 3471,
+            "p99Wait": 3871,
+            "oldestWaits": [3871, 3471, 2534],
+            "alpha0": 36570,
+            "alpha1": 57133,
+            "spread": 2264,
+            "solo": {
+              "bills": 11,
+              "p50": 1942,
+              "p90": 2044
+            },
+            "party": {
+              "bills": 6,
+              "p50": 3112,
+              "p90": 3871
+            },
+            "inversions": 64
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:44:27.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2104,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2332,
+            "p90Wait": 2197,
+            "p99Wait": 2332,
+            "oldestWaits": [2332, 2175, 2197],
+            "alpha0": 35065,
+            "alpha1": 46811,
+            "spread": 157,
+            "solo": {
+              "bills": 15,
+              "p50": 2023,
+              "p90": 2175
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1916,
+              "p90": 2197
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260908_2145_2345.jsonl",
+          "cutAt": "2026-09-08T14:28:43.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 983,
+          "chain": {
+            "compared": 16,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 14,
+            "bowls": 17,
+            "maxWait": 1978,
+            "p90Wait": 1942,
+            "p99Wait": 1978,
+            "oldestWaits": [1978, 1920, 1942],
+            "alpha0": 20348,
+            "alpha1": 25489,
+            "spread": 45,
+            "solo": {
+              "bills": 12,
+              "p50": 1402,
+              "p90": 1920
+            },
+            "party": {
+              "bills": 2,
+              "p50": 1978,
+              "p90": 1978
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T03:33:48.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2134,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 4,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 2712,
+            "p90Wait": 2707,
+            "p99Wait": 2712,
+            "oldestWaits": [2652, 2620, 2533],
+            "alpha0": 40357,
+            "alpha1": 60965,
+            "spread": 180,
+            "solo": {
+              "bills": 11,
+              "p50": 2594,
+              "p90": 2707
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2573,
+              "p90": 2628
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T04:11:14.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1947,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2523,
+            "p90Wait": 2496,
+            "p99Wait": 2523,
+            "oldestWaits": [2491, 2433, 2470],
+            "alpha0": 37696,
+            "alpha1": 52979,
+            "spread": 180,
+            "solo": {
+              "bills": 11,
+              "p50": 2433,
+              "p90": 2491
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2132,
+              "p90": 2496
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260907_1345_1545.jsonl",
+          "cutAt": "2026-09-07T06:02:13.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1179,
+          "chain": {
+            "compared": 9,
+            "slotChanged": 1,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 9,
+            "bowls": 10,
+            "maxWait": 1828,
+            "p90Wait": 1828,
+            "p99Wait": 1828,
+            "oldestWaits": [1828, 1337, 1668],
+            "alpha0": 10752,
+            "alpha1": 11742,
+            "spread": 420,
+            "solo": {
+              "bills": 8,
+              "p50": 1412,
+              "p90": 1828
+            },
+            "party": {
+              "bills": 1,
+              "p50": 990,
+              "p90": 990
+            },
+            "inversions": 15
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:27:28.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2073,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2692,
+            "p90Wait": 2655,
+            "p99Wait": 2692,
+            "oldestWaits": [2193, 2368, 2535],
+            "alpha0": 44927,
+            "alpha1": 60047,
+            "spread": 330,
+            "solo": {
+              "bills": 15,
+              "p50": 2533,
+              "p90": 2655
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2535,
+              "p90": 2545
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:53:26.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2074,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2548,
+            "p90Wait": 2515,
+            "p99Wait": 2548,
+            "oldestWaits": [2368, 2411, 2413],
+            "alpha0": 40226,
+            "alpha1": 50303,
+            "spread": 465,
+            "solo": {
+              "bills": 15,
+              "p50": 2404,
+              "p90": 2515
+            },
+            "party": {
+              "bills": 4,
+              "p50": 1897,
+              "p90": 2368
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:55:42.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2162,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2684,
+            "p90Wait": 2651,
+            "p99Wait": 2684,
+            "oldestWaits": [2504, 2547, 2549],
+            "alpha0": 42801,
+            "alpha1": 53555,
+            "spread": 465,
+            "solo": {
+              "bills": 15,
+              "p50": 2540,
+              "p90": 2651
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2033,
+              "p90": 2504
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:17:42.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1578,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 1885,
+            "p90Wait": 1876,
+            "p99Wait": 1885,
+            "oldestWaits": [1876, 1885, 1623],
+            "alpha0": 28327,
+            "alpha1": 37847,
+            "spread": 247,
+            "solo": {
+              "bills": 12,
+              "p50": 1623,
+              "p90": 1678
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1639,
+              "p90": 1885
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:19:57.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2525,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2019,
+            "p90Wait": 2010,
+            "p99Wait": 2019,
+            "oldestWaits": [2010, 2019, 1757],
+            "alpha0": 30746,
+            "alpha1": 41072,
+            "spread": 247,
+            "solo": {
+              "bills": 12,
+              "p50": 1757,
+              "p90": 1812
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1773,
+              "p90": 2019
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260905_2100_2300.jsonl",
+          "cutAt": "2026-09-05T12:55:15.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2277,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 9,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2637,
+            "p90Wait": 2627,
+            "p99Wait": 2637,
+            "oldestWaits": [2627, 2580, 2557],
+            "alpha0": 45235,
+            "alpha1": 57894,
+            "spread": 195,
+            "solo": {
+              "bills": 14,
+              "p50": 2353,
+              "p90": 2580
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2514,
+              "p90": 2637
+            },
+            "inversions": 0
+          }
+        }
+      ]
+    },
+    "final-replay": {
+      "measuredAt": "2026-09-15T09:07:28.888Z",
+      "sourceReport": "/tmp/cpsat-hint-final-replay.json",
+      "sha256": "3c3fa38b427c7d895446b38886b0f27f6ff9feb606a24aba4a54ea5ec8d3882a",
+      "count": 24,
+      "solved": 24,
+      "feasibleHints": 24,
+      "rows": [
+        {
+          "file": "239_20260905_1745_1945.jsonl",
+          "cutAt": "2026-09-05T10:08:49.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2146,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 8,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 15,
+            "bowls": 24,
+            "maxWait": 2576,
+            "p90Wait": 2562,
+            "p99Wait": 2576,
+            "oldestWaits": [2380, 2576, 2562],
+            "alpha0": 36871,
+            "alpha1": 58843,
+            "spread": 90,
+            "solo": {
+              "bills": 9,
+              "p50": 2459,
+              "p90": 2543
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2471,
+              "p90": 2576
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:53:51.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1941,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 1924,
+            "p90Wait": 1907,
+            "p99Wait": 1924,
+            "oldestWaits": [1924, 1876, 1907],
+            "alpha0": 34002,
+            "alpha1": 40964,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 1689,
+              "p90": 1907
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1739,
+              "p90": 1876
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:54:15.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2683,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 1949,
+            "p90Wait": 1932,
+            "p99Wait": 1949,
+            "oldestWaits": [1949, 1901, 1932],
+            "alpha0": 34491,
+            "alpha1": 41551,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 1714,
+              "p90": 1932
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1764,
+              "p90": 1901
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T06:13:59.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2072,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 21,
+            "bowls": 24,
+            "maxWait": 2431,
+            "p90Wait": 2387,
+            "p99Wait": 2431,
+            "oldestWaits": [2306, 2168, 2131],
+            "alpha0": 45672,
+            "alpha1": 52668,
+            "spread": 90,
+            "solo": {
+              "bills": 19,
+              "p50": 2180,
+              "p90": 2387
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2431,
+              "p90": 2431
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "254_20260907_1800_2000.jsonl",
+          "cutAt": "2026-09-07T10:12:45.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 3287,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2718,
+            "p90Wait": 2665,
+            "p99Wait": 2718,
+            "oldestWaits": [2665, 2625, 2585],
+            "alpha0": 49503,
+            "alpha1": 59456,
+            "spread": 45,
+            "solo": {
+              "bills": 16,
+              "p50": 2432,
+              "p90": 2665
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2545,
+              "p90": 2585
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:03:01.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2236,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 7,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 13,
+            "bowls": 23,
+            "maxWait": 2061,
+            "p90Wait": 1995,
+            "p99Wait": 2061,
+            "oldestWaits": [1916, 1995, 2061],
+            "alpha0": 21874,
+            "alpha1": 38815,
+            "spread": 1088,
+            "solo": {
+              "bills": 6,
+              "p50": 1886,
+              "p90": 1995
+            },
+            "party": {
+              "bills": 7,
+              "p50": 1620,
+              "p90": 2061
+            },
+            "inversions": 4
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:47:38.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1667,
+          "chain": {
+            "compared": 17,
+            "slotChanged": 3,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 12,
+            "bowls": 18,
+            "maxWait": 2837,
+            "p90Wait": 1932,
+            "p99Wait": 2837,
+            "oldestWaits": [2837, 1920, 1932],
+            "alpha0": 19149,
+            "alpha1": 29294,
+            "spread": 1439,
+            "solo": {
+              "bills": 6,
+              "p50": 1558,
+              "p90": 1932
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1576,
+              "p90": 2837
+            },
+            "inversions": 18
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:53:08.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2450,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 23,
+            "maxWait": 2174,
+            "p90Wait": 2043,
+            "p99Wait": 2174,
+            "oldestWaits": [2174, 2043, 2033],
+            "alpha0": 31248,
+            "alpha1": 39721,
+            "spread": 285,
+            "solo": {
+              "bills": 13,
+              "p50": 1622,
+              "p90": 2043
+            },
+            "party": {
+              "bills": 5,
+              "p50": 1610,
+              "p90": 1981
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T03:27:59.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1770,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2257,
+            "p90Wait": 2173,
+            "p99Wait": 2257,
+            "oldestWaits": [1937, 2040, 2052],
+            "alpha0": 41555,
+            "alpha1": 49730,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 2101,
+              "p90": 2173
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2052,
+              "p90": 2070
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T04:11:15.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1830,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 7,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2246,
+            "p90Wait": 2216,
+            "p99Wait": 2246,
+            "oldestWaits": [2003, 1990, 2246],
+            "alpha0": 41801,
+            "alpha1": 50259,
+            "spread": 0,
+            "solo": {
+              "bills": 16,
+              "p50": 2074,
+              "p90": 2212
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2186,
+              "p90": 2216
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260905_1945_2145.jsonl",
+          "cutAt": "2026-09-05T12:12:50.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1851,
+          "chain": {
+            "compared": 17,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 13,
+            "bowls": 18,
+            "maxWait": 2785,
+            "p90Wait": 2549,
+            "p99Wait": 2785,
+            "oldestWaits": [2785, 2549, 1439],
+            "alpha0": 20014,
+            "alpha1": 27953,
+            "spread": 1379,
+            "solo": {
+              "bills": 9,
+              "p50": 1360,
+              "p90": 2785
+            },
+            "party": {
+              "bills": 4,
+              "p50": 1452,
+              "p90": 2549
+            },
+            "inversions": 21
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:30:15.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1552,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 4,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2682,
+            "p90Wait": 2608,
+            "p99Wait": 2682,
+            "oldestWaits": [2590, 2682, 2590],
+            "alpha0": 36428,
+            "alpha1": 52965,
+            "spread": 270,
+            "solo": {
+              "bills": 11,
+              "p50": 1861,
+              "p90": 2590
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2447,
+              "p90": 2608
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:35:42.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1690,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 3871,
+            "p90Wait": 3471,
+            "p99Wait": 3871,
+            "oldestWaits": [3871, 3471, 2534],
+            "alpha0": 36564,
+            "alpha1": 57125,
+            "spread": 2264,
+            "solo": {
+              "bills": 11,
+              "p50": 1942,
+              "p90": 2044
+            },
+            "party": {
+              "bills": 6,
+              "p50": 3112,
+              "p90": 3871
+            },
+            "inversions": 64
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:44:27.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2123,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2331,
+            "p90Wait": 2196,
+            "p99Wait": 2331,
+            "oldestWaits": [2331, 2174, 2196],
+            "alpha0": 35059,
+            "alpha1": 46802,
+            "spread": 157,
+            "solo": {
+              "bills": 15,
+              "p50": 2022,
+              "p90": 2174
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1915,
+              "p90": 2196
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260908_2145_2345.jsonl",
+          "cutAt": "2026-09-08T14:28:43.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 993,
+          "chain": {
+            "compared": 16,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 14,
+            "bowls": 17,
+            "maxWait": 1977,
+            "p90Wait": 1941,
+            "p99Wait": 1977,
+            "oldestWaits": [1977, 1919, 1941],
+            "alpha0": 20342,
+            "alpha1": 25482,
+            "spread": 45,
+            "solo": {
+              "bills": 12,
+              "p50": 1401,
+              "p90": 1919
+            },
+            "party": {
+              "bills": 2,
+              "p50": 1977,
+              "p90": 1977
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T03:33:48.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2147,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 4,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 2713,
+            "p90Wait": 2708,
+            "p99Wait": 2713,
+            "oldestWaits": [2653, 2621, 2534],
+            "alpha0": 40367,
+            "alpha1": 60979,
+            "spread": 180,
+            "solo": {
+              "bills": 11,
+              "p50": 2595,
+              "p90": 2708
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2574,
+              "p90": 2629
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T04:11:14.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1947,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2523,
+            "p90Wait": 2496,
+            "p99Wait": 2523,
+            "oldestWaits": [2491, 2433, 2470],
+            "alpha0": 37689,
+            "alpha1": 52969,
+            "spread": 180,
+            "solo": {
+              "bills": 11,
+              "p50": 2433,
+              "p90": 2491
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2132,
+              "p90": 2496
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260907_1345_1545.jsonl",
+          "cutAt": "2026-09-07T06:02:13.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1120,
+          "chain": {
+            "compared": 9,
+            "slotChanged": 1,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 9,
+            "bowls": 10,
+            "maxWait": 1827,
+            "p90Wait": 1827,
+            "p99Wait": 1827,
+            "oldestWaits": [1827, 1336, 1667],
+            "alpha0": 10748,
+            "alpha1": 11738,
+            "spread": 420,
+            "solo": {
+              "bills": 8,
+              "p50": 1411,
+              "p90": 1827
+            },
+            "party": {
+              "bills": 1,
+              "p50": 989,
+              "p90": 989
+            },
+            "inversions": 15
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:27:28.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2075,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2693,
+            "p90Wait": 2656,
+            "p99Wait": 2693,
+            "oldestWaits": [2194, 2369, 2536],
+            "alpha0": 44939,
+            "alpha1": 60063,
+            "spread": 330,
+            "solo": {
+              "bills": 15,
+              "p50": 2534,
+              "p90": 2656
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2536,
+              "p90": 2546
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:53:26.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2047,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2548,
+            "p90Wait": 2515,
+            "p99Wait": 2548,
+            "oldestWaits": [2368, 2411, 2413],
+            "alpha0": 40220,
+            "alpha1": 50294,
+            "spread": 465,
+            "solo": {
+              "bills": 15,
+              "p50": 2404,
+              "p90": 2515
+            },
+            "party": {
+              "bills": 4,
+              "p50": 1897,
+              "p90": 2368
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:55:42.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2201,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2684,
+            "p90Wait": 2651,
+            "p99Wait": 2684,
+            "oldestWaits": [2504, 2547, 2549],
+            "alpha0": 42809,
+            "alpha1": 53565,
+            "spread": 465,
+            "solo": {
+              "bills": 15,
+              "p50": 2540,
+              "p90": 2651
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2033,
+              "p90": 2504
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:17:42.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1651,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 1885,
+            "p90Wait": 1876,
+            "p99Wait": 1885,
+            "oldestWaits": [1876, 1885, 1623],
+            "alpha0": 28333,
+            "alpha1": 37854,
+            "spread": 247,
+            "solo": {
+              "bills": 12,
+              "p50": 1623,
+              "p90": 1678
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1639,
+              "p90": 1885
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:19:57.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2583,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2019,
+            "p90Wait": 2010,
+            "p99Wait": 2019,
+            "oldestWaits": [2010, 2019, 1757],
+            "alpha0": 30749,
+            "alpha1": 41076,
+            "spread": 247,
+            "solo": {
+              "bills": 12,
+              "p50": 1757,
+              "p90": 1812
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1773,
+              "p90": 2019
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260905_2100_2300.jsonl",
+          "cutAt": "2026-09-05T12:55:15.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2307,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 9,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2637,
+            "p90Wait": 2627,
+            "p99Wait": 2637,
+            "oldestWaits": [2627, 2580, 2557],
+            "alpha0": 45236,
+            "alpha1": 57896,
+            "spread": 195,
+            "solo": {
+              "bills": 14,
+              "p50": 2353,
+              "p90": 2580
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2514,
+              "p90": 2637
+            },
+            "inversions": 0
+          }
+        }
+      ]
+    },
+    "after-replay": {
+      "measuredAt": "2026-09-15T09:03:11.904Z",
+      "sourceReport": "/tmp/cpsat-hint-after-replay.json",
+      "sha256": "4bb00bf2bfd3816eb366127699c4097880d9aada37338ff59758055ca6506395",
+      "count": 72,
+      "solved": 71,
+      "feasibleHints": 72,
+      "rows": [
+        {
+          "file": "239_20260905_1745_1945.jsonl",
+          "cutAt": "2026-09-05T09:58:16.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 3186,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 2,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 11,
+            "bowls": 24,
+            "maxWait": 2763,
+            "p90Wait": 2726,
+            "p99Wait": 2763,
+            "oldestWaits": [2485, 2763, 2699],
+            "alpha0": 29145,
+            "alpha1": 63988,
+            "spread": 360,
+            "solo": {
+              "bills": 4,
+              "p50": 2699,
+              "p90": 2714
+            },
+            "party": {
+              "bills": 7,
+              "p50": 2666,
+              "p90": 2763
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "239_20260905_1745_1945.jsonl",
+          "cutAt": "2026-09-05T10:08:49.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2033,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 8,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 15,
+            "bowls": 24,
+            "maxWait": 2576,
+            "p90Wait": 2562,
+            "p99Wait": 2576,
+            "oldestWaits": [2380, 2576, 2562],
+            "alpha0": 36866,
+            "alpha1": 58835,
+            "spread": 90,
+            "solo": {
+              "bills": 9,
+              "p50": 2459,
+              "p90": 2543
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2471,
+              "p90": 2576
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "239_20260905_1745_1945.jsonl",
+          "cutAt": "2026-09-05T10:10:33.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2002,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 2439,
+            "p90Wait": 2387,
+            "p99Wait": 2439,
+            "oldestWaits": [2387, 2373, 2129],
+            "alpha0": 37252,
+            "alpha1": 56117,
+            "spread": 90,
+            "solo": {
+              "bills": 11,
+              "p50": 2337,
+              "p90": 2376
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2373,
+              "p90": 2439
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "239_20260905_1745_1945.jsonl",
+          "cutAt": "2026-09-05T10:44:12.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1823,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 4010,
+            "p90Wait": 3139,
+            "p99Wait": 4010,
+            "oldestWaits": [2648, 4010, 2870],
+            "alpha0": 53464,
+            "alpha1": 69239,
+            "spread": 2648,
+            "solo": {
+              "bills": 15,
+              "p50": 2830,
+              "p90": 3027
+            },
+            "party": {
+              "bills": 4,
+              "p50": 3139,
+              "p90": 4010
+            },
+            "inversions": 39
+          }
+        },
+        {
+          "file": "239_20260908_2115_2315.jsonl",
+          "cutAt": "2026-09-08T12:58:11.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2592,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 5,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 21,
+            "bowls": 24,
+            "maxWait": 2850,
+            "p90Wait": 2829,
+            "p99Wait": 2850,
+            "oldestWaits": [2570, 2798, 2842],
+            "alpha0": 52451,
+            "alpha1": 60018,
+            "spread": 195,
+            "solo": {
+              "bills": 19,
+              "p50": 2602,
+              "p90": 2842
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2657,
+              "p90": 2657
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "239_20260908_2115_2315.jsonl",
+          "cutAt": "2026-09-08T13:05:07.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2089,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 23,
+            "maxWait": 2361,
+            "p90Wait": 2316,
+            "p99Wait": 2361,
+            "oldestWaits": [2361, 2316, 2306],
+            "alpha0": 30801,
+            "alpha1": 42035,
+            "spread": 180,
+            "solo": {
+              "bills": 12,
+              "p50": 1761,
+              "p90": 2306
+            },
+            "party": {
+              "bills": 5,
+              "p50": 1556,
+              "p90": 2361
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "239_20260908_2115_2315.jsonl",
+          "cutAt": "2026-09-08T13:58:22.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2525,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2652,
+            "p90Wait": 2608,
+            "p99Wait": 2652,
+            "oldestWaits": [2456, 2449, 2436],
+            "alpha0": 44289,
+            "alpha1": 58808,
+            "spread": 180,
+            "solo": {
+              "bills": 14,
+              "p50": 2556,
+              "p90": 2608
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2422,
+              "p90": 2456
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260906_1300_1500.jsonl",
+          "cutAt": "2026-09-06T04:45:57.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2055,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 3002,
+            "p90Wait": 2965,
+            "p99Wait": 3002,
+            "oldestWaits": [2596, 2868, 2794],
+            "alpha0": 40146,
+            "alpha1": 54629,
+            "spread": 180,
+            "solo": {
+              "bills": 13,
+              "p50": 1921,
+              "p90": 2868
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2100,
+              "p90": 2965
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260906_1300_1500.jsonl",
+          "cutAt": "2026-09-06T05:59:13.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 3942,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2426,
+            "p90Wait": 2418,
+            "p99Wait": 2426,
+            "oldestWaits": [2320, 2347, 2426],
+            "alpha0": 40547,
+            "alpha1": 48768,
+            "spread": 330,
+            "solo": {
+              "bills": 16,
+              "p50": 1834,
+              "p90": 2418
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2320,
+              "p90": 2353
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:53:51.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1788,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 1924,
+            "p90Wait": 1907,
+            "p99Wait": 1924,
+            "oldestWaits": [1924, 1876, 1907],
+            "alpha0": 34001,
+            "alpha1": 40963,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 1689,
+              "p90": 1907
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1739,
+              "p90": 1876
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:54:15.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2521,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 1949,
+            "p90Wait": 1932,
+            "p99Wait": 1949,
+            "oldestWaits": [1949, 1901, 1932],
+            "alpha0": 34496,
+            "alpha1": 41557,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 1714,
+              "p90": 1932
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1764,
+              "p90": 1901
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:57:40.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1954,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 21,
+            "bowls": 24,
+            "maxWait": 2098,
+            "p90Wait": 2060,
+            "p99Wait": 2098,
+            "oldestWaits": [2060, 1844, 2060],
+            "alpha0": 40796,
+            "alpha1": 46629,
+            "spread": 90,
+            "solo": {
+              "bills": 19,
+              "p50": 1955,
+              "p90": 2061
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2013,
+              "p90": 2013
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T06:13:59.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1932,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 21,
+            "bowls": 24,
+            "maxWait": 2430,
+            "p90Wait": 2386,
+            "p99Wait": 2430,
+            "oldestWaits": [2305, 2167, 2130],
+            "alpha0": 45665,
+            "alpha1": 52660,
+            "spread": 90,
+            "solo": {
+              "bills": 19,
+              "p50": 2179,
+              "p90": 2386
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2430,
+              "p90": 2430
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "254_20260905_1230_1430.jsonl",
+          "cutAt": "2026-09-05T04:30:02.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2134,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 2422,
+            "p90Wait": 2296,
+            "p99Wait": 2422,
+            "oldestWaits": [2422, 2293, 2270],
+            "alpha0": 34419,
+            "alpha1": 51949,
+            "spread": 353,
+            "solo": {
+              "bills": 10,
+              "p50": 2105,
+              "p90": 2422
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2220,
+              "p90": 2296
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "254_20260905_1230_1430.jsonl",
+          "cutAt": "2026-09-05T04:54:16.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2008,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 3,
+            "headCompared": 3,
+            "headSlotChanged": 2,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 3225,
+            "p90Wait": 3195,
+            "p99Wait": 3225,
+            "oldestWaits": [2776, 2725, 3010],
+            "alpha0": 46081,
+            "alpha1": 70008,
+            "spread": 730,
+            "solo": {
+              "bills": 11,
+              "p50": 2866,
+              "p90": 3150
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2913,
+              "p90": 3225
+            },
+            "inversions": 4
+          }
+        },
+        {
+          "file": "254_20260905_1230_1430.jsonl",
+          "cutAt": "2026-09-05T05:09:41.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2159,
+          "chain": {
+            "compared": 21,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 12,
+            "bowls": 22,
+            "maxWait": 2699,
+            "p90Wait": 2690,
+            "p99Wait": 2699,
+            "oldestWaits": [2424, 2592, 2567],
+            "alpha0": 26396,
+            "alpha1": 51163,
+            "spread": 877,
+            "solo": {
+              "bills": 5,
+              "p50": 2342,
+              "p90": 2592
+            },
+            "party": {
+              "bills": 7,
+              "p50": 2539,
+              "p90": 2699
+            },
+            "inversions": 11
+          }
+        },
+        {
+          "file": "254_20260905_1230_1430.jsonl",
+          "cutAt": "2026-09-05T05:14:02.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 3311,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 14,
+            "bowls": 24,
+            "maxWait": 2705,
+            "p90Wait": 2629,
+            "p99Wait": 2705,
+            "oldestWaits": [2534, 2507, 2705],
+            "alpha0": 28392,
+            "alpha1": 52045,
+            "spread": 225,
+            "solo": {
+              "bills": 7,
+              "p50": 1492,
+              "p90": 2534
+            },
+            "party": {
+              "bills": 7,
+              "p50": 2507,
+              "p90": 2705
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "254_20260907_1800_2000.jsonl",
+          "cutAt": "2026-09-07T09:48:35.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1786,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2882,
+            "p90Wait": 2675,
+            "p99Wait": 2882,
+            "oldestWaits": [2577, 2480, 2077],
+            "alpha0": 39433,
+            "alpha1": 48941,
+            "spread": 2276,
+            "solo": {
+              "bills": 17,
+              "p50": 1789,
+              "p90": 2669
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2557,
+              "p90": 2882
+            },
+            "inversions": 100
+          }
+        },
+        {
+          "file": "254_20260907_1800_2000.jsonl",
+          "cutAt": "2026-09-07T10:12:45.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 3212,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2718,
+            "p90Wait": 2665,
+            "p99Wait": 2718,
+            "oldestWaits": [2665, 2625, 2585],
+            "alpha0": 49506,
+            "alpha1": 59460,
+            "spread": 45,
+            "solo": {
+              "bills": 16,
+              "p50": 2432,
+              "p90": 2665
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2545,
+              "p90": 2585
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:03:01.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2211,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 7,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 13,
+            "bowls": 23,
+            "maxWait": 2061,
+            "p90Wait": 1995,
+            "p99Wait": 2061,
+            "oldestWaits": [1916, 1995, 2061],
+            "alpha0": 21874,
+            "alpha1": 38816,
+            "spread": 1088,
+            "solo": {
+              "bills": 6,
+              "p50": 1886,
+              "p90": 1995
+            },
+            "party": {
+              "bills": 7,
+              "p50": 1620,
+              "p90": 2061
+            },
+            "inversions": 4
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:47:38.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1635,
+          "chain": {
+            "compared": 17,
+            "slotChanged": 3,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 12,
+            "bowls": 18,
+            "maxWait": 2837,
+            "p90Wait": 1932,
+            "p99Wait": 2837,
+            "oldestWaits": [2837, 1920, 1932],
+            "alpha0": 19149,
+            "alpha1": 29294,
+            "spread": 1439,
+            "solo": {
+              "bills": 6,
+              "p50": 1558,
+              "p90": 1932
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1576,
+              "p90": 2837
+            },
+            "inversions": 18
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:53:08.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2441,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 23,
+            "maxWait": 2174,
+            "p90Wait": 2043,
+            "p99Wait": 2174,
+            "oldestWaits": [2174, 2043, 2033],
+            "alpha0": 31249,
+            "alpha1": 39723,
+            "spread": 285,
+            "solo": {
+              "bills": 13,
+              "p50": 1622,
+              "p90": 2043
+            },
+            "party": {
+              "bills": 5,
+              "p50": 1610,
+              "p90": 1981
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T03:18:29.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2209,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 21,
+            "bowls": 24,
+            "maxWait": 2541,
+            "p90Wait": 2247,
+            "p99Wait": 2541,
+            "oldestWaits": [2247, 2130, 1882],
+            "alpha0": 38118,
+            "alpha1": 44686,
+            "spread": 1607,
+            "solo": {
+              "bills": 18,
+              "p50": 1733,
+              "p90": 2226
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2269,
+              "p90": 2541
+            },
+            "inversions": 45
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T03:27:59.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1814,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2258,
+            "p90Wait": 2174,
+            "p99Wait": 2258,
+            "oldestWaits": [1938, 2041, 2053],
+            "alpha0": 41560,
+            "alpha1": 49736,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 2102,
+              "p90": 2174
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2053,
+              "p90": 2071
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T04:02:57.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2199,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 21,
+            "bowls": 24,
+            "maxWait": 2284,
+            "p90Wait": 2156,
+            "p99Wait": 2284,
+            "oldestWaits": [2284, 1994, 1969],
+            "alpha0": 40490,
+            "alpha1": 45859,
+            "spread": 90,
+            "solo": {
+              "bills": 18,
+              "p50": 1936,
+              "p90": 2158
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1831,
+              "p90": 1876
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T04:11:15.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1809,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 7,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2246,
+            "p90Wait": 2216,
+            "p99Wait": 2246,
+            "oldestWaits": [2003, 1990, 2246],
+            "alpha0": 41805,
+            "alpha1": 50264,
+            "spread": 0,
+            "solo": {
+              "bills": 16,
+              "p50": 2074,
+              "p90": 2212
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2186,
+              "p90": 2216
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260905_1945_2145.jsonl",
+          "cutAt": "2026-09-05T12:03:51.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1466,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 14,
+            "bowls": 24,
+            "maxWait": 2776,
+            "p90Wait": 2731,
+            "p99Wait": 2776,
+            "oldestWaits": [2503, 2688, 2776],
+            "alpha0": 29805,
+            "alpha1": 52671,
+            "spread": 225,
+            "solo": {
+              "bills": 7,
+              "p50": 2024,
+              "p90": 2503
+            },
+            "party": {
+              "bills": 7,
+              "p50": 2053,
+              "p90": 2776
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260905_1945_2145.jsonl",
+          "cutAt": "2026-09-05T12:12:50.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1877,
+          "chain": {
+            "compared": 17,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 13,
+            "bowls": 18,
+            "maxWait": 2785,
+            "p90Wait": 2549,
+            "p99Wait": 2785,
+            "oldestWaits": [2785, 2549, 1439],
+            "alpha0": 20012,
+            "alpha1": 27950,
+            "spread": 1379,
+            "solo": {
+              "bills": 9,
+              "p50": 1360,
+              "p90": 2785
+            },
+            "party": {
+              "bills": 4,
+              "p50": 1452,
+              "p90": 2549
+            },
+            "inversions": 21
+          }
+        },
+        {
+          "file": "284_20260905_1945_2145.jsonl",
+          "cutAt": "2026-09-05T12:22:11.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1729,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 3,
+            "headCompared": 5,
+            "headSlotChanged": 1,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 3376,
+            "p90Wait": 3277,
+            "p99Wait": 3376,
+            "oldestWaits": [1955, 3376, 3277],
+            "alpha0": 39117,
+            "alpha1": 54545,
+            "spread": 5215,
+            "solo": {
+              "bills": 13,
+              "p50": 2046,
+              "p90": 2369
+            },
+            "party": {
+              "bills": 5,
+              "p50": 1961,
+              "p90": 3277
+            },
+            "inversions": 56
+          }
+        },
+        {
+          "file": "284_20260905_1945_2145.jsonl",
+          "cutAt": "2026-09-05T12:37:11.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2193,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2522,
+            "p90Wait": 2473,
+            "p99Wait": 2522,
+            "oldestWaits": [2522, 2449, 2473],
+            "alpha0": 44308,
+            "alpha1": 53118,
+            "spread": 45,
+            "solo": {
+              "bills": 16,
+              "p50": 2240,
+              "p90": 2473
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2282,
+              "p90": 2313
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260907_1215_1415.jsonl",
+          "cutAt": "2026-09-07T04:10:01.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1950,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 5,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 10,
+            "bowls": 24,
+            "maxWait": 2399,
+            "p90Wait": 2399,
+            "p99Wait": 2399,
+            "oldestWaits": [2211, 2144, 2145],
+            "alpha0": 20772,
+            "alpha1": 50252,
+            "spread": 562,
+            "solo": {
+              "bills": 5,
+              "p50": 1971,
+              "p90": 2399
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2145,
+              "p90": 2257
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260907_1215_1415.jsonl",
+          "cutAt": "2026-09-07T04:18:34.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2355,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 14,
+            "bowls": 24,
+            "maxWait": 2568,
+            "p90Wait": 2452,
+            "p99Wait": 2568,
+            "oldestWaits": [2140, 2568, 2452],
+            "alpha0": 29073,
+            "alpha1": 51912,
+            "spread": 330,
+            "solo": {
+              "bills": 11,
+              "p50": 2005,
+              "p90": 2402
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2260,
+              "p90": 2568
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260907_1215_1415.jsonl",
+          "cutAt": "2026-09-07T04:25:18.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2723,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 2765,
+            "p90Wait": 2715,
+            "p99Wait": 2765,
+            "oldestWaits": [2634, 2765, 2715],
+            "alpha0": 36984,
+            "alpha1": 55712,
+            "spread": 165,
+            "solo": {
+              "bills": 13,
+              "p50": 2207,
+              "p90": 2715
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2253,
+              "p90": 2573
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260907_1215_1415.jsonl",
+          "cutAt": "2026-09-07T04:43:27.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1719,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2724,
+            "p90Wait": 2696,
+            "p99Wait": 2724,
+            "oldestWaits": [2724, 2665, 2696],
+            "alpha0": 45671,
+            "alpha1": 56921,
+            "spread": 271,
+            "solo": {
+              "bills": 15,
+              "p50": 2422,
+              "p90": 2696
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2349,
+              "p90": 2428
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260907_1215_1415.jsonl",
+          "cutAt": "2026-09-07T05:00:12.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2125,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 23,
+            "maxWait": 2405,
+            "p90Wait": 2387,
+            "p99Wait": 2405,
+            "oldestWaits": [2215, 2405, 2387],
+            "alpha0": 30416,
+            "alpha1": 45108,
+            "spread": 465,
+            "solo": {
+              "bills": 11,
+              "p50": 1906,
+              "p90": 2092
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2042,
+              "p90": 2405
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:30:15.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1575,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 4,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2682,
+            "p90Wait": 2608,
+            "p99Wait": 2682,
+            "oldestWaits": [2590, 2682, 2590],
+            "alpha0": 36431,
+            "alpha1": 52969,
+            "spread": 270,
+            "solo": {
+              "bills": 11,
+              "p50": 1861,
+              "p90": 2590
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2447,
+              "p90": 2608
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:35:42.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1676,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 3871,
+            "p90Wait": 3471,
+            "p99Wait": 3871,
+            "oldestWaits": [3871, 3471, 2534],
+            "alpha0": 36567,
+            "alpha1": 57129,
+            "spread": 2264,
+            "solo": {
+              "bills": 11,
+              "p50": 1942,
+              "p90": 2044
+            },
+            "party": {
+              "bills": 6,
+              "p50": 3112,
+              "p90": 3871
+            },
+            "inversions": 64
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:44:27.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2115,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2332,
+            "p90Wait": 2197,
+            "p99Wait": 2332,
+            "oldestWaits": [2332, 2175, 2197],
+            "alpha0": 35063,
+            "alpha1": 46808,
+            "spread": 157,
+            "solo": {
+              "bills": 15,
+              "p50": 2023,
+              "p90": 2175
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1916,
+              "p90": 2197
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:59:22.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2700,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 2436,
+            "p90Wait": 2436,
+            "p99Wait": 2436,
+            "oldestWaits": [2436, 2387, 2266],
+            "alpha0": 33810,
+            "alpha1": 51743,
+            "spread": 548,
+            "solo": {
+              "bills": 13,
+              "p50": 1962,
+              "p90": 2387
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2381,
+              "p90": 2436
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T11:09:51.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2166,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2892,
+            "p90Wait": 2692,
+            "p99Wait": 2892,
+            "oldestWaits": [2892, 2692, 2377],
+            "alpha0": 41223,
+            "alpha1": 59117,
+            "spread": 225,
+            "solo": {
+              "bills": 13,
+              "p50": 2377,
+              "p90": 2646
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2520,
+              "p90": 2892
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260908_2145_2345.jsonl",
+          "cutAt": "2026-09-08T14:18:18.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1197,
+          "chain": {
+            "compared": 12,
+            "slotChanged": 4,
+            "headCompared": 4,
+            "headSlotChanged": 1,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 11,
+            "bowls": 13,
+            "maxWait": 2878,
+            "p90Wait": 2427,
+            "p99Wait": 2878,
+            "oldestWaits": [2878, 1936, 2427],
+            "alpha0": 20269,
+            "alpha1": 24050,
+            "spread": 583,
+            "solo": {
+              "bills": 10,
+              "p50": 2057,
+              "p90": 2878
+            },
+            "party": {
+              "bills": 1,
+              "p50": 1891,
+              "p90": 1891
+            },
+            "inversions": 24
+          }
+        },
+        {
+          "file": "336_20260908_2145_2345.jsonl",
+          "cutAt": "2026-09-08T14:28:43.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1017,
+          "chain": {
+            "compared": 16,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 14,
+            "bowls": 17,
+            "maxWait": 1978,
+            "p90Wait": 1942,
+            "p99Wait": 1978,
+            "oldestWaits": [1978, 1920, 1942],
+            "alpha0": 20351,
+            "alpha1": 25493,
+            "spread": 45,
+            "solo": {
+              "bills": 12,
+              "p50": 1402,
+              "p90": 1920
+            },
+            "party": {
+              "bills": 2,
+              "p50": 1978,
+              "p90": 1978
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T03:33:48.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2171,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 4,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 2713,
+            "p90Wait": 2708,
+            "p99Wait": 2713,
+            "oldestWaits": [2653, 2621, 2534],
+            "alpha0": 40360,
+            "alpha1": 60970,
+            "spread": 180,
+            "solo": {
+              "bills": 11,
+              "p50": 2595,
+              "p90": 2708
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2574,
+              "p90": 2629
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T04:10:16.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1804,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 3401,
+            "p90Wait": 2908,
+            "p99Wait": 3401,
+            "oldestWaits": [2303, 2432, 2374],
+            "alpha0": 40196,
+            "alpha1": 55739,
+            "spread": 2804,
+            "solo": {
+              "bills": 13,
+              "p50": 2303,
+              "p90": 2822
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2201,
+              "p90": 3401
+            },
+            "inversions": 41
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T04:11:14.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1989,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2523,
+            "p90Wait": 2496,
+            "p99Wait": 2523,
+            "oldestWaits": [2491, 2433, 2470],
+            "alpha0": 37692,
+            "alpha1": 52974,
+            "spread": 180,
+            "solo": {
+              "bills": 11,
+              "p50": 2433,
+              "p90": 2491
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2132,
+              "p90": 2496
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T04:43:12.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1855,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 5,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 4000,
+            "p90Wait": 3939,
+            "p99Wait": 4000,
+            "oldestWaits": [4000, 3236, 3939],
+            "alpha0": 47441,
+            "alpha1": 71000,
+            "spread": 3884,
+            "solo": {
+              "bills": 8,
+              "p50": 2949,
+              "p90": 4000
+            },
+            "party": {
+              "bills": 8,
+              "p50": 2963,
+              "p90": 3939
+            },
+            "inversions": 50
+          }
+        },
+        {
+          "file": "342_20260907_1345_1545.jsonl",
+          "cutAt": "2026-09-07T05:59:52.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1229,
+          "chain": {
+            "compared": 9,
+            "slotChanged": 3,
+            "headCompared": 3,
+            "headSlotChanged": 1,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 8,
+            "bowls": 10,
+            "maxWait": 2106,
+            "p90Wait": 2106,
+            "p99Wait": 2106,
+            "oldestWaits": [1804, 2106, 1433],
+            "alpha0": 10165,
+            "alpha1": 12939,
+            "spread": 240,
+            "solo": {
+              "bills": 6,
+              "p50": 1213,
+              "p90": 1804
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2106,
+              "p90": 2106
+            },
+            "inversions": 15
+          }
+        },
+        {
+          "file": "342_20260907_1345_1545.jsonl",
+          "cutAt": "2026-09-07T06:02:13.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1176,
+          "chain": {
+            "compared": 9,
+            "slotChanged": 1,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 9,
+            "bowls": 10,
+            "maxWait": 1828,
+            "p90Wait": 1828,
+            "p99Wait": 1828,
+            "oldestWaits": [1828, 1337, 1668],
+            "alpha0": 10756,
+            "alpha1": 11746,
+            "spread": 420,
+            "solo": {
+              "bills": 8,
+              "p50": 1412,
+              "p90": 1828
+            },
+            "party": {
+              "bills": 1,
+              "p50": 990,
+              "p90": 990
+            },
+            "inversions": 15
+          }
+        },
+        {
+          "file": "342_20260907_1345_1545.jsonl",
+          "cutAt": "2026-09-07T06:04:52.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": false,
+          "hintFeasible": "OPTIMAL",
+          "failure": "Error: CP-SAT plan exceeds the lift capacity (arms + HELPER_ARMS)",
+          "solveMs": 1569,
+          "chain": null,
+          "billCpsat": null
+        },
+        {
+          "file": "342_20260907_1345_1545.jsonl",
+          "cutAt": "2026-09-07T06:09:50.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1150,
+          "chain": {
+            "compared": 16,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 15,
+            "bowls": 17,
+            "maxWait": 1739,
+            "p90Wait": 1704,
+            "p99Wait": 1739,
+            "oldestWaits": [1739, 1704, 1564],
+            "alpha0": 19562,
+            "alpha1": 21705,
+            "spread": 0,
+            "solo": {
+              "bills": 13,
+              "p50": 1243,
+              "p90": 1704
+            },
+            "party": {
+              "bills": 2,
+              "p50": 1183,
+              "p90": 1183
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260907_1345_1545.jsonl",
+          "cutAt": "2026-09-07T06:37:58.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1163,
+          "chain": {
+            "compared": 7,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 6,
+            "bowls": 8,
+            "maxWait": 2529,
+            "p90Wait": 2529,
+            "p99Wait": 2529,
+            "oldestWaits": [2529, 2234, 2306],
+            "alpha0": 13495,
+            "alpha1": 17669,
+            "spread": 45,
+            "solo": {
+              "bills": 4,
+              "p50": 2306,
+              "p90": 2529
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2161,
+              "p90": 2161
+            },
+            "inversions": 1
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:27:28.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2184,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2693,
+            "p90Wait": 2656,
+            "p99Wait": 2693,
+            "oldestWaits": [2194, 2369, 2536],
+            "alpha0": 44934,
+            "alpha1": 60057,
+            "spread": 330,
+            "solo": {
+              "bills": 15,
+              "p50": 2534,
+              "p90": 2656
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2536,
+              "p90": 2546
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:34:21.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2836,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 3064,
+            "p90Wait": 3023,
+            "p99Wait": 3064,
+            "oldestWaits": [2766, 3064, 3019],
+            "alpha0": 49802,
+            "alpha1": 66706,
+            "spread": 510,
+            "solo": {
+              "bills": 14,
+              "p50": 2927,
+              "p90": 3019
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2843,
+              "p90": 3064
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:53:26.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2048,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2548,
+            "p90Wait": 2515,
+            "p99Wait": 2548,
+            "oldestWaits": [2368, 2411, 2413],
+            "alpha0": 40225,
+            "alpha1": 50301,
+            "spread": 465,
+            "solo": {
+              "bills": 15,
+              "p50": 2404,
+              "p90": 2515
+            },
+            "party": {
+              "bills": 4,
+              "p50": 1897,
+              "p90": 2368
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:55:42.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2171,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2685,
+            "p90Wait": 2652,
+            "p99Wait": 2685,
+            "oldestWaits": [2505, 2548, 2550],
+            "alpha0": 42819,
+            "alpha1": 53577,
+            "spread": 465,
+            "solo": {
+              "bills": 15,
+              "p50": 2541,
+              "p90": 2652
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2034,
+              "p90": 2505
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T10:30:17.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2313,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 21,
+            "bowls": 24,
+            "maxWait": 2785,
+            "p90Wait": 2741,
+            "p99Wait": 2785,
+            "oldestWaits": [2709, 2606, 2621],
+            "alpha0": 53823,
+            "alpha1": 61293,
+            "spread": 135,
+            "solo": {
+              "bills": 19,
+              "p50": 2591,
+              "p90": 2746
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2493,
+              "p90": 2493
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:08:32.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2059,
+          "chain": {
+            "compared": 21,
+            "slotChanged": 5,
+            "headCompared": 3,
+            "headSlotChanged": 2,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 22,
+            "maxWait": 2640,
+            "p90Wait": 2633,
+            "p99Wait": 2640,
+            "oldestWaits": [2601, 2591, 2616],
+            "alpha0": 36157,
+            "alpha1": 46912,
+            "spread": 121,
+            "solo": {
+              "bills": 12,
+              "p50": 2449,
+              "p90": 2616
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2047,
+              "p90": 2640
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:14:10.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1911,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2180,
+            "p90Wait": 1919,
+            "p99Wait": 2180,
+            "oldestWaits": [2180, 1790, 1753],
+            "alpha0": 29404,
+            "alpha1": 41796,
+            "spread": 465,
+            "solo": {
+              "bills": 10,
+              "p50": 1657,
+              "p90": 2180
+            },
+            "party": {
+              "bills": 7,
+              "p50": 1790,
+              "p90": 1919
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:17:42.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1609,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 1884,
+            "p90Wait": 1875,
+            "p99Wait": 1884,
+            "oldestWaits": [1875, 1884, 1622],
+            "alpha0": 28315,
+            "alpha1": 37831,
+            "spread": 247,
+            "solo": {
+              "bills": 12,
+              "p50": 1622,
+              "p90": 1677
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1638,
+              "p90": 1884
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:19:57.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2865,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2020,
+            "p90Wait": 2011,
+            "p99Wait": 2020,
+            "oldestWaits": [2011, 2020, 1758],
+            "alpha0": 30762,
+            "alpha1": 41094,
+            "spread": 247,
+            "solo": {
+              "bills": 12,
+              "p50": 1758,
+              "p90": 1813
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1774,
+              "p90": 2020
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260905_2100_2300.jsonl",
+          "cutAt": "2026-09-05T12:50:07.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2662,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2363,
+            "p90Wait": 2357,
+            "p99Wait": 2363,
+            "oldestWaits": [2357, 2363, 2024],
+            "alpha0": 36974,
+            "alpha1": 50003,
+            "spread": 45,
+            "solo": {
+              "bills": 12,
+              "p50": 1998,
+              "p90": 2176
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2142,
+              "p90": 2363
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260905_2100_2300.jsonl",
+          "cutAt": "2026-09-05T12:54:26.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2471,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2588,
+            "p90Wait": 2578,
+            "p99Wait": 2588,
+            "oldestWaits": [2578, 2531, 2508],
+            "alpha0": 44307,
+            "alpha1": 56722,
+            "spread": 195,
+            "solo": {
+              "bills": 14,
+              "p50": 2304,
+              "p90": 2531
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2465,
+              "p90": 2588
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260905_2100_2300.jsonl",
+          "cutAt": "2026-09-05T12:55:15.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2368,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 9,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2637,
+            "p90Wait": 2627,
+            "p99Wait": 2637,
+            "oldestWaits": [2627, 2580, 2557],
+            "alpha0": 45239,
+            "alpha1": 57899,
+            "spread": 195,
+            "solo": {
+              "bills": 14,
+              "p50": 2353,
+              "p90": 2580
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2514,
+              "p90": 2637
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260905_2100_2300.jsonl",
+          "cutAt": "2026-09-05T13:07:40.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2435,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 22,
+            "bowls": 24,
+            "maxWait": 2625,
+            "p90Wait": 2404,
+            "p99Wait": 2625,
+            "oldestWaits": [2625, 2502, 2238],
+            "alpha0": 45380,
+            "alpha1": 50506,
+            "spread": 0,
+            "solo": {
+              "bills": 20,
+              "p50": 2011,
+              "p90": 2238
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2625,
+              "p90": 2625
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260905_2100_2300.jsonl",
+          "cutAt": "2026-09-05T13:27:59.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2073,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2670,
+            "p90Wait": 2494,
+            "p99Wait": 2670,
+            "oldestWaits": [2670, 2443, 2486],
+            "alpha0": 40462,
+            "alpha1": 53038,
+            "spread": 90,
+            "solo": {
+              "bills": 12,
+              "p50": 2303,
+              "p90": 2494
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2103,
+              "p90": 2320
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260907_1115_1315.jsonl",
+          "cutAt": "2026-09-07T03:24:59.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1790,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 8,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2641,
+            "p90Wait": 2595,
+            "p99Wait": 2641,
+            "oldestWaits": [2332, 2584, 2595],
+            "alpha0": 46631,
+            "alpha1": 55838,
+            "spread": 420,
+            "solo": {
+              "bills": 16,
+              "p50": 2332,
+              "p90": 2584
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2595,
+              "p90": 2641
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260907_1115_1315.jsonl",
+          "cutAt": "2026-09-07T03:43:20.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2392,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 2,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 3608,
+            "p90Wait": 3288,
+            "p99Wait": 3608,
+            "oldestWaits": [3288, 3608, 1850],
+            "alpha0": 37192,
+            "alpha1": 54967,
+            "spread": 986,
+            "solo": {
+              "bills": 11,
+              "p50": 2275,
+              "p90": 3288
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2129,
+              "p90": 2397
+            },
+            "inversions": 23
+          }
+        },
+        {
+          "file": "362_20260907_1115_1315.jsonl",
+          "cutAt": "2026-09-07T04:13:54.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 3806,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2738,
+            "p90Wait": 2735,
+            "p99Wait": 2738,
+            "oldestWaits": [2669, 2738, 2710],
+            "alpha0": 39124,
+            "alpha1": 56236,
+            "spread": 135,
+            "solo": {
+              "bills": 11,
+              "p50": 2145,
+              "p90": 2702
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2718,
+              "p90": 2738
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "364_20260906_1830_2030.jsonl",
+          "cutAt": "2026-09-06T10:16:26.000Z",
+          "storeId": "364",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1436,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2204,
+            "p90Wait": 2166,
+            "p99Wait": 2204,
+            "oldestWaits": [2166, 2204, 2034],
+            "alpha0": 33973,
+            "alpha1": 42317,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 1734,
+              "p90": 1993
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2166,
+              "p90": 2204
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "364_20260906_1830_2030.jsonl",
+          "cutAt": "2026-09-06T10:43:33.000Z",
+          "storeId": "364",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2010,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 23,
+            "bowls": 24,
+            "maxWait": 2081,
+            "p90Wait": 2065,
+            "p99Wait": 2081,
+            "oldestWaits": [2081, 2065, 2071],
+            "alpha0": 44299,
+            "alpha1": 46244,
+            "spread": 0,
+            "solo": {
+              "bills": 22,
+              "p50": 1939,
+              "p90": 2065
+            },
+            "party": {
+              "bills": 1,
+              "p50": 1945,
+              "p90": 1945
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "364_20260907_0915_1115.jsonl",
+          "cutAt": "2026-09-07T01:46:35.000Z",
+          "storeId": "364",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2276,
+          "chain": {
+            "compared": 19,
+            "slotChanged": 3,
+            "headCompared": 9,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 20,
+            "maxWait": 3495,
+            "p90Wait": 2976,
+            "p99Wait": 3495,
+            "oldestWaits": [2976, 3495, 2775],
+            "alpha0": 31645,
+            "alpha1": 36898,
+            "spread": 524,
+            "solo": {
+              "bills": 14,
+              "p50": 1869,
+              "p90": 2976
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1861,
+              "p90": 2775
+            },
+            "inversions": 52
+          }
+        },
+        {
+          "file": "364_20260907_0915_1115.jsonl",
+          "cutAt": "2026-09-07T02:14:36.000Z",
+          "storeId": "364",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1429,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 22,
+            "bowls": 24,
+            "maxWait": 2172,
+            "p90Wait": 2124,
+            "p99Wait": 2172,
+            "oldestWaits": [2172, 2157, 2124],
+            "alpha0": 43074,
+            "alpha1": 46770,
+            "spread": 90,
+            "solo": {
+              "bills": 20,
+              "p50": 1964,
+              "p90": 2157
+            },
+            "party": {
+              "bills": 2,
+              "p50": 1870,
+              "p90": 1870
+            },
+            "inversions": 0
+          }
+        }
+      ]
+    },
+    "after-staggered": {
+      "measuredAt": "2026-09-15T09:03:13.070Z",
+      "sourceReport": "/tmp/cpsat-hint-after-staggered.json",
+      "sha256": "a3b1059c38c9483b1543e0d19fc30d985261db614717c239e4abebd8fddfe373",
+      "count": 24,
+      "solved": 24,
+      "feasibleHints": 24,
+      "rows": [
+        {
+          "file": "239_20260905_1745_1945.jsonl",
+          "cutAt": "2026-09-05T10:08:49.000Z",
+          "storeId": "239",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 2016,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 5,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 15,
+            "bowls": 24,
+            "maxWait": 3726,
+            "p90Wait": 3083,
+            "p99Wait": 3726,
+            "oldestWaits": [2487, 3726, 2587],
+            "alpha0": 40145,
+            "alpha1": 66203,
+            "spread": 2913,
+            "solo": {
+              "bills": 9,
+              "p50": 2724,
+              "p90": 2808
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2691,
+              "p90": 3726
+            },
+            "inversions": 38
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:53:51.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1133,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2217,
+            "p90Wait": 2066,
+            "p99Wait": 2217,
+            "oldestWaits": [1857, 1901, 2217],
+            "alpha0": 38945,
+            "alpha1": 46863,
+            "spread": 210,
+            "solo": {
+              "bills": 17,
+              "p50": 1924,
+              "p90": 2066
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1918,
+              "p90": 2049
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T05:54:15.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1820,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2242,
+            "p90Wait": 2091,
+            "p99Wait": 2242,
+            "oldestWaits": [1882, 1926, 2242],
+            "alpha0": 39437,
+            "alpha1": 47453,
+            "spread": 210,
+            "solo": {
+              "bills": 17,
+              "p50": 1949,
+              "p90": 2091
+            },
+            "party": {
+              "bills": 3,
+              "p50": 1943,
+              "p90": 2074
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "247_20260908_1330_1530.jsonl",
+          "cutAt": "2026-09-08T06:13:59.000Z",
+          "storeId": "247",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1215,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 21,
+            "bowls": 24,
+            "maxWait": 2493,
+            "p90Wait": 2440,
+            "p99Wait": 2493,
+            "oldestWaits": [2239, 2168, 2148],
+            "alpha0": 46931,
+            "alpha1": 54113,
+            "spread": 135,
+            "solo": {
+              "bills": 19,
+              "p50": 2188,
+              "p90": 2440
+            },
+            "party": {
+              "bills": 2,
+              "p50": 2493,
+              "p90": 2493
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "254_20260907_1800_2000.jsonl",
+          "cutAt": "2026-09-07T10:12:45.000Z",
+          "storeId": "254",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1002,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2665,
+            "p90Wait": 2630,
+            "p99Wait": 2665,
+            "oldestWaits": [2665, 2625, 2630],
+            "alpha0": 50467,
+            "alpha1": 60602,
+            "spread": 90,
+            "solo": {
+              "bills": 16,
+              "p50": 2524,
+              "p90": 2625
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2545,
+              "p90": 2630
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:03:01.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1270,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 13,
+            "bowls": 23,
+            "maxWait": 2139,
+            "p90Wait": 2011,
+            "p99Wait": 2139,
+            "oldestWaits": [1915, 2011, 1995],
+            "alpha0": 23341,
+            "alpha1": 42101,
+            "spread": 675,
+            "solo": {
+              "bills": 6,
+              "p50": 1805,
+              "p90": 2011
+            },
+            "party": {
+              "bills": 7,
+              "p50": 1779,
+              "p90": 2139
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:47:38.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 969,
+          "chain": {
+            "compared": 17,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 12,
+            "bowls": 18,
+            "maxWait": 1982,
+            "p90Wait": 1954,
+            "p99Wait": 1982,
+            "oldestWaits": [1954, 1982, 1589],
+            "alpha0": 19528,
+            "alpha1": 29748,
+            "spread": 287,
+            "solo": {
+              "bills": 6,
+              "p50": 1589,
+              "p90": 1628
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1827,
+              "p90": 1982
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260906_1500_1700.jsonl",
+          "cutAt": "2026-09-06T07:53:08.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1126,
+          "chain": {
+            "compared": 22,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 23,
+            "maxWait": 2353,
+            "p90Wait": 2343,
+            "p99Wait": 2353,
+            "oldestWaits": [2175, 2353, 2343],
+            "alpha0": 36533,
+            "alpha1": 46572,
+            "spread": 300,
+            "solo": {
+              "bills": 13,
+              "p50": 1932,
+              "p90": 2343
+            },
+            "party": {
+              "bills": 5,
+              "p50": 1920,
+              "p90": 2291
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T03:27:59.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1831,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2568,
+            "p90Wait": 2484,
+            "p99Wait": 2568,
+            "oldestWaits": [1938, 2351, 2363],
+            "alpha0": 47439,
+            "alpha1": 56841,
+            "spread": 135,
+            "solo": {
+              "bills": 17,
+              "p50": 2412,
+              "p90": 2484
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2363,
+              "p90": 2381
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "275_20260908_1130_1330.jsonl",
+          "cutAt": "2026-09-08T04:11:15.000Z",
+          "storeId": "275",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 987,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 20,
+            "bowls": 24,
+            "maxWait": 2482,
+            "p90Wait": 2452,
+            "p99Wait": 2482,
+            "oldestWaits": [2004, 2008, 2000],
+            "alpha0": 45650,
+            "alpha1": 55169,
+            "spread": 240,
+            "solo": {
+              "bills": 16,
+              "p50": 2311,
+              "p90": 2388
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2452,
+              "p90": 2482
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "284_20260905_1945_2145.jsonl",
+          "cutAt": "2026-09-05T12:12:50.000Z",
+          "storeId": "284",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1455,
+          "chain": {
+            "compared": 17,
+            "slotChanged": 0,
+            "headCompared": 2,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 13,
+            "bowls": 18,
+            "maxWait": 1938,
+            "p90Wait": 1784,
+            "p99Wait": 1938,
+            "oldestWaits": [1938, 1682, 1621],
+            "alpha0": 20197,
+            "alpha1": 28214,
+            "spread": 465,
+            "solo": {
+              "bills": 9,
+              "p50": 1591,
+              "p90": 1938
+            },
+            "party": {
+              "bills": 4,
+              "p50": 1682,
+              "p90": 1784
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:30:15.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1282,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2993,
+            "p90Wait": 2859,
+            "p99Wait": 2993,
+            "oldestWaits": [2781, 2993, 2841],
+            "alpha0": 39571,
+            "alpha1": 58284,
+            "spread": 330,
+            "solo": {
+              "bills": 11,
+              "p50": 2213,
+              "p90": 2781
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2818,
+              "p90": 2859
+            },
+            "inversions": 26
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:35:42.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1650,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 3185,
+            "p90Wait": 3167,
+            "p99Wait": 3185,
+            "oldestWaits": [3167, 3185, 2979],
+            "alpha0": 43625,
+            "alpha1": 64084,
+            "spread": 285,
+            "solo": {
+              "bills": 11,
+              "p50": 2363,
+              "p90": 2406
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2979,
+              "p90": 3185
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260906_1815_2015.jsonl",
+          "cutAt": "2026-09-06T10:44:27.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1018,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2332,
+            "p90Wait": 2242,
+            "p99Wait": 2332,
+            "oldestWaits": [2332, 2175, 2242],
+            "alpha0": 35854,
+            "alpha1": 48128,
+            "spread": 240,
+            "solo": {
+              "bills": 15,
+              "p50": 1973,
+              "p90": 2175
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2053,
+              "p90": 2242
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "336_20260908_2145_2345.jsonl",
+          "cutAt": "2026-09-08T14:28:43.000Z",
+          "storeId": "336",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1164,
+          "chain": {
+            "compared": 16,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 14,
+            "bowls": 17,
+            "maxWait": 1978,
+            "p90Wait": 1965,
+            "p99Wait": 1978,
+            "oldestWaits": [1978, 1965, 1959],
+            "alpha0": 22510,
+            "alpha1": 27840,
+            "spread": 45,
+            "solo": {
+              "bills": 12,
+              "p50": 1602,
+              "p90": 1959
+            },
+            "party": {
+              "bills": 2,
+              "p50": 1978,
+              "p90": 1978
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T03:33:48.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1053,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 16,
+            "bowls": 24,
+            "maxWait": 2852,
+            "p90Wait": 2753,
+            "p99Wait": 2852,
+            "oldestWaits": [2652, 2620, 2578],
+            "alpha0": 41609,
+            "alpha1": 62586,
+            "spread": 510,
+            "solo": {
+              "bills": 11,
+              "p50": 2620,
+              "p90": 2753
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2578,
+              "p90": 2748
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260905_1145_1345.jsonl",
+          "cutAt": "2026-09-05T04:11:14.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 931,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 4,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 17,
+            "bowls": 24,
+            "maxWait": 2698,
+            "p90Wait": 2596,
+            "p99Wait": 2698,
+            "oldestWaits": [2491, 2433, 2470],
+            "alpha0": 39184,
+            "alpha1": 55248,
+            "spread": 255,
+            "solo": {
+              "bills": 11,
+              "p50": 2320,
+              "p90": 2491
+            },
+            "party": {
+              "bills": 6,
+              "p50": 2284,
+              "p90": 2596
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "342_20260907_1345_1545.jsonl",
+          "cutAt": "2026-09-07T06:02:13.000Z",
+          "storeId": "342",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 675,
+          "chain": {
+            "compared": 9,
+            "slotChanged": 6,
+            "headCompared": 0,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 9,
+            "bowls": 10,
+            "maxWait": 2429,
+            "p90Wait": 2429,
+            "p99Wait": 2429,
+            "oldestWaits": [2429, 1884, 1894],
+            "alpha0": 15279,
+            "alpha1": 16630,
+            "spread": 0,
+            "solo": {
+              "bills": 8,
+              "p50": 1727,
+              "p90": 2429
+            },
+            "party": {
+              "bills": 1,
+              "p50": 1351,
+              "p90": 1351
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:27:28.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 993,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2721,
+            "p90Wait": 2721,
+            "p99Wait": 2721,
+            "oldestWaits": [2194, 2369, 2536],
+            "alpha0": 45947,
+            "alpha1": 61770,
+            "spread": 480,
+            "solo": {
+              "bills": 15,
+              "p50": 2617,
+              "p90": 2693
+            },
+            "party": {
+              "bills": 3,
+              "p50": 2590,
+              "p90": 2721
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:53:26.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1061,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2513,
+            "p90Wait": 2504,
+            "p99Wait": 2513,
+            "oldestWaits": [2368, 2428, 2430],
+            "alpha0": 40314,
+            "alpha1": 50441,
+            "spread": 465,
+            "solo": {
+              "bills": 15,
+              "p50": 2420,
+              "p90": 2504
+            },
+            "party": {
+              "bills": 4,
+              "p50": 1914,
+              "p90": 2368
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260905_1500_1700.jsonl",
+          "cutAt": "2026-09-05T07:55:42.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1032,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 3,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 2650,
+            "p90Wait": 2641,
+            "p99Wait": 2650,
+            "oldestWaits": [2505, 2565, 2567],
+            "alpha0": 42907,
+            "alpha1": 53717,
+            "spread": 465,
+            "solo": {
+              "bills": 15,
+              "p50": 2557,
+              "p90": 2641
+            },
+            "party": {
+              "bills": 4,
+              "p50": 2051,
+              "p90": 2505
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:17:42.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1122,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2021,
+            "p90Wait": 1987,
+            "p99Wait": 2021,
+            "oldestWaits": [1875, 2021, 1759],
+            "alpha0": 31891,
+            "alpha1": 42675,
+            "spread": 450,
+            "solo": {
+              "bills": 12,
+              "p50": 1782,
+              "p90": 1875
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1829,
+              "p90": 2021
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "355_20260908_1845_2045.jsonl",
+          "cutAt": "2026-09-08T11:19:57.000Z",
+          "storeId": "355",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1191,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 18,
+            "bowls": 24,
+            "maxWait": 2156,
+            "p90Wait": 2122,
+            "p99Wait": 2156,
+            "oldestWaits": [2010, 2156, 1894],
+            "alpha0": 34317,
+            "alpha1": 45910,
+            "spread": 450,
+            "solo": {
+              "bills": 12,
+              "p50": 1917,
+              "p90": 2010
+            },
+            "party": {
+              "bills": 6,
+              "p50": 1964,
+              "p90": 2156
+            },
+            "inversions": 0
+          }
+        },
+        {
+          "file": "362_20260905_2100_2300.jsonl",
+          "cutAt": "2026-09-05T12:55:15.000Z",
+          "storeId": "362",
+          "limit": 24,
+          "ok": true,
+          "hintFeasible": "OPTIMAL",
+          "failure": null,
+          "solveMs": 1057,
+          "chain": {
+            "compared": 23,
+            "slotChanged": 0,
+            "headCompared": 1,
+            "headSlotChanged": 0,
+            "status": "FEASIBLE"
+          },
+          "billCpsat": {
+            "bills": 19,
+            "bowls": 24,
+            "maxWait": 3300,
+            "p90Wait": 2974,
+            "p99Wait": 3300,
+            "oldestWaits": [2627, 2890, 2867],
+            "alpha0": 51429,
+            "alpha1": 66248,
+            "spread": 1600,
+            "solo": {
+              "bills": 14,
+              "p50": 2629,
+              "p90": 2867
+            },
+            "party": {
+              "bills": 5,
+              "p50": 2933,
+              "p90": 3300
+            },
+            "inversions": 12
+          }
+        }
+      ]
+    }
+  },
+  "sourceSha256": {
+    "experiments/cpsat-workers/tuning/schedule.ts": "db2a7c23209b155c7bdf0f85a08ed08b790eacc665f9c31411080ac8cc11ff59",
+    "tests/cpsat-hint-feasibility.example.test.ts": "d0565d3eeadc0936fcdf0953104cf9ccecaa68e7b50aec3af8e421add14a406a"
+  },
+  "remainingLiftFailure": {
+    "file": "342_20260907_1345_1545.jsonl",
+    "cutAt": "2026-09-07T06:04:52.000Z",
+    "failure": "Error: LIFT_DIAG {\"origin\":1789461854,\"bad\":{\"at\":1789463669000,\"lifts\":[{\"at\":1789463713226,\"span\":1,\"fixed\":true},{\"at\":1789463713226,\"span\":1,\"fixed\":true},{\"at\":1789463713226,\"span\":1,\"fixed\":true},{\"at\":1789463713226,\"span\":1,\"fixed\":true},{\"at\":1789463713226,\"span\":1,\"fixed\":true},{\"at\":1789463713226,\"span\":1,\"fixed\":true},{\"at\":1789463669000,\"span\":1,\"fixed\":false}]}}",
+    "explanation": "Model rounds running end upwards to seconds: real delta 44226ms becomes 45000ms in the model."
+  }
+}

@@ -23,7 +23,10 @@
 //       （`toUniqueKey`）が、いずれも `Record<string, unknown>` を引数に取ること。構造を知ることと
 //       構造を型として宣言することは別である。
 //   (e) スキーマ検証を持ち込まない — src/ がスキーマ検証ライブラリを import しないこと（AC 14.6。
-//       検証の側が先に壊れる）。
+//       検証の側が先に壊れる）。**ただし下の SCHEMA_VALIDATION_ALLOWED に挙げた file だけは例外**
+//       ——禁の理由はベンダー由来 payload に向いており、我々自身が両端を書く telemetry 記録には
+//       当てはまらない。例外は directory ではなく file 単位で挙げる。増えたことが diff に出る形を
+//       保つためで、増やすこと自体は禁じていない。
 //
 // 検査は TypeScript の AST で行う。ソーステキストの正規表現では、型注釈（`payload: unknown`）と
 // オブジェクトリテラルの値（`payload: entry.payload`）を取り違える。既存の
@@ -87,6 +90,21 @@ const VENDOR_PAYLOAD_KEYS = [
 /** スキーマ検証ライブラリ。1 つでも入れば「検証しない」という規律が名目だけになる（AC 14.6）。 */
 const SCHEMA_VALIDATION_MODULES =
   /^(?:zod|valibot|ajv|yup|joi|superstruct|io-ts|@sinclair\/typebox)(?:\/|$)/;
+
+/**
+ * 検証ライブラリを使ってよい file。**directory ではなく file で挙げる。**
+ *
+ * 禁（AC 14.6）が守るのは POS 素通しである。ベンダーが項目を 1 つ足しただけで受信が止まる状態を
+ * 作らないための規律で、そこでは「検証の側が先に壊れる」。**我々が両端を書く telemetry の記録には
+ * この理屈が当たらない**——Producer も Tail も同じリポジトリにあり、形を変えるのは我々だからである。
+ *
+ * 例外はこの 1 file に閉じる。Producer 側（`src/operation-history/codec.ts`・`src/lift-delay/codec.ts`）
+ * と ingress 側は**引き続き禁のまま**である。Producer が検証ライブラリに依存すると、店舗 DO の bundle
+ * にも載る。
+ */
+const SCHEMA_VALIDATION_ALLOWED: ReadonlySet<string> = new Set([
+  "src/data-platform/record-schema.ts",
+]);
 
 // ── ファイル探索・パース ────────────────────────────────────────────────────
 
@@ -276,14 +294,35 @@ describe("(d) 構造を知る局所も引数は生値である（要件14.6）",
 // ── (e) スキーマ検証を持ち込まない ──────────────────────────────────────────
 
 describe("(e) src/ がスキーマ検証ライブラリを import しない（要件14.6）", () => {
-  it("全ファイルの import にスキーマ検証ライブラリが現れない", () => {
+  it("許可した file 以外の import にスキーマ検証ライブラリが現れない", () => {
     for (const path of ALL_SRC_FILES) {
+      if (SCHEMA_VALIDATION_ALLOWED.has(path)) continue;
       for (const specifier of moduleSpecifiers(parse(path))) {
         expect(
           SCHEMA_VALIDATION_MODULES.test(specifier),
           `${path} がスキーマ検証ライブラリ ${specifier} を import している`,
         ).toBe(false);
       }
+    }
+  });
+
+  it("許可した file が実在する（消えた例外を残さない）", () => {
+    for (const path of SCHEMA_VALIDATION_ALLOWED) {
+      expect(ALL_SRC_FILES, `${path} は許可一覧にあるが src/ に無い`).toContain(path);
+    }
+  });
+
+  it("ingress と Producer の codec は禁のままである", () => {
+    // 例外を directory へ広げたときに、ここが先に落ちる。
+    const mustStayBanned = [
+      "src/ingress/batch.ts",
+      "src/ingress/noodle-spec.ts",
+      "src/ingress/unique-key.ts",
+      "src/operation-history/codec.ts",
+      "src/lift-delay/codec.ts",
+    ];
+    for (const path of mustStayBanned) {
+      expect(SCHEMA_VALIDATION_ALLOWED.has(path), `${path} が許可一覧に入っている`).toBe(false);
     }
   });
 });

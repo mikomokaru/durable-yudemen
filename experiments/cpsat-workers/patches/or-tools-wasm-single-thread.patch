@@ -1,0 +1,52 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 861352f..71018d6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -490,8 +490,34 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+   target_link_options(cp_sat_runtime PRIVATE
+     "--emit-tsd"
+     "${JS_OUTPUT_DIR}/cp_sat_runtime.d.ts")
+ 
++  # Cloudflare Workers PoC: a CP-SAT-only runtime with no pthread/shared-memory
++  # link flags. The model surface is intentionally fixed in cpsat_workers_poc.cc.
++  add_executable(cpsat_workers_poc_runtime
++    "${PROJECT_SOURCE_DIR}/javascript/cpsat_workers_poc.cc")
++  target_link_libraries(cpsat_workers_poc_runtime PRIVATE ${PROJECT_NAMESPACE}::ortools)
++  target_compile_options(cpsat_workers_poc_runtime PRIVATE "-fexceptions")
++  target_link_options(cpsat_workers_poc_runtime PRIVATE
++    "-O3"
++    "-sMODULARIZE=1"
++    "-sEXPORT_ES6=1"
++    "-sEXPORT_NAME=cpsatWorkersPocModule"
++    "-sENVIRONMENT=worker"
++    "-sALLOW_MEMORY_GROWTH=1"
++    "-sINITIAL_MEMORY=33554432"
++    "-sMAXIMUM_MEMORY=100663296"
++    "-sWASM_BIGINT=1"
++    "-sASSERTIONS=1"
++    "-fexceptions"
++    "-sDISABLE_EXCEPTION_CATCHING=0"
++    "-sEXPORTED_FUNCTIONS=['_cpsat_solve','_malloc','_free']"
++    "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8']"
++    "--no-entry")
++  set_target_properties(cpsat_workers_poc_runtime PROPERTIES
++    OUTPUT_NAME "cpsat_workers_poc_runtime"
++    RUNTIME_OUTPUT_DIRECTORY "${JS_OUTPUT_DIR}")
++
+   add_custom_target(cp_sat_runtime_site ALL
+     DEPENDS ${ORTOOLS_WASM_RUNTIME_TARGETS}
+     COMMENT "Building cp_sat_runtime runtimes")
+ endif()
+diff --git a/cmake/host.cmake b/cmake/host.cmake
+index 3fce6f6..80cbbbc 100644
+--- a/cmake/host.cmake
++++ b/cmake/host.cmake
+@@ -32,7 +32,7 @@ configure_file(
+ 
+ add_custom_command(
+   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/host_tools
+-  COMMAND ${CMAKE_COMMAND} -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_RUNTIME_OUTPUT_DIRECTORY:PATH=${CMAKE_CURRENT_BINARY_DIR}/host_tools/bin
++  COMMAND ${CMAKE_COMMAND} -S. -Bbuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_RUNTIME_OUTPUT_DIRECTORY:PATH=${CMAKE_CURRENT_BINARY_DIR}/host_tools/bin
+   COMMAND ${CMAKE_COMMAND} --build build --config Release -v
+   DEPENDS
+     ${CMAKE_CURRENT_BINARY_DIR}/host_tools/CMakeLists.txt

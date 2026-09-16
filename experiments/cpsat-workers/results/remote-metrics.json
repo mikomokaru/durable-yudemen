@@ -1,0 +1,664 @@
+{
+  "collectedAt": "2026-09-08T11:47:08.780Z",
+  "accountId": "305d89a643ac689b4204454c5493cbde",
+  "workerName": "yude-men-cpsat-wasm-poc",
+  "settings": {
+    "usageModel": "standard",
+    "limits": {
+      "cpu_ms": 1000
+    },
+    "compatibilityDate": "2026-06-26",
+    "observability": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "redact_query_string": false,
+      "logs": {
+        "enabled": true,
+        "head_sampling_rate": 1,
+        "persist": true,
+        "invocation_logs": true
+      },
+      "traces": {
+        "enabled": false,
+        "persist": true,
+        "head_sampling_rate": 1
+      }
+    },
+    "bindings": [
+      {
+        "name": "POC_AUTH_TOKEN",
+        "type": "secret_text"
+      }
+    ]
+  },
+  "deployments": [
+    {
+      "id": "c9ffe305-05c8-433f-b6f1-f7993bd5cee3",
+      "created_on": "2026-09-08T11:44:17.104875Z",
+      "versions": [
+        {
+          "version_id": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+          "percentage": 100
+        }
+      ]
+    }
+  ],
+  "query": {
+    "queryId": "cpsat-poc-ad-hoc",
+    "dry": true,
+    "view": "events",
+    "limit": 2000,
+    "timeframe": {
+      "from": 1788867869640,
+      "to": 1788868029493
+    },
+    "parameters": {
+      "filters": [
+        {
+          "key": "$metadata.service",
+          "operation": "eq",
+          "type": "string",
+          "value": "yude-men-cpsat-wasm-poc"
+        }
+      ]
+    }
+  },
+  "telemetryFailure": "Cloudflare 403: [{\"code\":10000,\"message\":\"Authentication error\",\"documentation_url\":\"https://developers.cloudflare.com/api/resources/workers/subresources/observability/subresources/telemetry\"}]",
+  "graphql": {
+    "query": "query Metrics($account: string, $worker: string, $from: string, $to: string) {\n    viewer { accounts(filter: {accountTag: $account}) {\n      workersInvocationsAdaptive(limit: 1000, filter: {\n        scriptName: $worker, datetime_geq: $from, datetime_leq: $to\n      }) {\n        dimensions { scriptName scriptVersion coloCode status datetime }\n        quantiles { cpuTimeP50 cpuTimeP99 wallTimeP50 wallTimeP99 }\n        max { cpuTime wallTime memoryUsageBytes wasmMemoryBytes }\n        sum { requests errors subrequests }\n      }\n    } }\n    units: __type(name: \"AccountWorkersInvocationsAdaptiveMax\") { fields { name description } }\n  }",
+    "variables": {
+      "account": "305d89a643ac689b4204454c5493cbde",
+      "worker": "yude-men-cpsat-wasm-poc",
+      "from": "2026-09-08T11:44:29.640Z",
+      "to": "2026-09-08T11:47:09.699Z"
+    },
+    "data": {
+      "units": {
+        "fields": [
+          {
+            "description": "Maximum CPU time for one request - microseconds",
+            "name": "cpuTime"
+          },
+          {
+            "description": "Maximum duration of one request - GB*s",
+            "name": "duration"
+          },
+          {
+            "description": "Maximum V8 isolate memory usage across Worker invocations - bytes",
+            "name": "memoryUsageBytes"
+          },
+          {
+            "description": "Maximum Request Duration in microseconds",
+            "name": "requestDuration"
+          },
+          {
+            "description": "Maximum response body size for one request - bytes",
+            "name": "responseBodySize"
+          },
+          {
+            "description": "Maximum wall time for one request - microseconds",
+            "name": "wallTime"
+          },
+          {
+            "description": "Maximum WebAssembly linear memory usage across Worker invocations - bytes",
+            "name": "wasmMemoryBytes"
+          }
+        ]
+      },
+      "viewer": {
+        "accounts": [
+          {
+            "workersInvocationsAdaptive": [
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:44Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 345872,
+                  "memoryUsageBytes": 42961836,
+                  "wallTime": 347420,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 299200,
+                  "cpuTimeP99": 345872,
+                  "wallTimeP50": 299668,
+                  "wallTimeP99": 347420
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:48Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 343007,
+                  "memoryUsageBytes": 78391280,
+                  "wallTime": 344853,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 319890,
+                  "cpuTimeP99": 343007,
+                  "wallTimeP50": 326418,
+                  "wallTimeP99": 344853
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:52Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 357814,
+                  "memoryUsageBytes": 78391280,
+                  "wallTime": 359572,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 284720,
+                  "cpuTimeP99": 357814,
+                  "wallTimeP50": 285147,
+                  "wallTimeP99": 359572
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:42Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 364956,
+                  "memoryUsageBytes": 40864684,
+                  "wallTime": 367442,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 305816,
+                  "cpuTimeP99": 364956,
+                  "wallTimeP50": 306179,
+                  "wallTimeP99": 367442
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:51Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 358884,
+                  "memoryUsageBytes": 78391280,
+                  "wallTime": 360904,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 350516,
+                  "cpuTimeP99": 358884,
+                  "wallTimeP50": 352911,
+                  "wallTimeP99": 360904
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:49Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 379397,
+                  "memoryUsageBytes": 78391280,
+                  "wallTime": 381846,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 333618,
+                  "cpuTimeP99": 379397,
+                  "wallTimeP50": 335302,
+                  "wallTimeP99": 381846
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:40Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 378635,
+                  "memoryUsageBytes": 40864684,
+                  "wallTime": 381731,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 292756,
+                  "cpuTimeP99": 378635,
+                  "wallTimeP50": 294739,
+                  "wallTimeP99": 381731
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:38Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 602473,
+                  "memoryUsageBytes": 40864684,
+                  "wallTime": 603755,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 593362,
+                  "cpuTimeP99": 602473,
+                  "wallTimeP50": 594455,
+                  "wallTimeP99": 603755
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:46Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 45830,
+                  "memoryUsageBytes": 78129278,
+                  "wallTime": 46463,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 259,
+                  "cpuTimeP99": 45830,
+                  "wallTimeP50": 631,
+                  "wallTimeP99": 46463
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 18,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:50Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 399532,
+                  "memoryUsageBytes": 78391280,
+                  "wallTime": 402043,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 324958,
+                  "cpuTimeP99": 399532,
+                  "wallTimeP50": 326506,
+                  "wallTimeP99": 402043
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:47Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 295870,
+                  "memoryUsageBytes": 78391280,
+                  "wallTime": 297263,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 293152,
+                  "cpuTimeP99": 295870,
+                  "wallTimeP50": 293678,
+                  "wallTimeP99": 297263
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:41Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 361367,
+                  "memoryUsageBytes": 40864684,
+                  "wallTime": 364970,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 337748,
+                  "cpuTimeP99": 361367,
+                  "wallTimeP50": 338898,
+                  "wallTimeP99": 364970
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:55Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 48830,
+                  "memoryUsageBytes": 78392984,
+                  "wallTime": 49841,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 284,
+                  "cpuTimeP99": 48830,
+                  "wallTimeP50": 794,
+                  "wallTimeP99": 49841
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 13,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:39Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 470352,
+                  "memoryUsageBytes": 40864684,
+                  "wallTime": 473249,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 303218,
+                  "cpuTimeP99": 470352,
+                  "wallTimeP50": 303817,
+                  "wallTimeP99": 473249
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 2,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:45Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 362609,
+                  "memoryUsageBytes": 42961836,
+                  "wallTime": 364727,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 302792,
+                  "cpuTimeP99": 362609,
+                  "wallTimeP50": 304377,
+                  "wallTimeP99": 364727
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:43Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 372774,
+                  "memoryUsageBytes": 42699692,
+                  "wallTime": 375190,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 371140,
+                  "cpuTimeP99": 372774,
+                  "wallTimeP50": 373296,
+                  "wallTimeP99": 375190
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:54Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 425577,
+                  "memoryUsageBytes": 78391280,
+                  "wallTime": 427509,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 292649,
+                  "cpuTimeP99": 425577,
+                  "wallTimeP50": 292939,
+                  "wallTimeP99": 427509
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:45:58Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 200133,
+                  "memoryUsageBytes": 39291820,
+                  "wallTime": 204496,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 200133,
+                  "cpuTimeP99": 200133,
+                  "wallTimeP50": 204496,
+                  "wallTimeP99": 204496
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 1,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:37Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 666453,
+                  "memoryUsageBytes": 40864684,
+                  "wallTime": 673163,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 331103,
+                  "cpuTimeP99": 666453,
+                  "wallTimeP50": 334206,
+                  "wallTimeP99": 673163
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:36Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 166226,
+                  "memoryUsageBytes": 39291820,
+                  "wallTime": 185688,
+                  "wasmMemoryBytes": 33554432
+                },
+                "quantiles": {
+                  "cpuTimeP50": 234,
+                  "cpuTimeP99": 166226,
+                  "wallTimeP50": 521,
+                  "wallTimeP99": 185688
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 4,
+                  "subrequests": 0
+                }
+              },
+              {
+                "dimensions": {
+                  "coloCode": "NRT",
+                  "datetime": "2026-09-08T11:44:53Z",
+                  "scriptName": "yude-men-cpsat-wasm-poc",
+                  "scriptVersion": "a8eb8beb-bbf1-4ada-982e-c8e1f7597072",
+                  "status": "success"
+                },
+                "max": {
+                  "cpuTime": 325726,
+                  "memoryUsageBytes": 78391280,
+                  "wallTime": 327678,
+                  "wasmMemoryBytes": 67108864
+                },
+                "quantiles": {
+                  "cpuTimeP50": 275145,
+                  "cpuTimeP99": 325726,
+                  "wallTimeP50": 275727,
+                  "wallTimeP99": 327678
+                },
+                "sum": {
+                  "errors": 0,
+                  "requests": 3,
+                  "subrequests": 0
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "plan": [
+    {
+      "ts": 1789050079122,
+      "wallMs": 1499,
+      "cpuMs": 1,
+      "status": 202,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789050083473,
+      "wallMs": 1292,
+      "cpuMs": 1,
+      "status": 202,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789050089794,
+      "wallMs": 3271,
+      "cpuMs": 5,
+      "status": 202,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789050094366,
+      "wallMs": 1467,
+      "cpuMs": 2,
+      "status": 202,
+      "outcome": "ok"
+    }
+  ],
+  "opsOrders": [
+    {
+      "ts": 1789050077931,
+      "wallMs": 52,
+      "cpuMs": 1,
+      "status": 200,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789050082512,
+      "wallMs": 42,
+      "cpuMs": 1,
+      "status": 200,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789050086900,
+      "wallMs": 39,
+      "cpuMs": 1,
+      "status": 200,
+      "outcome": "ok"
+    },
+    {
+      "ts": 1789050093160,
+      "wallMs": 40,
+      "cpuMs": 0,
+      "status": 200,
+      "outcome": "ok"
+    }
+  ],
+  "watch": [
+    {
+      "ts": 1789050104400,
+      "wallMs": 28476,
+      "cpuMs": 3,
+      "outcome": "exception"
+    }
+  ]
+}

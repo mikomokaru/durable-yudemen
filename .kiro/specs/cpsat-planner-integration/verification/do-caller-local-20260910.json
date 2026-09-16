@@ -1,0 +1,50 @@
+{
+  "measuredAt": "2026-09-10T14:54:08.547Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "caller": "durable object",
+  "problem": {
+    "sha256": "806b89f0624700c15a52dc6e85556739e4828f0a35ba9ca666ea7e2d3c29a59a",
+    "budget": 0.14,
+    "byteLength": 604697
+  },
+  "wasmSha256": "c8b89a734a15ad067e18edd08fc58d179aff63bf9922080e75fbeeecfb0223a1",
+  "glueSha256": "9aa103e134a4dcc5810a589dc008dc5b1c3f4d46114df05e08f4799f2b97eda8",
+  "toolchain": {
+    "node": "v26.7.0",
+    "wrangler": "4.105.0",
+    "miniflare": "4.20260625.0"
+  },
+  "cases": [
+    {
+      "child": "solver",
+      "status": 202,
+      "doFetchResolvedAfterMs": 481,
+      "doBodyHandledAfterMs": 0,
+      "doCallReturnedToDriverAfterMs": 486,
+      "idlePingMs": [11, 2, 1],
+      "busyPingMs": 366,
+      "busyPingFinishedBeforeCall": false
+    },
+    {
+      "child": "sync",
+      "status": 202,
+      "doFetchResolvedAfterMs": 1500,
+      "doBodyHandledAfterMs": 0,
+      "doCallReturnedToDriverAfterMs": 1502,
+      "idlePingMs": [4, 1, 1],
+      "busyPingMs": 1381,
+      "busyPingFinishedBeforeCall": false
+    },
+    {
+      "child": "async",
+      "status": 202,
+      "doFetchResolvedAfterMs": 1,
+      "doBodyHandledAfterMs": 0,
+      "doCallReturnedToDriverAfterMs": 1,
+      "idlePingMs": [3, 1, 1],
+      "busyPingMs": 2,
+      "busyPingFinishedBeforeCall": false
+    }
+  ]
+}

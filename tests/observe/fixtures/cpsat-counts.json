@@ -1,0 +1,259 @@
+{
+  "coverage": {
+    "from": 0,
+    "to": 120000,
+    "capturedFrom": 0,
+    "capturedTo": 120000,
+    "retainedFrom": 0,
+    "samplingRate": 1,
+    "exportComplete": true,
+    "scopes": [
+      {
+        "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "backend": "cpsat",
+        "mode": "fake"
+      }
+    ],
+    "gaps": [],
+    "frequencyLimits": null
+  },
+  "rows": [
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "construct-1",
+      "at": 10,
+      "instanceId": "do-1",
+      "invocationId": "entry-1",
+      "parentEventId": null,
+      "fact": {
+        "type": "cpsat.do-constructed",
+        "cause": "unknown"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "g-1",
+      "at": 20,
+      "instanceId": "do-1",
+      "invocationId": "entry-1",
+      "parentEventId": null,
+      "fact": {
+        "type": "cpsat.request-generated",
+        "decisionId": "decision-1",
+        "effectIndex": 3
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "p-1",
+      "at": 30,
+      "instanceId": "do-1",
+      "invocationId": "entry-1",
+      "parentEventId": "g-1",
+      "fact": {
+        "type": "cpsat.persist-result",
+        "decisionId": "decision-1",
+        "outcome": "failed"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "construct-2",
+      "at": 60010,
+      "instanceId": "do-2",
+      "invocationId": "entry-2",
+      "parentEventId": null,
+      "fact": {
+        "type": "cpsat.do-constructed",
+        "cause": "hibernation"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "g-2",
+      "at": 60020,
+      "instanceId": "do-2",
+      "invocationId": "entry-2",
+      "parentEventId": null,
+      "fact": {
+        "type": "cpsat.request-generated",
+        "decisionId": "decision-1",
+        "effectIndex": 3
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "p-2",
+      "at": 60030,
+      "instanceId": "do-2",
+      "invocationId": "entry-2",
+      "parentEventId": "g-2",
+      "fact": {
+        "type": "cpsat.persist-result",
+        "decisionId": "decision-1",
+        "outcome": "saved"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "d-2",
+      "at": 60040,
+      "instanceId": "do-2",
+      "invocationId": "entry-2",
+      "parentEventId": "p-2",
+      "fact": {
+        "type": "cpsat.request-dispatched",
+        "requestId": "request-2",
+        "origin": {
+          "kind": "engine",
+          "instanceId": "do-2",
+          "decisionId": "decision-1",
+          "effectIndex": 3
+        },
+        "sameInputRetry": null
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "a-2",
+      "at": 60050,
+      "instanceId": "solver-1",
+      "invocationId": "solve-1",
+      "parentEventId": "d-2",
+      "fact": {
+        "type": "cpsat.solver-accepted",
+        "requestId": "request-2"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "storeRef": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "backend": "cpsat",
+      "mode": "fake",
+      "versions": {
+        "code": "fixture-v1",
+        "model": null,
+        "codec": null,
+        "wasm": null,
+        "glue": null,
+        "profile": null,
+        "budget": null,
+        "missingReason": "fake"
+      },
+      "eventId": "r-2",
+      "at": 60060,
+      "instanceId": "do-2",
+      "invocationId": "entry-2",
+      "parentEventId": "d-2",
+      "fact": {
+        "type": "cpsat.dispatch-result",
+        "requestId": "request-2",
+        "outcome": "accepted"
+      }
+    }
+  ]
+}

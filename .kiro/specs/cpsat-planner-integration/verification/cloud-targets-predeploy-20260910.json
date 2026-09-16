@@ -1,0 +1,358 @@
+{
+  "checkedAt": "2026-09-10T11:21:05.502Z",
+  "scope": "read-only task 2.1 inventory; not a gate verdict",
+  "accountId": "305d89a643ac689b4204454c5493cbde",
+  "observations": [
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/domains",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": {
+        "page": 1,
+        "per_page": 8,
+        "count": 8,
+        "total_count": 8
+      },
+      "result": [
+        {
+          "id": "a741d231564f8b9b9f6290b19c0addd322fec4c3",
+          "hostname": "timer-dev.yamaokaya.org",
+          "service": "yude-men-timer",
+          "environment": "production",
+          "zone_id": "d278619c19cd6968db1125a889954e61"
+        }
+      ]
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/subdomain",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": null,
+      "result": {
+        "subdomain": "yamaokaya"
+      }
+    },
+    {
+      "path": "zones?account.id=305d89a643ac689b4204454c5493cbde&per_page=50",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": {
+        "page": 1,
+        "per_page": 50,
+        "total_pages": 1,
+        "count": 1,
+        "total_count": 1
+      },
+      "result": [
+        {
+          "id": "d278619c19cd6968db1125a889954e61",
+          "name": "yamaokaya.org"
+        }
+      ]
+    },
+    {
+      "path": "zones/d278619c19cd6968db1125a889954e61/workers/routes",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": null,
+      "result": []
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/durable_objects/namespaces?per_page=100",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": {
+        "page": 1,
+        "per_page": 100,
+        "count": 11,
+        "total_count": 11
+      },
+      "result": [
+        {
+          "id": "a3ac2d321837499188ee9cb979a4efdc",
+          "class": "StoreTimerDO",
+          "name": "yude-men-timer_StoreTimerDO",
+          "script": "yude-men-timer",
+          "use_sqlite": true
+        },
+        {
+          "id": "cedc7e2c44b44c828c1a96a37eee5702",
+          "class": "StoreRegistryDO",
+          "name": "yude-men-timer_StoreRegistryDO",
+          "script": "yude-men-timer",
+          "use_sqlite": true
+        }
+      ]
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-timer/settings",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": null,
+      "result": {
+        "usage_model": "standard",
+        "compatibility_date": "2026-06-26",
+        "compatibility_flags": [],
+        "observability": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+          "redact_query_string": false,
+          "logs": {
+            "enabled": true,
+            "head_sampling_rate": 1,
+            "persist": true,
+            "invocation_logs": true
+          },
+          "traces": {
+            "enabled": false,
+            "persist": true,
+            "head_sampling_rate": 1
+          }
+        },
+        "logpush": false,
+        "tail_consumers": [],
+        "bindings": [
+          {
+            "name": "ACCESS_REQUIRED",
+            "type": "plain_text",
+            "text": "1"
+          },
+          {
+            "name": "ADMIN_TOKEN",
+            "type": "secret_text"
+          },
+          {
+            "name": "ASSETS",
+            "type": "assets"
+          },
+          {
+            "name": "OBSERVE_DEBUG",
+            "type": "plain_text",
+            "text": "0"
+          },
+          {
+            "name": "OPERATION_HISTORY_ENABLED",
+            "type": "plain_text",
+            "text": "0"
+          },
+          {
+            "name": "ORDER_INGRESS_TOKEN",
+            "type": "secret_text"
+          },
+          {
+            "name": "POLICY_AUD",
+            "type": "plain_text"
+          },
+          {
+            "name": "SOLVER",
+            "type": "service",
+            "service": "yude-men-solver",
+            "environment": "production"
+          },
+          {
+            "name": "STORE_REGISTRY_DO",
+            "type": "durable_object_namespace",
+            "class_name": "StoreRegistryDO",
+            "namespace_id": "cedc7e2c44b44c828c1a96a37eee5702"
+          },
+          {
+            "name": "STORE_TIMER_DO",
+            "type": "durable_object_namespace",
+            "class_name": "StoreTimerDO",
+            "namespace_id": "a3ac2d321837499188ee9cb979a4efdc"
+          },
+          {
+            "name": "TEAM_DOMAIN",
+            "type": "plain_text"
+          }
+        ]
+      }
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-timer/subdomain",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": null,
+      "result": {
+        "enabled": true,
+        "previews_enabled": true
+      }
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-timer/deployments",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": null,
+      "result": {
+        "latest": [
+          {
+            "id": "6cdfed3e-5b87-49c5-b549-b091eb4f0991",
+            "created_on": "2026-09-09T07:20:35.780495Z",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "versions": [
+              {
+                "version_id": "be146588-b3f0-4f54-9134-f5baf744d8fd",
+                "percentage": 100
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-solver/settings",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": null,
+      "result": {
+        "usage_model": "standard",
+        "compatibility_date": "2026-06-26",
+        "compatibility_flags": [],
+        "observability": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+          "redact_query_string": false,
+          "logs": {
+            "enabled": true,
+            "head_sampling_rate": 1,
+            "persist": true,
+            "invocation_logs": true
+          },
+          "traces": {
+            "enabled": false,
+            "persist": true,
+            "head_sampling_rate": 1
+          }
+        },
+        "logpush": false,
+        "tail_consumers": [],
+        "bindings": [
+          {
+            "name": "STORE_TIMER_DO",
+            "type": "durable_object_namespace",
+            "class_name": "StoreTimerDO",
+            "namespace_id": "a3ac2d321837499188ee9cb979a4efdc",
+            "script_name": "yude-men-timer"
+          }
+        ]
+      }
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-solver/subdomain",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": null,
+      "result": {
+        "enabled": false,
+        "previews_enabled": false
+      }
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-solver/deployments",
+      "status": 200,
+      "success": true,
+      "errorCodes": [],
+      "pagination": null,
+      "result": {
+        "latest": [
+          {
+            "id": "25970d6f-4728-4756-a5e2-56a717d90d64",
+            "created_on": "2026-08-21T08:32:25.187493Z",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "versions": [
+              {
+                "version_id": "e134e93b-1208-452f-847f-cbf344777119",
+                "percentage": 100
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-cpsat-planner-dev/settings",
+      "status": 404,
+      "success": false,
+      "errorCodes": [10007],
+      "pagination": null,
+      "result": null
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-cpsat-planner-dev/subdomain",
+      "status": 404,
+      "success": false,
+      "errorCodes": [10007],
+      "pagination": null,
+      "result": null
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-cpsat-planner-dev/deployments",
+      "status": 404,
+      "success": false,
+      "errorCodes": [10007],
+      "pagination": null,
+      "result": null
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-cpsat-transport-shim-dev/settings",
+      "status": 404,
+      "success": false,
+      "errorCodes": [10007],
+      "pagination": null,
+      "result": null
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-cpsat-transport-shim-dev/subdomain",
+      "status": 404,
+      "success": false,
+      "errorCodes": [10007],
+      "pagination": null,
+      "result": null
+    },
+    {
+      "path": "accounts/305d89a643ac689b4204454c5493cbde/workers/scripts/yude-men-cpsat-transport-shim-dev/deployments",
+      "status": 404,
+      "success": false,
+      "errorCodes": [10007],
+      "pagination": null,
+      "result": null
+    }
+  ],
+  "admin": [
+    {
+      "path": "/admin/chains",
+      "status": 200,
+      "validList": true,
+      "candidate": "cpsat-transport-20260909",
+      "matches": 0
+    },
+    {
+      "path": "/admin/stores/cpsat-transport-20260909-01",
+      "status": 404
+    },
+    {
+      "path": "/admin/stores/cpsat-transport-20260909-02",
+      "status": 404
+    },
+    {
+      "path": "/admin/stores/cpsat-transport-20260909-03",
+      "status": 404
+    },
+    {
+      "path": "/admin/stores/cpsat-transport-20260909-04",
+      "status": 404
+    }
+  ]
+}

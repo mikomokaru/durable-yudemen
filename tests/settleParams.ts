@@ -20,5 +20,12 @@ export function settleParams(
   unitCount: number = DEFAULT_UNIT_COUNT,
 ): SettleParams {
   // arms は同期と採点で一つの実体。テストが主張する sync 側の値を後ろに置いて勝たせる。
-  return { ...schedulingDefaults(unitCount), ...sync, noodlePresets: DEFAULT_NOODLE_PRESETS };
+  // 既定は TS。**CP-SAT の合成・採否を主張する試験だけが明示的に上書きする**——既定を暗黙に
+  // 切り替えると、どちらの規則で通ったのか試験から読めなくなる。
+  return {
+    ...schedulingDefaults(unitCount),
+    ...sync,
+    noodlePresets: DEFAULT_NOODLE_PRESETS,
+    planner: "ts",
+  };
 }

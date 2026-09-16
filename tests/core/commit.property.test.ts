@@ -86,7 +86,8 @@ interface CommitScene {
   readonly running: readonly Timer[];
   readonly now: EpochMillis;
   readonly slotCount: number;
-  readonly params: ScheduleParams;
+  /** 採点パラメータ ＋ 計画器。**この性質試験は TS 側（尾部を埋める側）を主張する。** */
+  readonly params: ScheduleParams & { readonly planner: "ts" | "cpsat" };
   /** 陳腐化させた一片の index。accepted.length なら陳腐化させていない。 */
   readonly staleAt: number;
 }
@@ -97,7 +98,7 @@ const genCommitScene: fc.Arbitrary<CommitScene> = fc
     const slotCount = unitCount * SLOTS_PER_UNIT;
     return fc.record({
       slotCount: fc.constant(slotCount),
-      params: genParams(unitCount),
+      params: genParams(unitCount).map((value) => ({ ...value, planner: "ts" as const })),
       // 採用済み計画を組むときのパラメータ。現在のものと違ってよい（外部計画の見立て）。
       plannedParams: genParams(unitCount),
       running: fc.array(genRunning(slotCount), { maxLength: 4 }),

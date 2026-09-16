@@ -364,7 +364,7 @@ describe("Feature: lift-group-display — 群に入らない推奨・group だ�
     ).toEqual(["long"]);
   });
 
-  it("卓なしの品目は engine が 1 品 1 群に置く——同じ serveAt でも group が違えば束ならず、錨が無いので 1 本ずつ現れる", () => {
+  it("**卓なしの品目は engine が 1 品 1 群に置くが、同じ serveAt なら両方見える**（ADR-0017）", () => {
     const a = order({ externalOrderId: "a", tableId: null });
     const b = order({ externalOrderId: "b", tableId: null });
     const current = view({
@@ -374,8 +374,12 @@ describe("Feature: lift-group-display — 群に入らない推奨・group だ�
     const groups = liftGroups(current, T0);
     expect(groups).toHaveLength(2);
     expect(groups.every((group) => group.anchor === null && !group.started)).toBe(true);
-    // 先頭の群だけが見える（合流していない群は started を持たないので 1 本ずつ現れる）。
-    expect(visibleGroups(groups)).toHaveLength(1);
+    // **両方見える。** 群は別でも開始時刻が同じなら互いを待たない——連鎖が隠したいのは
+    // 「次の群」（時間的に後の群）であって、同時に始められる群ではない（ADR-0017）。
+    // **改訂前はここが 1 だった。** 合流していない群は `started` を持たないので、
+    // 先頭が始まるまで後続が永久に隠れていた——CP-SAT は `anchor` を常に null で出すため、
+    // その計画では連鎖が最初の群で止まり続けた（2026-09-15 の現場観察）。
+    expect(visibleGroups(groups)).toHaveLength(2);
   });
 
   it("群の鍵は group だけ——同じ卓・同じ serveAt でも group が違えば別の群、serveAt が違っても group が同じなら一つの群", () => {

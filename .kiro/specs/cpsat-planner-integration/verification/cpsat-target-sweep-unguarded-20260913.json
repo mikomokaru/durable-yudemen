@@ -1,0 +1,1371 @@
+{
+  "measuredAt": "2026-09-13T04:00:03.750Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "seed": "cpsat-plan-quality-20260913",
+  "windowMinutes": 60,
+  "perFile": 1,
+  "maxScenes": 10,
+  "limits": [16, 20, 24, 28, 32, 40, 48, 64],
+  "unguarded": true,
+  "corpus": {
+    "files": 20,
+    "rows": 1919,
+    "stores": 10,
+    "menuItemConflicts": []
+  },
+  "sceneCount": 10,
+  "rows": [
+    {
+      "ordinal": 0,
+      "file": "239_20260908_2115_2315.jsonl",
+      "storeId": "239",
+      "cutAt": "2026-09-08T14:12:16.000Z",
+      "recordCount": 56,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3146744574,
+      "ok": true,
+      "now": 1789272003893,
+      "liveCount": 64,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 443992,
+        "businessCost": 443992,
+        "changeCost": 0,
+        "waitTime": 234443,
+        "tableLag": 174540,
+        "orderSync": 1620,
+        "affinity": 31814,
+        "liftOverflow": 1575,
+        "placements": 64,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 738,
+          "status": "FEASIBLE",
+          "variables": 3599,
+          "memoryBytes": 33554432,
+          "reportedObjective": 692686,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 443992,
+            "businessCost": 443992,
+            "changeCost": 0,
+            "waitTime": 234443,
+            "tableLag": 174540,
+            "orderSync": 1620,
+            "affinity": 31814,
+            "liftOverflow": 1575,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 812,
+          "status": "FEASIBLE",
+          "variables": 5402,
+          "memoryBytes": 33554432,
+          "reportedObjective": 875800,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 443992,
+            "businessCost": 443992,
+            "changeCost": 0,
+            "waitTime": 234443,
+            "tableLag": 174540,
+            "orderSync": 1620,
+            "affinity": 31814,
+            "liftOverflow": 1575,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution",
+          "solveMs": 1088
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 31
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 37
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 47
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 64
+        },
+        {
+          "limit": 64,
+          "targets": 64,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 108
+        }
+      ]
+    },
+    {
+      "ordinal": 1,
+      "file": "247_20260906_1300_1500.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-06T05:29:45.000Z",
+      "recordCount": 64,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 13013337,
+      "ok": true,
+      "now": 1789272006940,
+      "liveCount": 64,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 441847,
+        "businessCost": 441847,
+        "changeCost": 0,
+        "waitTime": 227408,
+        "tableLag": 180690,
+        "orderSync": 450,
+        "affinity": 31724,
+        "liftOverflow": 1575,
+        "placements": 64,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 592,
+          "status": "FEASIBLE",
+          "variables": 3709,
+          "memoryBytes": 40304640,
+          "reportedObjective": 680276,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 441847,
+            "businessCost": 441847,
+            "changeCost": 0,
+            "waitTime": 227408,
+            "tableLag": 180690,
+            "orderSync": 450,
+            "affinity": 31724,
+            "liftOverflow": 1575,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 897,
+          "status": "FEASIBLE",
+          "variables": 5704,
+          "memoryBytes": 40304640,
+          "reportedObjective": 858766,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 441847,
+            "businessCost": 441847,
+            "changeCost": 0,
+            "waitTime": 227408,
+            "tableLag": 180690,
+            "orderSync": 450,
+            "affinity": 31724,
+            "liftOverflow": 1575,
+            "placements": 64,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution",
+          "solveMs": 1191
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 27
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 38
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 45
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 61
+        },
+        {
+          "limit": 64,
+          "targets": 64,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 129
+        }
+      ]
+    },
+    {
+      "ordinal": 2,
+      "file": "247_20260908_1330_1530.jsonl",
+      "storeId": "247",
+      "cutAt": "2026-09-08T06:27:47.000Z",
+      "recordCount": 49,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3612120062,
+      "ok": true,
+      "now": 1789272010039,
+      "liveCount": 41,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 203588,
+        "businessCost": 203588,
+        "changeCost": 0,
+        "waitTime": 133507,
+        "tableLag": 55410,
+        "orderSync": 135,
+        "affinity": 13456,
+        "liftOverflow": 1080,
+        "placements": 41,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 623,
+          "status": "FEASIBLE",
+          "variables": 3989,
+          "memoryBytes": 40304640,
+          "reportedObjective": 669294,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 203588,
+            "businessCost": 203588,
+            "changeCost": 0,
+            "waitTime": 133507,
+            "tableLag": 55410,
+            "orderSync": 135,
+            "affinity": 13456,
+            "liftOverflow": 1080,
+            "placements": 41,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 879,
+          "status": "FEASIBLE",
+          "variables": 5867,
+          "memoryBytes": 40304640,
+          "reportedObjective": 863782,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 203588,
+            "businessCost": 203588,
+            "changeCost": 0,
+            "waitTime": 133507,
+            "tableLag": 55410,
+            "orderSync": 135,
+            "affinity": 13456,
+            "liftOverflow": 1080,
+            "placements": 41,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 22
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 30
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 31
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 44
+        },
+        {
+          "limit": 48,
+          "targets": 41,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 46
+        },
+        {
+          "limit": 64,
+          "targets": 41,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 54
+        }
+      ]
+    },
+    {
+      "ordinal": 3,
+      "file": "284_20260907_1215_1415.jsonl",
+      "storeId": "284",
+      "cutAt": "2026-09-07T04:21:41.000Z",
+      "recordCount": 37,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3721988819,
+      "ok": true,
+      "now": 1789272011812,
+      "liveCount": 54,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 320208,
+        "businessCost": 320208,
+        "changeCost": 0,
+        "waitTime": 169886,
+        "tableLag": 123630,
+        "orderSync": 3150,
+        "affinity": 22282,
+        "liftOverflow": 1260,
+        "placements": 54,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 513,
+          "status": "FEASIBLE",
+          "variables": 3590,
+          "memoryBytes": 40304640,
+          "reportedObjective": 701030,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 320208,
+            "businessCost": 320208,
+            "changeCost": 0,
+            "waitTime": 169886,
+            "tableLag": 123630,
+            "orderSync": 3150,
+            "affinity": 22282,
+            "liftOverflow": 1260,
+            "placements": 54,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 755,
+          "status": "FEASIBLE",
+          "variables": 5268,
+          "memoryBytes": 40304640,
+          "reportedObjective": 879450,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 320208,
+            "businessCost": 320208,
+            "changeCost": 0,
+            "waitTime": 169886,
+            "tableLag": 123630,
+            "orderSync": 3150,
+            "affinity": 22282,
+            "liftOverflow": 1260,
+            "placements": 54,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1075,
+          "status": "FEASIBLE",
+          "variables": 7436,
+          "memoryBytes": 40304640,
+          "reportedObjective": 1077838,
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 320208,
+            "businessCost": 320208,
+            "changeCost": 0,
+            "waitTime": 169886,
+            "tableLag": 123630,
+            "orderSync": 3150,
+            "affinity": 22282,
+            "liftOverflow": 1260,
+            "placements": 54,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 26
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 37
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 42
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 60
+        },
+        {
+          "limit": 64,
+          "targets": 54,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 75
+        }
+      ]
+    },
+    {
+      "ordinal": 4,
+      "file": "336_20260906_1815_2015.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-06T10:49:52.000Z",
+      "recordCount": 42,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3711794980,
+      "ok": true,
+      "now": 1789272014476,
+      "liveCount": 52,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 327671,
+        "businessCost": 327671,
+        "changeCost": 0,
+        "waitTime": 170412,
+        "tableLag": 132390,
+        "orderSync": 2520,
+        "affinity": 21044,
+        "liftOverflow": 1305,
+        "placements": 52,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 651,
+          "status": "FEASIBLE",
+          "variables": 4519,
+          "memoryBytes": 40304640,
+          "reportedObjective": 711260,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 327671,
+            "businessCost": 327671,
+            "changeCost": 0,
+            "waitTime": 170412,
+            "tableLag": 132390,
+            "orderSync": 2520,
+            "affinity": 21044,
+            "liftOverflow": 1305,
+            "placements": 52,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 883,
+          "status": "FEASIBLE",
+          "variables": 6326,
+          "memoryBytes": 40304640,
+          "reportedObjective": 901340,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 327671,
+            "businessCost": 327671,
+            "changeCost": 0,
+            "waitTime": 170412,
+            "tableLag": 132390,
+            "orderSync": 2520,
+            "affinity": 21044,
+            "liftOverflow": 1305,
+            "placements": 52,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 28
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 29
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 32
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 47
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 68
+        },
+        {
+          "limit": 64,
+          "targets": 52,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 73
+        }
+      ]
+    },
+    {
+      "ordinal": 5,
+      "file": "336_20260908_2145_2345.jsonl",
+      "storeId": "336",
+      "cutAt": "2026-09-08T14:05:00.000Z",
+      "recordCount": 47,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 474203434,
+      "ok": true,
+      "now": 1789272016359,
+      "liveCount": 43,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 244895,
+        "businessCost": 244895,
+        "changeCost": 0,
+        "waitTime": 137164,
+        "tableLag": 89100,
+        "orderSync": 2790,
+        "affinity": 14716,
+        "liftOverflow": 1125,
+        "placements": 43,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 628,
+          "status": "FEASIBLE",
+          "variables": 4469,
+          "memoryBytes": 40304640,
+          "reportedObjective": 704776,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 244895,
+            "businessCost": 244895,
+            "changeCost": 0,
+            "waitTime": 137164,
+            "tableLag": 89100,
+            "orderSync": 2790,
+            "affinity": 14716,
+            "liftOverflow": 1125,
+            "placements": 43,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 831,
+          "status": "FEASIBLE",
+          "variables": 6244,
+          "memoryBytes": 40304640,
+          "reportedObjective": 888376,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 244895,
+            "businessCost": 244895,
+            "changeCost": 0,
+            "waitTime": 137164,
+            "tableLag": 89100,
+            "orderSync": 2790,
+            "affinity": 14716,
+            "liftOverflow": 1125,
+            "placements": 43,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 22
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 29
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 30
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 45
+        },
+        {
+          "limit": 48,
+          "targets": 43,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 53
+        },
+        {
+          "limit": 64,
+          "targets": 43,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 65
+        }
+      ]
+    },
+    {
+      "ordinal": 6,
+      "file": "342_20260905_1145_1345.jsonl",
+      "storeId": "342",
+      "cutAt": "2026-09-05T04:44:57.000Z",
+      "recordCount": 47,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 875082745,
+      "ok": true,
+      "now": 1789272018106,
+      "liveCount": 55,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 366054,
+        "businessCost": 366054,
+        "changeCost": 0,
+        "waitTime": 180403,
+        "tableLag": 157110,
+        "orderSync": 4365,
+        "affinity": 22736,
+        "liftOverflow": 1440,
+        "placements": 55,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 590,
+          "status": "FEASIBLE",
+          "variables": 4039,
+          "memoryBytes": 40304640,
+          "reportedObjective": 668998,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 366054,
+            "businessCost": 366054,
+            "changeCost": 0,
+            "waitTime": 180403,
+            "tableLag": 157110,
+            "orderSync": 4365,
+            "affinity": 22736,
+            "liftOverflow": 1440,
+            "placements": 55,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 807,
+          "status": "FEASIBLE",
+          "variables": 5926,
+          "memoryBytes": 40304640,
+          "reportedObjective": 862216,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 366054,
+            "businessCost": 366054,
+            "changeCost": 0,
+            "waitTime": 180403,
+            "tableLag": 157110,
+            "orderSync": 4365,
+            "affinity": 22736,
+            "liftOverflow": 1440,
+            "placements": 55,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1083,
+          "status": "FEASIBLE",
+          "variables": 7974,
+          "memoryBytes": 48365568,
+          "reportedObjective": 1042994,
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 366054,
+            "businessCost": 366054,
+            "changeCost": 0,
+            "waitTime": 180403,
+            "tableLag": 157110,
+            "orderSync": 4365,
+            "affinity": 22736,
+            "liftOverflow": 1440,
+            "placements": 55,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 27
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 38
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 43
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 64
+        },
+        {
+          "limit": 64,
+          "targets": 55,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 95
+        }
+      ]
+    },
+    {
+      "ordinal": 7,
+      "file": "362_20260905_2100_2300.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-05T13:54:26.000Z",
+      "recordCount": 46,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 592886525,
+      "ok": true,
+      "now": 1789272020946,
+      "liveCount": 53,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 338652,
+        "businessCost": 338652,
+        "changeCost": 0,
+        "waitTime": 168216,
+        "tableLag": 144540,
+        "orderSync": 2340,
+        "affinity": 22116,
+        "liftOverflow": 1440,
+        "placements": 53,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 581,
+          "status": "FEASIBLE",
+          "variables": 4159,
+          "memoryBytes": 48365568,
+          "reportedObjective": 720058,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 338652,
+            "businessCost": 338652,
+            "changeCost": 0,
+            "waitTime": 168216,
+            "tableLag": 144540,
+            "orderSync": 2340,
+            "affinity": 22116,
+            "liftOverflow": 1440,
+            "placements": 53,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 846,
+          "status": "FEASIBLE",
+          "variables": 5903,
+          "memoryBytes": 48365568,
+          "reportedObjective": 921462,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 338652,
+            "businessCost": 338652,
+            "changeCost": 0,
+            "waitTime": 168216,
+            "tableLag": 144540,
+            "orderSync": 2340,
+            "affinity": 22116,
+            "liftOverflow": 1440,
+            "placements": 53,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 24
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 31
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 30
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 48
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 67
+        },
+        {
+          "limit": 64,
+          "targets": 53,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 78
+        }
+      ]
+    },
+    {
+      "ordinal": 8,
+      "file": "362_20260907_1115_1315.jsonl",
+      "storeId": "362",
+      "cutAt": "2026-09-07T03:21:38.000Z",
+      "recordCount": 53,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 2,
+      "digest": 3719170155,
+      "ok": true,
+      "now": 1789272022717,
+      "liveCount": 57,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 375720,
+        "businessCost": 375720,
+        "changeCost": 0,
+        "waitTime": 192726,
+        "tableLag": 156690,
+        "orderSync": 180,
+        "affinity": 24774,
+        "liftOverflow": 1350,
+        "placements": 57,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 537,
+          "status": "FEASIBLE",
+          "variables": 3707,
+          "memoryBytes": 48365568,
+          "reportedObjective": 719654,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 375720,
+            "businessCost": 375720,
+            "changeCost": 0,
+            "waitTime": 192726,
+            "tableLag": 156690,
+            "orderSync": 180,
+            "affinity": 24774,
+            "liftOverflow": 1350,
+            "placements": 57,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": true,
+          "failure": null,
+          "solveMs": 762,
+          "status": "FEASIBLE",
+          "variables": 5373,
+          "memoryBytes": 48365568,
+          "reportedObjective": 915208,
+          "placements": 20,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 375720,
+            "businessCost": 375720,
+            "changeCost": 0,
+            "waitTime": 192726,
+            "tableLag": 156690,
+            "orderSync": 180,
+            "affinity": 24774,
+            "liftOverflow": 1350,
+            "placements": 57,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": true,
+          "failure": null,
+          "solveMs": 1037,
+          "status": "FEASIBLE",
+          "variables": 7352,
+          "memoryBytes": 48365568,
+          "reportedObjective": 1113758,
+          "placements": 24,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 375720,
+            "businessCost": 375720,
+            "changeCost": 0,
+            "waitTime": 192726,
+            "tableLag": 156690,
+            "orderSync": 180,
+            "affinity": 24774,
+            "liftOverflow": 1350,
+            "placements": 57,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 24
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 33
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 41
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 63
+        },
+        {
+          "limit": 64,
+          "targets": 57,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 100
+        }
+      ]
+    },
+    {
+      "ordinal": 9,
+      "file": "364_20260906_1830_2030.jsonl",
+      "storeId": "364",
+      "cutAt": "2026-09-06T10:53:00.000Z",
+      "recordCount": 57,
+      "outcome": {
+        "kind": "settled",
+        "counts": {
+          "doDedupeSkipped": 0,
+          "unknownNoodleType": 0
+        }
+      },
+      "planRequested": true,
+      "unitCount": 3,
+      "digest": 634399512,
+      "ok": true,
+      "now": 1789272025400,
+      "liveCount": 63,
+      "runningCount": 0,
+      "tsWhole": {
+        "total": 402284,
+        "businessCost": 402284,
+        "changeCost": 0,
+        "waitTime": 196146,
+        "tableLag": 146220,
+        "orderSync": 900,
+        "affinity": 57398,
+        "liftOverflow": 1620,
+        "placements": 63,
+        "slices": 1
+      },
+      "results": [
+        {
+          "limit": 16,
+          "targets": 16,
+          "ok": true,
+          "failure": null,
+          "solveMs": 633,
+          "status": "FEASIBLE",
+          "variables": 4611,
+          "memoryBytes": 48365568,
+          "reportedObjective": 712846,
+          "placements": 16,
+          "slices": 1,
+          "acceptedSlices": 0,
+          "staleSlices": 1,
+          "composed": {
+            "total": 402284,
+            "businessCost": 402284,
+            "changeCost": 0,
+            "waitTime": 196146,
+            "tableLag": 146220,
+            "orderSync": 900,
+            "affinity": 57398,
+            "liftOverflow": 1620,
+            "placements": 63,
+            "slices": 1
+          }
+        },
+        {
+          "limit": 20,
+          "targets": 20,
+          "ok": false,
+          "failure": "Error: Invalid CP-SAT solution",
+          "solveMs": 921
+        },
+        {
+          "limit": 24,
+          "targets": 24,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 21
+        },
+        {
+          "limit": 28,
+          "targets": 28,
+          "ok": false,
+          "failure": "Error: CP-SAT error: {\"error\":\"invalid or oversized model proto\"}",
+          "solveMs": 30
+        },
+        {
+          "limit": 32,
+          "targets": 32,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 31
+        },
+        {
+          "limit": 40,
+          "targets": 40,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 49
+        },
+        {
+          "limit": 48,
+          "targets": 48,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 67
+        },
+        {
+          "limit": 64,
+          "targets": 63,
+          "ok": false,
+          "failure": "Error: CP-SAT model exceeds 1 MiB",
+          "solveMs": 113
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

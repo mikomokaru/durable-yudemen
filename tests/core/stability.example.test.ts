@@ -327,14 +327,18 @@ describe("Feature: plan-stability — changeCost は旧 Shown_Plan からの変�
     const apart: ShownPlan = [shownItem("a", ["0"], 100), shownItem("b", ["1"], 100)];
     expect(changeCost(together, contextOf(apart, 0), PARAMS)).toBe(0);
 
-    // 時刻が来ている 2 品目を割れば、後ろの群は先頭の群が始まるまで隠れる（連鎖の規則）ので、分割 L に
-    // 加えて B の先頭消失 2L が付く。まとまりを割ることは、現場から見れば次に押せる品目が減ることでもある。
+    // 時刻が来ている 2 品目を割っても、**同じ開始時刻の群は互いを待たない**（ADR-0017）ので B は
+    // Head に残り、先頭消失（2L）は付かない。付くのは分割の L だけである。
+    //
+    // **改訂前はここが L + 2L だった。** 連鎖が同時刻の群まで隠していたため、割ると「次に押せる品目が
+    // 減る」という帰結が生まれていた。麺の投入に腕の本数は効かない——腕を意識するのは**上げる**とき
+    // であって、同時に始められる群を隠す理由にならない（2026-09-15 のユーザー判断）。
     const heads: ShownPlan = [
       shownItem("a", ["0"], 0, { mates: ["b"] }),
       shownItem("b", ["1"], 0, { mates: ["a"] }),
     ];
     const splitNow = planOf([next("a", ["0"], 0)], [next("b", ["1"], 0)]);
-    expect(changeCost(splitNow, contextOf(heads, 0), { ...PARAMS, arms: 2 })).toBe(L + 2 * L);
+    expect(changeCost(splitNow, contextOf(heads, 0), { ...PARAMS, arms: 2 })).toBe(L);
   });
 
   it("(c-2) 順の逆転：別の群でも、対応する 2 品目の startAt の順が入れ替われば L（h_i の内側の移動でも）", () => {

@@ -1,0 +1,97 @@
+{
+  "measuredAt": "2026-09-12T12:56:52.947Z",
+  "environment": "local-workerd",
+  "cloudEvidence": false,
+  "what": "実モデル（formulate → protobuf → CP-SAT → 検証 → CookSchedule）をローカルで初めて通す",
+  "bundleIncludes": [
+    "experiments/cpsat-workers/tuning/assert.ts",
+    "experiments/cpsat-workers/tuning/defaults.json",
+    "experiments/cpsat-workers/tuning/schedule.ts",
+    "src/cpsat/plan.ts",
+    "src/cpsat/protobuf.ts",
+    "src/cpsat/request.ts",
+    "src/cpsat/validate.ts"
+  ],
+  "cases": [
+    {
+      "pending": 1,
+      "wallMs": 131,
+      "ok": true,
+      "status": "OPTIMAL",
+      "variables": 98,
+      "memoryBytes": 33554432,
+      "slices": 1,
+      "placements": 1,
+      "error": null,
+      "stack": null,
+      "firstPlacement": {
+        "externalOrderId": "POS-0000",
+        "itemIndex": 0,
+        "slotIds": ["17"],
+        "startAt": 1700000030000,
+        "serveAt": 1700000090000,
+        "anchor": null
+      }
+    },
+    {
+      "pending": 2,
+      "wallMs": 46,
+      "ok": true,
+      "status": "OPTIMAL",
+      "variables": 214,
+      "memoryBytes": 33554432,
+      "slices": 2,
+      "placements": 2,
+      "error": null,
+      "stack": null,
+      "firstPlacement": {
+        "externalOrderId": "POS-0000",
+        "itemIndex": 0,
+        "slotIds": ["13"],
+        "startAt": 1700000060000,
+        "serveAt": 1700000120000,
+        "anchor": null
+      }
+    },
+    {
+      "pending": 3,
+      "wallMs": 46,
+      "ok": true,
+      "status": "OPTIMAL",
+      "variables": 349,
+      "memoryBytes": 33554432,
+      "slices": 2,
+      "placements": 3,
+      "error": null,
+      "stack": null,
+      "firstPlacement": {
+        "externalOrderId": "POS-0000",
+        "itemIndex": 0,
+        "slotIds": ["4"],
+        "startAt": 1700000090000,
+        "serveAt": 1700000150000,
+        "anchor": null
+      }
+    },
+    {
+      "pending": 6,
+      "wallMs": 228,
+      "ok": true,
+      "status": "FEASIBLE",
+      "variables": 868,
+      "memoryBytes": 33554432,
+      "slices": 2,
+      "placements": 6,
+      "error": null,
+      "stack": null,
+      "firstPlacement": {
+        "externalOrderId": "POS-0000",
+        "itemIndex": 0,
+        "slotIds": ["0"],
+        "startAt": 1700000180000,
+        "serveAt": 1700000240000,
+        "anchor": null
+      }
+    }
+  ]
+}

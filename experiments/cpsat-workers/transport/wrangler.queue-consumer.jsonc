@@ -1,0 +1,63 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  // Queue consumer。求解はこの Worker の invocation そのもので走る。
+  //
+  // 所有の分け方は `wrangler.raw-arrival-consumer.jsonc` に倣う——consumer 設定と
+  // 再配送方針の正本はこのファイルにあり、producer 側の設定には置かない。これにより
+  // 「producer から求解 Worker へ直接到達できない」ことを設定構造が示す。
+  //
+  // 配備は `wrangler deploy --config experiments/cpsat-workers/transport/wrangler.queue-consumer.jsonc`。
+  "name": "yude-men-cpsat-planner-dev",
+  "account_id": "305d89a643ac689b4204454c5493cbde",
+  "main": "./solver.ts",
+  "compatibility_date": "2026-09-09",
+  "compatibility_flags": ["no_nodejs_compat", "no_nodejs_compat_v2"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  // 求解は CPU 支配なので、効く分母はこちらである。wall clock の 15 分は設定できず、
+  // callback 待ちを含む別の上界として観測側で記録する（design 第9節 9.2・tasks 2.4）。
+  "limits": { "cpu_ms": 10000 },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STORE_TIMER_DO",
+        "class_name": "StoreTimerDO",
+        "script_name": "yude-men-timer",
+      },
+    ],
+  },
+  "queues": {
+    "consumers": [
+      {
+        "queue": "cpsat-plan-requests",
+        // 1 invocation 1 求解にする。区間の測定（tasks 2.4）が invocation の境界と
+        // 一致し、handler の throw が巻き込む範囲も 1 件に閉じる。
+        "max_batch_size": 1,
+        // 束ねて待たない（R5.10）。厨房が要するのは 1 件ずつ速く解くことである。
+        "max_batch_timeout": 0,
+        // **`max_concurrency` は置かない（無制限）。** 2026-09-12 の判断。
+        //
+        // これは queue 全体の同時実行数であって店舗ごとではない。1 にすると全店舗の要求が
+        // 1 件ずつしか解けず、処理能力の上限が 27〜120 件/分（求解 0.5〜2.2 秒）になる。
+        // 観測された計画要求は約 50 件/分で、現在の負荷と同程度かそれ以下である。詰まれば
+        // 遅れて解かれた解を新着ゲートが古いものとして棄却するので、**遅くなるのではなく
+        // 計画が更新されなくなる**。
+        //
+        // 1 に置いていたのは「単一 WASM instance だから」という理由づけだったが、これは
+        // 混同である。`busy` は isolate ごとのモジュール変数で、守るのは「1 つの isolate で
+        // 2 つ同時に解かない」ことであり、queue 全体を直列化する理由にならない。実測でも
+        // 求解は複数の isolate に分かれている（難問 20 件を 9 isolate）。
+        // 試験中の上限。再配送を尽くしても解けない要求は DLQ へ置き、
+        // producer へ差し戻す経路は作らない。
+        "max_retries": 3,
+        "dead_letter_queue": "cpsat-plan-requests-dlq",
+      },
+    ],
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": true, "persist": true },
+  },
+}

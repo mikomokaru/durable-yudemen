@@ -69,8 +69,18 @@ export const ARMS_MAX = 10;
 /** 腕の本数（arms）の既定。env シード不在・不正のフォールバックに用いる。 */
 export const DEFAULT_ARMS = 2;
 
-/** 許容調整割合（toleranceRatio）の下限（整数パーセント）。 */
-export const TOLERANCE_RATIO_MIN = 1;
+/**
+ * 許容調整割合（toleranceRatio）の下限（整数パーセント）。
+ *
+ * **0 は調整機構そのものを止める**（重みの下限と同じ扱い——`WEIGHT_MIN` を見よ）。
+ * 茹で時間の調整幅も合流の窓 h_i（茹で時間 × 割合 / 100）もゼロになるので、
+ * 上がり時刻は麺のプリセットのとおりになり、群は上がり時刻が完全一致するときだけ成る。
+ *
+ * 2026-09-15 に 1 から 0 へ下げた——調整が入ると**画面の状態と計画の対応が読み取りにくい**
+ * というユーザー判断による。CP-SAT のモデルは以前から `tolerancePercent: 0` で解いているので、
+ * 0 にすると計画器と現場の前提が揃う。
+ */
+export const TOLERANCE_RATIO_MIN = 0;
 
 /** 許容調整割合（toleranceRatio）の上限（整数パーセント）。 */
 export const TOLERANCE_RATIO_MAX = 50;

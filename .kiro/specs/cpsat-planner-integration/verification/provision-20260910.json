@@ -1,0 +1,55 @@
+{
+  "checkedAt": "2026-09-10T11:56:48.463Z",
+  "base": "https://timer-dev.yamaokaya.org",
+  "chain": "cpsat-transport-20260909",
+  "created": true,
+  "checks": [
+    {
+      "id": "cpsat-transport-20260909",
+      "status": 404,
+      "free": true
+    },
+    {
+      "id": "cpsat-transport-20260909-01",
+      "status": 404,
+      "free": true
+    },
+    {
+      "id": "cpsat-transport-20260909-02",
+      "status": 404,
+      "free": true
+    },
+    {
+      "id": "cpsat-transport-20260909-03",
+      "status": 404,
+      "free": true
+    },
+    {
+      "id": "cpsat-transport-20260909-04",
+      "status": 404,
+      "free": true
+    }
+  ],
+  "writes": [
+    {
+      "id": "cpsat-transport-20260909",
+      "status": 200
+    },
+    {
+      "id": "cpsat-transport-20260909-01",
+      "status": 201
+    },
+    {
+      "id": "cpsat-transport-20260909-02",
+      "status": 201
+    },
+    {
+      "id": "cpsat-transport-20260909-03",
+      "status": 201
+    },
+    {
+      "id": "cpsat-transport-20260909-04",
+      "status": 201
+    }
+  ]
+}

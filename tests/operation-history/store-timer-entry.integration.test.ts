@@ -75,6 +75,32 @@ afterEach(async () => {
   await reset();
 });
 
+/**
+ * console へ出た行のうち**操作履歴の行だけ**を取り出す。
+ *
+ * 同じ console を遅延ログ（`recordType`）も通るようになったので（2026-09-16）、呼び出し回数
+ * そのものでは操作履歴の契約を語れない。名乗りで絞ってから数える。
+ */
+function isOperationPayload(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).operationKind === "string"
+  );
+}
+
+/**
+ * 操作履歴の payload だけを取る。
+ *
+ * 同じ console を遅延ログも通る。Producer が渡すのは**オブジェクト**なので（2026-09-16）、
+ * 名乗りは場の有無と型で見る——本番の Tail と同じ判定である。
+ */
+function operationRecordsOf(log: {
+  readonly mock: { readonly calls: readonly (readonly unknown[])[] };
+}): Record<string, unknown>[] {
+  return log.mock.calls.flatMap(([payload]) => (isOperationPayload(payload) ? [payload] : []));
+}
+
 describe("StoreTimerDO Operation History 入口", () => {
   it("WebSocket Persist と Alarm Persist の通常完了後だけ同じ now で出力する", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -86,9 +112,7 @@ describe("StoreTimerDO Operation History 入口", () => {
       clock.mockReturnValue(EVENT_TIME + 2_000);
       await instance.alarm();
     });
-    const records = log.mock.calls.map(
-      ([line]) => JSON.parse(line as string) as Record<string, unknown>,
-    );
+    const records = operationRecordsOf(log);
     expect(
       records.map(({ storeId: id, operationKind, eventTime }) => [id, operationKind, eventTime]),
     ).toEqual([
@@ -107,7 +131,7 @@ describe("StoreTimerDO Operation History 入口", () => {
       await instance.webSocketMessage(ws, "not-json");
       await instance.alarm();
     });
-    expect(log).not.toHaveBeenCalled();
+    expect(operationRecordsOf(log)).toEqual([]);
   });
 
   it("fresh constructor の Reconcile だけが独自 now で boiled を出力し、後続 message は別 now を使う", async () => {
@@ -130,9 +154,7 @@ describe("StoreTimerDO Operation History 入口", () => {
       await startTimer(instance, "2", 60);
     });
 
-    const records = log.mock.calls.map(
-      ([line]) => JSON.parse(line as string) as Record<string, unknown>,
-    );
+    const records = operationRecordsOf(log);
     expect(
       records.map(({ storeId: id, operationKind, eventTime }) => [id, operationKind, eventTime]),
     ).toEqual([
@@ -178,7 +200,7 @@ describe("StoreTimerDO Operation History 入口", () => {
     );
 
     expect(reconciled?.timers.some((timer) => timer.adjustment !== 0)).toBe(true);
-    expect(log).not.toHaveBeenCalled();
+    expect(operationRecordsOf(log)).toEqual([]);
   });
 
   it("constructor と同じ Reconcile 境界で Persist が失敗すると確定せず出力しない", async () => {
@@ -224,7 +246,7 @@ describe("StoreTimerDO Operation History 入口", () => {
       state.storage.get<StoreSnapshot>(SNAPSHOT_KEY),
     );
     expect(persisted?.timers[0]?.boiledAt).toBeNull();
-    expect(log).not.toHaveBeenCalled();
+    expect(operationRecordsOf(log)).toEqual([]);
   });
 });
 
@@ -253,14 +275,11 @@ describe("StoreTimerDO Operation History 複数 Reconcile", () => {
       await startTimer(instance, "3", 60);
     });
 
-    const records = log.mock.calls.map(
-      ([line]) =>
-        JSON.parse(line as string) as {
-          readonly timerId: string;
-          readonly operationKind: string;
-          readonly eventTime: number;
-        },
-    );
+    const records = operationRecordsOf(log) as unknown as {
+      readonly timerId: string;
+      readonly operationKind: string;
+      readonly eventTime: number;
+    }[];
     const reconciled = records.filter(({ operationKind }) => operationKind === "boiled");
     expect(reconciled).toHaveLength(2);
     expect(reconciled.map(({ timerId }) => timerId)).toEqual(expectedTimerIds);
@@ -272,6 +291,7 @@ describe("StoreTimerDO Operation History 複数 Reconcile", () => {
       operationKind: "boil-started",
       eventTime: EVENT_TIME + 3_000,
     });
-    expect(log).toHaveBeenCalledTimes(3);
+    // 行数は操作履歴の分だけを数える。遅延ログも同じ console を通る（2026-09-16）。
+    expect(operationRecordsOf(log)).toHaveLength(3);
   });
 });

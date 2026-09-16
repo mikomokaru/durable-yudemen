@@ -1,0 +1,70 @@
+{
+  // 札の Worker（item-display-abbreviation）。リポジトリ内の 3 つ目の Worker で、root（Timer 本体）と
+  // solver に並ぶ端である。担うのは 3 つだけ——初出の検出、Workers AI での生成、辞書（KV）の読み書きと配信。
+  //
+  // **なぜ分けるのか。** root に `ai` / `kv_namespaces` を書くと、`StoreTimerDO` が root の生成 Env を
+  // そのまま受ける（`class StoreTimerDO extends DurableObject<Env>`）ため、**DO の env にも AI と KV が
+  // 現れる**。Workers に per-DO の binding スコープは無いので、能力を分けるには Worker を分けるしかない。
+  // Operation History が「root は KV/R2/D1 を持たない」を静的検査で守っているのも同じ構造の話である
+  // （要件 1.9 / 4.10 / 4.13）。
+  //
+  // **保証の範囲を正確に言う。** ここで閉じるのは「DO が **AI・KV の直接 binding** を持たない」ことである。
+  // root の `SHORT_NAMES_WORKER`（service binding）は DO からも見えるので、「札の機能へ一切到達できない」
+  // ことは保証していない。そちらは `store-timer-do.ts` が参照しないという静的検査で見る（SOLVER と同じ扱い）。
+  //
+  // デプロイは `wrangler deploy --config wrangler.short-names.jsonc`。**root より先に出す**——root の
+  // service binding が指す service が実在しないと root の deploy が失敗する。
+  "name": "yude-men-short-names",
+  "main": "src/display/worker.ts",
+  // root・solver と同一の日付に揃える（tooling.md の確定値）。Worker ごとに既定の挙動が食い違わないようにする。
+  "compatibility_date": "2026-06-26",
+  "observability": {
+    "enabled": true,
+  },
+  // ネットワークへ露出させない。正当な到達経路は root の `SHORT_NAMES_WORKER` binding ただ一つで、
+  // routes も custom domain も持たない。ゆえに独自のトークンを置かない——binding を引けることが認可である
+  // （solver と同じ判断）。辞書の配信（`GET /display/short-names`）も root 経由で同一オリジンに出る。
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    // 札の生成に使う Workers AI のモデル ID（item-display-abbreviation 判断 22）。
+    // **省略しない**——モデル ID が黙って別モデル・別価格へエイリアスされた前例があり
+    // （`kimi-k2.5` → `kimi-k2.6`・"higher price" と明記）、既定へ流れる形にすると切り替わっても気づけない。
+    // 差し替えは再デプロイだけで済む。
+    "SHORT_NAME_MODEL": "@cf/zai-org/glm-5.3-flash",
+  },
+  // Workers AI。課金は Workers Paid の直接利用で、AI Gateway は挟まない。
+  "ai": {
+    "binding": "AI",
+  },
+  // 札の押し込み先（item-display-abbreviation Component 6）。クラスの所有者は root の Worker ゆえ
+  // `script_name` で指す（cross-script binding）。**migrations はこちらに置かない**——クラスを定義しない
+  // Worker はストレージの持ち主ではない（持ち主を二箇所にすると SSOT が割れる）。wrangler.solver.jsonc が
+  // `deliverPlan` のために持つのと同じ形である。
+  //
+  // **DO は辞書を引かない。** 自立性の不変が禁じているのは pull であって push ではない——設定が
+  // `applyProjection` で、外部計画が `deliverPlan` で届くのと同じく、札もこちらから押し込む。
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "STORE_TIMER_DO",
+        "class_name": "StoreTimerDO",
+        "script_name": "yude-men-timer",
+      },
+    ],
+  },
+  // 札の辞書。名前ごとに 1 キーで、札は metadata に置く（値は監査の記録で、配信には載らない）。
+  // `preview_id` は `wrangler dev` / ローカル検証が使う別実体で、本番の辞書を汚さないために分ける。
+  //
+  // **id は実体を作ってから入れる。** 次の 2 つで発行された値をここへ書く:
+  //   wrangler kv namespace create yude-men-short-names
+  //   wrangler kv namespace create yude-men-short-names-preview
+  // プレースホルダのままでは deploy が失敗する——それが意図であり、未設定のまま本番へ出ない。
+  "kv_namespaces": [
+    {
+      "binding": "SHORT_NAMES",
+      "id": "94044a829d6743cb894b1b660e4a10a5",
+      "preview_id": "f718a3063f7f427f970d5fdc5a2b3cce",
+    },
+  ],
+}

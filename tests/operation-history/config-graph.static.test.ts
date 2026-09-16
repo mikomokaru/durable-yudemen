@@ -28,6 +28,9 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const producerConfigPath = "wrangler.jsonc";
 const tailConfigPath = "wrangler.telemetry-tail.jsonc";
 const consumerConfigPath = "wrangler.raw-arrival-consumer.jsonc";
+// 新経路の Tail（2026-09-16 に root へ attach 済み）。旧 Snowpipe 方式の二つは legacy 構成の
+// 検査として残し、root の attachment 先だけが新しい方を指す。
+const historyTailConfigPath = "wrangler.history-tail.jsonc";
 const tailFilterPath = "src/operation-history/tail.ts";
 const producerRoot = "src/operation-history/producer.ts";
 
@@ -80,6 +83,7 @@ function declaredTailConsumerServices(relativePath: string): readonly string[] {
 const producerConfig = config(producerConfigPath);
 const tailConfig = config(tailConfigPath);
 const consumerConfig = config(consumerConfigPath);
+const historyTailConfig = config(historyTailConfigPath);
 
 /** capability graph の一本。`from` が `to` へ、`via`（binding／設定キー）を通して到達できる。 */
 type CapabilityEdge = {
@@ -157,6 +161,8 @@ const producerNodes = new Set(
 
 /** Operation History の下流資源名（タスク 1・11.3 の確定値）。Producer 側に現れてはならない。 */
 const downstreamNames = [
+  "yude-men-history-tail",
+  "HISTORY_ARRIVALS",
   "yude-men-telemetry-tail",
   "yude-men-raw-arrival-consumer",
   "operation-records",
@@ -165,7 +171,18 @@ const downstreamNames = [
   "OPERATION_RECORDS",
   "OPERATION_RAW_ARRIVALS",
 ] as const;
-const downstreamKinds = new Set(["queue-producer", "queue-consumer", "dead-letter", "r2-bucket"]);
+// **種別ではなく指し先の名前で判定する。** `queue-producer` を種別のまま下流に数えていたが、
+// cpsat-planner-integration が root へ計画要求の Queue producer（`cpsat-plan-requests`）を
+// 足した。あれは計画計算の端であって Operation History の下流ではなく、この検査が守る不変
+// （Producer から Operation History の Queue / Consumer / R2 へ到達できないこと）には触れない。
+// `SOLVER → yude-men-solver` のときに services を同じ理由で絞ったのと同じ判断である
+// （no-wake.static.test.ts の該当コメント・2026-09-12）。
+//
+// **弱まる点を明記する。** 以前は「root に Queue binding が 1 つも無い」という構造の保証
+// だった。いまは「root の Queue binding は Operation History のものではない」という名前に
+// よる保証である。`downstreamNames` に載っていない新しい Operation History の資源が
+// 増えれば、この検査はすり抜ける。名前の一覧を正本として保つ必要がある。
+const downstreamKinds = new Set(["queue-consumer", "dead-letter", "r2-bucket"]);
 
 function isOperationHistoryEdge(edge: CapabilityEdge): boolean {
   if (edge.kind === "tail-attachment" || downstreamKinds.has(edge.kind)) return true;
@@ -270,10 +287,18 @@ function envBindingNames(relativePath: string, interfaceName: string): readonly 
 describe("Operation History 設定 graph — 能力境界", () => {
   it("root の Operation History 関連 edge は Tail attachment 一件だけである", () => {
     expect(producerEdges.filter(isOperationHistoryEdge).map(printEdge)).toEqual([
-      "yude-men-timer -[tail-attachment:tail_consumers]-> yude-men-telemetry-tail",
+      "yude-men-timer -[tail-attachment:tail_consumers]-> yude-men-history-tail",
     ]);
-    // Queue／R2／KV／D1 は Producer 設定の SSOT へ一切置かない（要件 1.9 / 4.10 / 4.13）。
-    for (const key of ["queues", "r2_buckets", "kv_namespaces", "d1_databases"] as const) {
+    // Operation History の Queue／R2／KV／D1 は Producer 設定の SSOT へ置かない
+    // （要件 1.9 / 4.10 / 4.13）。**`queues` の有無ではなく、その名前で見る**——root には
+    // 計画要求の Queue producer が在り、それは下流ではない（上の downstreamKinds の注記）。
+    for (const name of downstreamNames) {
+      expect(
+        JSON.stringify(producerConfig.queues ?? {}),
+        `root の Queue binding が下流 ${name} を指す`,
+      ).not.toContain(name);
+    }
+    for (const key of ["r2_buckets", "kv_namespaces", "d1_databases"] as const) {
       expect(producerConfig[key], `root が ${key} を持つ`).toBeUndefined();
     }
     // 観測専用の scheduled 起動（cron）を root へ足さない（要件 1.8 / 2.15）。
@@ -340,9 +365,12 @@ describe("Operation History 設定 graph — 名前の写し違い", () => {
   it("root の tail attachment が Tail Worker 設定の name を指す", () => {
     // tail_consumers は段階的有効化のためコメントアウト状態で置く。コメント内の宣言からも読み、
     // 有効化した後も同じ突き合わせが効くようにする（root 側の有効化手順を参照）。
+    // 有効化済みの attachment は 1 件で、指す先は新経路の Tail 設定の name と一致する。
     const declared = declaredTailConsumerServices(producerConfigPath);
-    expect(declared).toEqual([tailConfig.name]);
-    expect(tailConfig.name).toBe("yude-men-telemetry-tail");
+    expect(declared).toEqual([historyTailConfig.name]);
+    expect(historyTailConfig.name).toBe("yude-men-history-tail");
+    // 旧経路の Tail はもう指されない。設定自体は legacy の記録として残す。
+    expect(declared).not.toContain(tailConfig.name);
   });
 
   it("設定の binding 名が Data Platform module の Env 宣言と一致する", () => {
@@ -391,13 +419,21 @@ describe("Operation History 設定 graph — Producer 側に下流能力がな�
 
   it("root 設定に下流 binding・観測専用 Alarm・Queue callback・storage key が現れない", () => {
     const active = jsoncToJson(source(producerConfigPath));
+    // **tail attachment だけを外してから見る。** あれは唯一許された繋がりで、行き先が 1 件であることは
+    // 上の突き合わせが担う。ここが見るのは「それ以外の場所に下流の名前が現れないこと」である。
+    const { tail_consumers: _attachment, ...withoutAttachment } = JSON.parse(active) as Record<
+      string,
+      unknown
+    >;
+    const activeWithoutAttachment = JSON.stringify(withoutAttachment);
     for (const name of downstreamNames) {
-      // コメント内の説明（有効化手順の Tail Worker 名）は能力ではないため、
-      // コメントを落とした本文だけを見る。Tail attachment の service 名は上の突き合わせが担う。
-      expect(active.includes(name), `root が有効な設定として ${name} を持つ`).toBe(false);
+      expect(activeWithoutAttachment.includes(name), `root が有効な設定として ${name} を持つ`).toBe(
+        false,
+      );
     }
-    expect(active).not.toMatch(
-      /"(?:queues|r2_buckets|kv_namespaces|d1_databases|triggers|crons)"\s*:/,
-    );
+    // `queues` は鍵の有無で見ない。root には計画要求の Queue producer が在り、それは
+    // 下流ではない（上の downstreamKinds の注記・2026-09-12）。下流を指していないことは
+    // 直前の名前の突き合わせが担う。
+    expect(active).not.toMatch(/"(?:r2_buckets|kv_namespaces|d1_databases|triggers|crons)"\s*:/);
   });
 });

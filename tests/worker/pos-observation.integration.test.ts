@@ -140,10 +140,18 @@ function orderRecord(params: {
 /** ペイロード本体がログへ出ていないことを見る目印（この値が行に現れたら個票が漏れている）。 */
 const PAYLOAD_DATETIME = "2026-08-17T20:52:19";
 
-/** 横取りした `console.log` の行（JSON 文字列）。 */
+/**
+ * 横取りした `console.log` のうち**文字列の行だけ**（JSON 文字列）。
+ *
+ * 同じ console を注文到着の観測も通る（order-arrival-log）。あちらが渡すのは**オブジェクト**なので、
+ * `String()` で畳むと `"[object Object]"` になって JSON として読めない。本経路の観測が見るのは
+ * 自分が出した診断行だけなので、ここで姿によって分ける。
+ */
 function capture(): { readonly lines: () => readonly string[] } {
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
-  return { lines: () => log.mock.calls.map((call) => String(call[0])) };
+  return {
+    lines: () => log.mock.calls.flatMap(([value]) => (typeof value === "string" ? [value] : [])),
+  };
 }
 
 function parsed(lines: readonly string[], kind: string): readonly Record<string, unknown>[] {
@@ -281,8 +289,16 @@ describe("診断ログは sequence_number と理由の 2 項目のみ（Requirem
       { posIngress: "diagnostic", reason: "path-missing", sequenceNumber: "1" },
       { posIngress: "diagnostic", reason: "unique-key-incomplete", sequenceNumber: "2" },
     ]);
-    // ペイロード本体がどの行にも現れない（個票の内容をログへ残さない・AC 9.3 の芯）。
-    for (const line of lines) {
+    // **AC 9.3 が縛るのは診断行である。** 「当該 Record の `sequence_number` と理由の 2 項目のみを
+    // 含む診断ログを 1 行出力する（ペイロード本体をログへ出さない）」という規定であり、この経路が
+    // 出す**他の**行まで禁じてはいない。2026-09-16 に注文到着の観測が同じ console を通るように
+    // なったため、検査の範囲を規定と同じところへ揃えた——全行へ広げたままにすると、規定が無い
+    // ことまで規定として固定してしまう。
+    //
+    // なお注文到着の行は**この筋書きには現れない**。ここの 2 件はいずれも毒であり、宛先の解決まで
+    // 進まないからである。
+    for (const entry of diagnostics) {
+      const line = JSON.stringify(entry);
       expect(line).not.toContain(PAYLOAD_DATETIME);
       expect(line).not.toContain("store_id");
       expect(line).not.toContain("payload");
