@@ -40,11 +40,12 @@ const genOrder: fc.Arbitrary<OrderItem> = fc
     firmness,
     tableId: null,
     arrivalTime: (NOW - 60_000) as number,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
 
 /** 当該品目を待ち行列に持つ状態。 */
@@ -104,11 +105,12 @@ describe("Feature: slot-suggested-start, Property 4: 品目からの開始は品
             firmness,
             tableId: null,
             arrivalTime: NOW - 60_000,
-            slotSpan: 1,
+            portions: 1,
             itemName: null,
             sizeName: null,
             completedAt: null,
             interruptedAt: null,
+            tableAssignedAt: null,
           };
           const outcome = start(stateWith([order]), order);
           if (!outcome.ok) throw new Error("受理されるはず");

@@ -22,7 +22,7 @@
 import { isFirmness, type Firmness } from "./firmness";
 import { isNonEmptyString, isNonNegativeInteger, isRecord, toDeclaredName } from "./predicate";
 import { isNonEmpty, type NonEmptyArray } from "./timer";
-import { SLOT_SPAN_MAX, SLOT_SPAN_MIN, type NoodlePreset } from "./store";
+import { isPortions, type NoodlePreset } from "./store";
 
 /**
  * OrderItem — 注文品目（旧 PendingOrder）。開始で消費されず一つの事実として扱われ、状態は `itemStatusOf` で導く。
@@ -47,13 +47,14 @@ export interface OrderItem {
   /** Order_Arrival_Time（絶対時刻の事実）。Wait_Time の起点であり、待ち行列の並び順の基準。 */
   readonly arrivalTime: number;
   /**
-   * 1 品目がスロット軸上で占める幅（SLOT_SPAN_MIN〜SLOT_SPAN_MAX）。麺量の指定から翻訳して定める。
+   * 麺の玉数（Portions・0.5 刻み・PORTIONS_MIN〜PORTIONS_MAX）。麺量の商品コードから翻訳して定める事実。
    *
-   * timer-model.md の判定を通した結果ここに置く——client が待ち行列を表示し engine が計画を組むのに要る
-   * ため共有される事実であり、片側専用の関心事ではない。Timer.slotIds（割り当てられた実体）とは
-   * 「要求」と「割当」の関係で別概念ゆえ、被せず別の名で立てる。
+   * 釜数（slotSpan）は持たない——slotSpanOf(portions) の導出値であり、持てば二つの真実になる（noodle-portions
+   * 判断 4）。timer-model.md の判定を通した結果ここに置く——client が札に出し engine が釜数を導くのに要るため
+   * 共有される事実であり、片側専用の関心事ではない。Timer.slotIds（割り当てられた実体）とは「要求」と「割当」の
+   * 関係で別概念である。
    */
-  readonly slotSpan: number;
+  readonly portions: number;
   /**
    * POS が申告した親品目の商品名。伝票に印字される文字列そのもの。
    *
@@ -65,7 +66,7 @@ export interface OrderItem {
    * 表示は noodleType で代替する。
    */
   readonly itemName: string | null;
-  /** POS が申告した麺量 child の商品名。slotSpan を決めた child と同じ同定結果から取る。欠落は null。 */
+  /** POS が申告した麺量 child の商品名。portions を決めた child と同じ同定結果から取る。欠落は null。 */
   readonly sizeName: string | null;
   /**
    * 完了の事実（厨房が完了を確定した時刻）。null は未完了。engine の `complete` だけが書く（判断 3）。
@@ -79,6 +80,14 @@ export interface OrderItem {
    * 「生きた Timer なし ∧ completedAt なし」のままで、表示の色分けにだけ使う。
    */
   readonly interruptedAt: number | null;
+  /**
+   * 店が卓を決めた事実（Orders 画面の `assignTable` で `tableId` を書いた最後の時刻・2026-09-17）。null は POS 申告のまま。
+   *
+   * 非 null のとき、**POS の後着は `tableId` を上書きしない**（`upsertOrder`）——店の判断の方が新しく現場に近い。
+   * 他の POS 属性（麺種・茹で加減・名称・盛り）は従来どおり後着で更新する。engine の `assignTable` だけが書き、
+   * 次の指定で上書きする。状態（unstarted / cooking / done）には効かない。
+   */
+  readonly tableAssignedAt: number | null;
 }
 
 /**
@@ -294,10 +303,26 @@ export function toOrderItems(
 }
 
 /**
+ * 生値を玉数へ写す。値域外・刻み外・非数・null は null（呼び出し側が到着全体を拒否する）。
+ *
+ * 欠如だけは 1 玉へ畳む。麺量の語彙を持たない到着（Order_Ingress の直接投入）は現に 1 品目 1 玉（1 釜）で
+ * 計画されており、畳んだ値がその実際の挙動に一致する——これは「指定が無い」という入力の形に対する既定であり、
+ * 不正値を黙って通すことではない。POS 経由の翻訳（noodle-spec）は必ず玉数を持つので、ここを通らない。
+ *
+ * 値域外はクランプせず拒否する（store.ts の toNoodleSize と同じ判断）。勝手に寄せれば、どこにも要求されていない
+ * 玉数を新たに作ってしまう。
+ */
+function toPortions(value: unknown): number | null {
+  if (value === undefined) return 1;
+  return isPortions(value) ? value : null;
+}
+
+/**
  * 生値を 1 件の OrderItem へ正規化する。必須属性の欠落・未知の品目種別・型違反はいずれも null。
  *
- * 厨房の事実（`completedAt` / `interruptedAt`）は到着が持たない——POS は厨房の完了も中断も知らない。新しい品目は
- * null で生まれ、同じ鍵の品目が既に在れば `upsertOrder`（engine/pending.ts）が既存の事実を保つ。
+ * 厨房・店の事実（`completedAt` / `interruptedAt` / `tableAssignedAt`）は到着が持たない——POS は厨房の完了も中断も
+ * 店の卓の判断も知らない。新しい品目は null で生まれ、同じ鍵の品目が既に在れば `upsertOrder`（engine/pending.ts）が
+ * 既存の事実を保つ。
  */
 function toArrivedItem(
   value: unknown,
@@ -322,8 +347,8 @@ function toArrivedItem(
   // 判定は toDeclaredName ただ一つに閉じる（同じ形の関門を項目ごとに書かない）。
   const tableId = toDeclaredName(candidate.tableId);
   if (tableId === null) return null;
-  const slotSpan = toSlotSpan(candidate.slotSpan);
-  if (slotSpan === null) return null;
+  const portions = toPortions(candidate.portions);
+  if (portions === null) return null;
   // 余剰フィールドを落として正規化する（外部の混ぜ物を待ち行列の正本へ持ち込まない）。
   return {
     externalOrderId: candidate.externalOrderId,
@@ -336,26 +361,9 @@ function toArrivedItem(
     itemName: toDeclaredName(candidate.itemName)?.name ?? null,
     sizeName: toDeclaredName(candidate.sizeName)?.name ?? null,
     arrivalTime,
-    slotSpan,
+    portions,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
-}
-
-/**
- * 生値を占有幅へ写す。値域外・非整数・null は null（呼び出し側が到着全体を拒否する）。
- *
- * 欠如だけは 1 スロット占有へ畳む。麺量の語彙を持たない到着（既存 Order_Ingress の直接投入）は現に
- * 1 品目 1 スロットで計画されており、畳んだ値がその実際の挙動に一致する——これは「指定が無い」という
- * 入力の形に対する既定であり、不正値を黙って通すことではない。下限と同じ値になるのは偶然ではなく、
- * 占有しない麺が在りえないことの帰結である。
- *
- * 値域外はクランプせず拒否する（store.ts の toNoodleSize と同じ判断）。勝手に寄せれば、どこにも
- * 要求されていない占有幅を新たに作ってしまう。
- */
-function toSlotSpan(value: unknown): number | null {
-  if (value === undefined) return SLOT_SPAN_MIN;
-  if (typeof value !== "number" || !Number.isInteger(value)) return null;
-  if (value < SLOT_SPAN_MIN || value > SLOT_SPAN_MAX) return null;
-  return value;
 }

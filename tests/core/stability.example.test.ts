@@ -222,11 +222,12 @@ function order(externalOrderId: string): OrderItem {
     firmness: "normal",
     tableId: null,
     arrivalTime: T0,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 const PENDING: readonly OrderItem[] = [order("a"), order("b"), order("c")];
@@ -460,11 +461,12 @@ describe("Feature: pending-order-expiry — 期限切れの品目は対応から
     firmness: "normal",
     tableId: "t-1",
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   });
   const A = order("a", T0 - ORDER_LIFETIME_MS);
   const B = order("b", T0 - 60 * SECOND);

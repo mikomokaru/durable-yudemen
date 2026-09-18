@@ -3,7 +3,7 @@
 // Feature: startable-placement
 // **Validates: Requirements 1.1〜1.8, 2.1, 3.1, 3.2, 4.1〜4.4, 4.7**
 //
-// 6 釜・arms 2・toleranceRatio 10%・上げ間隔 45 秒・Thin normal 60 秒・slotSpan 1・卓なし 8 品。表示された先頭から
+// 6 釜・arms 2・toleranceRatio 10%・上げ間隔 45 秒・Thin normal 60 秒・portions 1・卓なし 8 品。表示された先頭から
 // 3 秒間隔で開始し、茹で上がりの 15 秒後から釜番号の大きい順に 3 秒間隔で Complete する。操作列は harness
 // （`tests/core/operationScenes.ts`）が engine の実走で踏み、snapshot は一切手書きしない。
 //
@@ -455,23 +455,23 @@ const TABLES = {
   quads: (index: number) => `t${Math.floor(index / 4)}`,
 } as const;
 
-function itemsOf(tables: keyof typeof TABLES, slotSpan: number): readonly OrderItem[] {
+function itemsOf(tables: keyof typeof TABLES, portions: number): readonly OrderItem[] {
   return Array.from({ length: 24 }, (_unused, index) =>
     order(`o${index}`, {
       noodleType: "Thin",
       tableId: TABLES[tables](index),
       arrivalTime: at(-30 + index),
-      slotSpan,
+      portions,
     }),
   );
 }
 
 function runOf(
   tables: keyof typeof TABLES,
-  slotSpan: number,
+  portions: number,
   options: Partial<OperationPolicy>,
 ): readonly Transition[] {
-  return operate(KITCHEN, step(KITCHEN, EMPTY_STATE, arrive(itemsOf(tables, slotSpan), at(0))), {
+  return operate(KITCHEN, step(KITCHEN, EMPTY_STATE, arrive(itemsOf(tables, portions), at(0))), {
     tickSeconds: 3,
     completeDelaySeconds: 15,
     completeOrder: "descending",
@@ -485,14 +485,14 @@ function runOf(
 describe("Feature: startable-placement — 24 品の連続処理で、例外に当たらない空白は 0 箇所（性質 4.2・4.4）", () => {
   const variants: (readonly [string, keyof typeof TABLES, number, Partial<OperationPolicy>])[] = [];
   for (const tables of ["none", "same", "quads"] as const) {
-    for (const slotSpan of [1, 2]) {
+    for (const portions of [1, 2]) {
       for (const completeOrder of ["ascending", "descending"] as const) {
         for (const forgetShownPlan of [false, true]) {
           for (const adoptCommitted of [false, true]) {
             variants.push([
-              `${tables}・slotSpan ${slotSpan}・${completeOrder}・Shown_Plan ${forgetShownPlan ? "なし" : "あり"}・接頭辞 ${adoptCommitted ? "あり" : "なし"}`,
+              `${tables}・portions ${portions}・${completeOrder}・Shown_Plan ${forgetShownPlan ? "なし" : "あり"}・接頭辞 ${adoptCommitted ? "あり" : "なし"}`,
               tables,
-              slotSpan,
+              portions,
               { completeOrder, forgetShownPlan, adoptCommitted },
             ]);
           }
@@ -500,9 +500,9 @@ describe("Feature: startable-placement — 24 品の連続処理で、例外に�
       }
     }
   }
-  for (const [label, tables, slotSpan, options] of variants) {
+  for (const [label, tables, portions, options] of variants) {
     it(`${label}：二周目以降まで空白 0・24 品は最後まで処理される`, () => {
-      const run = runOf(tables, slotSpan, options);
+      const run = runOf(tables, portions, options);
       expect(gapsOf(run)).toEqual([]);
       const last = run[run.length - 1]!;
       // 品目は開始で消費されない（order-lifecycle）——全品目が done（completedAt 付き）で走行中が無いことが「最後まで処理された」。
@@ -519,7 +519,7 @@ describe("Feature: startable-placement — 24 品の連続処理で、例外に�
 
 describe("Feature: startable-placement — 固定した「今」を残した再生成が成り立たない場面は、候補 K と再生成を総費用で比べる（判断 14）", () => {
   // 6 釜・釜 0 だけ boiled・arms 1・上げ間隔 5 秒（上限 arms + HELPER_ARMS = 3 本）。卓 T は 45 秒麺 N（Thin extraHard）と
-  // 75 秒麺 A（Medium extraHard）、別注文（卓なし）は 45 秒麺 C と大盛 45 秒麺 M（slotSpan 2）。
+  // 75 秒麺 A（Medium extraHard）、別注文（卓なし）は 45 秒麺 C と大盛 45 秒麺 M（portions 2）。
   // 1 段目：T は A を釜 0（boiled・解放 now）に今・N を釜 1 に 30 秒後で 75 秒に揃え、C は釜 2 に今、M は釜 3+5 に今
   // （45 秒の窓は C + M = 3 本で上限）。配分は A を空き釜 1 へ動かす（釜 0 は Timer で押せない）——N（釜 1・30 秒）と重なって
   // T が不正になり、A を残した再生成は N を今（45 秒）へ繰り上げる。すると 45 秒の窓は N + C + M = 4 本で上限を超え、固定した
@@ -568,7 +568,7 @@ describe("Feature: startable-placement — 固定した「今」を残した再�
     tableId: null,
     arrivalTime: at(-1),
     itemIndex: 1,
-    slotSpan: 2,
+    portions: 2,
   });
   const pending = [n, a, c, m];
   const running = [boiled];

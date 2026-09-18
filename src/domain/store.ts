@@ -145,8 +145,14 @@ export const DEFAULT_AFFINITY_TOLERANCE_DISTANCE = 14;
  */
 export const LIFT_INTERVAL_SECONDS_MIN = 5;
 
-/** 上げの間隔の上限（秒）。茹で時間より長い間隔は物理として在りえない（最短の麺でも 45 秒前後）。 */
-export const LIFT_INTERVAL_SECONDS_MAX = 120;
+/**
+ * 上げの間隔の上限（秒）。10 分。
+ *
+ * 当初は 120 秒（「茹で時間より長い間隔は物理として在りえない」）としたが、この間隔は釜の物理ではなく**後工程の
+ * 処理能力**（盛りつけ・運搬を今の人員で進められる速さ・CONTEXT.md「目標クラスタ間隔」）を表す値であり、茹で時間より
+ * 長くてよい（2026-09-17・店舗が 180 秒を求めた）。上限は計測の誤りを弾くためだけに置く。
+ */
+export const LIFT_INTERVAL_SECONDS_MAX = 600;
 
 /**
  * 上げの間隔の既定（秒）。現場で測る物理の値であり、既存の許容幅（h_i・tableSyncToleranceSeconds）の転用ではない
@@ -319,16 +325,55 @@ export const DEFAULT_NOODLE_PRESETS: NonEmptyArray<NoodlePreset> = [
   { noodleType: "Thick", boilSeconds: { extraHard: 100, hard: 110, normal: 120, soft: 140 } },
 ];
 
-/** 1 品目がスロット軸上で占める幅（slotSpan）の下限。0 や負値は「占有しない麺」ゆえ表現させない。 */
+/** 1 品目がスロット軸上で占める幅（slotSpan・導出値）の下限。0 や負値は「占有しない麺」ゆえ表現させない。 */
 export const SLOT_SPAN_MIN = 1;
 
 /**
  * slotSpan の上限（= 1 ユニットのスロット数）。
  *
  * 1 品目がユニットを跨いで占有する形は現実の釜の構造に無い。ゆえに上限は SLOTS_PER_UNIT に一致し、
- * 別の数として二度書かない。
+ * 別の数として二度書かない。玉数の上限（PORTIONS_MAX）はここから導く。
  */
 export const SLOT_SPAN_MAX = SLOTS_PER_UNIT;
+
+/**
+ * 1 釜（テボ）に入る玉数の上限。釜の物理であり店舗設定ではない——麺量マスタ 490 行・10 店舗で差が無い
+ * （noodle-portions 判断 2・2026-09-18）。店舗差が実在した日に設定へ上げる（liftIntervalSeconds と同じ道）。
+ */
+export const PORTIONS_PER_SLOT = 1.5;
+
+/** 玉数（portions）の下限（半玉）。0 や負値は「麺の無い麺」ゆえ表現させない。 */
+export const PORTIONS_MIN = 0.5;
+
+/** 玉数の上限（= SLOT_SPAN_MAX × PORTIONS_PER_SLOT = 9）。1 品目がユニットを跨がない既存の上限を玉数へ写す。 */
+export const PORTIONS_MAX = SLOT_SPAN_MAX * PORTIONS_PER_SLOT;
+
+/**
+ * Portions の述語——有限・0.5 刻み・PORTIONS_MIN〜PORTIONS_MAX。設定（toNoodleSize）・品目（toArrivedItem）・
+ * ワイヤ（toOrderItemFromWire）・永続（migrate）の 4 経路が同じ関門を通る。
+ */
+export function isPortions(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value * 2) &&
+    value >= PORTIONS_MIN &&
+    value <= PORTIONS_MAX
+  );
+}
+
+/**
+ * slotSpanOf — 玉数から釜数（1 品目が要る相異なる釜の数）を導く唯一の規則。⌈portions / PORTIONS_PER_SLOT⌉。
+ *
+ * 釜数は設定にも状態にも保持しない（noodle-portions 判断 4）。engine の割当・上げ窓・Acceptance_Gate、CP-SAT の
+ * モデル、client の釜の組が同じ釜数を要るので、slotDistance と同じ理由で中立地帯に一度だけ置く。
+ *
+ * 半玉単位の整数演算（⌈2p / 3⌉）で計算する。0.5 刻みの p に対し 2p は正確な整数であり、除算の結果が整数に
+ * なるのは割り切れるときだけなので、天井が浮動小数の丸めで 1 ずれることがない。
+ */
+export function slotSpanOf(portions: number): number {
+  return Math.ceil((portions * 2) / (PORTIONS_PER_SLOT * 2));
+}
 
 /**
  * FirmnessCode — 硬さの商品コードと Firmness の対応 1 件。券売機の語彙をドメインの安定 id へ写す。
@@ -344,15 +389,16 @@ export interface FirmnessCode {
 }
 
 /**
- * NoodleSize — 麺量の商品コードと、その麺量が要するスロット幅の対応 1 件。
+ * NoodleSize — 麺量の商品コードと、その麺量の玉数の対応 1 件。
  *
- * 麺量は茹で時間を変えず、占有するスロット数だけを変える（ゆえに秒はここにも無い）。
+ * 麺量は茹で時間を変えず、玉数だけを変える（ゆえに秒はここにも無い）。釜数は持たない——玉数から slotSpanOf で
+ * 導く導出値であり、人が釜数を入れる形は誤る（2026-09-14 に中盛 1.5 玉が 9 コードで 2 釜と登録されていた）。
  */
 export interface NoodleSize {
   /** 麺量を表す商品コード（正の整数）。この有無が茹で対象かどうかの判定でもある。 */
   readonly code: number;
-  /** 当該麺量が占めるスロット幅（SLOT_SPAN_MIN〜SLOT_SPAN_MAX の整数）。 */
-  readonly slotSpan: number;
+  /** 当該麺量の玉数（Portions・0.5 刻み・PORTIONS_MIN〜PORTIONS_MAX）。 */
+  readonly portions: number;
 }
 
 /**
@@ -781,19 +827,17 @@ function toNoodleSizes(value: unknown): NonEmptyArray<NoodleSize> | null {
 }
 
 /**
- * 生値を NoodleSize へ正規化する。正の整数コードと妥当域内の整数 slotSpan を満たさなければ null。
+ * 生値を NoodleSize へ正規化する。正の整数コードと Portions（isPortions）を満たさなければ null。
  *
- * 値域外の slotSpan はクランプせず拒否する。スカラー設定（重み・許容幅）が境界へ寄せるのに対し、こちらは
- * 「この商品コードが何スロット要るか」という対応そのものであり、勝手に寄せれば投入されていない対応を作る。
+ * 値域外の玉数はクランプせず拒否する。スカラー設定（重み・許容幅）が境界へ寄せるのに対し、こちらは
+ * 「この商品コードが何玉か」という対応そのものであり、勝手に寄せれば投入されていない対応を作る。
  */
 function toNoodleSize(value: unknown): NoodleSize | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
   if (!isProductCode(candidate.code)) return null;
-  const { slotSpan } = candidate;
-  if (typeof slotSpan !== "number" || !Number.isInteger(slotSpan)) return null;
-  if (slotSpan < SLOT_SPAN_MIN || slotSpan > SLOT_SPAN_MAX) return null;
-  return { code: candidate.code, slotSpan };
+  if (!isPortions(candidate.portions)) return null;
+  return { code: candidate.code, portions: candidate.portions };
 }
 
 /** 商品コードとして妥当か（正の整数）。券売機の商品コードは採番された正の整数である。 */

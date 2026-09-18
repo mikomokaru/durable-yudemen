@@ -36,11 +36,12 @@ function item(itemIndex: number, externalOrderId: string = ORDER_ID): OrderItem 
     firmness: "normal",
     tableId: "3",
     arrivalTime: ARRIVAL,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 
@@ -114,11 +115,12 @@ describe("engine/receive — 受領を 1 つの遷移へ畳む", () => {
       firmness: "normal" as const,
       tableId: null,
       arrivalTime: ARRIVAL + index,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     }));
     const before = stateWith(full, SEQ_1);
     const late: OrderItem = { ...item(0, "o-late"), arrivalTime: 1 };

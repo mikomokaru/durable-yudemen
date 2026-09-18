@@ -30,6 +30,7 @@ import {
   DEFAULT_FIRMNESS_CODES,
   DEFAULT_MENU_ITEMS,
   SLOT_SPAN_MAX,
+  DEFAULT_LIFT_INTERVAL_SECONDS,
 } from "../../src/domain/store";
 import type { Firmness } from "../../src/domain/firmness";
 import type { NonEmptyArray } from "../../src/domain/timer";
@@ -66,9 +67,9 @@ function menuItem(
   productCode: number,
   noodleType: string,
   sizeCode: number,
-  slotSpan: number,
+  portions: number,
 ): MenuItem {
-  return { productCode, noodleType, sizes: nonEmpty([{ code: sizeCode, slotSpan }]) };
+  return { productCode, noodleType, sizes: nonEmpty([{ code: sizeCode, portions }]) };
 }
 
 describe("composeEffectiveConfig — 縮退（空入力）", () => {
@@ -242,9 +243,9 @@ describe("composeEffectiveConfig — POS の対応表 2 枚（要件13.13 / 13.1
   });
 
   it("出口の検証関数を通る（値域外の麺量・不正な商品コードは落ち、妥当な表は素通しする）", () => {
-    // slotSpan 0 は「占有しない麺」ゆえ落ち、麺量が 1 件も残らないメニューは当該要素ごと落ちる。
+    // portions 0 は「占有しない麺」ゆえ落ち、麺量が 1 件も残らないメニューは当該要素ごと落ちる。
     const foldedMenu = [
-      { productCode: 11421, noodleType: "Thin", sizes: nonEmpty([{ code: 19401, slotSpan: 0 }]) },
+      { productCode: 11421, noodleType: "Thin", sizes: nonEmpty([{ code: 19401, portions: 0 }]) },
     ];
     const foldedCodes = [firmnessCode(0, "hard")]; // 商品コードは正の整数ゆえ 0 は落ちる
     const folded = composeEffectiveConfig([], {
@@ -259,5 +260,16 @@ describe("composeEffectiveConfig — POS の対応表 2 枚（要件13.13 / 13.1
     const passed = composeEffectiveConfig([], { menuItems: validMenu, firmnessCodes: validCodes });
     expect(passed.menuItems).toEqual(validMenu);
     expect(passed.firmnessCodes).toEqual(validCodes);
+  });
+});
+
+describe("composeEffectiveConfig — 上げの間隔（liftIntervalSeconds・2026-09-17 に主張対象へ）", () => {
+  it("未主張なら既定（45 秒）、Store_Override が主張すればその値、enforced の Policy が在れば Override は無視される", () => {
+    expect(composeEffectiveConfig([], {}).liftIntervalSeconds).toBe(DEFAULT_LIFT_INTERVAL_SECONDS);
+    expect(composeEffectiveConfig([], { liftIntervalSeconds: 180 }).liftIntervalSeconds).toBe(180);
+    const enforced = policy("p1", 1, { liftIntervalSeconds: { mode: "enforced", value: 90 } });
+    expect(
+      composeEffectiveConfig([enforced], { liftIntervalSeconds: 180 }).liftIntervalSeconds,
+    ).toBe(90);
   });
 });

@@ -33,11 +33,12 @@ function order(externalOrderId: string, arrivalTime: number): OrderItem {
     firmness: "normal",
     tableId: "t-a",
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

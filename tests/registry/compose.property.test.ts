@@ -24,8 +24,7 @@ import {
   ARMS_MAX,
   TOLERANCE_RATIO_MIN,
   TOLERANCE_RATIO_MAX,
-  SLOT_SPAN_MIN,
-  SLOT_SPAN_MAX,
+  isPortions,
   toUnitCount,
   toArms,
   toToleranceRatio,
@@ -89,10 +88,10 @@ export const genFirmnessCodes: fc.Arbitrary<readonly FirmnessCode[]> = fc.array(
   maxLength: 3,
 });
 
-/** 麺量 1 件。slotSpan は妥当域の外へも振る。 */
+/** 麺量 1 件。玉数は妥当域の外（0・負・刻み外・上限超）へも振る。 */
 const genNoodleSize: fc.Arbitrary<NoodleSize> = fc.record({
   code: fc.integer({ min: -2, max: 200_000 }),
-  slotSpan: fc.integer({ min: SLOT_SPAN_MIN - 2, max: SLOT_SPAN_MAX + 2 }),
+  portions: fc.constantFrom(-1, 0, 0.25, 0.5, 1, 1.5, 2, 2.5, 9, 9.5, 12),
 });
 
 /** メニュー 1 件（sizes は型で非空を強制）。 */
@@ -234,9 +233,7 @@ function isValidMenuItems(value: unknown): boolean {
       if (typeof size !== "object" || size === null) return false;
       const noodleSize = size as Record<string, unknown>;
       if (!isProductCode(noodleSize.code)) return false;
-      const { slotSpan } = noodleSize;
-      if (typeof slotSpan !== "number" || !Number.isInteger(slotSpan)) return false;
-      return slotSpan >= SLOT_SPAN_MIN && slotSpan <= SLOT_SPAN_MAX;
+      return isPortions(noodleSize.portions);
     });
   });
 }

@@ -36,7 +36,7 @@ async function provision(stub: DurableObjectStub<StoreTimerDO>): Promise<void> {
       ...configResidualDefaults(1),
       firmnessCodes: [{ code: 10011, firmness: "normal" }],
       menuItems: [
-        { productCode: MENU_CODE, noodleType: PRESET, sizes: [{ code: SIZE_CODE, slotSpan: 1 }] },
+        { productCode: MENU_CODE, noodleType: PRESET, sizes: [{ code: SIZE_CODE, portions: 1 }] },
       ],
     },
     roster: [],

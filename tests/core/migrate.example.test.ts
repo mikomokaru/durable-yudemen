@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import { migrate } from "../../src/engine/migrate";
 import { CURRENT_SCHEMA_VERSION } from "../../src/engine/types";
 import { ORDER_ITEM_LIMIT } from "../../src/engine/pending";
+import { slotSpanOf } from "../../src/domain/store";
 
 /** v6 の永続値に載っていた Timer 一件（v6 は adjustment まで持ち、orderItem を持たない）。 */
 const v6Timer = {
@@ -172,16 +173,17 @@ describe("migrate — v7 → v8", () => {
       itemIndex: 1,
       tableId: null,
     });
-    // v7 の待ち行列は slotSpan / itemName / sizeName を持たない。欠如は 1 スロット占有と「名前なし」として
+    // v7 の待ち行列は玉数 / itemName / sizeName を持たない。欠如は 1 玉（1 釜）と「名前なし」として
     // 読み戻る（当時の実際の挙動に一致する——v7 に商品名の概念が無かったことと、名前が無い状態は同じである）。
     expect(result.snapshot.orderItems).toEqual([
       {
         ...v7Raw.pendingOrders[0],
-        slotSpan: 1,
+        portions: 1,
         itemName: null,
         sizeName: null,
         completedAt: null,
         interruptedAt: null,
+        tableAssignedAt: null,
       },
     ]);
     // v10 で一片は点数を持たない。v7 の score（140）は余剰として捨てられ、鍵と配置は写しである。
@@ -263,6 +265,7 @@ describe("migrate — v8 の往復", () => {
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   } as const;
 
   it("v8 で書いた slotSpan と判定材料を読み戻す", () => {
@@ -280,7 +283,10 @@ describe("migrate — v8 の往復", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.snapshot.orderItems).toEqual([v8Order]);
+    // v8 の釜数（slotSpan 2）は v15 で仮置きの玉数（portions 2）として読まれ、導出した釜数は元に一致する。
+    const { slotSpan, ...v8Rest } = v8Order;
+    expect(result.snapshot.orderItems).toEqual([{ ...v8Rest, portions: slotSpan }]);
+    expect(slotSpanOf(result.snapshot.orderItems[0]!.portions)).toBe(slotSpan);
     expect(result.snapshot.lastSequenceByTerminal).toEqual(v8Raw.lastSequenceByTerminal);
   });
 
@@ -309,6 +315,51 @@ describe("migrate — v8 の往復", () => {
     expect(tooWide.failure.code).toBe("MigrationFailed");
     expect(fractional.failure.code).toBe("MigrationFailed");
     expect(zero.failure.code).toBe("MigrationFailed");
+  });
+
+  it("v14 の釜数 1・2 は玉数 1・2 として読まれ、導出した釜数は元に一致する（仮置き・noodle-portions 判断 5）", () => {
+    const v14 = migrate({
+      version: 14,
+      timers: [],
+      nextSeq: 0,
+      orderItems: [
+        { ...v8Order, itemIndex: 0, slotSpan: 1 },
+        { ...v8Order, itemIndex: 1, slotSpan: 2 },
+        // 現行の Policy は 3 釜以上を生成しないが、移行は全域——3 釜は 3 玉と読まれ、導出は 2 釜になる（受け入れた代償）。
+        { ...v8Order, itemIndex: 2, slotSpan: 3 },
+      ],
+    });
+    expect(v14.ok).toBe(true);
+    if (!v14.ok) return;
+    expect(v14.snapshot.orderItems.map((order) => order.portions)).toEqual([1, 2, 3]);
+    expect(v14.snapshot.orderItems.map((order) => slotSpanOf(order.portions))).toEqual([1, 2, 2]);
+    expect(v14.snapshot.orderItems.some((order) => "slotSpan" in order)).toBe(false);
+  });
+
+  it("v15 は玉数が必須——欠如・値域外・刻み外は全体を移行失敗にし、釜数が在っても読まない", () => {
+    const { slotSpan: _span, ...v15Base } = v8Order;
+    const v15With = (orderItems: readonly unknown[]) =>
+      migrate({ version: 15, timers: [], nextSeq: 0, orderItems });
+
+    const missing = v15With([v15Base]);
+    const withStaleSpan = v15With([{ ...v15Base, slotSpan: 2 }]);
+    const tooMany = v15With([{ ...v15Base, portions: 9.5 }]);
+    const offGrid = v15With([{ ...v15Base, portions: 1.25 }]);
+    expect([missing.ok, withStaleSpan.ok, tooMany.ok, offGrid.ok]).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+    if (missing.ok || withStaleSpan.ok || tooMany.ok || offGrid.ok) return;
+    expect(missing.failure.code).toBe("MigrationFailed");
+    expect(withStaleSpan.failure.code).toBe("MigrationFailed");
+
+    // 玉数を持てば往復し、同居する釜数は読まれずに消える（二つの真実を持ち込まない）。
+    const ok = v15With([{ ...v15Base, portions: 1.5, slotSpan: 2 }]);
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) return;
+    expect(ok.snapshot.orderItems).toEqual([{ ...v15Base, portions: 1.5 }]);
   });
 
   it("形を満たさない判定材料は空へ畳む（喪失が生むのは重複だけで欠落は生じない）", () => {
@@ -422,6 +473,11 @@ describe("migrate — v12 → v13（order-lifecycle AC 1.6・Requirement 6.1・�
     itemName: "かけ",
     sizeName: null,
   } as const;
+  /** v12〜v14 の raw（釜数 slotSpan）を v15 の形（仮置きの玉数 portions = slotSpan）へ写した期待値。 */
+  const asV15 = <T extends { readonly slotSpan: number }>({ slotSpan, ...rest }: T) => ({
+    ...rest,
+    portions: slotSpan,
+  });
   /** v12 由来の走行中 Timer——参照先（order-12#0）は待ち行列に無い（旧実装が開始時に消費した）。 */
   const v12Raw = {
     version: 12,
@@ -443,7 +499,7 @@ describe("migrate — v12 → v13（order-lifecycle AC 1.6・Requirement 6.1・�
     if (!result.ok) return;
     expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
     expect(result.snapshot.orderItems).toEqual([
-      { ...v12Order, completedAt: null, interruptedAt: null },
+      { ...asV15(v12Order), completedAt: null, interruptedAt: null, tableAssignedAt: null },
     ]);
     expect(result.snapshot).not.toHaveProperty("pendingOrders");
   });
@@ -478,7 +534,38 @@ describe("migrate — v12 → v13（order-lifecycle AC 1.6・Requirement 6.1・�
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.snapshot.orderItems).toEqual(v13Raw.orderItems);
+    // v13 は店の卓の判断を持たない。v14 は null で埋める（欠如 → null）。
+    expect(result.snapshot.orderItems).toEqual(
+      v13Raw.orderItems.map((item) => ({ ...asV15(item), tableAssignedAt: null })),
+    );
+  });
+
+  it("v14 の永続値は tableAssignedAt（数値・null）をそのまま読み戻し、形を満たさなければ全体を移行失敗にする", () => {
+    const v14Raw = {
+      ...v12Raw,
+      version: 14,
+      pendingOrders: undefined,
+      orderItems: [
+        { ...v12Order, completedAt: null, interruptedAt: null, tableAssignedAt: 1_700_000_070_000 },
+        {
+          ...v12Order,
+          itemIndex: 1,
+          completedAt: null,
+          interruptedAt: null,
+          tableAssignedAt: null,
+        },
+      ],
+    };
+    const result = migrate(structuredClone(v14Raw));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.snapshot.orderItems).toEqual(v14Raw.orderItems.map(asV15));
+
+    const broken = migrate({
+      ...structuredClone(v14Raw),
+      orderItems: [{ ...v12Order, completedAt: null, interruptedAt: null, tableAssignedAt: "7" }],
+    });
+    expect(broken.ok).toBe(false);
   });
 
   it("形を満たさない completedAt / interruptedAt は全体を移行失敗にする（個別に捨てない・レビュー P2）", () => {
@@ -627,6 +714,7 @@ describe("migrate — 件数の上限と鍵の一意性（order-item-truncation 
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     };
   }
 

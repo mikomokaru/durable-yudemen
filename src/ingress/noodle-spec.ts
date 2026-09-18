@@ -1,13 +1,13 @@
 // src/ingress/noodle-spec.ts — 品目 1 件の解釈。POS の商品コードから麺の 3 つの事実（麺種・茹で加減・
-// スロット幅）を引く。cloudflare:workers にも storage にも触れない純粋モジュール。
+// 玉数）を引く。cloudflare:workers にも storage にも触れない純粋モジュール。
 //
-// **判定と翻訳を 1 つの関数で返す。** 「茹でるか」と「何スロット要るか」は同じ入力（麺量の商品コード）から
+// **判定と翻訳を 1 つの関数で返す。** 「茹でるか」と「何玉か」は同じ入力（麺量の商品コード）から
 // 導かれる。分ければ「麺量が在るか」を二度問うことになり、判定基準が二箇所に分かれる。
 //
 // batch.ts / outcome.ts が payload の構造を知らない運搬の層であるのに対し、ここは構造を知る翻訳の局所である。
 // 知る範囲は 4 つのフィールド（親品目の `plu_no`・`child_items`・その各要素の `plu_no` と `item_name`）に限る。
 // `item_type` は読まない（AC 6.23）。`qty` も読まない（実データでは常に 1・AC 6.35）。油の量・味の濃さは
-// 茹で時間も slotSpan も変えないため写さない（AC 6.33）——素通し原則により、これらが想定外の値でも
+// 茹で時間も玉数も変えないため写さない（AC 6.33）——素通し原則により、これらが想定外の値でも
 // Record を拒否しない。
 
 import { DEFAULT_FIRMNESS, type Firmness } from "../domain/firmness";
@@ -46,13 +46,13 @@ export interface NoodleSpec {
   readonly noodleType: string;
   /** 茹で加減。指定が無ければ DEFAULT_FIRMNESS へ畳む。 */
   readonly firmness: Firmness;
-  /** スロット軸上で占める幅。麺量の商品コードから引く。 */
-  readonly slotSpan: number;
+  /** 麺の玉数。麺量の商品コードから引く。釜数は engine が slotSpanOf で導く（ここは釜数を知らない）。 */
+  readonly portions: number;
   /**
    * 麺量 child が申告した商品名（例 `"中盛"`）。欠落・空文字・型違い、および同一コードで名前が食い違う
    * ときは null。
    *
-   * `slotSpan` と**同じ同定結果**から取る。別に引き直せば「どの child を麺量と見たか」が二箇所で語られ、
+   * `portions` と**同じ同定結果**から取る。別に引き直せば「どの child を麺量と見たか」が二箇所で語られ、
    * ずれる余地が生まれる。
    */
   readonly sizeName: string | null;
@@ -83,11 +83,11 @@ export function toNoodleSpec(
   // 入力の形に対する既定であり、対応表に無い麺種を畳まない規律（AC 6.28）とは層が違う。
   const firmness = findFirmness(childNames, lookup.firmnessCodes) ?? DEFAULT_FIRMNESS;
 
-  // 名前は同定した麺量の商品コードで引く（slotSpan と同じ 1 度の同定から取る）。
+  // 名前は同定した麺量の商品コードで引く（portions と同じ 1 度の同定から取る）。
   return {
     noodleType: menuItem.noodleType,
     firmness,
-    slotSpan: size.slotSpan,
+    portions: size.portions,
     sizeName: childNames.get(size.code) ?? null,
   };
 }

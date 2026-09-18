@@ -59,11 +59,12 @@ function item(
     firmness: "normal",
     tableId: "t-1",
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: "かけ",
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

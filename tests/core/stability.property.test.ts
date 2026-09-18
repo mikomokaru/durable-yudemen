@@ -212,11 +212,12 @@ describe("engine/stability — changeCost の性質", () => {
       firmness: "normal",
       tableId: null,
       arrivalTime: NOW,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     };
     const shownAt = (startAt: number): ShownPlan => [
       {
@@ -329,11 +330,12 @@ describe("engine/stability — changeCost の性質", () => {
               firmness: "normal",
               tableId: null,
               arrivalTime: NOW,
-              slotSpan: 1,
+              portions: 1,
               itemName: null,
               sizeName: null,
               completedAt: null,
               interruptedAt: null,
+              tableAssignedAt: null,
             }),
           );
           const farFuture = (now + 24 * 3600 * SECOND) as EpochMillis;
@@ -380,11 +382,12 @@ describe("engine/stability — changeCost の性質", () => {
       firmness: "normal",
       tableId: null,
       arrivalTime: NOW,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     };
     const START = (NOW + 10 * SECOND) as EpochMillis;
     const boilMillis = boilMillisOf(ITEM, PRESETS)!;

@@ -22,6 +22,7 @@ import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness } from "../domain/firmness";
 import { isNonEmptyString, isNonNegativeInteger } from "../domain/predicate";
+import type { ItemKey } from "../domain/order";
 
 /**
  * 永続ブロブの形（単一 JSON・version 付き・要件11.1）。
@@ -345,4 +346,52 @@ export function readLastStore(): string | null {
     return null;
   }
   return raw;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 「盛りつけ済み」の端末ローカル確認集合（プロトタイプ・端）— オーダーの流れ画面（flowLanes.ts）専用。
+//
+// Plating → Done は、現行の正本に対応する事実が無い遷移である。ここはその代替として、この端末で確認した品目の鍵
+// （`ItemKey`）を店舗ごとに置く。**真実ではない**——他端末には見えず、再接続や機種変更を跨いで残ることも保証しない。
+// 本実装ではサーバ側の事実（品目の属性）と ClientMessage に置き換える前提で、ここに機能を足さない。
+// ビュー永続・前回使用店とは別のキー空間に分ける。読めない・壊れているは一様に「確認なし」（空集合）へ畳む。
+// ───────────────────────────────────────────────────────────────────────────
+
+/** 保存キー。ビュー永続（scopedStorageKey）と別系統。v0 はプロトタイプの印。 */
+function storageKey(storeId: string): string {
+  return `yudemen.plating-acks.v0.${storeId}`;
+}
+
+/** この端末で盛りつけ済みと確認した品目の鍵を読み出す。無い・不正・読み出し不能は空集合。 */
+export function readPlatingAcks(storeId: string): ReadonlySet<ItemKey> {
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(storageKey(storeId));
+  } catch (cause) {
+    console.error("[yudemen] plating acks read failed; treating as none", cause);
+    return new Set();
+  }
+  if (raw === null) return new Set();
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((value): value is string => typeof value === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * 確認集合を書き戻す。呼び出し側は、現在の snapshot に在る品目の鍵だけへ刈ってから渡す（期限で消えた品目の鍵を
+ * 溜め続けない）。
+ */
+export function writePlatingAcks(storeId: string, acks: ReadonlySet<ItemKey>): void {
+  try {
+    localStorage.setItem(storageKey(storeId), JSON.stringify([...acks]));
+  } catch (cause) {
+    console.error(
+      "[yudemen] plating acks write failed; the confirmation stays in memory only",
+      cause,
+    );
+  }
 }

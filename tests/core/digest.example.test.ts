@@ -60,11 +60,12 @@ function order(externalOrderId: string, itemIndex: number, arrivalTime: number):
     firmness: "normal",
     tableId: "t-1",
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 
@@ -224,13 +225,13 @@ describe("engine/digest — digestInput（order-lifecycle AC 4.1：正本を受�
     );
   });
 
-  it("計画が読む値には反応する（arms は Lift_Overflow と pack / split の分岐で効く・slotSpan は割当に効く）", () => {
+  it("計画が読む値には反応する（arms は Lift_Overflow と pack / split の分岐で効く・玉数は割当に効く）", () => {
     const baseline = digestInput(PENDING, RUNNING, PARAMS, NOW);
 
     expect(digestInput(PENDING, RUNNING, { ...PARAMS, arms: 4 }, NOW)).not.toBe(baseline);
 
     const wider = PENDING.map((order, index) =>
-      index === 0 ? { ...order, slotSpan: order.slotSpan + 1 } : order,
+      index === 0 ? { ...order, portions: order.portions + 0.5 } : order,
     );
     expect(digestInput(wider, RUNNING, PARAMS, NOW)).not.toBe(baseline);
   });

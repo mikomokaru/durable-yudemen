@@ -97,11 +97,12 @@ function pendingItem(orderId: string, itemIndex: number, arrivalTime: number): O
     firmness: "normal",
     tableId: "table-1",
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

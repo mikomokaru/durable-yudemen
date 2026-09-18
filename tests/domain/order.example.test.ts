@@ -39,11 +39,12 @@ function order(externalOrderId: string, arrivalTime: number): OrderItem {
     firmness: "normal",
     tableId: "t-1",
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 
@@ -137,11 +138,12 @@ describe("liveOrders — now と pending だけに依存する（AC 1.2）", () 
       ...order("o-x", NOW - 3 * HOUR),
       noodleType: "Thick",
       tableId: null,
-      slotSpan: 2,
+      portions: 2,
       itemName: "特盛",
       sizeName: "大",
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     };
     const live: OrderItem = { ...expired, externalOrderId: "o-y", arrivalTime: NOW - 60_000 };
     expect(liveOrders([expired, live], NOW)).toEqual([live]);

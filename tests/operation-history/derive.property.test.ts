@@ -68,6 +68,7 @@ const genBlueprint: fc.Arbitrary<Blueprint> = fc.record({
     "Adjust",
     "Complete",
     "Cancel",
+    "AssignTable",
     "AlarmFired",
     "Reconcile",
   ),
@@ -186,6 +187,12 @@ function scenarioFromBlueprint(blueprint: Blueprint): Scenario {
         expectedKind: "adjusted",
         sources: changedTargets,
       };
+    }
+    case "AssignTable": {
+      // 店の卓の指定（order-flow・2026-09-17）は Timer の生死・時刻を動かさないので record を生まない。
+      // 差分の対象（sources）は空で、before / after の Timer 集合は同じ。
+      const timers = [...baseShared, ...baseTargets];
+      return { observation: observation(timers, timers), expectedKind: "adjusted", sources: [] };
     }
     case "AlarmFired":
     case "Reconcile": {

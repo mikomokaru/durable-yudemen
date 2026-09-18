@@ -84,11 +84,12 @@ export const PLAN_LONG_ITEM: OrderItem = {
   firmness: "normal",
   tableId: "t-a",
   arrivalTime: PLAN_NOW,
-  slotSpan: 1,
+  portions: 1,
   itemName: null,
   sizeName: null,
   completedAt: null,
   interruptedAt: null,
+  tableAssignedAt: null,
 };
 
 /** 短い麺の B（卓 t-b）。改善計画はこちらを先に入れる。 */

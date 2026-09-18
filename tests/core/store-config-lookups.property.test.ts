@@ -12,8 +12,8 @@ import type { NonEmptyArray } from "../../src/domain/timer";
 import {
   DEFAULT_FIRMNESS_CODES,
   DEFAULT_MENU_ITEMS,
-  SLOT_SPAN_MAX,
-  SLOT_SPAN_MIN,
+  PORTIONS_MAX,
+  PORTIONS_MIN,
   toFirmnessCodes,
   toMenuItems,
   type FirmnessCode,
@@ -33,7 +33,7 @@ const genFirmnessCode: fc.Arbitrary<FirmnessCode> = fc.record({
 
 const genNoodleSize: fc.Arbitrary<NoodleSize> = fc.record({
   code: genProductCode,
-  slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }),
+  portions: fc.integer({ min: 1, max: 18 }).map((half) => half / 2),
 });
 
 /** 非空の麺量群（NonEmptyArray を型で担保する。先頭 1 件と残りを別に生成して組む）。 */
@@ -66,7 +66,7 @@ const genInvalidFirmnessCode: fc.Arbitrary<unknown> = fc.oneof(
   fc.constant({ code: 10_010, firmness: "veryHard" }), // 未知の茹で加減
 );
 
-/** 妥当なメニューの要素にはなりえない生値（サイズ 0 個・値域外の slotSpan を含む）。 */
+/** 妥当なメニューの要素にはなりえない生値（サイズ 0 個・値域外／刻み外の玉数を含む）。 */
 const genInvalidMenuItem: fc.Arbitrary<unknown> = fc.oneof(
   fc.constant(undefined),
   fc.constant(null),
@@ -74,15 +74,20 @@ const genInvalidMenuItem: fc.Arbitrary<unknown> = fc.oneof(
   fc.constant({}),
   fc.constant({ productCode: 11_421, noodleType: "Thin" }), // sizes 欠落
   fc.constant({ productCode: 11_421, noodleType: "Thin", sizes: [] }), // サイズ 0 個
-  fc.constant({ productCode: 11_421, noodleType: "", sizes: [{ code: 19_401, slotSpan: 1 }] }),
-  fc.constant({ productCode: 0, noodleType: "Thin", sizes: [{ code: 19_401, slotSpan: 1 }] }),
-  fc.constant({ productCode: 11_421, noodleType: "Thin", sizes: [{ code: 19_401, slotSpan: 0 }] }),
+  fc.constant({ productCode: 11_421, noodleType: "", sizes: [{ code: 19_401, portions: 1 }] }),
+  fc.constant({ productCode: 0, noodleType: "Thin", sizes: [{ code: 19_401, portions: 1 }] }),
+  fc.constant({ productCode: 11_421, noodleType: "Thin", sizes: [{ code: 19_401, portions: 0 }] }),
   fc.constant({
     productCode: 11_421,
     noodleType: "Thin",
-    sizes: [{ code: 19_401, slotSpan: SLOT_SPAN_MAX + 1 }],
+    sizes: [{ code: 19_401, portions: 1.25 }],
+  }), // 刻み外
+  fc.constant({
+    productCode: 11_421,
+    noodleType: "Thin",
+    sizes: [{ code: 19_401, portions: PORTIONS_MAX + 0.5 }],
   }),
-  fc.constant({ productCode: 11_421, noodleType: "Thin", sizes: [{ slotSpan: 1 }] }), // code 欠落
+  fc.constant({ productCode: 11_421, noodleType: "Thin", sizes: [{ portions: 1 }] }), // code 欠落
 );
 
 // ── 妥当域の判定（domain の定数を正本とする）──
@@ -101,9 +106,9 @@ function isValidMenuItem(item: MenuItem): boolean {
       (size) =>
         Number.isInteger(size.code) &&
         size.code > 0 &&
-        Number.isInteger(size.slotSpan) &&
-        size.slotSpan >= SLOT_SPAN_MIN &&
-        size.slotSpan <= SLOT_SPAN_MAX,
+        Number.isInteger(size.portions * 2) &&
+        size.portions >= PORTIONS_MIN &&
+        size.portions <= PORTIONS_MAX,
     )
   );
 }

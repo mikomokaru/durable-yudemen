@@ -19,9 +19,11 @@ import {
   ARMS_MIN,
   ARMS_MAX,
   TOLERANCE_RATIO_MIN,
+  LIFT_INTERVAL_SECONDS_MAX,
+  LIFT_INTERVAL_SECONDS_MIN,
   TOLERANCE_RATIO_MAX,
-  SLOT_SPAN_MIN,
-  SLOT_SPAN_MAX,
+  PORTIONS_MIN,
+  PORTIONS_MAX,
 } from "../domain/store";
 import { isNonEmpty, type NonEmptyArray } from "../domain/timer";
 
@@ -78,6 +80,8 @@ const NUMERIC_FIELD_RANGE = {
   unitCount: { min: UNIT_COUNT_MIN, max: UNIT_COUNT_MAX },
   arms: { min: ARMS_MIN, max: ARMS_MAX },
   toleranceRatio: { min: TOLERANCE_RATIO_MIN, max: TOLERANCE_RATIO_MAX },
+  // 上げの間隔（目標クラスタ間隔・秒）。2026-09-17 に主張対象へ上げた（domain の妥当域を共有する）。
+  liftIntervalSeconds: { min: LIFT_INTERVAL_SECONDS_MIN, max: LIFT_INTERVAL_SECONDS_MAX },
 } as const;
 
 /**
@@ -93,7 +97,7 @@ const ARRAY_FIELD_VALIDATOR = {
   menuItems: validateMenuItems,
 } as const;
 
-/** 主張してよいフィールド集合（数値 3 種＋配列 3 種）。これ以外は未知フィールドとして拒否する。 */
+/** 主張してよいフィールド集合（数値 4 種＋配列 3 種）。これ以外は未知フィールドとして拒否する。 */
 const ALLOWED_CONFIG_FIELDS: readonly string[] = [
   ...Object.keys(NUMERIC_FIELD_RANGE),
   ...Object.keys(ARRAY_FIELD_VALIDATOR),
@@ -403,28 +407,52 @@ function validateNoodleSizes(raw: unknown, path: string): Rejection[] {
   return rejections;
 }
 
-/** 単一の NoodleSize を検証する。slotSpan は値域の正本（SLOT_SPAN_MIN〜MAX）でクランプ前に拒否する。 */
+/**
+ * 単一の NoodleSize を検証する。玉数（portions）は値域の正本（PORTIONS_MIN〜MAX・0.5 刻み）でクランプ前に拒否する。
+ *
+ * 釜数（slotSpan）は受け付けない——以前の名を特別扱いして読み替えれば、それが釜数を手で入れる入口に戻る。
+ * `unknownFieldRejections` が未知フィールドとして拒む（専用の分岐を書かない）。
+ */
 function validateNoodleSize(raw: unknown, path: string): Rejection[] {
   const object = asRecord(raw);
   if (object === null) {
     return [{ path, reason: "type-mismatch", detail: "オブジェクトである必要がある" }];
   }
 
-  const rejections: Rejection[] = [
-    ...unknownFieldRejections(object, ["code", "slotSpan"], path),
+  return [
+    ...unknownFieldRejections(object, ["code", "portions"], path),
     ...validateProductCode(object, "code", path),
+    ...validatePortions(object, path),
   ];
+}
 
-  const spanPath = `${path}.slotSpan`;
-  if (!("slotSpan" in object)) {
-    rejections.push({ path: spanPath, reason: "missing-required", detail: "slotSpan は必須" });
-  } else {
-    rejections.push(
-      ...validateNumeric(object.slotSpan, { min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }, spanPath),
-    );
+/**
+ * 玉数を検証する。欠落・非数・刻み外・値域外を、畳まず拒否として表明する（isPortions の受理条件の分解）。
+ *
+ * validateNumeric を流用しない——あちらは整数を前提とし、緩めれば他の数値フィールドの整数性まで緩む。
+ */
+function validatePortions(object: Record<string, unknown>, path: string): Rejection[] {
+  const fieldPath = `${path}.portions`;
+  if (!("portions" in object)) {
+    return [{ path: fieldPath, reason: "missing-required", detail: "portions は必須" }];
   }
-
-  return rejections;
+  const value = object.portions;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return [{ path: fieldPath, reason: "type-mismatch", detail: "有限の数値である必要がある" }];
+  }
+  if (!Number.isInteger(value * 2)) {
+    return [{ path: fieldPath, reason: "out-of-range", detail: `0.5 刻み（受領: ${value}）` }];
+  }
+  if (value < PORTIONS_MIN || value > PORTIONS_MAX) {
+    return [
+      {
+        path: fieldPath,
+        reason: "out-of-range",
+        detail: `${PORTIONS_MIN}〜${PORTIONS_MAX} の範囲（受領: ${value}）`,
+      },
+    ];
+  }
+  return [];
 }
 
 // ── Roster の検証（Chain / Store 双方の名簿値）──

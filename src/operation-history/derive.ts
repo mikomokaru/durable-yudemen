@@ -20,6 +20,8 @@ export interface OperationObservation {
     | "Adjust"
     | "Complete"
     | "Cancel"
+    // 店の卓の指定（2026-09-17）。Timer の生死・時刻を動かさないので Operation Record は生まない。
+    | "AssignTable"
     | "AlarmFired"
     | "Reconcile";
   readonly before: TimerState;
@@ -112,6 +114,9 @@ export function recordsFromCommittedDiff(
           },
         ];
       });
+
+    case "AssignTable":
+      return [];
 
     case "AlarmFired":
     case "Reconcile":

@@ -32,11 +32,12 @@ const ORDER: OrderItem = {
   firmness: "hard",
   tableId: "t-3",
   arrivalTime: NOW - 60_000,
-  slotSpan: 1,
+  portions: 1,
   itemName: "プレ塩",
   sizeName: "中盛",
   completedAt: null,
   interruptedAt: null,
+  tableAssignedAt: null,
 };
 
 function start(
@@ -163,7 +164,7 @@ describe("Feature: slot-suggested-start — 検査するもの・しないもの
   });
 
   it("押した釜数が slotSpan と違っても拒否しない（現場の判断に委ねる）", () => {
-    const wide: OrderItem = { ...ORDER, slotSpan: 2 };
+    const wide: OrderItem = { ...ORDER, portions: 2 };
     // slotSpan 2 の品目を 1 釜で開始する。
     expect(start({ ...EMPTY_STATE, orderItems: [wide] }, wide, ["0"]).ok).toBe(true);
     // 逆（slotSpan 1 を 2 釜で）も通る。

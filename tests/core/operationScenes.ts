@@ -30,7 +30,13 @@ import {
 } from "../../src/client/components/liftGroups";
 import type { ServerMessage } from "../../src/domain/messages";
 import { compareArrival, itemKeyOf, pendingOrders, type OrderItem } from "../../src/domain/order";
-import { occupiedSlotsOf, SLOTS_PER_UNIT, slotOf, type NoodlePreset } from "../../src/domain/store";
+import {
+  occupiedSlotsOf,
+  SLOTS_PER_UNIT,
+  slotOf,
+  slotSpanOf,
+  type NoodlePreset,
+} from "../../src/domain/store";
 import type { NonEmptyArray } from "../../src/domain/timer";
 import { configResidualDefaults } from "../storeConfigDefaults";
 import { settleParams } from "../settleParams";
@@ -146,11 +152,12 @@ export function order(
     itemIndex: 0,
     firmness: "normal",
     arrivalTime: T0,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
     ...overrides,
   };
 }
@@ -415,7 +422,7 @@ export function startableGapOf(kitchen: Kitchen, current: Step): StartableGap | 
     if (!occupied.has(slot) && !reserved.has(slot)) startable.push(slot);
   }
   // (a) 空き釜不足（予約による排他を含む）。
-  if (startable.length < head.order.slotSpan) return null;
+  if (startable.length < slotSpanOf(head.order.portions)) return null;
   // (b) 上げ窓。先頭品目の上がりを含む窓の負荷（走行中 ＋ 他の推奨の上がり ＋ 先頭品目）が上限を超えれば待ち。
   const others: Lift[] = items
     .filter((item) => item !== head)

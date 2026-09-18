@@ -59,11 +59,12 @@ function singleTableQueue(count: number): readonly OrderItem[] {
     firmness: "normal" as const,
     tableId: "1",
     arrivalTime: (NOW - (count - index) * 30_000) as EpochMillis,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
 }
 

@@ -41,7 +41,7 @@ const genOrderBody = fc.record({
   arrivalTime: genArrivalTime,
   noodleType: fc.constantFrom("Thin", "Medium", "Thick"),
   tableId: fc.oneof(fc.constantFrom("t-1", "t-2"), fc.constant(null)),
-  slotSpan: fc.constantFrom(1, 2),
+  portions: fc.constantFrom(1, 1.5, 2),
 });
 
 const genPending: fc.Arbitrary<readonly OrderItem[]> = fc
@@ -54,11 +54,12 @@ const genPending: fc.Arbitrary<readonly OrderItem[]> = fc
       firmness: "normal" as const,
       tableId: body.tableId,
       arrivalTime: body.arrivalTime,
-      slotSpan: body.slotSpan,
+      portions: body.portions,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     })),
   );
 

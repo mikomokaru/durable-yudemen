@@ -65,9 +65,9 @@ function item(
   noodleType: "Thin" | "Medium" | "Thick",
   firmness: Firmness,
   tableId: string | null,
-  slotSpan = 1,
+  portions = 1,
 ): ItemSpec {
-  return { noodleType, firmness, tableId, slotSpan };
+  return { noodleType, firmness, tableId, portions };
 }
 
 /** 場面 A：12 釜・arms 1・L 5。下限の機構（業務費用 139 秒改善・変更費用 141 秒で総費用 2 秒悪化）。 */

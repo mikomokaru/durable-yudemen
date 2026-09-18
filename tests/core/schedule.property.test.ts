@@ -47,6 +47,7 @@ import { changeCost, shownPlanOf, type ChangeContext } from "../../src/engine/st
 import { createTimer, type Timer } from "../../src/engine/timer";
 import type { EpochMillis, NoodleType, SlotId, TimerId } from "../../src/engine/types";
 import { ORDER_LIFETIME_MS, type OrderItem } from "../../src/domain/order";
+import { slotSpanOf } from "../../src/domain/store";
 import type { Firmness } from "../../src/domain/firmness";
 import {
   DEFAULT_NOODLE_PRESETS,
@@ -264,7 +265,7 @@ const genLargeScene: fc.Arbitrary<Scene> = fc
               noodleType: fc.constantFrom(...KNOWN_NOODLE_TYPES),
               firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
               tableId: fc.oneof(fc.constantFrom("t-1", "t-2", "t-3"), fc.constant(null)),
-              slotSpan: fc.constant(1),
+              portions: fc.constant(1),
             }),
             { minLength: 1, maxLength: 4 },
           ),
@@ -322,7 +323,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
         const spanOf = new Map(
           pending.map((order) => [
             `${order.externalOrderId}\u0000${order.itemIndex}`,
-            order.slotSpan,
+            slotSpanOf(order.portions),
           ]),
         );
         for (const [index, slice] of schedule.slices.entries()) {
@@ -415,7 +416,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
           ).toBeLessThanOrEqual(cap);
         }
         for (const order of planTargets(pending, NOW)) {
-          if (order.slotSpan <= cap) continue;
+          if (slotSpanOf(order.portions) <= cap) continue;
           expect(placements.some((placement) => refersTo(placement, order))).toBe(false);
         }
       }),
@@ -491,7 +492,7 @@ describe("engine/schedule — 同時に上げる群（lift-group-planning）", (
         const spanOf = new Map(
           pending.map((order) => [
             `${order.externalOrderId}\u0000${order.itemIndex}`,
-            order.slotSpan,
+            slotSpanOf(order.portions),
           ]),
         );
         for (const placement of allPlacements(schedule.slices)) {
@@ -720,11 +721,12 @@ describe("Feature: pending-order-expiry — 計画対象は生きている待ち
             firmness: "normal",
             tableId: null,
             arrivalTime: NOW - ORDER_LIFETIME_MS - age,
-            slotSpan: 1,
+            portions: 1,
             itemName: null,
             sizeName: null,
             completedAt: null,
             interruptedAt: null,
+            tableAssignedAt: null,
           }));
 
           const targets = planTargets([...dead, ...alive], NOW);

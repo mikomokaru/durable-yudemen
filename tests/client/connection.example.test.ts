@@ -260,6 +260,38 @@ describe("client/connection — provisional への操作は origin で経路分�
     connection.close();
   });
 
+  it("assignTable は live のときだけサーバへ送り、degraded では何も起こさない（order-flow・2026-09-17）", () => {
+    const { connection, send, setConnectivity, receiveMessage } = openConnectionWithFakeWatch();
+
+    // degraded（接続前）: 送らない。品目はサーバだけが確定させる事実で、ローカルにも書かない。
+    connection.assignTable({ externalOrderId: "o-1", itemIndex: 0 }, "5");
+    expect(send).not.toHaveBeenCalled();
+
+    setConnectivity("up");
+    receiveMessage(
+      { type: "snapshot", serverTime: START_NOW, timers: [], orderItems: [], recommendations: [] },
+      START_NOW,
+    );
+    expect(mode(connection.getView())).toBe("live");
+
+    connection.assignTable({ externalOrderId: "o-1", itemIndex: 0 }, "5");
+    expect(send).toHaveBeenCalledWith({
+      type: "assignTable",
+      externalOrderId: "o-1",
+      itemIndex: 0,
+      tableId: "5",
+    });
+    connection.assignTable({ externalOrderId: "o-1", itemIndex: 0 }, null);
+    expect(send).toHaveBeenLastCalledWith({
+      type: "assignTable",
+      externalOrderId: "o-1",
+      itemIndex: 0,
+      tableId: null,
+    });
+
+    connection.close();
+  });
+
   it("live で provisional の Complete もサーバへ送らずローカル除去する", () => {
     const { connection, send, setConnectivity, setNow } = openConnectionWithFakeWatch();
 

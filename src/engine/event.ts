@@ -43,6 +43,15 @@ export type Event =
       readonly boilSeconds: number;
       readonly now: EpochMillis;
     }
+  // 店が品目の卓を決める（Orders 画面・2026-09-17）。品目の tableId と tableAssignedAt を書き、参照する走行中 Timer の
+  // 卓（計画の錨）も同じ値にする。null は「卓なし」。品目が集合に無ければ OrderItemNotFound。
+  | {
+      readonly type: "AssignTable";
+      readonly externalOrderId: string;
+      readonly itemIndex: number;
+      readonly tableId: string | null;
+      readonly now: EpochMillis;
+    }
   | { readonly type: "AlarmFired"; readonly now: EpochMillis }
   // rehydrate 直後の整合（即時発火含む）
   | { readonly type: "Reconcile"; readonly now: EpochMillis }

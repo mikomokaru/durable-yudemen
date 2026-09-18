@@ -67,7 +67,7 @@ try {
               noodleType: "probe",
               firmness: "normal",
               tableId: `s${round}`,
-              slotSpan: 1,
+              portions: 1,
             },
           ],
         }),

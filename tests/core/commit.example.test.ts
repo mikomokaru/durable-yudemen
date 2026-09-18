@@ -33,11 +33,12 @@ const WIDE: OrderItem = {
   firmness: "normal",
   tableId: "t-a",
   arrivalTime: NOW,
-  slotSpan: 2,
+  portions: 2,
   itemName: null,
   sizeName: null,
   completedAt: null,
   interruptedAt: null,
+  tableAssignedAt: null,
 };
 
 /** v9 で採用された一片——品目は同じだが 1 釜で組まれている（v9 は slotSpan を読まなかった）。 */
@@ -100,7 +101,7 @@ describe("committedSchedule — 採用済み一片は現在の錨で再検証す
     });
   }
   /** 同じ卓の未着手（Thin 60 秒・1 釜）。 */
-  const REST: OrderItem = { ...WIDE, externalOrderId: "o-rest", slotSpan: 1 };
+  const REST: OrderItem = { ...WIDE, externalOrderId: "o-rest", portions: 1 };
   /** 採用時の錨 600 秒に合流した一片（釜 0・540 秒に始めて 600 秒に上がる）。 */
   const JOINED_AT_600: AcceptedSlice = {
     tableKey: "t-a",
@@ -279,7 +280,7 @@ describe("committedSchedule — 採用済み一片は現在の上げ窓の上限
       }),
     );
   }
-  const ONE: OrderItem = { ...WIDE, externalOrderId: "o-one", slotSpan: 1 };
+  const ONE: OrderItem = { ...WIDE, externalOrderId: "o-one", portions: 1 };
   /** 釜 0 で serveSeconds に上がる採用済み一片（合流の所属は無い）。 */
   function acceptedAt(serveSeconds: number): AcceptedSlice {
     return {
@@ -321,7 +322,7 @@ describe("committedSchedule — 開始を妨げる配置の失効 cannotStart（
   // 6 釜。採用済み一片は品目 ONE を釜 3 に置く。自前解は解放時刻が同点なら index 最小の釜 0 を採るので、
   // 一片が維持されれば釜 3、切られて尾部が置き直せば釜 0——釜の番号が「維持か置き直しか」を語る。
   // 解放表は boiled の釜を `now` に空く予測で扱う（変えない）ので、feasibility だけなら一片は通る。
-  const ONE: OrderItem = { ...WIDE, externalOrderId: "o-one", slotSpan: 1 };
+  const ONE: OrderItem = { ...WIDE, externalOrderId: "o-one", portions: 1 };
   /** 釜 3 に startSeconds から始める採用済み一片（合流の所属は無い）。 */
   function acceptedOn3(startSeconds: number): AcceptedSlice {
     return {
@@ -432,7 +433,7 @@ describe("committedSchedule — 採用済み一片は置ける品目に限って
   // **Validates: Requirements 7.3, 7.4, 7.5**
   //
   // 6 釜・走行中なし。卓 t-m に Thin の M と、プリセットに無い麺種 G。採用済み一片は M を釜 3 に今置く（自前解なら釜 0）。
-  const M: OrderItem = { ...WIDE, externalOrderId: "o-m", slotSpan: 1, tableId: "t-m" };
+  const M: OrderItem = { ...WIDE, externalOrderId: "o-m", portions: 1, tableId: "t-m" };
   const G: OrderItem = { ...M, externalOrderId: "o-g", noodleType: "Ghost" };
   const GHOST_PRESET: NoodlePreset = {
     noodleType: "Ghost",
@@ -470,7 +471,7 @@ describe("committedSchedule — 採用済み一片は置ける品目に限って
   });
 
   it("単体で上限を超える span 5 も同じ——arms 2（上限 4）では集合に無く維持、arms 3（上限 5）では欠落で落ちる", () => {
-    const wide: OrderItem = { ...M, externalOrderId: "o-wide", slotSpan: 5 };
+    const wide: OrderItem = { ...M, externalOrderId: "o-wide", portions: 7.5 };
     expect(
       committedSchedule([ACCEPTED_M], [M, wide], [], NOW, PRESETS, PARAMS, null).slices,
     ).toEqual([ACCEPTED_M]);

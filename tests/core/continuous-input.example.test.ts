@@ -51,11 +51,12 @@ const ORDERS: readonly OrderItem[] = Array.from({ length: 8 }, (_unused, index) 
   firmness: "normal",
   tableId: "t-1",
   arrivalTime: at(index),
-  slotSpan: 1,
+  portions: 1,
   itemName: null,
   sizeName: null,
   completedAt: null,
   interruptedAt: null,
+  tableAssignedAt: null,
 }));
 
 /** 走行中（boiled を含む）が占める釜。 */

@@ -49,11 +49,12 @@ function item(externalOrderId: string, overrides: Partial<OrderItem> = {}): Grou
       firmness: "hard",
       tableId: "12",
       arrivalTime: T0 - 60_000,
-      slotSpan: 1,
+      portions: 1,
       itemName: "プレ塩",
       sizeName: "中盛",
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
       ...overrides,
     },
     suggestion: { slotIds: nonEmpty(["0"]), startAt: T0, boilSeconds: 60, serveAt: T0 + 60_000 },
@@ -77,13 +78,13 @@ function suggestionOf(suggestion: SlotSuggestion): SuggestionView {
   const name = suggestion.item.order.externalOrderId;
   if (suggestion.role === "member") {
     return {
-      label: `${name} 中盛 · かため · Table 12`,
+      label: `${name} 中盛 1玉 · かため · Table 12`,
       ariaLabel: `Suggested — ${name} · Slot 0 · queued`,
       tint: TINT,
     };
   }
   return {
-    label: `${name} 中盛 · かため · Table 12 · now`,
+    label: `${name} 中盛 1玉 · かため · Table 12 · now`,
     ariaLabel: `Suggested — ${name} · Slot 0 · now`,
     tint: TINT,
   };
@@ -133,7 +134,7 @@ describe("head は丸ボタンを持ち濃く、語と aria-label が now を語
     expect(buttons).toHaveLength(2);
     expect(buttons[0]?.getAttribute("aria-label")).toBe("Suggested — head · Slot 0 · now");
     expect(buttons[1]?.getAttribute("aria-label")).toBe("Slot 0 — Start");
-    expect(screen.getByText("head 中盛 · かため · Table 12 · now")).toBeDefined();
+    expect(screen.getByText("head 中盛 1玉 · かため · Table 12 · now")).toBeDefined();
     // 提案 1 件は group 1 つ。ボタンと同じ名を持ち、ボタンはその中に在る。
     const group = screen.getByRole("group", { name: "Suggested — head · Slot 0 · now" });
     expect(group.contains(buttons[0]!)).toBe(true);
@@ -160,7 +161,7 @@ describe("member はラベルだけで、ボタンを持たず、薄く、濃く
     const buttons = screen.getAllByRole("button");
     expect(buttons).toHaveLength(1);
     expect(buttons[0]?.getAttribute("aria-label")).toBe("Slot 0 — Start");
-    expect(screen.getByText("member 中盛 · かため · Table 12")).toBeDefined();
+    expect(screen.getByText("member 中盛 1玉 · かため · Table 12")).toBeDefined();
     // aria-label は role を持つ要素（group）に置く。素の span に置けば generic role で支援技術が無視する。
     expect(
       screen.getByRole("group", { name: "Suggested — member · Slot 0 · queued" }),
@@ -209,7 +210,7 @@ describe("member はラベルだけで、ボタンを持たず、薄く、濃く
       { role: "member", faint: true },
     ]);
     // member のラベルを押しても何も起きない（押す口が構造から無い）。
-    fireEvent.click(screen.getByText("member 中盛 · かため · Table 12"));
+    fireEvent.click(screen.getByText("member 中盛 1玉 · かため · Table 12"));
     expect(onStartSuggested).not.toHaveBeenCalled();
   });
 });
@@ -288,7 +289,7 @@ describe("提案と直前結果は同居する（slot-suggested-start design Com
 
     // バッジはカード上部、提案は下部。優先も排他も要らない。
     expect(screen.getByText("Medium")).toBeDefined();
-    expect(screen.getByText("head 中盛 · かため · Table 12 · now")).toBeDefined();
+    expect(screen.getByText("head 中盛 1玉 · かため · Table 12 · now")).toBeDefined();
   });
 
   it("残滓のバッジは麺色の色相を保ったまま彩度を落とし、稼働中のピルと同じ塗りにならない", () => {
@@ -447,8 +448,8 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
     };
     render(cardElement(running({ cluster: 4, branch: 2 }, named)));
     const shown = badge();
-    expect(shown.getAttribute("aria-label")).toBe("Boiling 4b: 特味噌ネギ中盛 · Table 12");
-    expect(shown.textContent).toBe("4b特味噌ネギ中盛 · 12");
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 4b: 特味噌ネギ中盛 1玉 · Table 12");
+    expect(shown.textContent).toBe("4b特味噌ネギ中盛 1玉 · 12");
   });
 
   it("走行中：マーカーは上がり順（クラスタ番号＋枝・aria-hidden のチップ）、可視の語は卓を数だけにし、読み上げは `Table 卓` を残す", () => {
@@ -456,11 +457,11 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
 
     const shown = badge();
     // 読み上げ（accessible name）は卓を `Table {n}` と語る——文脈の無い読み上げで裸の数が何の数か分からなくなるため。
-    expect(shown.getAttribute("aria-label")).toBe("Boiling 4b: プレ塩中盛 · Table 12");
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 4b: プレ塩中盛 1玉 · Table 12");
     // 上がり順は記号として先頭に置き（aria-hidden）、語がそれに続く。可視の語からは `Table` を省く。
     const marker = shown.querySelector("[aria-hidden]");
     expect(marker?.textContent).toBe("4b");
-    expect(shown.textContent).toBe("4bプレ塩中盛 · 12");
+    expect(shown.textContent).toBe("4bプレ塩中盛 1玉 · 12");
     expect(shown.textContent).not.toContain("Table");
   });
 
@@ -469,7 +470,7 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
 
     const shown = badge();
     expect(shown.querySelector("[aria-hidden]")?.textContent).toBe("3a");
-    expect(shown.getAttribute("aria-label")).toBe("Boiling 3a: プレ塩中盛 · Table 12");
+    expect(shown.getAttribute("aria-label")).toBe("Boiling 3a: プレ塩中盛 1玉 · Table 12");
   });
 
   it("走行中：番号はバッジらしい丸チップ（濃色の地にピルと同じ tint を白抜き）で、点滅しない", () => {
@@ -490,8 +491,8 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
   it("走行中：卓を持たない品目は品名だけ（Table の語を出さない）", () => {
     render(cardElement(running({ cluster: 1, branch: 1 }, { ...ITEM, tableId: null })));
 
-    expect(badge().getAttribute("aria-label")).toBe("Boiling 1a: プレ塩中盛");
-    expect(badge().textContent).toBe("1aプレ塩中盛");
+    expect(badge().getAttribute("aria-label")).toBe("Boiling 1a: プレ塩中盛 1玉");
+    expect(badge().textContent).toBe("1aプレ塩中盛 1玉");
   });
 
   it("走行中：参照先が無ければ（アドホック・v12 由来）語は麺種だけで、番号は出る", () => {
@@ -505,10 +506,10 @@ describe("走行中・茹で上がりのバッジ——番号のマーカーと�
     render(cardElement(boiled(ITEM)));
 
     const shown = badge();
-    expect(shown.getAttribute("aria-label")).toBe("Ready: プレ塩中盛 · Table 12");
+    expect(shown.getAttribute("aria-label")).toBe("Ready: プレ塩中盛 1玉 · Table 12");
     expect(shown.querySelector("[aria-hidden]")?.textContent).toBe("✓");
     // 可視の語は走行中と同じ規則で卓を数だけにする（読み上げは `Table 12` のまま）。
-    expect(shown.textContent).toBe("✓プレ塩中盛 · 12");
+    expect(shown.textContent).toBe("✓プレ塩中盛 1玉 · 12");
   });
 
   it("茹で上がり：参照先が無ければ ✓ と麺種だけ（従来どおり）", () => {

@@ -79,11 +79,12 @@ function order(overrides: Partial<OrderItem> & { externalOrderId: string }): Ord
     firmness: "normal",
     tableId: "t-1",
     arrivalTime: T0 - 60 * SECOND,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
     ...overrides,
   };
 }
@@ -116,11 +117,12 @@ function recommendation(
 const LONG = order({
   externalOrderId: "long",
   itemIndex: 2,
-  slotSpan: 2,
+  portions: 2,
   itemName: "Salt",
   sizeName: "L",
   completedAt: null,
   interruptedAt: null,
+  tableAssignedAt: null,
 });
 const MID = order({ externalOrderId: "mid", noodleType: "Mid" });
 const SHORT = order({ externalOrderId: "short", noodleType: "Short" });
@@ -168,6 +170,7 @@ function renderBoard(units: readonly number[], now: number, view: ClientView = V
     cancel: vi.fn<TimerConnection["cancel"]>(),
     complete: vi.fn<TimerConnection["complete"]>(),
     adjust: vi.fn<TimerConnection["adjust"]>(),
+    assignTable: vi.fn<TimerConnection["assignTable"]>(),
     close: () => {},
   };
   const playTouchCue = vi.fn();
@@ -207,20 +210,20 @@ describe("本物の suggestionOf の語（R2.2・R2.3・R2.5・R3.4・R3.7・R6.
 
     // 先頭（釜 0・1）。可視の語は末尾の now だけで、aria-label の相も now（食い違わない）。
     const head = {
-      ariaLabel: "Suggested — Salt L · Slot 0 · now",
-      label: `Salt L · ${FIRMNESS} · Table t-1 · now`,
+      ariaLabel: "Suggested — Salt L 2玉 · Slot 0 · now",
+      label: `Salt L 2玉 · ${FIRMNESS} · Table t-1 · now`,
       pressable: 1,
       role: "head",
       faint: false,
     };
     expect(shownOn(0)).toEqual([head]);
     // 1 件の推奨は含まれる各釜に同じ提案として現れる（AC 2.14）。釜の番号だけが違う。
-    expect(shownOn(1)).toEqual([{ ...head, ariaLabel: "Suggested — Salt L · Slot 1 · now" }]);
+    expect(shownOn(1)).toEqual([{ ...head, ariaLabel: "Suggested — Salt L 2玉 · Slot 1 · now" }]);
     // 2 本目の先頭（釜 2）。商品名が無ければ麺種の名で代える。
     expect(shownOn(2)).toEqual([
       {
-        ariaLabel: "Suggested — Mid · Slot 2 · now",
-        label: `Mid · ${FIRMNESS} · Table t-1 · now`,
+        ariaLabel: "Suggested — Mid 1玉 · Slot 2 · now",
+        label: `Mid 1玉 · ${FIRMNESS} · Table t-1 · now`,
         pressable: 1,
         role: "head",
         faint: false,
@@ -229,8 +232,8 @@ describe("本物の suggestionOf の語（R2.2・R2.3・R2.5・R3.4・R3.7・R6.
     // 後続（釜 6）。startAt（180 秒）が来ていても arms 2 の枠が埋まっており、語は無く aria-label は queued（AC 2.3）。
     expect(shownOn(6)).toEqual([
       {
-        ariaLabel: "Suggested — Short · Slot 6 · queued",
-        label: `Short · ${FIRMNESS} · Table t-1`,
+        ariaLabel: "Suggested — Short 1玉 · Slot 6 · queued",
+        label: `Short 1玉 · ${FIRMNESS} · Table t-1`,
         pressable: 0,
         role: "member",
         faint: true,
@@ -254,8 +257,8 @@ describe("本物の suggestionOf の語（R2.2・R2.3・R2.5・R3.4・R3.7・R6.
     // 薄いものは準備の合図であり押せない（判断 5 は撤回・判断 21）。
     expect(shownOn(0)).toEqual([
       {
-        ariaLabel: "Suggested — Salt L · Slot 0 · queued",
-        label: `Salt L · ${FIRMNESS} · Table t-1`,
+        ariaLabel: "Suggested — Salt L 2玉 · Slot 0 · queued",
+        label: `Salt L 2玉 · ${FIRMNESS} · Table t-1`,
         pressable: 0,
         role: "member",
         faint: true,
@@ -298,19 +301,19 @@ describe("濃く押せるのは店舗全体で先頭 arms 本（R2.4・R6.9）",
     expect(suggestionButtons()).toHaveLength(2);
     // 先頭は並び（同じ startAt・到着順・同時刻は注文 id の正準順序）の先頭 2 本 A・B。C は後続。
     expect(shownOn(0)[0]).toMatchObject({
-      ariaLabel: "Suggested — A · Slot 0 · now",
+      ariaLabel: "Suggested — A 1玉 · Slot 0 · now",
       pressable: 1,
       role: "head",
       faint: false,
     });
     expect(shownOn(2)[0]).toMatchObject({
-      ariaLabel: "Suggested — B · Slot 2 · now",
+      ariaLabel: "Suggested — B 1玉 · Slot 2 · now",
       pressable: 1,
       role: "head",
       faint: false,
     });
     expect(shownOn(4)[0]).toMatchObject({
-      ariaLabel: "Suggested — C · Slot 4 · queued",
+      ariaLabel: "Suggested — C 1玉 · Slot 4 · queued",
       pressable: 0,
       role: "member",
       faint: true,
@@ -321,7 +324,7 @@ describe("濃く押せるのは店舗全体で先頭 arms 本（R2.4・R6.9）",
     renderBoard([0], T0, { ...CROWDED, arms: 1 });
     expect(screen.getAllByRole("group")).toHaveLength(3);
     expect(suggestionButtons().map((button) => button.getAttribute("aria-label"))).toEqual([
-      "Suggested — A · Slot 0 · now",
+      "Suggested — A 1玉 · Slot 0 · now",
     ]);
     cleanup();
 
@@ -342,7 +345,7 @@ describe("提案の押下は品目の鍵と推奨の slotIds 全体で startOrde
     const { connection, playTouchCue } = renderBoard([0], T0 + 150 * SECOND);
 
     fireEvent.click(
-      within(card(0)).getByRole("button", { name: "Suggested — Salt L · Slot 0 · now" }),
+      within(card(0)).getByRole("button", { name: "Suggested — Salt L 2玉 · Slot 0 · now" }),
     );
 
     expect(connection.startOrderItem).toHaveBeenCalledTimes(1);
@@ -358,7 +361,7 @@ describe("提案の押下は品目の鍵と推奨の slotIds 全体で startOrde
     const { connection, playTouchCue } = renderBoard([0], T0 - 30 * SECOND);
 
     expect(within(card(1)).queryByRole("button", { name: /^Suggested — / })).toBeNull();
-    fireEvent.click(within(card(1)).getByText(`Salt L · ${FIRMNESS} · Table t-1`));
+    fireEvent.click(within(card(1)).getByText(`Salt L 2玉 · ${FIRMNESS} · Table t-1`));
 
     expect(connection.startOrderItem).not.toHaveBeenCalled();
     expect(playTouchCue).not.toHaveBeenCalled();
@@ -367,7 +370,7 @@ describe("提案の押下は品目の鍵と推奨の slotIds 全体で startOrde
   it("後続のラベルを押しても何も送られない（押す口が構造から無い・startAt が過ぎていても）", () => {
     const { connection, playTouchCue } = renderBoard([0, 1], T0 + 180 * SECOND);
 
-    fireEvent.click(within(card(6)).getByText(`Short · ${FIRMNESS} · Table t-1`));
+    fireEvent.click(within(card(6)).getByText(`Short 1玉 · ${FIRMNESS} · Table t-1`));
 
     expect(connection.startOrderItem).not.toHaveBeenCalled();
     expect(playTouchCue).not.toHaveBeenCalled();

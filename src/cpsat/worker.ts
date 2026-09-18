@@ -2,6 +2,7 @@ import type { CpsatPlanRequest } from "./request";
 import { matchesCpsatInput } from "./request";
 import { planCpsat } from "./plan";
 import { adjustedEndTime } from "../engine/project";
+import { slotSpanOf } from "../domain/store";
 
 export default {
   async fetch(request: Request, env: CpsatPlannerEnv, ctx: ExecutionContext): Promise<Response> {
@@ -121,10 +122,10 @@ function sceneOf(request: CpsatPlanRequest) {
     boiled: timer.boiledAt !== null,
   }));
   const occupied = new Set(running.flatMap((timer) => timer.slots));
-  // 対象：`slotSpan` の内訳だけ（何杯が何釜を要るか）。**中盛の修正が効いたかもここで見える。**
+  // 対象：釜数（玉数から導く `slotSpanOf`）の内訳だけ（何杯が何釜を要るか）。**中盛の修正が効いたかもここで見える。**
   const spans: Record<string, number> = {};
   for (const item of request.pending) {
-    const key = String(item.slotSpan);
+    const key = String(slotSpanOf(item.portions));
     spans[key] = (spans[key] ?? 0) + 1;
   }
   return {

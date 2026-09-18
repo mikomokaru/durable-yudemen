@@ -68,18 +68,19 @@ export interface MixedScene {
 
 /** 混在の場面を `now` から組む。 */
 export function mixedScene(now: EpochMillis): MixedScene {
-  const item = (externalOrderId: string, arrivalTime: number, slotSpan = 1): OrderItem => ({
+  const item = (externalOrderId: string, arrivalTime: number, portions = 1): OrderItem => ({
     externalOrderId,
     itemIndex: 0,
     noodleType: "Long",
     firmness: "normal",
     tableId: "t-1",
     arrivalTime,
-    slotSpan,
+    portions,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   });
   const at = (seconds: number) => (now + seconds * SECOND) as EpochMillis;
   const expired = item("A", now - ORDER_LIFETIME_MS);

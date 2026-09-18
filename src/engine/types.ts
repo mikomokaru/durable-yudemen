@@ -51,5 +51,11 @@ export const EPSILON_MS = 500 as const;
  *      その要素だけ落とす——履歴の欠けは Change_Cost 0 に倒れるだけで、状態全体を失わせない。
  *  v13: pendingOrders を orderItems に読み替え、各品目に厨房の事実 completedAt / interruptedAt を追加（order-lifecycle
  *      判断 1・3・AC 1.6）。欠如は null。品目は開始で消費されず状態は導出する。不正な品目は既存どおり全体を移行失敗
- *      （部分受理という嘘を作らない）。v12 由来で参照先の無い走行中 Timer はそのまま動く（判断 14・移行例外）。 */
-export const CURRENT_SCHEMA_VERSION = 13 as const;
+ *      （部分受理という嘘を作らない）。v12 由来で参照先の無い走行中 Timer はそのまま動く（判断 14・移行例外）。
+ *  v14: OrderItem に店が卓を決めた事実 tableAssignedAt を追加（Orders 画面の assignTable・2026-09-17）。欠如は null。
+ *      非 null の品目は POS の後着で tableId を上書きされない。
+ *  v15: OrderItem の slotSpan（釜数）を portions（玉数・0.5 刻み）に置き換える（noodle-portions 判断 4・2026-09-18）。
+ *      釜数は slotSpanOf(portions) の導出値で永続しない。v15 以降は portions 必須（欠如は移行失敗）。v8〜v14 は
+ *      slotSpan を仮置きの玉数（portions = slotSpan）として読む——逆写像は一意でなく、運用前ゆえ読み手に届かない前提。
+ *      v7 以前は 1。 */
+export const CURRENT_SCHEMA_VERSION = 15 as const;

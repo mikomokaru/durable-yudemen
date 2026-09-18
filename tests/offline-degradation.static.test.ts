@@ -58,6 +58,8 @@ const EXPECTED_CORE_FILES = [
   "src/engine/adjust.ts",
   "src/engine/admit.ts",
   "src/engine/alarm.ts",
+  // assign-table.ts は店が品目の卓を決める遷移（order-flow・2026-09-17）。receive.ts と同じ判断で追随させる。
+  "src/engine/assign-table.ts",
   // boil.ts は茹で時間と合流の窓の導出（plan-stability タスク 4 が schedule.ts から切り出した——自前解が変更費用を
   // 読み、変更費用が茹で時間を読むため）。lift.ts と同じ判断で追随させる。
   "src/engine/boil.ts",
@@ -106,13 +108,14 @@ const EXPECTED_CORE_FILES = [
  *
  * ServerMessage は snapshot 単一表現へ畳まれ、意味論メッセージ（started / cancelled / boiled /
  * completed / adjusted）は撤去済み（snapshot-broadcast）。存置は snapshot / config / error のみ。
- * ClientMessage（start / cancel / complete / adjust）は不変。 */
+ * ClientMessage（start / startOrderItem / cancel / complete / adjust / assignTable）は他 spec の正当な追加を追随させる。 */
 const WIRE_MESSAGE_TYPES = new Set([
   "start",
   "startOrderItem",
   "cancel",
   "complete",
   "adjust",
+  "assignTable",
   "snapshot",
   "config",
   "error",
@@ -633,6 +636,12 @@ const ALLOWED_FIRMNESS_LABELS = ["バリカタ", "かため", "ふつう", "や�
  */
 const ALLOWED_SIZE_LABELS = ["普通", "中盛", "大盛", "半玉"] as const;
 
+/**
+ * 玉数の単位（`queueDisplay.ts` の `PORTIONS_UNIT`・noodle-portions 判断 7）。釜へ落とす量は現場の語「玉」でしか
+ * 読めない。`SIZE_LABEL` と同じ規律で、この初期化子 1 箇所だけが単位を持てる（その外に現れれば従来どおり弾く）。
+ */
+const PORTIONS_UNIT_DEFINITION = /const PORTIONS_UNIT = "玉";/;
+
 /** 麺量表の定義（`queueDisplay.ts`）。この初期化子の中だけが麺量の語を持てる。 */
 const SIZE_LABEL_DEFINITION =
   /const SIZE_LABEL: ReadonlyMap<string, string> = new Map\(\[[\s\S]*?\]\);/;
@@ -642,6 +651,8 @@ const SIZE_LABEL_DEFINITION =
  * ——確かめずに落とせば、あの括弧の中へ何を書いても英語 UI の検査を通り抜ける穴になる。
  */
 function withoutSizeLabelDefinition(code: string): string {
+  // 玉数の単位の初期化子は確定した 1 行そのものなので、一致した分だけを取り除く（中身の検査は正規表現が兼ねる）。
+  code = code.replace(PORTIONS_UNIT_DEFINITION, "");
   const found = SIZE_LABEL_DEFINITION.exec(code);
   if (found === null) return code;
   const block = found[0];

@@ -235,11 +235,12 @@ describe("上限超過の永続値（order-item-truncation Requirement 4.3 / AC 
       firmness: "normal",
       tableId: null,
       arrivalTime: 1_700_000_000_000 + index * 1000,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     };
   }
 

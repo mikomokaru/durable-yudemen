@@ -57,8 +57,7 @@ import {
   DEFAULT_FIRMNESS_CODES,
   DEFAULT_MENU_ITEMS,
   DEFAULT_NOODLE_PRESETS,
-  SLOT_SPAN_MAX,
-  SLOT_SPAN_MIN,
+  PORTIONS_PER_SLOT,
   SLOTS_PER_UNIT,
   defaultUnitOrigins,
 } from "../../src/domain/store";
@@ -178,13 +177,15 @@ const genPendingOrder: fc.Arbitrary<OrderItem> = fc.record({
   firmness: genFirmness,
   tableId: fc.oneof(fc.constant<string | null>(null), fc.constantFrom(...TABLE_ID_POOL)),
   arrivalTime: genReceivedAt,
-  slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }),
+  portions: fc.integer({ min: 1, max: 18 }).map((half) => half / 2),
   // POS 申告の商品名。null と非空文字列の双方を分布する（要件 6.5）。
   itemName: fc.option(fc.string({ minLength: 1, maxLength: 8 }), { nil: null }),
   sizeName: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
   // 厨房の事実（order-lifecycle）。null と時刻の双方を分布する——client の表示は状態を導出で読む。
   completedAt: fc.option(genReceivedAt, { nil: null }),
   interruptedAt: fc.option(genReceivedAt, { nil: null }),
+  // 店が卓を決めた事実（2026-09-17）。表示は読まない（並びにも状態にも効かない）が、形として往復させる。
+  tableAssignedAt: fc.option(genReceivedAt, { nil: null }),
 });
 
 /** 未着手オーダーの全量（空・複数の双方）。(externalOrderId, itemIndex) の組で一意化する。 */
@@ -606,11 +607,13 @@ function liftViewOf(
         firmness: item.firmness,
         tableId: batch.tableId,
         arrivalTime: LIFT_SCENE_ORIGIN - item.arrivalOffset,
-        slotSpan: item.slotIds.length,
+        // 割り当てた釜の数を満たす玉数（slotSpanOf(portions) が slotIds.length に一致する）。
+        portions: item.slotIds.length * PORTIONS_PER_SLOT,
         itemName: null,
         sizeName: null,
         completedAt: null,
         interruptedAt: null,
+        tableAssignedAt: null,
       });
       recommendations.push({
         externalOrderId,
@@ -643,11 +646,12 @@ function liftViewOf(
       firmness: "normal",
       tableId: "tb-1",
       arrivalTime: LIFT_SCENE_ORIGIN,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     });
     recommendations.push({
       externalOrderId: "o-retired",

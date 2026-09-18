@@ -199,7 +199,7 @@
 21. THE POS_Ingress SHALL 品目が茹で対象であるかの判定を、当該品目の `child_items` に麺量（Noodle_Size）の商品コードが在るか否かで行う（麺量の指定を持たない品目は茹でない。餃子・丼・トッピング・飲料はいずれもここに含まれる）。
 22. THE POS_Ingress SHALL 茹で対象でない品目を Pending_Order へ写さない。
 23. THE POS_Ingress SHALL 品目が茹で対象であるかの判定に `item_type` を用いない（`item_type` は本経路の判定基準ではない。判定基準を Noodle_Size の有無ただ一つに保つ）。
-24. THE POS_Ingress SHALL `slotSpan`（1 品目がスロット軸上で占める幅）を Noodle_Size の商品コードから翻訳して定める（茹で対象の判定と `slotSpan` の決定が同一の入力から導かれる。麺量は茹で時間を変えないが占有するスロット数を変える）。
+24. （**改訂・`noodle-portions`・2026-09-18**：翻訳するのは玉数 `portions` であり、釜数 `slotSpan` は `slotSpanOf(portions)` の導出値になった。以下は「釜数」を「玉数」に読み替える）THE POS_Ingress SHALL `slotSpan`（1 品目がスロット軸上で占める幅）を Noodle_Size の商品コードから翻訳して定める（茹で対象の判定と `slotSpan` の決定が同一の入力から導かれる。麺量は茹で時間を変えないが占有するスロット数を変える）。
 25. THE POS_Ingress SHALL 翻訳した `slotSpan` を Pending_Order の属性として持たせ、POS の麺量の語彙（商品コード・商品名）を待ち行列の正本へ持ち込まない（翻訳を取り込み経路に閉じることで、engine と client は「この品目が何スロット要るか」だけを知り、POS がそれをどう表現していたかを知らない）。
 26. THE POS_Ingress SHALL Pending_Order の各属性を次の出所から定める。`externalOrderId` は Unique_Key（AC 6.4）、`itemIndex` は `order_items` の位置（AC 6.34）、`arrivalTime` は `arrival_timestamp_ms`（Requirement 8.1）、`tableId` は `payload.table_no` を文字列化した値（`table_no` の欠落・0 は卓に紐づかない品目として `null` へ写す）、`noodleType` / `firmness` / `slotSpan` は商品情報からの翻訳（AC 6.19）。
 27. THE POS_Ingress SHALL 既存の `toPendingOrders` の全体拒否の規律（1 品目でも不正なら到着全体を拒否）を本経路には適用しない（あちらは「1 つのオーダーの品目群」の原子性を守るための規律であり、本経路では翻訳できない品目が正常に起こりうる——非麺の品目、および対応表に無い麺種である）。本経路は品目単位で扱い、翻訳できた品目のみを Pending_Order へ写す。

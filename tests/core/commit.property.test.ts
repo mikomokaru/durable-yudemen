@@ -188,11 +188,12 @@ function stale(
       firmness: newcomer.firmness,
       tableId,
       arrivalTime: NOW,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     },
   ];
 }

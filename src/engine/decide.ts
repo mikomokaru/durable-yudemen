@@ -13,6 +13,7 @@ import { startOrderItemTimer, startTimer } from "./start";
 import { cancelTimer } from "./cancel";
 import { completeTimer } from "./complete";
 import { adjustTimer } from "./adjust";
+import { assignTable } from "./assign-table";
 import { fireDueTimers, reconcile } from "./fire";
 import { arriveOrder, cancelOrder } from "./order";
 import { receivePlan } from "./plan";
@@ -23,7 +24,7 @@ import type { Rejection } from "./rejection";
 /**
  * 唯一の状態遷移関数（要件8.1 / 8.4 / 8.7・本機能の要件7.1 / 7.2）。
  *
- * Start → startTimer / Cancel → cancelTimer / Complete → completeTimer /
+ * Start → startTimer / Cancel → cancelTimer / Complete → completeTimer / AssignTable → assignTable /
  * AlarmFired → fireDueTimers / Reconcile → reconcile /
  * OrderArrived → arriveOrder / OrderCancelled → cancelOrder / PlanArrived → receivePlan /
  * RecordsReceived → arriveRecords。
@@ -93,6 +94,8 @@ function dispatch(state: TimerState, event: Event, params: SettleParams): Outcom
         event.now,
         params,
       );
+    case "AssignTable":
+      return assignTable(state, event, params);
     case "AlarmFired":
       return fireDueTimers(state, event.now, params);
     case "Reconcile":

@@ -32,6 +32,7 @@ import { boilMillisOf } from "../../src/engine/boil";
 import type { Timer } from "../../src/engine/timer";
 import { headsOf, liftGroupsOf, visibleGroupsOf, type LiftItem } from "../../src/domain/lift-group";
 import { compareArrival, itemKeyOf, type ItemKey, type OrderItem } from "../../src/domain/order";
+import { slotSpanOf } from "../../src/domain/store";
 import {
   DEFAULT_NOODLE_PRESETS,
   SLOTS_PER_UNIT,
@@ -337,7 +338,9 @@ describe("Feature: startable-placement — 「今」の配分の loop の性質"
     fc.assert(
       fc.property(genScene, (scene) => {
         const { release, members, params, slotCount } = scene;
-        const spanOf = new Map(scene.pending.map((order) => [itemKeyOf(order), order.slotSpan]));
+        const spanOf = new Map(
+          scene.pending.map((order) => [itemKeyOf(order), slotSpanOf(order.portions)]),
+        );
         const earliestOf = (placement: Placement) =>
           Math.max(...placement.slotIds.map((slotId) => release[slotOf(slotId)]!)) +
           (placement.serveAt - placement.startAt);

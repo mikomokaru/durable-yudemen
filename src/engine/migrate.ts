@@ -22,7 +22,7 @@ import { itemKeyOf, type OrderItem } from "../domain/order";
 import type { NonEmptyArray } from "../domain/timer";
 import { isNonEmpty } from "../domain/timer";
 import { DEFAULT_FIRMNESS, isFirmness, type Firmness } from "../domain/firmness";
-import { SLOT_SPAN_MAX, SLOT_SPAN_MIN } from "../domain/store";
+import { isPortions, SLOT_SPAN_MAX, SLOT_SPAN_MIN } from "../domain/store";
 
 /**
  * migrate の結果。成功なら現行スキーマのスナップショット、失敗なら ShellFailure。
@@ -79,7 +79,11 @@ export function migrate(raw: unknown): MigrationOutcome {
   // v7 で追加した 3 フィールド。欠如（v6 以前）は空値／null で埋める（design.md の移行表）。
   // 品目の集合は v13 で `orderItems` に読み替えた（v12 以前は `pendingOrders`）。両方が在ることは無い——v13 の
   // `toSnapshot` は `orderItems` だけを書く——ので、現行の鍵を優先し、無ければ旧鍵を読む。
-  const orderItems = reviveOrderItems(record.orderItems ?? record.pendingOrders);
+  // 品目の復元は永続の版で必須項目を分ける（v15 以降は玉数が必須・noodle-portions 判断 10）。version 欠如は最古の形。
+  const orderItems = reviveOrderItems(
+    record.orderItems ?? record.pendingOrders,
+    typeof version === "number" ? version : 1,
+  );
   const acceptedSlices = reviveAcceptedSlices(record.acceptedSlices);
   if (orderItems === null || acceptedSlices === null) {
     return { ok: false, failure: { code: "MigrationFailed" } };
@@ -198,12 +202,12 @@ function reviveLastSequenceByTerminal(value: unknown): Readonly<Record<string, s
  *   復活し得る——失う事実の重さが違う。
  * - 配列でない → 壊れたデータ（null）。
  */
-function reviveOrderItems(value: unknown): readonly OrderItem[] | null {
+function reviveOrderItems(value: unknown, version: number): readonly OrderItem[] | null {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) return null;
   const items: OrderItem[] = [];
   for (const element of value) {
-    const item = toOrderItem(element);
+    const item = toOrderItem(element, version);
     if (item === null) return null;
     items.push(item);
   }
@@ -223,7 +227,7 @@ function reviveOrderItems(value: unknown): readonly OrderItem[] | null {
  * 厨房の事実（`completedAt` / `interruptedAt`）は v13 で追加。欠如 / null（v12 以前は品目に完了も中断も記録しない
  * ——開始で消費していた）は null、有限数値はその値、それ以外は壊れたデータ（呼び出し側が全体を移行失敗にする）。
  */
-function toOrderItem(value: unknown): OrderItem | null {
+function toOrderItem(value: unknown, version: number): OrderItem | null {
   if (typeof value !== "object" || value === null) return null;
   const o = value as Record<string, unknown>;
   if (typeof o.externalOrderId !== "string" || o.externalOrderId.length === 0) return null;
@@ -241,13 +245,16 @@ function toOrderItem(value: unknown): OrderItem | null {
   const sizeName = toDeclaredName(o.sizeName);
   if (sizeName === null) return null;
   if (typeof o.arrivalTime !== "number" || !Number.isFinite(o.arrivalTime)) return null;
-  // slotSpan は v8 で追加。欠如は 1、値域外・非整数は壊れたデータ（呼び出し側が全体を移行失敗にする）。
-  const slotSpan = reviveSlotSpan(o.slotSpan);
-  if (slotSpan === null) return null;
+  // 玉数は v15 で釜数（slotSpan・v8）に置き換えた。版で必須項目が分かれる（呼び出し側が全体を移行失敗にする）。
+  const portions = revivePortions(o, version);
+  if (portions === null) return null;
   const completedAt = reviveRecordedAt(o.completedAt);
   if (completedAt === INVALID_RECORDED_AT) return null;
   const interruptedAt = reviveRecordedAt(o.interruptedAt);
   if (interruptedAt === INVALID_RECORDED_AT) return null;
+  // 店が卓を決めた事実は v14 で追加。欠如 / null（v13 以前は店の判断を記録しない）は null。
+  const tableAssignedAt = reviveRecordedAt(o.tableAssignedAt);
+  if (tableAssignedAt === INVALID_RECORDED_AT) return null;
   return {
     externalOrderId: o.externalOrderId,
     itemIndex: o.itemIndex,
@@ -255,11 +262,12 @@ function toOrderItem(value: unknown): OrderItem | null {
     firmness: o.firmness,
     tableId: tableId.name,
     arrivalTime: o.arrivalTime,
-    slotSpan,
+    portions,
     itemName: itemName.name,
     sizeName: sizeName.name,
     completedAt,
     interruptedAt,
+    tableAssignedAt,
   };
 }
 
@@ -267,8 +275,8 @@ function toOrderItem(value: unknown): OrderItem | null {
 const INVALID_RECORDED_AT = Symbol("invalid-recordedAt");
 
 /**
- * 永続の厨房の記録（`completedAt` / `interruptedAt`）を現行 v13 形へ写す。
- * - 欠如 / null（v12 以前は記録を持たない・未完了 / 未中断）→ null。
+ * 永続の厨房・店の記録（`completedAt` / `interruptedAt`・v13、`tableAssignedAt`・v14）を現行形へ写す。
+ * - 欠如 / null（記録を持たない版・未完了 / 未中断 / 店の指定なし）→ null。
  * - 有限数値 → その値（記録した時刻）。
  * - それ以外（非有限数・文字列等）→ 壊れたデータ（INVALID_RECORDED_AT）。
  */
@@ -278,21 +286,33 @@ function reviveRecordedAt(value: unknown): number | null | typeof INVALID_RECORD
   return INVALID_RECORDED_AT;
 }
 
+/** 玉数（portions）が釜数（slotSpan）に置き換わった版。これ以降は玉数が必須で、釜数が在っても読まない。 */
+const PORTIONS_SCHEMA_VERSION = 15;
+
+/** 釜数（slotSpan）が品目に足された版。これより前の品目は麺量の語彙を持たない。 */
+const SLOT_SPAN_SCHEMA_VERSION = 8;
+
 /**
- * 永続の slotSpan を現行 v8 形へ写す（v8 で追加）。
- * - 欠如 / null（v7 以前は麺量の語彙を持たない）→ SLOT_SPAN_MIN。v7 以前の待ち行列は現に 1 品目 1 スロット
- *   で計画されており、埋めた値が当時の実際の挙動に一致する。
- * - 値域内の整数 → その値。
- * - それ以外（非整数・値域外）→ 壊れたデータ（null）。
+ * 永続の玉数を現行 v15 形へ写す。版で必須項目を分ける（noodle-portions 判断 10）——欠如を無条件に畳めば、
+ * v15 で必須の値が欠けた壊れたデータも 1 玉として通ってしまう。
+ * - v15 以降 → portions 必須。欠如・isPortions を通らない値は壊れたデータ（null）。slotSpan が在っても読まない
+ *   （v15 の永続に slotSpan は無く、在っても読まないことで「二つあればどちらが正か」を問わない）。
+ * - v8〜v14 → portions = slotSpan（仮置き）。逆写像は一意でない（1 釜は 0.5 / 1.0 / 1.5 のどれでもありうる）ので
+ *   釜数 1〜2 それぞれの最頻の玉数（1.0 / 2.0）を採る。slotSpanOf(portions) は釜数 1〜2 で元に一致し、計画の占有は
+ *   変わらない。運用前ゆえ読み手に届かない前提で置く。slotSpan の欠如は従来どおり 1、非整数・値域外は壊れたデータ。
+ * - v7 以前 → 1（従来 slotSpan = 1 へ畳んでいたのと同じ帰結。当時の待ち行列は現に 1 品目 1 スロットで計画されていた）。
  *
- * 値域外をクランプしないのは、どこにも要求されていない占有幅を新たに作らないためである（domain の
- * toSlotSpan / toNoodleSize と同じ判断）。
+ * 値域外をクランプしないのは、どこにも要求されていない玉数を新たに作らないためである（domain の toNoodleSize と
+ * 同じ判断）。
  */
-function reviveSlotSpan(value: unknown): number | null {
-  if (value === undefined || value === null) return SLOT_SPAN_MIN;
-  if (typeof value !== "number" || !Number.isInteger(value)) return null;
-  if (value < SLOT_SPAN_MIN || value > SLOT_SPAN_MAX) return null;
-  return value;
+function revivePortions(o: Record<string, unknown>, version: number): number | null {
+  if (version >= PORTIONS_SCHEMA_VERSION) return isPortions(o.portions) ? o.portions : null;
+  if (version < SLOT_SPAN_SCHEMA_VERSION) return SLOT_SPAN_MIN;
+  const slotSpan = o.slotSpan;
+  if (slotSpan === undefined || slotSpan === null) return SLOT_SPAN_MIN;
+  if (typeof slotSpan !== "number" || !Number.isInteger(slotSpan)) return null;
+  if (slotSpan < SLOT_SPAN_MIN || slotSpan > SLOT_SPAN_MAX) return null;
+  return slotSpan;
 }
 
 /**

@@ -6,7 +6,7 @@ import type { Policy, PolicyFields, StoreOverride } from "./ideal";
 import {
   DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
   DEFAULT_AFFINITY_WEIGHT,
-  DEFAULT_LIFT_INTERVAL_SECONDS,
+  toLiftIntervalSeconds,
   DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
   DEFAULT_ORDER_SYNC_WEIGHT,
   DEFAULT_SLOT_OFFSETS,
@@ -35,6 +35,8 @@ const CONFIG_FIELDS = [
   "noodlePresets",
   "firmnessCodes",
   "menuItems",
+  // 上げの間隔（目標クラスタ間隔）。2026-09-17 に店舗差が実在して主張対象へ上げた。
+  "liftIntervalSeconds",
 ] as const satisfies readonly (keyof StoreConfig)[];
 
 /** 合成対象フィールド名（PolicyFields / StoreOverride が主張しうる集合）。 */
@@ -68,6 +70,7 @@ export function composeEffectiveConfig(
     noodlePresets: undefined,
     firmnessCodes: undefined,
     menuItems: undefined,
+    liftIntervalSeconds: undefined,
   };
   // enforced で確定済みのフィールド名（一度ロックされたら以後の層・Override が無視される・単調増加）。
   const locked = new Set<ConfigField>();
@@ -109,9 +112,9 @@ export function composeEffectiveConfig(
     orderSyncToleranceSeconds: DEFAULT_ORDER_SYNC_TOLERANCE_SECONDS,
     tableSyncToleranceSeconds: DEFAULT_TABLE_SYNC_TOLERANCE_SECONDS,
     affinityToleranceDistance: DEFAULT_AFFINITY_TOLERANCE_DISTANCE,
-    // 上げの間隔も同じく主張対象ではない。ここで既定を供給するので、この合成以後に永続された投影は必ず項目を持つ
-    // （それ以前の投影は store DO の adoptProjectionConfig が欠如を既定へ畳む・lift-group-planning AC 9.1）。
-    liftIntervalSeconds: DEFAULT_LIFT_INTERVAL_SECONDS,
+    // 上げの間隔は主張対象（2026-09-17〜）。未主張は toLiftIntervalSeconds が既定へ畳むので、この合成以後に永続された
+    // 投影は必ず項目を持つ（それ以前の投影は store DO の adoptProjectionConfig が欠如を既定へ畳む・lift-group-planning AC 9.1）。
+    liftIntervalSeconds: toLiftIntervalSeconds(acc.liftIntervalSeconds),
     unitOrigins: defaultUnitOrigins(unitCount),
     slotOffsets: DEFAULT_SLOT_OFFSETS,
     firmnessCodes: toFirmnessCodes(acc.firmnessCodes),

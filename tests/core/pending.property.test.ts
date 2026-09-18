@@ -102,11 +102,12 @@ function toArrivedItem(
     firmness: item.firmness,
     tableId: item.tableId,
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

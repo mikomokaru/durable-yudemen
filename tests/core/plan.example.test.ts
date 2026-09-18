@@ -67,11 +67,12 @@ const LONG: OrderItem = {
   firmness: "normal",
   tableId: "t-a",
   arrivalTime: NOW,
-  slotSpan: 1,
+  portions: 1,
   itemName: null,
   sizeName: null,
   completedAt: null,
   interruptedAt: null,
+  tableAssignedAt: null,
 };
 const SHORT: OrderItem = {
   ...LONG,

@@ -186,11 +186,12 @@ const genPlan: fc.Arbitrary<PlanSeed> = fc
               firmness: "normal",
               tableId: tableKey,
               arrivalTime: serveAt - item.waitMillis,
-              slotSpan: 1,
+              portions: 1,
               itemName: null,
               sizeName: null,
               completedAt: null,
               interruptedAt: null,
+              tableAssignedAt: null,
             });
           }
           return {

@@ -145,11 +145,12 @@ export function uniqueOrderItems(length: number, tieRun = 1): readonly OrderItem
     firmness: "normal" as Firmness,
     tableId: null,
     arrivalTime: Math.floor(index / tieRun) * 1000,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
 }
 

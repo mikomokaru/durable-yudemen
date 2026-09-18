@@ -51,11 +51,12 @@ function item(index: number, tableId: string | null): OrderItem {
     firmness: "normal",
     tableId,
     arrivalTime: T0 + index * 1000,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

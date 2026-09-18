@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { toOrderItems } from "../../src/domain/order";
-import { DEFAULT_NOODLE_PRESETS, SLOT_SPAN_MAX, SLOT_SPAN_MIN } from "../../src/domain/store";
+import { DEFAULT_NOODLE_PRESETS, PORTIONS_MAX, PORTIONS_MIN } from "../../src/domain/store";
 
 const presets = DEFAULT_NOODLE_PRESETS;
 const arrivalTime = 1_700_000_000_000;
@@ -19,12 +19,13 @@ const validItem = {
   noodleType: "Thin",
   firmness: "hard",
   tableId: "table-3",
-  // 既定（1）と異なる幅を据える——既定と同値では「持たせている」ことと「畳んでいる」ことが見分けられない。
-  slotSpan: 2,
+  // 玉数は必須の事実（noodle-portions 判断 4）。代表値と異なる値を据えて、写されていることを見分ける。
+  portions: 2,
   itemName: null,
   sizeName: null,
   completedAt: null,
   interruptedAt: null,
+  tableAssignedAt: null,
 } as const;
 
 describe("toOrderItems — 正常値の正規化", () => {
@@ -37,32 +38,33 @@ describe("toOrderItems — 正常値の正規化", () => {
         firmness: "hard",
         tableId: "table-3",
         arrivalTime,
-        slotSpan: 2,
+        portions: 2,
         itemName: null,
         sizeName: null,
         completedAt: null,
         interruptedAt: null,
+        tableAssignedAt: null,
       },
     ]);
   });
 
-  it("slotSpan の欠落を 1 スロット占有へ畳む（麺量の語彙を持たない到着）", () => {
-    const withoutSpan: Record<string, unknown> = { ...validItem };
-    delete withoutSpan.slotSpan;
+  it("portions の欠落を 1 玉へ畳む（麺量の語彙を持たない到着・指定が無い入力の形に対する既定）", () => {
+    const withoutPortions: Record<string, unknown> = { ...validItem };
+    delete withoutPortions.portions;
 
-    expect(toOrderItems([withoutSpan], presets, arrivalTime)?.[0]?.slotSpan).toBe(1);
+    expect(toOrderItems([withoutPortions], presets, arrivalTime)?.[0]?.portions).toBe(1);
   });
 
-  it("slotSpan の値域の境界（SLOT_SPAN_MIN・SLOT_SPAN_MAX）を通す", () => {
-    const bounds = [SLOT_SPAN_MIN, SLOT_SPAN_MAX];
+  it("portions の値域の境界（PORTIONS_MIN・PORTIONS_MAX）と 0.5 刻みを通す", () => {
+    const bounds = [PORTIONS_MIN, 1.5, PORTIONS_MAX];
 
     const orders = toOrderItems(
-      bounds.map((slotSpan, itemIndex) => ({ ...validItem, itemIndex, slotSpan })),
+      bounds.map((portions, itemIndex) => ({ ...validItem, itemIndex, portions })),
       presets,
       arrivalTime,
     );
 
-    expect(orders?.map((order) => order.slotSpan)).toEqual(bounds);
+    expect(orders?.map((order) => order.portions)).toEqual(bounds);
   });
 
   it("tableId の欠落・null を単独グループ（null）へ正規化する", () => {
@@ -116,14 +118,14 @@ describe("toOrderItems — 不正な到着は全体を拒否する", () => {
       { ...validItem, firmness: "veryHard" },
       { ...validItem, tableId: 3 },
       { ...validItem, tableId: "" },
-      // 値域外はクランプせず拒否する（勝手に寄せれば、要求されていない占有幅を作ってしまう）。
-      { ...validItem, slotSpan: SLOT_SPAN_MIN - 1 },
-      { ...validItem, slotSpan: SLOT_SPAN_MAX + 1 },
-      { ...validItem, slotSpan: -1 },
-      { ...validItem, slotSpan: 1.5 },
-      { ...validItem, slotSpan: "1" },
-      { ...validItem, slotSpan: null },
-      { ...validItem, slotSpan: Number.NaN },
+      // 値域外・刻み外はクランプせず拒否する（勝手に寄せれば、要求されていない玉数を作ってしまう）。
+      { ...validItem, portions: PORTIONS_MIN - 0.5 },
+      { ...validItem, portions: PORTIONS_MAX + 0.5 },
+      { ...validItem, portions: -1 },
+      { ...validItem, portions: 1.25 },
+      { ...validItem, portions: "1" },
+      { ...validItem, portions: null },
+      { ...validItem, portions: Number.NaN },
     ];
 
     for (const item of violations) {

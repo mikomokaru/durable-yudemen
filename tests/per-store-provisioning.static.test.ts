@@ -284,7 +284,7 @@ describe("(b) ServerMessage に Roster を表現するフィールドが無い�
       const messageType = match[1];
       if (messageType !== undefined) found.add(messageType);
     }
-    // ClientMessage（start / startOrderItem / cancel / complete / adjust）と ServerMessage
+    // ClientMessage（start / startOrderItem / cancel / complete / adjust / assignTable）と ServerMessage
     // （snapshot / config / error）の全種別。Roster を運ぶ新種別が混入していないことを確認する。
     expect(found).toEqual(
       new Set([
@@ -293,6 +293,7 @@ describe("(b) ServerMessage に Roster を表現するフィールドが無い�
         "cancel",
         "complete",
         "adjust",
+        "assignTable",
         "snapshot",
         "config",
         "error",

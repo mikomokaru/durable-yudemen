@@ -25,14 +25,14 @@ const lookup: NoodleLookup = {
       productCode: 11_421,
       noodleType: "Medium",
       sizes: [
-        { code: 19_401, slotSpan: 1 },
-        { code: 19_603, slotSpan: 2 },
+        { code: 19_401, portions: 1 },
+        { code: 19_603, portions: 2 },
       ] as NonEmptyArray<NoodleSize>,
     },
     {
       productCode: 116_051,
       noodleType: "Thin",
-      sizes: [{ code: 19_401, slotSpan: 1 }] as NonEmptyArray<NoodleSize>,
+      sizes: [{ code: 19_401, portions: 1 }] as NonEmptyArray<NoodleSize>,
     },
   ],
 };
@@ -69,8 +69,8 @@ describe("ingress/noodle-spec — 麺量の有無が茹で対象を決める", (
     const specs = orderItems.map((orderItem) => toNoodleSpec(orderItem, lookup));
 
     expect(specs).toEqual([
-      { noodleType: "Medium", firmness: "hard", slotSpan: 1, sizeName: null },
-      { noodleType: "Thin", firmness: "normal", slotSpan: 1, sizeName: null },
+      { noodleType: "Medium", firmness: "hard", portions: 1, sizeName: null },
+      { noodleType: "Thin", firmness: "normal", portions: 1, sizeName: null },
       null,
       null,
       null,
@@ -78,12 +78,12 @@ describe("ingress/noodle-spec — 麺量の有無が茹で対象を決める", (
     expect(specs.filter((spec) => spec !== null)).toHaveLength(2);
   });
 
-  it("大盛の麺量は slotSpan を 2 にし、茹で加減は変えない（AC 6.24）", () => {
+  it("大盛の麺量は玉数を 2 にし、茹で加減は変えない（AC 6.24・釜数は導出）", () => {
     const spec = toNoodleSpec(
       { plu_no: 11_421, child_items: [{ plu_no: 19_603 }, { plu_no: 10_011 }] },
       lookup,
     );
-    expect(spec).toEqual({ noodleType: "Medium", firmness: "normal", slotSpan: 2, sizeName: null });
+    expect(spec).toEqual({ noodleType: "Medium", firmness: "normal", portions: 2, sizeName: null });
   });
 });
 
@@ -101,7 +101,7 @@ describe("ingress/noodle-spec — 判定が依らないもの", () => {
     expect(forward).toEqual({
       noodleType: "Medium",
       firmness: "hard",
-      slotSpan: 2,
+      portions: 2,
       sizeName: null,
     });
   });
@@ -125,7 +125,7 @@ describe("ingress/noodle-spec — 判定が依らないもの", () => {
 
   it("item_type を変えても結果が変わらない（AC 6.23）", () => {
     const child_items = [{ plu_no: 19_401 }, { plu_no: 10_010 }];
-    const expected = { noodleType: "Medium", firmness: "hard", slotSpan: 1, sizeName: null };
+    const expected = { noodleType: "Medium", firmness: "hard", portions: 1, sizeName: null };
     for (const item_type of [0, 1, 2, 9]) {
       expect(toNoodleSpec({ plu_no: 11_421, item_type, child_items }, lookup)).toEqual(expected);
     }
@@ -181,7 +181,7 @@ describe("ingress/noodle-spec — 硬さの既定と空の対応表", () => {
       { plu_no: 11_421, child_items: [{ plu_no: 19_401 }, { plu_no: 10_010 }] },
       withoutFirmnessTable,
     );
-    expect(spec).toEqual({ noodleType: "Medium", firmness: "normal", slotSpan: 1, sizeName: null });
+    expect(spec).toEqual({ noodleType: "Medium", firmness: "normal", portions: 1, sizeName: null });
   });
 });
 

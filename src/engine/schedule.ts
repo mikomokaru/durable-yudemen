@@ -30,7 +30,7 @@ import {
   type ItemKey,
   type OrderItem,
 } from "../domain/order";
-import { slotDistance, slotOf, type NoodlePreset } from "../domain/store";
+import { slotDistance, slotOf, slotSpanOf, type NoodlePreset } from "../domain/store";
 import { boilMillisOf, joinWindowMillis } from "./boil";
 import {
   partialChangeCost,
@@ -1067,7 +1067,7 @@ export function placeableTargets(
 
 /** 置ける品目か——茹で時間が引け（プリセットに在る麺種）、品目単体で上げ窓の上限 `cap`（`liftCap`）に収まる。 */
 function isPlaceable(order: OrderItem, presets: readonly NoodlePreset[], cap: number): boolean {
-  return boilMillisOf(order, presets) !== null && order.slotSpan <= cap;
+  return boilMillisOf(order, presets) !== null && slotSpanOf(order.portions) <= cap;
 }
 
 /**
@@ -1552,7 +1552,7 @@ function isPushedOut(
  * Acceptance_Gate（admit.ts）と確定計画の合成（commit.ts・isStale 経由）が同じ述語を読む。
  */
 export function occupiesSlotSpan(placement: Placement, order: OrderItem): boolean {
-  if (placement.slotIds.length !== order.slotSpan) return false;
+  if (placement.slotIds.length !== slotSpanOf(order.portions)) return false;
   return new Set(placement.slotIds.map(slotOf)).size === placement.slotIds.length;
 }
 
@@ -1711,7 +1711,8 @@ function placeGroup(
   // 残りの品目。取り置きで置ける釜が品目の span に足りない品目は置けない（構造上は起こらない——後の一片の「今」は手前の
   // 一片が使わない釜にしか無い。起きれば一片が欠けて性質 5.10 の `isStale` が検出する）。
   let remaining = boilings.filter(
-    (boiling) => !fixedByKey.has(itemKeyOf(boiling.order)) && boiling.order.slotSpan <= capacity,
+    (boiling) =>
+      !fixedByKey.has(itemKeyOf(boiling.order)) && slotSpanOf(boiling.order.portions) <= capacity,
   );
   if (siblings !== null) {
     // 合流分は品目ごとに「間に合う最早の走行中」を候補にし、候補ごとの列を上げ窓に当てて置く。
@@ -1737,9 +1738,9 @@ function placeGroup(
     span = 0;
   };
   for (const boiling of remaining) {
-    if (span + boiling.order.slotSpan > capacity) flush();
+    if (span + slotSpanOf(boiling.order.portions) > capacity) flush();
     batch.push(boiling);
-    span += boiling.order.slotSpan;
+    span += slotSpanOf(boiling.order.portions);
   }
   flush();
   return placements;
@@ -1945,7 +1946,7 @@ function placeBatch(
     continuity,
     (base) => {
       const anchor = Math.max(...base, runningAnchor ?? Number.NEGATIVE_INFINITY) as EpochMillis;
-      const least = Math.min(...batch.map((boiling) => boiling.order.slotSpan));
+      const least = Math.min(...batch.map((boiling) => slotSpanOf(boiling.order.portions)));
       return firstFit(lifts, anchor, least, params) ?? anchor;
     },
   );
@@ -2039,7 +2040,7 @@ function placeWithLifts(
     // 錨に 5 本が合流する列で、先頭 4 本が 45 秒後・余りの 1 本だけが now）。残りが先頭の品目に足りなければ
     // 今の窓には誰も入らないので、上限で切る。
     const room = cap - loadWith(lifts, t0, 0, params);
-    const first = column[0]!.boiling.order.slotSpan;
+    const first = slotSpanOf(column[0]!.boiling.order.portions);
     const head = longestPrefixWithin(column, room >= first ? room : cap);
     const placedHead = placeWithLifts(head, t0, lifts, members, params, continuity);
     const placedRest = placeWithLifts(
@@ -2310,7 +2311,7 @@ function chunksByServeAt(
 
 /** 列の Σ span。 */
 function spanOf(column: readonly Assigned[]): number {
-  return column.reduce((sum, assigned) => sum + assigned.boiling.order.slotSpan, 0);
+  return column.reduce((sum, assigned) => sum + slotSpanOf(assigned.boiling.order.portions), 0);
 }
 
 /** Σ span が limit に収まる最長の接頭辞（先頭の品目が limit を超えれば空）。 */
@@ -2318,8 +2319,8 @@ function longestPrefixWithin(column: readonly Assigned[], limit: number): readon
   let span = 0;
   let length = 0;
   for (const assigned of column) {
-    if (span + assigned.boiling.order.slotSpan > limit) break;
-    span += assigned.boiling.order.slotSpan;
+    if (span + slotSpanOf(assigned.boiling.order.portions) > limit) break;
+    span += slotSpanOf(assigned.boiling.order.portions);
     length++;
   }
   return column.slice(0, length);
@@ -2431,7 +2432,7 @@ function assignSlots(
     if (shown === undefined) continue;
     const preferred = [...new Set(shown.slotIds.map(slotOf))];
     const chosen = chooseSlots(
-      boiling.order.slotSpan,
+      slotSpanOf(boiling.order.portions),
       free,
       params,
       preferred,
@@ -2473,7 +2474,7 @@ function distribute(
   readonly earliest: readonly number[];
   readonly byBoil: readonly number[];
 } {
-  const totalSpan = batch.reduce((sum, boiling) => sum + boiling.order.slotSpan, 0);
+  const totalSpan = batch.reduce((sum, boiling) => sum + slotSpanOf(boiling.order.portions), 0);
   const slots = chooseSlots(totalSpan, release, params);
   const byRelease = [...slots].sort(
     (slot, other) => release[slot]! - release[other]! || slot - other,
@@ -2481,7 +2482,7 @@ function distribute(
   const slotsOfItem: (readonly number[])[] = new Array(batch.length);
   let cursor = 0;
   for (const index of byBoil) {
-    const span = batch[index]!.order.slotSpan;
+    const span = slotSpanOf(batch[index]!.order.portions);
     slotsOfItem[index] = byRelease.slice(cursor, cursor + span);
     cursor += span;
   }

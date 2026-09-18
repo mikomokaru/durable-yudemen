@@ -61,6 +61,7 @@ const WIRE_MESSAGE_TYPES = new Set([
   "cancel",
   "complete",
   "adjust",
+  "assignTable",
   // server → client（ServerMessage・snapshot 単一表現）
   "snapshot",
   "config",

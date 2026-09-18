@@ -72,13 +72,15 @@ const genOrderItem: fc.Arbitrary<OrderItem> = fc.record({
   firmness: genFirmness,
   tableId: fc.oneof(fc.constant(null), fc.string({ minLength: 1, maxLength: 6 })),
   arrivalTime: genEpoch,
-  slotSpan: fc.integer({ min: 1, max: 6 }),
+  // 玉数は 0.5 刻み（PORTIONS_MIN〜PORTIONS_MAX）。半玉単位の整数から導く。
+  portions: fc.integer({ min: 1, max: 18 }).map((half) => half / 2),
   // POS 申告の商品名。null と非空文字列の双方を分布する（要件 6.5）。
   itemName: fc.option(fc.string({ minLength: 1, maxLength: 8 }), { nil: null }),
   sizeName: fc.option(fc.string({ minLength: 1, maxLength: 4 }), { nil: null }),
   // 厨房の事実（order-lifecycle）。null と時刻の双方を往復させる。
   completedAt: fc.option(genEpoch, { nil: null }),
   interruptedAt: fc.option(genEpoch, { nil: null }),
+  tableAssignedAt: fc.option(genEpoch, { nil: null }),
 });
 
 const genRecommendation: fc.Arbitrary<CookRecommendation> = fc.record({

@@ -16,6 +16,7 @@ import { mode, type TimerConnection } from "../connection";
 import { correctedNow } from "../clock";
 import { FIRMNESS_LABEL } from "./firmness";
 import { isNonEmpty } from "../../domain/timer";
+import { slotSpanOf } from "../../domain/store";
 import { assignedSlotDisplays } from "./slotDisplay";
 import { displayName, orderQueueEntries } from "./queueDisplay";
 import {
@@ -27,8 +28,11 @@ import {
 } from "./liftGroups";
 import { SlotCard, type SuggestionView } from "./SlotCard";
 import { OrderRail } from "./OrderRail";
+import { PlanPanel } from "./PlanPanel";
+import { planClusters, rebasePlan } from "./flowLanes";
 import { RadialMenu, type RadialQueueItem } from "./RadialMenu";
 import { noodleColors } from "./noodleColor";
+import { cn } from "../cn";
 
 interface SlotBoardProps {
   readonly connection: TimerConnection;
@@ -83,6 +87,10 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   const corrected = correctedNow(view.offset, now);
   // 待ち行列（レール用・到着順）。件数は絞らない——計画対象の上限を超える分も並び、提案が付かないだけである。
   const queue = orderQueueEntries(view, units, now);
+  // 最新の計画（調理クラスタ・店舗全体・担当範囲で絞らない・ユーザー確定 2026-09-18）。先頭が過去なら目盛りを今へ追従。
+  const plan = rebasePlan(planClusters(view, now), corrected);
+  // 左の器のタブ。Plan（計画）か Queue（到着順の待ち行列）か。端末のその場の選択で、状態には残さない。
+  const [leftTab, setLeftTab] = useState<"plan" | "queue">("plan");
   // 釜カードの提案は、受信した推奨の全量から群 → 表示できる群 → 釜ごとの提案の順に導く。担当範囲で絞るのは
   // 表示（assignedSlotDisplays）だけで、群・開始・連鎖・全釜 idle は店舗全体で判定する——どの端末を見ても
   // 同じ「次」が見える（lift-group-display AC 1.6 / 2.12）。群も先頭もビューに保持しない（AC 1.5）。
@@ -99,7 +107,10 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   // （AC 4.9・状態に写さない）。degraded では空——選んでも開始されない品目を選べる形で示さない（AC 4.8 / 4.9）。
   const radialQueue: readonly RadialQueueItem[] =
     picker !== null && mode(view) === "live"
-      ? queue.map(({ order }) => ({ order, slotIds: pairSlots(picker.slot, order.slotSpan, view) }))
+      ? queue.map(({ order }) => ({
+          order,
+          slotIds: pairSlots(picker.slot, slotSpanOf(order.portions), view),
+        }))
       : [];
   // 麺色の resolver。メニュー順に重複なく色を割り当てる（config 受信時のみ再構築・毎ティックでは作り直さない）。
   const colorOf = useMemo(
@@ -126,8 +137,47 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
       {/* 下段: 左に待ちオーダーのレール、右に釜グリッド。既定の align-items: stretch で上下端が揃う。
           gap は置かない——区切りはレール側の pr と border-r が作り、釜カードの幅を 1px も削らない。 */}
       <div className="flex min-h-0 flex-1">
-        {/* 待ち行列と提案のレール。未着手オーダーが無い店（POS 連携前）では描かれず、盤面は従来のままになる。 */}
-        {waiting !== null && <OrderRail entries={waiting} noodleColor={colorOf} />}
+        {/* 左の器：Plan（計画）と Queue（到着順のレール）のタブ切替（ユーザー確定 2026-09-18）。
+            器の幅は中身に従う（Plan は 13rem・Queue はレールの w-32）。区切りは中身側が作り、器は gap を持たない。 */}
+        <aside aria-label="Orders" className="flex min-h-0 flex-none flex-col">
+          <div role="tablist" aria-label="Orders view" className="mb-2 flex flex-none">
+            {(["plan", "queue"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={leftTab === tab}
+                onClick={() => setLeftTab(tab)}
+                className={cn(
+                  "mr-1 h-7 cursor-pointer rounded-[0.5rem] border px-3 text-xs font-bold",
+                  leftTab === tab
+                    ? "border-line bg-panel2 text-ink"
+                    : "border-transparent bg-transparent text-muted hover:text-ink",
+                )}
+              >
+                {tab === "plan" ? "Plan" : "Queue"}
+              </button>
+            ))}
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {leftTab === "plan" ? (
+              <PlanPanel
+                clusters={plan.clusters}
+                lagMs={plan.lagMs}
+                corrected={corrected}
+                unitCount={view.unitCount}
+                noodleColor={colorOf}
+                className="mr-[clamp(0.5rem,1.2vw,0.875rem)] w-52 flex-1"
+              />
+            ) : waiting !== null ? (
+              <OrderRail entries={waiting} noodleColor={colorOf} />
+            ) : (
+              <p className="m-0 w-32 flex-none pr-[clamp(0.5rem,1.2vw,0.875rem)] text-xs text-muted">
+                No waiting orders
+              </p>
+            )}
+          </div>
+        </aside>
         {/* ユニットごとに 2col×3row のブロックを作り、ユニットを横並び（縦画面=1ユニットは単独ブロック、
             横画面=2ユニットは左右に並ぶ）。外枠 grid-flow-col + auto-cols-fr が各ユニットを等幅の列にする。
             左 padding を持たない。Board_Area の幅の変化はこの flex-1 が吸収する（JS で寸法を測らない）。 */}

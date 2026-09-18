@@ -38,7 +38,7 @@ export type InputDigest = number & { readonly __brand: "InputDigest" };
  * **何を含めるかは「変われば計画が変わりうるか」で決まる。** 変わっても計画が変わらない値を含めれば、
  * 無駄な要求が出る。逆に計画を変える値を落とせば、改善の機会に気づけないまま抑制が効く。
  *   - 計画対象の品目は**計画に効くフィールド**を含める（鍵・麺種・茹で加減・卓・到着時刻・
- *     slotSpan）。表示だけに効く申告名（itemName / sizeName）と厨房の事実（completedAt / interruptedAt）は含めない
+ *     玉数）。表示だけに効く申告名（itemName / sizeName）と厨房の事実（completedAt / interruptedAt）は含めない
  *     ——前者は変わっても計画は変わらず、後者は状態（unstarted か否か）を通して計画対象の範囲にだけ効く。
  *   - 計画対象**外**（65 件目以降）は含めない。計画に現れず推奨の対象にもならないので、増減しても
  *     計画は変わらない。含めれば混雑時に届く到着のたびに要求が出る（AC 11.2 の意図に反する）。
@@ -107,8 +107,8 @@ export function digestInput(
     // 本物の卓 id と衝突しない。
     fold(order.tableId ?? "");
     fold(order.arrivalTime);
-    // 占める釜の数は割当に効く（大盛は 2 釜）。
-    fold(order.slotSpan);
+    // 玉数は割当に効く（釜数はその関数・大盛 2 玉は 2 釜）。事実を畳む——釜数を畳めば同じ釜数の別の玉数が同じ写しになる。
+    fold(order.portions);
   }
 
   fold(occupants.length);

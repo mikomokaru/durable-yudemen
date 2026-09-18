@@ -56,10 +56,10 @@ const genFirmnessCodes: fc.Arbitrary<readonly FirmnessCode[]> = fc.array(genFirm
   maxLength: 5,
 });
 
-/** NoodleSize — 麺量の商品コードと妥当域内の slotSpan（1〜6）。 */
+/** NoodleSize — 麺量の商品コードと妥当域内の玉数（0.5〜9・0.5 刻み）。 */
 const genNoodleSize: fc.Arbitrary<NoodleSize> = fc.record({
   code: fc.integer({ min: 1, max: 999_999 }),
-  slotSpan: fc.integer({ min: 1, max: 6 }),
+  portions: fc.integer({ min: 1, max: 18 }).map((half) => half / 2),
 });
 
 /** MenuItem — 親品目の商品コード・麺種・非空の麺量群（入れ子ゆえ往復で要素まで保存されるべき）。 */

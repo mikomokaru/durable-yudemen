@@ -156,6 +156,7 @@ function renderBoard(playTouchCue: () => void) {
     cancel,
     complete,
     adjust,
+    assignTable: vi.fn<TimerConnection["assignTable"]>(),
     close: () => {},
   };
 

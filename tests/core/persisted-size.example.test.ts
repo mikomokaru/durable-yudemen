@@ -46,11 +46,12 @@ function representativeItem(index: number): OrderItem {
     firmness: "normal",
     tableId: String(index % 40),
     arrivalTime: T0 + index * 1000,
-    slotSpan: 1,
+    portions: 1,
     itemName: ITEM_NAME,
     sizeName: SIZE_NAME,
     completedAt: T0 + index * 1000 + 600_000,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

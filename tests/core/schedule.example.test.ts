@@ -165,7 +165,7 @@ function pendingItem(input: {
   firmness?: Firmness;
   tableId?: string | null;
   arrivalTime?: number;
-  slotSpan?: number;
+  portions?: number;
 }): OrderItem {
   return {
     externalOrderId: input.orderId,
@@ -174,11 +174,12 @@ function pendingItem(input: {
     firmness: input.firmness ?? "normal",
     tableId: input.tableId ?? null,
     arrivalTime: input.arrivalTime ?? NOW,
-    slotSpan: input.slotSpan ?? 1,
+    portions: input.portions ?? 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 
@@ -655,9 +656,9 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
     ]);
   });
 
-  it("slotSpan 2 の品目は 2 釜を占め、同じ卓の 1 釜の品目と提供時刻が揃う", () => {
+  it("portions 2 の品目は 2 釜を占め、同じ卓の 1 釜の品目と提供時刻が揃う", () => {
     const pending = [
-      pendingItem({ orderId: "A", itemIndex: 0, noodleType: "Thin", tableId: "t-1", slotSpan: 2 }),
+      pendingItem({ orderId: "A", itemIndex: 0, noodleType: "Thin", tableId: "t-1", portions: 2 }),
       pendingItem({ orderId: "A", itemIndex: 1, noodleType: "Thick", tableId: "t-1" }),
     ];
 
@@ -680,7 +681,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
     ]);
   });
 
-  it("釜容量（slotSpan の合計）を超える卓は batch に割れ、batch は上げ窓に載る本数で窓に割れ、跨ぎは減点になる", () => {
+  it("釜容量（portions の合計）を超える卓は batch に割れ、batch は上げ窓に載る本数で窓に割れ、跨ぎは減点になる", () => {
     // 6 釜の店に、同じ卓の Thin が 7 本。6 本で 1 batch、7 本目は釜が空く 60 秒後に始まる。
     // batch の 6 本は上げ窓（arms 2 + 手伝い 2 = 4 本・L 45 秒）で 4 本と 2 本に割れ、後の 2 本は次の窓 105 秒へ
     // （判断 20）。7 本目は釜が空く 60 秒から茹でて 120 秒——[105,150) の窓は 2 + 1 = 3 本で上限内。
@@ -747,7 +748,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
 
     it("レビューの再現: 6 釜・同卓 4 品・各 2 釜。1 本目を始めた後も残りは走行中の錨に合流し、始めたまとまりが崩れない", () => {
       const items = [1, 2, 3].map((itemIndex) =>
-        pendingItem({ orderId: "A", itemIndex, noodleType: "Thin", tableId: "t-1", slotSpan: 2 }),
+        pendingItem({ orderId: "A", itemIndex, noodleType: "Thin", tableId: "t-1", portions: 2 }),
       );
       // 開始前（4 品・走行中なし）は容量 6 で 3 品と 1 品の batch に割れ、3 品（6 本分）は上げ窓の上限 4 本で
       // 2 品（60 秒）と 1 品（105 秒）に割れる。4 品目は釜が空く 60 秒から茹でて 120 秒（[105,150) は 2 + 2 = 4 本）。
@@ -758,7 +759,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
             itemIndex: 0,
             noodleType: "Thin",
             tableId: "t-1",
-            slotSpan: 2,
+            portions: 2,
           }),
           ...items,
         ],
@@ -884,7 +885,7 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
           itemIndex: 1,
           noodleType: "Thin",
           tableId: "t-1",
-          slotSpan: 2,
+          portions: 2,
         }),
       ];
 
@@ -936,9 +937,9 @@ describe("baselineSchedule — 同時に上げる群（lift-group-planning）", 
 // （AC 9.12）——を具体値で固定する。既定は arms 2・L 45 秒・手伝い 2 本（上限 4 本）。
 describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）", () => {
   /** 同じ卓の Thin（60 秒）n 本。到着は同時。 */
-  function family(count: number, slotSpan = 1): readonly OrderItem[] {
+  function family(count: number, portions = 1): readonly OrderItem[] {
     return Array.from({ length: count }, (_unused, itemIndex) =>
-      pendingItem({ orderId: "F", itemIndex, noodleType: "Thin", tableId: "t-1", slotSpan }),
+      pendingItem({ orderId: "F", itemIndex, noodleType: "Thin", tableId: "t-1", portions }),
     );
   }
 
@@ -1035,11 +1036,11 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
     expect(withinLiftCap(schedule.slices[0]!.placements, NO_LIFTS, roomy)).toBe(true);
   });
 
-  it("大盛（slotSpan 2）は 2 本分として窓に数える（AC 9.11）", () => {
+  it("大盛（portions 2）は 2 本分として窓に数える（AC 9.11）", () => {
     // 大盛 1 品 + Thin 3 本（合計 5 本分）。上限 4 に収まる最長の接頭辞は大盛 + Thin 2 本（4 本分）で 60 秒、
     // 残る Thin 1 本は次の窓 105 秒へ。大盛を 1 本と数えれば 4 品が同じ窓に載ってしまう。
     const pending = [
-      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", slotSpan: 2 }),
+      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", portions: 2 }),
       ...[1, 2, 3].map((itemIndex) =>
         pendingItem({ orderId: "F", itemIndex, noodleType: "Thin", tableId: "t-1" }),
       ),
@@ -1065,11 +1066,11 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
     ]);
   });
 
-  it("slotSpan が arms + 手伝いを超える品目は配置しない——arms 1 で 4 釜の品目は待ち行列に残る（AC 9.12）", () => {
+  it("portions が arms + 手伝いを超える品目は配置しない——arms 1 で 4 釜の品目は待ち行列に残る（AC 9.12）", () => {
     // 上限 3 本にどの窓でも入らない品目は、茹で時間が引けない品目と同じく置かない。同じ卓の他の品目は置かれる。
     const narrow = { ...PARAMS, arms: 1 };
     const pending = [
-      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", slotSpan: 4 }),
+      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", portions: 6 }),
       pendingItem({ orderId: "F", itemIndex: 1, noodleType: "Thin", tableId: "t-1" }),
     ];
 
@@ -1109,7 +1110,7 @@ describe("baselineSchedule — 上げ窓（lift-group-planning Requirement 9）"
     // pack（手伝いを頼んで 60 秒）を置く。同じ卓の Thin も同じ列で 3 本分に収まり同じ窓に載る。
     const narrow = { ...PARAMS, arms: 1 };
     const pending = [
-      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", slotSpan: 2 }),
+      pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thin", tableId: "t-1", portions: 2 }),
       pendingItem({ orderId: "F", itemIndex: 1, noodleType: "Thin", tableId: "t-1" }),
     ];
 
@@ -1238,8 +1239,8 @@ describe("keepsAnchor — pack の単位の検査（lift-group-planning AC 9.10�
     return timerOn({ id: `blocked-${slot}`, slot, endTime: NOW + 10_000 * SECS });
   }
   /** 卓 t-1 の未着手。 */
-  function item(itemIndex: number, noodleType: string, slotSpan = 1): OrderItem {
-    return pendingItem({ orderId: "F", itemIndex, noodleType, tableId: "t-1", slotSpan });
+  function item(itemIndex: number, noodleType: string, portions = 1): OrderItem {
+    return pendingItem({ orderId: "F", itemIndex, noodleType, tableId: "t-1", portions });
   }
   /** 外部計画の配置。serveAt は startAt + 茹で時間。 */
   function place(
@@ -1623,7 +1624,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
     // 走行中の仲間が在る卓と無い卓、大盛（2 釜）、容量分割を踏む場面。
     const pending = [
       pendingItem({ orderId: "F", itemIndex: 0, noodleType: "Thick", tableId: "t-1" }),
-      pendingItem({ orderId: "F", itemIndex: 1, tableId: "t-1", slotSpan: 2 }),
+      pendingItem({ orderId: "F", itemIndex: 1, tableId: "t-1", portions: 2 }),
       pendingItem({ orderId: "F", itemIndex: 2, noodleType: "Medium", tableId: "t-1" }),
       pendingItem({ orderId: "G", tableId: "t-2", arrivalTime: NOW + 1 }),
       pendingItem({ orderId: "G", itemIndex: 1, tableId: "t-2", arrivalTime: NOW + 1 }),
@@ -1665,7 +1666,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         firmness: "soft",
         tableId: "t-2",
         arrivalTime: arrival,
-        slotSpan: 2,
+        portions: 2,
       }),
       pendingItem({
         orderId: "o-2",
@@ -1679,7 +1680,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         itemIndex: 2,
         firmness: "normal",
         arrivalTime: arrival,
-        slotSpan: 2,
+        portions: 2,
       }),
       pendingItem({
         orderId: "o-3",
@@ -1687,7 +1688,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         firmness: "extraHard",
         tableId: "t-2",
         arrivalTime: arrival,
-        slotSpan: 2,
+        portions: 2,
       }),
       pendingItem({
         orderId: "o-3",
@@ -1870,7 +1871,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         firmness: "extraHard",
         tableId: "t-1",
         arrivalTime: arrival + 1,
-        slotSpan: 2,
+        portions: 2,
       }),
       pendingItem({
         orderId: "o-0",
@@ -1891,7 +1892,7 @@ describe("baselineSchedule — 自前解が前回を残す（plan-stability Requ
         firmness: "soft",
         tableId: "t-1",
         arrivalTime: arrival + 2,
-        slotSpan: 2,
+        portions: 2,
       }),
       pendingItem({
         orderId: "o-2",
@@ -2062,7 +2063,7 @@ describe("placeableTargets — 置ける品目（plan-stability Requirement 7・
       orderId: `live-${pad(index)}`,
       arrivalTime: NOW - 100_000 + index,
       noodleType: index === 4 ? "Ghost" : "Thin",
-      slotSpan: index === 9 ? 5 : 1,
+      portions: index === 9 ? 7.5 : 1,
     }),
   );
   const ids = (orders: readonly OrderItem[]) => orders.map((order) => order.externalOrderId);
