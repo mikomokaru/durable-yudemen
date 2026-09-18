@@ -100,15 +100,15 @@ describe("OrderFlowBoard", () => {
       );
 
       expect(
-        within(screen.getByRole("region", { name: "Waiting" })).getByText("Item W 1玉"),
+        within(screen.getByRole("region", { name: "Waiting" })).getByText("Item W"),
       ).toBeTruthy();
       const boiling = screen.getByRole("region", { name: "Boiling" });
-      expect(within(boiling).getByText("Item C 1玉")).toBeTruthy();
+      expect(within(boiling).getByText("Item C")).toBeTruthy();
       expect(within(boiling).getAllByText("00:30").length).toBeGreaterThan(0);
       expect(within(boiling).getByRole("img", { name: "Slot 4" })).toBeTruthy();
       const platingLane = screen.getByRole("region", { name: "Plating" });
       const ackButton = within(platingLane).getByRole("button", {
-        name: "Mark plated — Item P 1玉",
+        name: "Mark plated — Item P",
       });
       fireEvent.click(ackButton);
       expect(onAck).toHaveBeenCalledWith(itemKeyOf(plating));
@@ -118,18 +118,18 @@ describe("OrderFlowBoard", () => {
       expect(within(shelf).getByText("Item C")).toBeTruthy();
       expect(within(shelf).queryByText("Item F")).toBeNull();
       expect(within(shelf).queryByText("Item D")).toBeNull();
-      fireEvent.click(within(shelf).getByRole("button", { name: "Mark done — Item P 1玉" }));
+      fireEvent.click(within(shelf).getByRole("button", { name: "Mark done — Item P" }));
       expect(onAck).toHaveBeenCalledTimes(2);
       expect(within(shelf).queryByRole("button", { name: /Item C/ })).toBeNull();
       expect(shelf.getAttribute("aria-expanded")).toBe("true");
 
       // Done は既定で折りたたまれ、件数だけが出る。見出しを押すと札が現れる。
       const doneLane = screen.getByRole("region", { name: "Done" });
-      expect(within(doneLane).queryByText("Item D 1玉")).toBeNull();
+      expect(within(doneLane).queryByText("Item D")).toBeNull();
       const toggle = within(doneLane).getByRole("button", { expanded: false });
       expect(toggle.textContent).toContain("1");
       fireEvent.click(toggle);
-      expect(within(doneLane).getByText("Item D 1玉")).toBeTruthy();
+      expect(within(doneLane).getByText("Item D")).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }
@@ -170,7 +170,7 @@ describe("OrderFlowBoard", () => {
       expect(dock.getAttribute("aria-expanded")).toBe("true");
       expect(within(dock).getByText("UP +00:10")).toBeTruthy();
       expect(
-        within(screen.getByRole("region", { name: "Waiting" })).queryByText("Item W 1玉"),
+        within(screen.getByRole("region", { name: "Waiting" })).queryByText("Item W"),
       ).toBeNull();
       expect(
         within(screen.getByRole("region", { name: "Boiling" })).getByText("UP +00:10"),

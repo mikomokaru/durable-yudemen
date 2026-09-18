@@ -181,9 +181,9 @@ describe("live で帯が出る——店舗全体の待ち行列を到着順に�
     const dialog = openRadial(0);
 
     expect(rows(dialog).map(shown)).toEqual([
-      { label: `Salt L 2玉 · ${FIRMNESS} · Table t-1`, disabled: "false" },
-      { label: `Mid 1玉 · ${FIRMNESS} · Table t-1`, disabled: "false" },
-      { label: `ネギ丼 1玉 · ${FIRMNESS}`, disabled: "false" },
+      { label: `Long 2 Salt L · ${FIRMNESS} · Table t-1`, disabled: "false" },
+      { label: `Mid 1 Mid · ${FIRMNESS} · Table t-1`, disabled: "false" },
+      { label: `Short 1 ネギ丼 · ${FIRMNESS}`, disabled: "false" },
     ]);
     for (const row of rows(dialog)) {
       const label = row.textContent ?? "";
@@ -203,7 +203,7 @@ describe("live で帯が出る——店舗全体の待ち行列を到着順に�
     const dialog = openRadial(0);
     const columnNames = rows(dialog).map((row) => row.querySelector("span")?.textContent ?? "");
     expect(columnNames).toEqual(railNames);
-    expect(columnNames).toEqual(["Salt L 2玉", "Mid 1玉", "ネギ丼 1玉"]);
+    expect(columnNames).toEqual(["Long 2 Salt L", "Mid 1 Mid", "Short 1 ネギ丼"]);
   });
 });
 
@@ -214,7 +214,7 @@ describe("選ぶと品目の鍵と組んだ釜で startOrderItem を要求する
     playTouchCue.mockClear(); // Start 押下（開く操作）の 1 回を除き、選択の 1 回だけを数える
 
     fireEvent.click(
-      within(dialog).getByRole("button", { name: `Mid 1玉 · ${FIRMNESS} · Table t-1` }),
+      within(dialog).getByRole("button", { name: `Mid 1 Mid · ${FIRMNESS} · Table t-1` }),
     );
 
     expect(connection.startOrderItem).toHaveBeenCalledTimes(1);
@@ -235,7 +235,7 @@ describe("選ぶと品目の鍵と組んだ釜で startOrderItem を要求する
     const dialog = openRadial(0);
 
     fireEvent.click(
-      within(dialog).getByRole("button", { name: `Salt L 2玉 · ${FIRMNESS} · Table t-1` }),
+      within(dialog).getByRole("button", { name: `Long 2 Salt L · ${FIRMNESS} · Table t-1` }),
     );
 
     expect(connection.startOrderItem).toHaveBeenCalledWith(["0", "1"], {
@@ -249,7 +249,7 @@ describe("選ぶと品目の鍵と組んだ釜で startOrderItem を要求する
     const dialog = openRadial(4);
 
     fireEvent.click(
-      within(dialog).getByRole("button", { name: `Salt L 2玉 · ${FIRMNESS} · Table t-1` }),
+      within(dialog).getByRole("button", { name: `Long 2 Salt L · ${FIRMNESS} · Table t-1` }),
     );
 
     expect(connection.startOrderItem).toHaveBeenCalledWith(["4", "2"], {
@@ -266,13 +266,13 @@ describe("許容距離の内側に足りない行は不活性（R4.5・R4.9）",
     playTouchCue.mockClear();
 
     expect(rows(dialog).map(shown)).toEqual([
-      { label: `Salt L 2玉 · ${FIRMNESS} · Table t-1`, disabled: "true" },
-      { label: `Mid 1玉 · ${FIRMNESS} · Table t-1`, disabled: "false" },
-      { label: `ネギ丼 1玉 · ${FIRMNESS}`, disabled: "false" },
+      { label: `Long 2 Salt L · ${FIRMNESS} · Table t-1`, disabled: "true" },
+      { label: `Mid 1 Mid · ${FIRMNESS} · Table t-1`, disabled: "false" },
+      { label: `Short 1 ネギ丼 · ${FIRMNESS}`, disabled: "false" },
     ]);
 
     fireEvent.click(
-      within(dialog).getByRole("button", { name: `Salt L 2玉 · ${FIRMNESS} · Table t-1` }),
+      within(dialog).getByRole("button", { name: `Long 2 Salt L · ${FIRMNESS} · Table t-1` }),
     );
     expect(connection.startOrderItem).not.toHaveBeenCalled();
     expect(playTouchCue).not.toHaveBeenCalled();
@@ -389,9 +389,9 @@ describe("開いたまま snapshot で起点の釜が走行中になると、全
 
     expect(screen.getByRole("dialog", { name: "Select noodle" })).toBe(dialog);
     expect(rows(dialog).map(shown)).toEqual([
-      { label: `Salt L 2玉 · ${FIRMNESS} · Table t-1`, disabled: "true" },
-      { label: `Mid 1玉 · ${FIRMNESS} · Table t-1`, disabled: "true" },
-      { label: `ネギ丼 1玉 · ${FIRMNESS}`, disabled: "true" },
+      { label: `Long 2 Salt L · ${FIRMNESS} · Table t-1`, disabled: "true" },
+      { label: `Mid 1 Mid · ${FIRMNESS} · Table t-1`, disabled: "true" },
+      { label: `Short 1 ネギ丼 · ${FIRMNESS}`, disabled: "true" },
     ]);
     for (const row of rows(dialog)) fireEvent.click(row);
     expect(connection.startOrderItem).not.toHaveBeenCalled();
@@ -408,7 +408,7 @@ describe("開いたまま snapshot で起点の釜が走行中になると、全
 
     expect(shown(rows(dialog)[0]!).disabled).toBe("false");
     fireEvent.click(
-      within(dialog).getByRole("button", { name: `Salt L 2玉 · ${FIRMNESS} · Table t-1` }),
+      within(dialog).getByRole("button", { name: `Long 2 Salt L · ${FIRMNESS} · Table t-1` }),
     );
     expect(connection.startOrderItem).toHaveBeenCalledWith(["0", "1"], {
       externalOrderId: "b",
@@ -441,11 +441,11 @@ describe("時計が寿命を跨ぐと、開いたままの帯とレールから�
     const dialog = openRadial(0);
     // A は 2 時間前の到着ゆえ先頭に並ぶ（到着順）。
     expect(rows(dialog).map((row) => shown(row).label)).toEqual([
-      `Mid 1玉 · ${FIRMNESS} · Table t-1`,
-      `Salt L 2玉 · ${FIRMNESS} · Table t-1`,
-      `ネギ丼 1玉 · ${FIRMNESS}`,
+      `Mid 1 Mid · ${FIRMNESS} · Table t-1`,
+      `Long 2 Salt L · ${FIRMNESS} · Table t-1`,
+      `Short 1 ネギ丼 · ${FIRMNESS}`,
     ]);
-    expect(railNames()).toEqual(["Mid 1玉", "Salt L 2玉", "ネギ丼 1玉"]);
+    expect(railNames()).toEqual(["Mid 1 Mid", "Long 2 Salt L", "Short 1 ネギ丼"]);
 
     // 時計の tick（再描画）だけが起きる。snapshot は同じ内容——待ち行列は wire のまま、絞るのは描画の導出である。
     // ローカル時計では A の寿命（arrivalTime + 2 時間 = T0 + 1 秒 + 1 ms）にまだ 1 秒足りないが、補正後現在時刻は
@@ -455,12 +455,12 @@ describe("時計が寿命を跨ぐと、開いたままの帯とレールから�
 
     expect(screen.getByRole("dialog", { name: "Select noodle" })).toBe(dialog);
     expect(rows(dialog).map((row) => shown(row).label)).toEqual([
-      `Salt L 2玉 · ${FIRMNESS} · Table t-1`,
-      `ネギ丼 1玉 · ${FIRMNESS}`,
+      `Long 2 Salt L · ${FIRMNESS} · Table t-1`,
+      `Short 1 ネギ丼 · ${FIRMNESS}`,
     ]);
-    expect(railNames()).toEqual(["Salt L 2玉", "ネギ丼 1玉"]);
+    expect(railNames()).toEqual(["Long 2 Salt L", "Short 1 ネギ丼"]);
     expect(
-      within(dialog).queryByRole("button", { name: `Mid 1玉 · ${FIRMNESS} · Table t-1` }),
+      within(dialog).queryByRole("button", { name: `Mid 1 Mid · ${FIRMNESS} · Table t-1` }),
     ).toBeNull();
     expect(connection.startOrderItem).not.toHaveBeenCalled();
     // 花びら（アドホック開始）は残る。
@@ -505,16 +505,17 @@ describe("帯は未調理の品目だけ——調理中・調理済みは orderI
     const railNames = within(rail)
       .getAllByRole("listitem")
       // 戻された品目（INTERRUPTED）の行は名の前に記号 ↩（role="img"・lift-order-numbering Component 4）を持つ。
-      // 記号は名の一部ではないので、テキストノードだけを名として読む。
+      // 記号は名の一部ではないので除いて読む。麺種と玉数のチップ（noodle-portions）は帯と同じく名の前に付く。
       .map((item) =>
         [...(item.querySelector("span")?.childNodes ?? [])]
-          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .filter((node) => !(node instanceof HTMLElement && node.getAttribute("role") === "img"))
           .map((node) => node.textContent ?? "")
-          .join(""),
+          .join("")
+          .trim(),
       );
     const dialog = openRadial(0);
     const columnNames = rows(dialog).map((row) => row.querySelector("span")?.textContent ?? "");
-    expect(columnNames).toEqual(["Salt L 2玉", "Back 1玉", "ネギ丼 1玉"]);
+    expect(columnNames).toEqual(["Long 2 Salt L", "Short 1 Back", "Short 1 ネギ丼"]);
     expect(columnNames).toEqual(railNames);
   });
 
@@ -522,7 +523,7 @@ describe("帯は未調理の品目だけ——調理中・調理済みは orderI
     const { replace } = renderBoard(MIXED);
     const dialog = openRadial(0);
     expect(rows(dialog).map((row) => row.querySelector("span")?.textContent)).not.toContain(
-      "Mid 1玉",
+      "Mid 1 Mid",
     );
 
     replace({
@@ -532,10 +533,10 @@ describe("帯は未調理の品目だけ——調理中・調理済みは orderI
     });
 
     expect(rows(dialog).map((row) => row.querySelector("span")?.textContent)).toEqual([
-      "Salt L 2玉",
-      "Mid 1玉",
-      "Back 1玉",
-      "ネギ丼 1玉",
+      "Long 2 Salt L",
+      "Mid 1 Mid",
+      "Short 1 Back",
+      "Short 1 ネギ丼",
     ]);
   });
 });

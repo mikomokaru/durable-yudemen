@@ -12,6 +12,7 @@ import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from
 import { remainingParts } from "../format";
 import { cn } from "../cn";
 import { displayName } from "./queueDisplay";
+import { noodleChipLabel } from "./NoodleChip";
 import type { TimerFact } from "../../domain/timer";
 import type { SlotDisplay } from "./slotDisplay";
 import type { GroupItem, SlotSuggestion } from "./liftGroups";
@@ -257,8 +258,14 @@ function NoodleBadge({
   tint,
   faded = false,
   marker = "none",
+  chip,
   className,
 }: {
+  /**
+   * 麺種と玉数のチップの語（`Thin 1.5`）。上がり順のチップの隣に暗色のピルで置く（noodle-portions 判断 7・
+   * 一箇所で麺種と玉数を読む）。注文を持たない Timer は玉数を持たないので undefined（出さない）。
+   */
+  readonly chip?: string | undefined;
   /**
    * バッジの語。走行中・茹で上がりは品目の名（`displayName` ＋ 卓）、参照先が無ければ麺種、残滓は麺種
    * （lift-order-numbering design Component 3）。組むのは呼び出し側で、ここは受け取った文字列を置くだけ。
@@ -306,6 +313,19 @@ function NoodleBadge({
       {(marker === "ready" || marker === "last") && (
         <span aria-hidden="true" className="mr-[0.35em]">
           ✓
+        </span>
+      )}
+      {chip !== undefined && (
+        // 麺種と玉数。番号のチップと同じ形（暗色のピル・文字は tint）で、塗りの出所を増やさない。
+        <span
+          aria-hidden="true"
+          className={cn(
+            "mr-[0.35em] inline-flex items-center rounded-full whitespace-nowrap",
+            "px-[0.45em] py-[0.15em] align-middle text-[0.72em] leading-none font-bold tabular-nums",
+          )}
+          style={{ backgroundColor: "#15120c", color: faded ? fadedTint(tint) : tint }}
+        >
+          {chip}
         </span>
       )}
       {label}
@@ -462,10 +482,17 @@ export function SlotCard({
       : display.orderItem.tableId === null
         ? displayName(display.orderItem)
         : `${displayName(display.orderItem)} · ${display.orderItem.tableId}`;
-  const badgeSpoken =
+  // 麺種と玉数のチップ（noodle-portions 判断 7）。読み上げの語の末尾にも同じ語を添える（aria-hidden のチップを
+  // 読み上げで失わない）。注文を持たない Timer は玉数を持たない。
+  const chip =
+    display.orderItem === null
+      ? undefined
+      : noodleChipLabel(display.timer.noodleType, display.orderItem.portions);
+  const badgeSpokenBase =
     display.orderItem === null || display.orderItem.tableId === null
       ? badgeLabel
       : `${displayName(display.orderItem)} · Table ${display.orderItem.tableId}`;
+  const badgeSpoken = chip === undefined ? badgeSpokenBase : `${badgeSpokenBase} · ${chip}`;
   // 状態は背景色で示す（ダーク維持の控えめな差）。boiled / boiling 遠 / boiling 近 を分ける。
   const stateBg = isBoiled
     ? STATE_BG.boiled
@@ -554,6 +581,7 @@ export function SlotCard({
           label={badgeLabel}
           spoken={badgeSpoken}
           tint={tint}
+          chip={chip}
           marker={isBoiled ? "ready" : { kind: "order", order: display.liftOrder }}
           className={
             firmnessMenuOpen ? "@max-[240px]:w-auto @max-[240px]:min-w-0 @max-[240px]:flex-1" : ""

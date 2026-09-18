@@ -92,14 +92,14 @@ describe("OrderFlowRows（実験）", () => {
         />,
       );
       expect(
-        within(screen.getByRole("region", { name: "Waiting" })).getByText("Item W 1玉"),
+        within(screen.getByRole("region", { name: "Waiting" })).getByText("Item W"),
       ).toBeTruthy();
       const boiling = screen.getByRole("region", { name: "Boiling" });
-      expect(within(boiling).getByText("Item C 1玉")).toBeTruthy();
+      expect(within(boiling).getByText("Item C")).toBeTruthy();
       expect(within(boiling).getByText("UP +00:10")).toBeTruthy();
       expect(within(boiling).getByText("10:00")).toBeTruthy(); // 7m+ の帯
       const dock = screen.getByRole("region", { name: "Bowls" });
-      fireEvent.click(within(dock).getByRole("button", { name: "Mark done — Item P 1玉" }));
+      fireEvent.click(within(dock).getByRole("button", { name: "Mark done — Item P" }));
       expect(onAck).toHaveBeenCalledWith(itemKeyOf(plating));
       expect(screen.getByRole("region", { name: "Done" })).toBeTruthy();
     } finally {

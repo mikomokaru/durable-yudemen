@@ -35,7 +35,7 @@
 4. **`OrderItem` は玉数を運び、釜数を持たない。** `slotSpan` は「計算できるものは保持せず計算せよ」（design-philosophy「導出値は状態の関数である」）に従い、状態・永続・ワイヤから取り除く。読み手は `slotSpanOf(item.portions)` で導く。永続の版は **v15** へ上げる。
 5. **v14 以前の品目は釜数から玉数を仮置きし（`portions = slotSpan`）、仮置きが読み手に届かない状態で deploy する（レビュー反映・2026-09-18）。** 逆写像は一意でない（1 釜は 0.5 / 1.0 / 1.5 のどれでもありうる）ので、仮置きの値を「投入量」として現場に見せれば嘘になる（中盛が `1玉`、半玉が `1玉`）。ゆえに **deploy の前提条件**を置く——全店で最後の受領から `ORDER_LIFETIME_MS`（2 時間）以上が経ち、走行中 Timer が無いこと。このとき v14 の品目はすべて期限切れで、待ち行列にも釜のカードにも Orders 画面にも現れず（`isLive` が読む側で除く）、計画対象にもならない。仮置きは永続に残るが読み手を持たず、`order-item-truncation` の上限で数日のうちに落ちる。前提条件は Workers Logs で検証してから deploy する（Requirement 8）。**却下案**：(a) 玉数を `number | null` で運ぶ——null の品目の釜数を別に持たねばならず、「両方ある／どちらも無い」が表現可能になる。(b) `{ portions } | { legacySlotSpan }` の和型——真だが、一度きりの移行のために全読み手が永久に 2 分岐を持つ。(c) 移行で v14 の品目を捨てる——`pending-order-expiry` 判断 1（正本は読む側の述語で絞り、掃かない）に反する。前提条件が破られた場合の残余（仮置きが最大 2 時間表示される）は design に明記する。
 6. **古い形の投影を持つ店舗 DO は、受領を `unprovisioned` で返す（レビュー反映・2026-09-18）。** deploy 直後、店舗 DO の永続投影は `slotSpan` 形の `sizes` を持つ。この投影で受領を確定すれば、麺の品目が非麺として通り、**品目 0 件の受領として重複排除の番号が進み**、既存の未調理品目が除かれる——Policy を直して再送しても重複として捨てられる。ゆえに投影の `menuItems` が現行の形でない間は、受領を投影未達（`unprovisioned`）と同じ扱いにする。Worker は `unprovisioned` を一時的失敗として Arrival_Batch 全体を 5xx にし上流の再送に委ね（`worker.ts:635`・AC 5.8・Duplicate_Bias）、レジストリの再生も `deferred` で持ち越す（`store-registry-do.ts:723`）。番号は進まないので、再投入後の再送は普通に受理される。WS 接続は拒まない（`config` は古い形のまま配り、client の復号が `portions` を持たない `sizes` を落とすだけで、client は翻訳しない）。在メモリの `menuItems` は `toMenuItems` に通し、型が嘘をつかないようにする。
-7. **玉数は画面に出す。** ワイヤの `WireOrderItem` に `portions` を載せ、(a) 釜の待ち行列の札（`displayName`）と (b) Orders 画面の丼の札（`BowlTile`）に「1.5玉」の形で添える。単位「玉」は `SIZE_LABEL` と同じ規律で初期化子 1 箇所に閉じ、静的検査の例外を同じ形で 1 つ広げる。
+7. **玉数は麺種と一つのバッジで見せ、品名には含めない（改訂・ユーザー指示 2026-09-18）。** ワイヤの `WireOrderItem` に `portions` を載せ、client は麺種の名と玉数の数字を一つのチップ（`NoodleChip`・例 `REG 1.5`）に置く。単位「玉」は付けない（数字だけ・整数は小数点なし）。品名（`displayName`）は変えない——当初は品名の末尾に「1.5玉」を添える形にしたが、品名が伸びて読みにくく、麺種は色でしか判らなかった。チップは麺種の色で塗り、待ち行列の行・ラジアルの帯・釜のバッジ・Orders 画面の札で同じ形を使う。日本語の単位を持たないので client の英語 UI の例外は広げない。
 8. **`sizeName` は残す。** 玉数と申告名は別の事実である（`中盛` は POS の語、1.5 は釜へ落とす量）。表示は両方を持ってよく、判定はどちらにも依らない。
 9. **移行期間はワイヤに釜数を併記する（レビュー反映・2026-09-18）。** client に再読み込みの経路は無く、開いたままの旧画面は WS の再接続後も旧の復号器で動く。旧の `toOrderItemFromWire` は `slotSpan` を必須とし、無ければ snapshot 全体を落として画面が更新されなくなる。ゆえにサーバは `WireOrderItem` に `slotSpan: slotSpanOf(portions)` を**送信時に導出して併記**する。ワイヤは状態ではなく射影であり（`Timer → TimerFact` が `seq` を削ぐのと同じ層）、導出値を載せても二つの真実にはならない——新しい復号器はこれを読まない。併記は全端末が新しいバンドルで動いていることを確かめた後に外す（別 spec・未決 5）。
 10. **永続の復元は版で分ける（レビュー反映・2026-09-18）。** `portions` の欠如を無条件に 1 へ畳むと、v15 で必須の値が欠けた壊れたデータも通る。復元は版を受け取り、v15 以降は `portions` 必須（欠如は `MigrationFailed`）、v8〜v14 は `slotSpan` から仮置き、v7 以前は 1 とする。
@@ -139,11 +139,12 @@
 
 #### Acceptance Criteria
 
-1. THE client SHALL 玉数の札を組む関数を一つ持ち（`queueDisplay.ts`）、`1.5玉` / `2玉` / `0.5玉` の形（整数は小数点なし・単位は「玉」）を返す
-2. THE `displayName` SHALL 品目名と麺量の語の後に玉数の札を空白区切りで添える（例 `醤油中盛 1.5玉`・`味噌 1玉`）
-3. THE Orders 画面の `BowlTile` SHALL サイズの語（`size`）の横に玉数の札を出す。注文を持たない Timer（アドホック）はサイズと同じく `—`
-4. THE 単位「玉」 SHALL `SIZE_LABEL` と同じ規律で初期化子 1 箇所に閉じ、`tests/offline-degradation.static.test.ts` の例外をその初期化子に限って 1 つ広げる（client 全体で「玉」を許さない）
-5. THE `offline-degradation` 要件 13.6 SHALL 改訂注記でこの例外を記す
+1. THE client SHALL 玉数の数字を組む関数を一つ持ち（`queueDisplay.ts` の `portionsFigure`）、`1.5` / `2` / `0.5` の形（整数は小数点なし・単位なし）を返す
+2. THE client SHALL 麺種の名と玉数の数字を一つのチップ（`NoodleChip`）に置き、麺種の色で塗る。チップの語は `{noodleType} {portions}`（例 `REG 1.5`）
+3. THE `displayName` SHALL 玉数を含めない（品名は従来のまま）
+4. THE 待ち行列の行（`OrderRail`）・ラジアルの帯（`RadialMenu`）・Orders 画面の札（`Card` / `BowlTile`） SHALL 品名の前にチップを置く。`BowlTile` のサイズの語は従来どおり（玉数を添えない）
+5. THE 釜のバッジ（`SlotCard` の `NoodleBadge`） SHALL 上がり順のチップの隣に麺種と玉数のチップを置き、読み上げの語の末尾に `· {noodleType} {portions}` を添える。注文を持たない Timer は麺種だけ（玉数を持たない）
+6. THE client SHALL 単位「玉」を画面に出さない（`offline-degradation` 要件 13.6 の例外は広げない）
 
 ### Requirement 7: 計画器
 

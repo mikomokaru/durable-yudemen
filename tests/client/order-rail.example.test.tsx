@@ -310,12 +310,12 @@ describe("札の反映", () => {
       shortName: "特味噌ネギ",
     });
     render(railElement([queueEntry({ order })]));
-    expect(screen.getByText("特味噌ネギ中盛 1玉")).toBeTruthy();
+    expect(screen.getByText("特味噌ネギ中盛")).toBeTruthy();
   });
 
   it("札を持たなければ全名のまま（札は「あるかもしれないもの」）", () => {
     const order = pendingOrder({ itemName: "辛味噌ネギラーメン", sizeName: "中盛" });
     render(railElement([queueEntry({ order })]));
-    expect(screen.getByText("辛味噌ネギラーメン中盛 1玉")).toBeTruthy();
+    expect(screen.getByText("辛味噌ネギラーメン中盛")).toBeTruthy();
   });
 });

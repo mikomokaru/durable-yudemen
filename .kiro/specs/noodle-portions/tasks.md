@@ -59,9 +59,9 @@
 
 - [x] 8. client
   - [x] 8.1 `src/client/components/SlotBoard.tsx`：`pairSlots(picker.slot, slotSpanOf(order.portions), view)`。`RadialMenu.tsx` / `connection.ts` / `liftGroups.ts` のコメントを導出値として読める文に
-  - [x] 8.2 `src/client/components/queueDisplay.ts`：`PORTIONS_UNIT = "玉"` と `portionsLabel(portions)`。`displayName` の末尾に空白区切りで添える
-  - [x] 8.3 `src/client/components/OrderFlowBoard.tsx`：`BowlTile` の `size` の横に `portionsLabel`。注文を持たない Timer は `—`
-  - [x] 8.4 `tests/offline-degradation.static.test.ts`：例外を `PORTIONS_UNIT` の初期化子に限って 1 つ広げる（確定集合に「玉」を足し、初期化子の外に現れれば従来どおり弾く）。`.kiro/specs/offline-degradation/requirements.md` 要件 13.6 に改訂注記
+  - [x] 8.2 `src/client/components/queueDisplay.ts`：`portionsFigure(portions)`（数字だけ・単位なし）。`NoodleChip.tsx`（新規）が麺種と玉数を一つのチップに置く。`displayName` は変えない（改訂 2026-09-18・当初の「末尾に `1.5玉`」は撤回）
+  - [x] 8.3 `OrderRail` / `RadialMenu` / `SlotCard`（`NoodleBadge` の `chip`）/ `OrderFlowBoard`（`Card` / `BowlTile` / 走行中の札）の品名の前にチップ。注文を持たない Timer はチップ無し
+  - [x] 8.4 単位「玉」を画面に出さないので `tests/offline-degradation.static.test.ts` の例外は広げない（一度広げた例外は撤去した）。`.kiro/specs/offline-degradation/requirements.md` 要件 13.6 の注記もその旨に改めた
   - [x] 8.5 `tests/client/*`（`generators.ts` / `slotDisplay` / `order-queue` / `order-rail` / `radial-queue` / `slot-board-suggestions` / `slot-card` / `liftGroups.*` / `order-flow-*` / `flow-lanes`）：フィクスチャを `portions` へ。`displayName` の例（`醤油中盛 1.5玉`・`味噌 1玉`・`半玉 0.5玉`）と `BowlTile` の例（`中盛 1.5玉`・アドホックは `—`）を `tests/display/displayName.example` / `order-flow-board.example` に足す
   - _Requirements: 3.7, 6.1〜6.5_
 
@@ -104,3 +104,4 @@
 - 11.2（2026-09-18 実測）：`validateProvisioningInput({ target: "policyFields", raw: fields })` は `{ accepted: true }`。導出の内訳は 1玉→1釜 52・1.5玉→1釜 55・2玉→2釜 55・2.5玉→2釜 3・0.5玉→1釜 3（全 168 サイズ・同じコードで玉数のぶれ 0）。
 - 実験ハーネス（`experiments/cpsat-workers/transport/*.mjs` 5 本）の品目も `portions: 1` へ揃えた（`cpsat-real-model.example` / `cpsat-transport-app.example` が通る）。
 - 11.4〜11.6（2026-09-18 実測）：PR #45 を main へマージ（`fc5a6b8`）。CI/CD run 35306305714 は Lint / Typecheck / Test・Deploy to Cloudflare とも success。直後 04:21:08Z に `PUT https://timer-dev.yamaokaya.org/admin/policies/pos-menu` → `200 {"accepted":true}`（7.3 秒・送信 JSON の SHA-256 `e10377a8…75620a`）。対象は `chainId: yamaokaya` の 196 店（active 195）。**店舗側の確認（11.6）は未了**——`/s/{storeId}/ws` は Access（`ymoky.cloudflareaccess.com`）で保護され、workers.dev 側も JWT なしでは 1006 で閉じるため、機械からは `config` を読めない。Access でログイン済みのブラウザから 1 店舗の `config` を読んで `sizes[].portions` を確かめる。
+- 表示の改訂（2026-09-18・ユーザー指示「玉数を品名に含めず badge に。（玉）は省略。麺の種類と玉が 1 箇所で分かるように」）：`NoodleChip`（`{noodleType} {portions}`・例 `Thin 1.5`・麺種の色で塗る・`data-chip`）を待ち行列の行・ラジアルの帯・釜のバッジ（上がり順チップの隣・読み上げは末尾に `· Thin 1`）・Orders 画面の札に置いた。`displayName` は元に戻し、`portionsLabel` → `portionsFigure`。render 6 ファイルの語を戻し、チップの語を足した。typecheck 0・fmt:check 通過・render 65 / 65・全数 2508 件緑。

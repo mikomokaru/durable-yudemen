@@ -24,7 +24,8 @@ import { formatRemaining } from "../format";
 import { cn } from "../cn";
 import { FIRMNESS_LABEL } from "./firmness";
 import { noodleColors, type NoodleColor } from "./noodleColor";
-import { displayName, portionsLabel } from "./queueDisplay";
+import { displayName } from "./queueDisplay";
+import { NoodleChip } from "./NoodleChip";
 import { TablePicker } from "./TablePicker";
 import {
   BOWL_PREP_LEAD_MS,
@@ -260,10 +261,15 @@ export function Card({
   meta,
   table = null,
   returned = false,
+  portions,
+  noodleType,
   className,
 }: {
   readonly name: string;
   readonly tint: string;
+  /** 麺種と玉数のチップ（noodle-portions 判断 7）。両方が在るときだけ名の前に置く。 */
+  readonly portions?: number | undefined;
+  readonly noodleType?: string | undefined;
   readonly figure: string;
   readonly figureClass?: string | undefined;
   readonly meta: string;
@@ -282,6 +288,9 @@ export function Card({
       <span className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-1">
           <TableBadge tableId={table} />
+          {portions !== undefined && noodleType !== undefined && (
+            <NoodleChip noodleType={noodleType} portions={portions} tint={tint} />
+          )}
           <span
             className={cn("truncate text-sm leading-tight font-bold", returned && "opacity-60")}
             style={{ color: tint }}
@@ -388,6 +397,8 @@ function WaitingCard({
       <Card
         name={displayName(order)}
         tint={noodleColor(order.noodleType)}
+        portions={order.portions}
+        noodleType={order.noodleType}
         figure={wait.text}
         figureClass={wait.className}
         meta={metaOf(order)}
@@ -646,6 +657,13 @@ export function BoilingCard({
       </span>
       <span className="flex min-w-0 items-baseline gap-1">
         <TableBadge tableId={table} />
+        {entry.order !== null && (
+          <NoodleChip
+            noodleType={entry.timer.noodleType}
+            portions={entry.order.portions}
+            tint={noodleColor(entry.timer.noodleType)}
+          />
+        )}
         <span
           className="truncate text-xs leading-tight font-bold"
           style={{ color: noodleColor(entry.timer.noodleType) }}
@@ -797,11 +815,7 @@ function BowlTile({
     bowl.kind === "boiling" ? bowl.entry.timer.noodleType : bowl.entry.order.noodleType;
   const phase: "prep" | "up" | "plating" =
     bowl.kind === "plating" ? "plating" : bowl.entry.remainingMs === 0 ? "up" : "prep";
-  // サイズの語に玉数を添える（noodle-portions 判断 7）。注文を持たない Timer はどちらも無い。
-  const size =
-    order === null
-      ? "—"
-      : `${order.sizeName?.normalize("NFKC") ?? "—"} ${portionsLabel(order.portions)}`;
+  const size = order?.sizeName?.normalize("NFKC") ?? "—";
   const tare = order === null ? noodleType : tareName(order);
   const table = order?.tableId ?? null;
   // 数字と色は段階で決まる——盛りつけ中はオーダーからの待ち（警告の色分けは waitFigure・穏やかなら緑）、
@@ -821,11 +835,21 @@ function BowlTile({
         <TableBadge tableId={table} />
         <span className="truncate text-base leading-tight font-extrabold text-ink">{size}</span>
       </span>
-      <span
-        className="truncate text-xs leading-tight font-bold"
-        style={{ color: noodleColor(noodleType) }}
-      >
-        {tare}
+      <span className="flex min-w-0 items-baseline gap-1">
+        {/* 麺種と玉数のチップ（noodle-portions 判断 7）。注文を持たない Timer は玉数を持たない。 */}
+        {order !== null && (
+          <NoodleChip
+            noodleType={noodleType}
+            portions={order.portions}
+            tint={noodleColor(noodleType)}
+          />
+        )}
+        <span
+          className="truncate text-xs leading-tight font-bold"
+          style={{ color: noodleColor(noodleType) }}
+        >
+          {tare}
+        </span>
       </span>
       <span className="flex items-baseline justify-end text-[0.6875rem] leading-tight text-muted">
         <span className={cn("flex-none font-mono tabular-nums", figureClass)}>{figure}</span>
@@ -886,6 +910,8 @@ function PlatingCard({
       <Card
         name={name}
         tint={noodleColor(order.noodleType)}
+        portions={order.portions}
+        noodleType={order.noodleType}
         figure={formatRemaining(entry.waitingMs)}
         figureClass="text-boiled"
         meta={metaOf(order)}
@@ -935,6 +961,8 @@ export function DoneLane({
               key={itemKeyOf(entry.order)}
               name={displayName(entry.order)}
               tint={noodleColor(entry.order.noodleType)}
+              portions={entry.order.portions}
+              noodleType={entry.order.noodleType}
               figure={new Date(entry.completedAt).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",

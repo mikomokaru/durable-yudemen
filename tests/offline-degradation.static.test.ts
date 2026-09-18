@@ -636,12 +636,6 @@ const ALLOWED_FIRMNESS_LABELS = ["バリカタ", "かため", "ふつう", "や�
  */
 const ALLOWED_SIZE_LABELS = ["普通", "中盛", "大盛", "半玉"] as const;
 
-/**
- * 玉数の単位（`queueDisplay.ts` の `PORTIONS_UNIT`・noodle-portions 判断 7）。釜へ落とす量は現場の語「玉」でしか
- * 読めない。`SIZE_LABEL` と同じ規律で、この初期化子 1 箇所だけが単位を持てる（その外に現れれば従来どおり弾く）。
- */
-const PORTIONS_UNIT_DEFINITION = /const PORTIONS_UNIT = "玉";/;
-
 /** 麺量表の定義（`queueDisplay.ts`）。この初期化子の中だけが麺量の語を持てる。 */
 const SIZE_LABEL_DEFINITION =
   /const SIZE_LABEL: ReadonlyMap<string, string> = new Map\(\[[\s\S]*?\]\);/;
@@ -651,8 +645,6 @@ const SIZE_LABEL_DEFINITION =
  * ——確かめずに落とせば、あの括弧の中へ何を書いても英語 UI の検査を通り抜ける穴になる。
  */
 function withoutSizeLabelDefinition(code: string): string {
-  // 玉数の単位の初期化子は確定した 1 行そのものなので、一致した分だけを取り除く（中身の検査は正規表現が兼ねる）。
-  code = code.replace(PORTIONS_UNIT_DEFINITION, "");
   const found = SIZE_LABEL_DEFINITION.exec(code);
   if (found === null) return code;
   const block = found[0];
