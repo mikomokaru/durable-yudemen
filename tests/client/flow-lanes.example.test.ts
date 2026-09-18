@@ -9,6 +9,7 @@ import { EMPTY_VIEW, type ClientTimer, type ClientView } from "../../src/client/
 import {
   BOWL_PREP_LEAD_MS,
   flowLanes,
+  orderClusters,
   planClusters,
   planGroups,
   rebasePlan,
@@ -278,6 +279,45 @@ describe("planClusters — 一度に上げるまとまり（上がり時刻が�
     expect(clusters.map((c) => c.serveAt)).toEqual([T + 60_000, T + 240_000]);
     expect(clusters[0]?.groups.map((g) => g.group)).toEqual(["t1", "t2"]);
     expect(clusters[1]?.groups.map((g) => g.group)).toEqual(["t1b"]);
+  });
+});
+
+describe("orderClusters — 並びの鍵は画面が決める（釜は投入順・Orders は上がり順・2026-09-18）", () => {
+  it("茹で時間の長い杯が後から上がるとき、投入順と上がり順は逆転する。束ね方（上がりの等値）は変えない", () => {
+    // A は Thick（120 秒）を T に投入、B は Thin（60 秒）を T+30 秒に投入。上がりは B（T+90）→ A（T+120）。
+    const a = order("A", 0, T - 30_000, { tableId: "1", noodleType: "Thick" });
+    const b = order("B", 0, T - 20_000, { tableId: "2", noodleType: "Thin" });
+    const view = synced({
+      orderItems: [a, b],
+      recommendations: [
+        { ...recommendation("A", 0, T), group: "t1" },
+        { ...recommendation("B", 0, T + 30_000), group: "t2" },
+      ],
+    });
+    const clusters = planClusters(view, T);
+    expect(clusters.map((c) => c.serveAt)).toEqual([T + 90_000, T + 120_000]);
+    const byStart = orderClusters(clusters, "start");
+    expect(byStart.map((c) => c.startAt)).toEqual([T, T + 30_000]);
+    expect(byStart.map((c) => c.groups[0]?.group)).toEqual(["t1", "t2"]);
+    const byServe = orderClusters(clusters, "serve");
+    expect(byServe.map((c) => c.groups[0]?.group)).toEqual(["t2", "t1"]);
+    // 入力は変えない（並べ直しは複製の上で行う）。
+    expect(clusters.map((c) => c.groups[0]?.group)).toEqual(["t2", "t1"]);
+  });
+
+  it("rebasePlan の遅れは並びの鍵に依らず最早の開始から測る", () => {
+    const a = order("A", 0, T - 30_000, { tableId: "1", noodleType: "Thick" });
+    const b = order("B", 0, T - 20_000, { tableId: "2", noodleType: "Thin" });
+    const view = synced({
+      orderItems: [a, b],
+      recommendations: [
+        { ...recommendation("A", 0, T - 40_000), group: "t1" }, // 最早の開始だが上がりは後
+        { ...recommendation("B", 0, T - 10_000), group: "t2" },
+      ],
+    });
+    const byServe = orderClusters(planClusters(view, T), "serve");
+    expect(byServe[0]?.groups[0]?.group).toBe("t2");
+    expect(rebasePlan(byServe, T).lagMs).toBe(40_000);
   });
 });
 

@@ -197,6 +197,25 @@ export function planClusters(view: ClientView, now: number): readonly PlanCluste
 }
 
 /**
+ * 計画の並びの鍵（2026-09-18・ユーザー判断「1」）。クラスタは上がり時刻（serveAt）で束ねるが、**読む順は画面が決める**。
+ * 釜へ落とす人（釜のタイマー画面）は投入の早い順（`start`）で読み、盛りつける人（Orders 画面）は上がりの早い順
+ * （`serve`）で読む。上がり順の列に投入までの時間を添えると、茹で時間の長い杯が後ろに来て `in` が逆転して読めない。
+ */
+export type PlanOrder = "start" | "serve";
+
+/** クラスタを並べ直す。同値は他方の鍵で決める（決定的・安定）。束ね方（上がり時刻の等値）は変えない。 */
+export function orderClusters(
+  clusters: readonly PlanCluster[],
+  order: PlanOrder,
+): readonly PlanCluster[] {
+  return [...clusters].sort((a, b) =>
+    order === "start"
+      ? a.startAt - b.startAt || a.serveAt - b.serveAt
+      : a.serveAt - b.serveAt || a.startAt - b.startAt,
+  );
+}
+
+/**
  * 計画の目盛りを「いま」に合わせる（表示だけの導出・2026-09-17）。
  *
  * 計画はサーバの状態変化でだけ組み直され、時計の進みでは動かない。釜が空で誰も開始しないと、先頭の開始が過去に
@@ -210,9 +229,10 @@ export interface RebasedPlan {
   readonly clusters: readonly PlanCluster[];
 }
 export function rebasePlan(clusters: readonly PlanCluster[], corrected: number): RebasedPlan {
-  const head = clusters[0];
-  if (head === undefined) return { lagMs: 0, clusters };
-  const lagMs = Math.max(0, corrected - head.startAt);
+  if (clusters.length === 0) return { lagMs: 0, clusters };
+  // 先頭は最早の開始（並びの鍵に依らない——上がり順で先頭のクラスタが最早の開始とは限らない）。
+  const earliestStart = Math.min(...clusters.map((cluster) => cluster.startAt));
+  const lagMs = Math.max(0, corrected - earliestStart);
   if (lagMs === 0) return { lagMs, clusters };
   return {
     lagMs,

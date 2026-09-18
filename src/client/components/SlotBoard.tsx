@@ -29,7 +29,7 @@ import {
 import { SlotCard, type SuggestionView } from "./SlotCard";
 import { OrderRail } from "./OrderRail";
 import { PlanPanel } from "./PlanPanel";
-import { planClusters, rebasePlan } from "./flowLanes";
+import { orderClusters, planClusters, rebasePlan } from "./flowLanes";
 import { RadialMenu, type RadialQueueItem } from "./RadialMenu";
 import { noodleColors } from "./noodleColor";
 import { cn } from "../cn";
@@ -88,7 +88,8 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
   // 待ち行列（レール用・到着順）。件数は絞らない——計画対象の上限を超える分も並び、提案が付かないだけである。
   const queue = orderQueueEntries(view, units, now);
   // 最新の計画（調理クラスタ・店舗全体・担当範囲で絞らない・ユーザー確定 2026-09-18）。先頭が過去なら目盛りを今へ追従。
-  const plan = rebasePlan(planClusters(view, now), corrected);
+  // 釜へ落とす人の画面なので投入の早い順に並べる（上がり順は Orders 画面・PlanOrder）。
+  const plan = rebasePlan(orderClusters(planClusters(view, now), "start"), corrected);
   // 左の器のタブ。Plan（計画）か Queue（到着順の待ち行列）か。端末のその場の選択で、状態には残さない。
   const [leftTab, setLeftTab] = useState<"plan" | "queue">("plan");
   // 釜カードの提案は、受信した推奨の全量から群 → 表示できる群 → 釜ごとの提案の順に導く。担当範囲で絞るのは
@@ -167,6 +168,7 @@ export function SlotBoard({ connection, units, playTouchCue }: SlotBoardProps) {
                 corrected={corrected}
                 unitCount={view.unitCount}
                 noodleColor={colorOf}
+                order="start"
                 className="mr-[clamp(0.5rem,1.2vw,0.875rem)] w-52 flex-1"
               />
             ) : waiting !== null ? (
