@@ -46,6 +46,10 @@ export interface PolicyFields {
   // 統制で配れなければ全店へ同じ表を個別投入することになる）。noodlePresets と同じく丸ごと置換の単位。
   readonly firmnessCodes?: ModedValue<readonly FirmnessCode[]>;
   readonly menuItems?: ModedValue<readonly MenuItem[]>;
+  // 上げの間隔（目標クラスタ間隔・秒）。lift-group-planning 判断 20 は「店舗差が実在するまで定数」としたが、
+  // 2026-09-17 に店舗差が実在した（180 秒を求める店舗）ので主張対象へ上げた。後工程の処理能力の値で、地域・業態で
+  // 変わりうるため Policy でも主張できる。
+  readonly liftIntervalSeconds?: ModedValue<number>;
 }
 
 /** Policy — 名前・priority・フィールドごとの mode/値。地域差・業態差は Policy の割当で表現する（要件3.3）。 */
@@ -66,6 +70,8 @@ export interface StoreOverride {
   // 店舗が主張する対応表（券売機の商品コードは店舗によって異なりうる）。店舗の主張ゆえ mode は持たない。
   readonly firmnessCodes?: readonly FirmnessCode[];
   readonly menuItems?: readonly MenuItem[];
+  /** 上げの間隔（秒）。店舗の後工程の処理能力の主張（2026-09-17 に主張対象へ）。 */
+  readonly liftIntervalSeconds?: number;
 }
 
 /** Chain — 店舗を束ねる組織単位。個人店も店舗 1 のチェーンとして表す（同型・要件3.2）。 */

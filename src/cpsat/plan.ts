@@ -16,7 +16,7 @@ import {
 } from "../../experiments/cpsat-workers/tuning/schedule";
 import defaults from "../../experiments/cpsat-workers/tuning/defaults.json";
 import { runtime, solve } from "../../experiments/cpsat-workers/src/runtime";
-import { position } from "../domain/store";
+import { position, slotSpanOf } from "../domain/store";
 import { itemKeyOf } from "../domain/order";
 import { adjustedEndTime, tableKeyOf } from "../engine/project";
 import { initialLifts, liftsOf, withinLiftCap } from "../engine/lift";
@@ -192,7 +192,8 @@ export async function planCpsat(
     .flatMap((timer) => timer.slotIds.map(Number));
   if (
     !targets.length ||
-    slotCount - new Set(unavailable).size < Math.max(...targets.map((item) => item.slotSpan))
+    slotCount - new Set(unavailable).size <
+      Math.max(...targets.map((item) => slotSpanOf(item.portions)))
   )
     throw new Error("No usable slots for the CP-SAT cohort");
   const running: ModelPlacement[] = request.running
@@ -219,7 +220,7 @@ export async function planCpsat(
     order: tableKeyOf(item),
     purchasedAt: Math.floor(item.arrivalTime / 1000) - origin,
     boilSeconds: boilMillisOf(item, request.noodlePresets)! / 1000,
-    slotSpan: item.slotSpan,
+    slotSpan: slotSpanOf(item.portions),
   }));
   const history: History = {
     id: "live",
@@ -394,7 +395,7 @@ export async function planCpsat(
             order: tableKeyOf(item),
             purchasedAt: Math.floor(item.arrivalTime / 1000) - origin,
             boilSeconds: placement.end - placement.start,
-            slotSpan: item.slotSpan,
+            slotSpan: slotSpanOf(item.portions),
             start: placement.start,
             end: placement.end,
             slots: placement.slots,

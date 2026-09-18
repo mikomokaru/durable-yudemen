@@ -38,11 +38,12 @@ function queue(count: number): readonly OrderItem[] {
     firmness: "normal" as const,
     tableId: "1",
     arrivalTime: (NOW - (count - index) * 30_000) as EpochMillis,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
 }
 
@@ -157,11 +158,11 @@ describe("段 1（R5.4）：CP-SAT モードの admit は有効性の検査だ�
 describe("(d) を外しても、置けない品目を置いた計画は陳腐化A が落とす", () => {
   // `placeableTargets` が除外する理由は 2 つだけである（`isPlaceable`）。
   //   ・茹で時間を引けない（プリセットに無い麺種）
-  //   ・単体で上げ窓の上限を超える（slotSpan > arms + HELPER_ARMS）
+  //   ・単体で上げ窓の上限を超える（slotSpanOf(portions) > arms + HELPER_ARMS）
   // どちらも `targets` から消えるので、それを指す配置は陳腐化A で落ちる。
   for (const [name, mutate] of [
     ["茹で時間を引けない麺種", (item: OrderItem) => ({ ...item, noodleType: "NOT-IN-PRESETS" })],
-    ["単体で上げ窓の上限を超える占有", (item: OrderItem) => ({ ...item, slotSpan: 5 })],
+    ["単体で上げ窓の上限を超える占有", (item: OrderItem) => ({ ...item, portions: 7.5 })],
   ] as const) {
     it(`${name}を置いた計画は、CP-SAT モードでも採らない`, () => {
       const pending = queue(4);

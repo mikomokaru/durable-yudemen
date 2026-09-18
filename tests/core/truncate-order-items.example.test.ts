@@ -29,11 +29,12 @@ function item(externalOrderId: string, itemIndex: number, arrivalTime: number): 
     firmness: "normal",
     tableId: null,
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

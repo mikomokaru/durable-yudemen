@@ -46,6 +46,8 @@ export default defineConfig({
             "tests/data-platform/schema-placement.static.test.ts",
             // Operation History の縮退経路の不在（タスク12.2）。全設定・src 全体・CI をソースから読む。
             "tests/operation-history/no-backfill.static.test.ts",
+            // 釜数を保持せず玉数から導くことの静的検査（noodle-portions 性質 6）。node:fs で domain / ingress / registry を読む。
+            "tests/noodle-portions.static.test.ts",
             // Operation History の Snowflake 取込 SQL（タスク13.1）。SQL テキストを読む静的検査ゆえ node で実行する。
             "tests/operation-history/snowflake-ingest.static.test.ts",
             // Operation History の相関・品質率 SQL（タスク13.2）。同じく SQL テキストを読む静的検査。
@@ -279,6 +281,7 @@ export default defineConfig({
             "tests/data-platform/schema-placement.static.test.ts",
             "tests/operation-history/config-graph.static.test.ts",
             "tests/operation-history/no-backfill.static.test.ts",
+            "tests/noodle-portions.static.test.ts",
             "tests/operation-history/snowflake-ingest.static.test.ts",
             "tests/operation-history/snowflake-quality.static.test.ts",
             "tests/client/audioWakeLock.example.test.ts",

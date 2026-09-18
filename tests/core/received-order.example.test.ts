@@ -33,6 +33,8 @@ type ReceivedShapeAssertions = [
       | "Cancel"
       | "Complete"
       | "Adjust"
+      // order-flow（2026-09-17）が店の卓の指定 AssignTable を足した（既存は動かさない）。
+      | "AssignTable"
       | "AlarmFired"
       | "Reconcile"
       | "OrderArrived"
@@ -92,11 +94,12 @@ function item(
     firmness: "normal",
     tableId: "t-1",
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
     ...overrides,
   };
 }

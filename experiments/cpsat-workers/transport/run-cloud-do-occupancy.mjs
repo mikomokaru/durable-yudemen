@@ -93,7 +93,7 @@ async function sendOrder(tag) {
           noodleType: "probe",
           firmness: "normal",
           tableId: tag,
-          slotSpan: 1,
+          portions: 1,
         },
       ],
     }),

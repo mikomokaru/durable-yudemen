@@ -44,11 +44,12 @@ function item(index: number, itemName: string, tableId: string): OrderItem {
     firmness: "normal",
     tableId,
     arrivalTime: T0 + index * 1000,
-    slotSpan: 1,
+    portions: 1,
     itemName,
     sizeName: "中盛",
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

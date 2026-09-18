@@ -38,6 +38,9 @@ Provisioning_API（`/admin/*`・`Authorization: Bearer <ADMIN_TOKEN>`）へ投�
 | `arms` | 1〜10 の整数 | 同時に上げられる本数の上限 |
 | `toleranceRatio` | 1〜50 の整数（％） | engine では `/100` で割合として使用 |
 | `noodlePresets` | 非空配列 | 各要素 `{ noodleType: 非空文字列, boilSeconds: { extraHard, hard, normal, soft } }`・秒は正の整数 |
+| `firmnessCodes` | 配列（空可） | 各要素 `{ code: 正の整数, firmness: extraHard / hard / normal / soft }` |
+| `menuItems` | 配列（空可） | 各要素 `{ productCode: 正の整数, noodleType: 非空文字列, sizes: 非空配列 }`。`sizes[]` は `{ code: 正の整数, portions: 玉数 }`・玉数は **0.5〜9 の 0.5 刻み**（`1` / `1.5` / `2` …）。釜数（`slotSpan`）は**受け付けない**——玉数から `⌈portions / 1.5⌉` で導く（noodle-portions・ADR-0017） |
+| `liftIntervalSeconds` | 5〜600 の整数（秒） | 上げの間隔（目標クラスタ間隔） |
 
 範囲外・型不一致・未知フィールドは 400 で拒否されイデアは不変（安全側）。
 

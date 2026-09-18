@@ -56,6 +56,7 @@ type ModelShapeAssertions = [
   // v12（plan-stability タスク 2）が shownPlan を永続へ載せた——確定計画と同じ put で確定するので、確定した推奨と
   // Shown_Plan は常に一致する。
   // v13（order-lifecycle タスク 2）が pendingOrders を orderItems に読み替えた（completedAt / interruptedAt 付き）。
+  // v14（order-flow・2026-09-17）が品目に店の卓の判断 tableAssignedAt を足した（キー集合は変わらない）。
   Assert<
     Equal<
       keyof StoreSnapshot,
@@ -184,7 +185,7 @@ describe("Operation History の Timer モデル規律", () => {
               "startTime": 1700000000000,
             },
           ],
-          "version": 13,
+          "version": 15,
         },
         "type": "Persist",
       }

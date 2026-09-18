@@ -23,11 +23,12 @@ const ITEM: OrderItem = {
   firmness: "normal",
   tableId: "12",
   arrivalTime: NOW - 60_000,
-  slotSpan: 1,
+  portions: 1,
   itemName: "かけ",
   sizeName: null,
   completedAt: null,
   interruptedAt: null,
+  tableAssignedAt: null,
 };
 
 function timer(

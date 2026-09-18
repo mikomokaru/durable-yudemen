@@ -104,11 +104,12 @@ function itemsOf(
     firmness: "normal" as const,
     tableId,
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
 }
 

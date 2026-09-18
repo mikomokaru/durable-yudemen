@@ -30,6 +30,7 @@ import type { NonEmptyArray } from "../domain/timer";
 import type { StoreConfig, NoodlePreset, FirmnessCode, MenuItem } from "../domain/store";
 import {
   DEFAULT_UNIT_COUNT,
+  toMenuItems,
   DEFAULT_NOODLE_PRESETS,
   DEFAULT_FIRMNESS_CODES,
   DEFAULT_MENU_ITEMS,
@@ -277,13 +278,14 @@ function toReceivedOrders(
           // Order_Arrival_Time の起点は上流の観測時刻。受理時刻は再送ごとに動き、`payload.datetime` は
           // 券売機の時計に依存する申告値である（AC 8.1〜8.4）。
           arrivalTime: record.arrivalTimestampMs,
-          slotSpan: spec.slotSpan,
+          portions: spec.portions,
           // 商品名は POS 申告値をそのまま持つ（正規化は表示時の導出）。親は素通しで読み、麺量は
-          // slotSpan を決めた同定結果から取る（noodle-spec が同じ 1 度の同定から返す）。
+          // portions を決めた同定結果から取る（noodle-spec が同じ 1 度の同定から返す）。
           itemName: toDeclaredName((rawItem as Record<string, unknown>).item_name)?.name ?? null,
           sizeName: spec.sizeName,
           completedAt: null,
           interruptedAt: null,
+          tableAssignedAt: null,
         });
       }
     }
@@ -693,7 +695,9 @@ export class StoreTimerDO extends DurableObject<Env> {
     this.toleranceRatio = config.toleranceRatio;
     this.noodlePresets = config.noodlePresets;
     this.firmnessCodes = config.firmnessCodes;
-    this.menuItems = config.menuItems;
+    // 対応表は domain の検証に通す——永続投影は項目の形が変わる前（sizes が釜数を持っていた頃）の値でありうる。
+    // 型は MenuItem[] でも値は古い形でありうるので、型が指す形と値を揃える（liftIntervalSeconds の欠如を畳むのと同じ層）。
+    this.menuItems = toMenuItems(config.menuItems);
     // 採点パラメータは投影 config が正本。投影（StoreConfig）は既定を合成済みで届くため（registry の compose）、
     // ここで再度 DEFAULT_* へ畳まない——畳めば「どちらが既定を決めるのか」が二箇所になる。
     this.scheduleParams = {
@@ -1342,9 +1346,18 @@ export class StoreTimerDO extends DurableObject<Env> {
               newTimerId: crypto.randomUUID() as TimerId,
               now,
             }
-          : command.type === "cancel"
-            ? { type: "Cancel" as const, timerId: command.timerId, now }
-            : { type: "Complete" as const, timerId: command.timerId, now };
+          : command.type === "assignTable"
+            ? {
+                // 店が品目の卓を決める（Orders 画面・2026-09-17）。engine が品目と参照する Timer の卓を書く。
+                type: "AssignTable" as const,
+                externalOrderId: command.externalOrderId,
+                itemIndex: command.itemIndex,
+                tableId: command.tableId,
+                now,
+              }
+            : command.type === "cancel"
+              ? { type: "Cancel" as const, timerId: command.timerId, now }
+              : { type: "Complete" as const, timerId: command.timerId, now };
 
     // 同期・採点のパラメータは settleParams が一箇所で組む（投影 config から確立した確定値を注入する）。
     const before = this.workingCopy;

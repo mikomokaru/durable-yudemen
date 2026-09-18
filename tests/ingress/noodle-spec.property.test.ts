@@ -2,7 +2,7 @@
 //
 // Property 4: 判定と翻訳は同じ入力から導かれる。
 //   toNoodleSpec が非 null を返すことと、当該品目が麺量の商品コードを持つことは同値である。ゆえに
-//   「茹で対象でありながら slotSpan が定まらない」状態も「茹でないのに slotSpan が定まる」状態も存在しない。
+//   「茹で対象でありながら玉数が定まらない」状態も「茹でないのに玉数が定まる」状態も存在しない。
 //   同値性の右辺（麺量コードを持つか）はテスト側で入力から独立に導く——実装を呼び直せば同値ではなく
 //   同一の言い換えになり、何も検証しない。
 
@@ -11,8 +11,7 @@ import { describe, expect, it } from "vitest";
 import { FIRMNESS_ORDER, type Firmness } from "../../src/domain/firmness";
 import { isNonEmpty, type NonEmptyArray } from "../../src/domain/timer";
 import {
-  SLOT_SPAN_MAX,
-  SLOT_SPAN_MIN,
+  isPortions,
   type FirmnessCode,
   type MenuItem,
   type NoodleSize,
@@ -38,13 +37,13 @@ const genNoodleSizes: fc.Arbitrary<NonEmptyArray<NoodleSize>> = fc
   .uniqueArray(
     fc.record({
       code: genSizeCodeValue,
-      slotSpan: fc.integer({ min: SLOT_SPAN_MIN, max: SLOT_SPAN_MAX }),
+      portions: fc.integer({ min: 1, max: 18 }).map((half) => half / 2),
     }),
     { selector: (size) => size.code, minLength: 1, maxLength: 3 },
   )
   // sizes は型で非空（麺量を持たない品目は茹でないため MenuItem は必ず 1 つ以上のサイズを持つ）。
   .map((sizes) =>
-    isNonEmpty(sizes) ? sizes : ([{ code: 19_401, slotSpan: 1 }] as NonEmptyArray<NoodleSize>),
+    isNonEmpty(sizes) ? sizes : ([{ code: 19_401, portions: 1 }] as NonEmptyArray<NoodleSize>),
   );
 
 const genMenuItems: fc.Arbitrary<readonly MenuItem[]> = fc.uniqueArray(
@@ -98,17 +97,15 @@ describe("ingress/noodle-spec — 判定と翻訳", () => {
 
   // Feature: pos-order-ingress, Property 4: 判定と翻訳は同じ入力から導かれる
   // **Validates: Requirements 6.21, 6.24**
-  it("Property 4: 茹で対象なら slotSpan が必ず定まり、当該メニューの麺量が定めた値に一致する", () => {
+  it("Property 4: 茹で対象なら玉数が必ず定まり、当該メニューの麺量が定めた値に一致する", () => {
     fc.assert(
       fc.property(genOrderItem, genLookup, (orderItem, lookup) => {
         const spec = toNoodleSpec(orderItem, lookup);
         if (spec === null) return;
-        // 「茹で対象でありながら slotSpan が定まらない」状態が存在しないことの表明。
-        expect(Number.isInteger(spec.slotSpan)).toBe(true);
-        expect(spec.slotSpan).toBeGreaterThanOrEqual(SLOT_SPAN_MIN);
-        expect(spec.slotSpan).toBeLessThanOrEqual(SLOT_SPAN_MAX);
+        // 「茹で対象でありながら玉数が定まらない」状態が存在しないことの表明。
+        expect(isPortions(spec.portions)).toBe(true);
         // 値の出所は当該品目の麺量ただ一つである（推測で埋めていない）。
-        expect(designatedSlotSpans(orderItem, lookup)).toContain(spec.slotSpan);
+        expect(designatedPortions(orderItem, lookup)).toContain(spec.portions);
         expect(designatedNoodleTypes(orderItem, lookup)).toContain(spec.noodleType);
       }),
       { numRuns: 1000 },
@@ -117,11 +114,11 @@ describe("ingress/noodle-spec — 判定と翻訳", () => {
 
   // Feature: pos-order-ingress, Property 4: 判定と翻訳は同じ入力から導かれる
   // **Validates: Requirements 6.22, 6.24**
-  it("Property 4: 茹でない品目は slotSpan を一切持たない（null のみを返す）", () => {
+  it("Property 4: 茹でない品目は玉数を一切持たない（null のみを返す）", () => {
     fc.assert(
       fc.property(genOrderItem, genLookup, (orderItem, lookup) => {
         if (hasNoodleSizeCode(orderItem, lookup)) return;
-        // 「茹でないのに slotSpan が定まる」状態が存在しないことの表明。null は幅を運べない。
+        // 「茹でないのに玉数が定まる」状態が存在しないことの表明。null は玉数を運べない。
         expect(toNoodleSpec(orderItem, lookup)).toBeNull();
       }),
       { numRuns: 1000 },
@@ -146,11 +143,11 @@ describe("ingress/noodle-spec — 判定と翻訳", () => {
  * 麺量は親メニューが定めるため、親商品コードが対応表に無い品目は麺量コードを 1 つも持ちえない。
  */
 function hasNoodleSizeCode(orderItem: Record<string, unknown>, lookup: NoodleLookup): boolean {
-  return designatedSlotSpans(orderItem, lookup).length > 0;
+  return designatedPortions(orderItem, lookup).length > 0;
 }
 
-/** 当該品目に指定されている麺量の slotSpan を列挙する（0 件なら茹でない）。 */
-function designatedSlotSpans(
+/** 当該品目に指定されている麺量の玉数を列挙する（0 件なら茹でない）。 */
+function designatedPortions(
   orderItem: Record<string, unknown>,
   lookup: NoodleLookup,
 ): readonly number[] {
@@ -159,7 +156,7 @@ function designatedSlotSpans(
   const childCodes = childProductCodes(orderItem);
   return menuItem.sizes
     .filter((size) => childCodes.includes(size.code))
-    .map((size) => size.slotSpan);
+    .map((size) => size.portions);
 }
 
 /** 当該品目が茹で対象であるときの麺種（親メニューがただ 1 つ定める）。 */
@@ -198,7 +195,7 @@ describe("Feature: slot-suggested-start, Property 8: 名前は判定に用いら
     };
   }
 
-  it("child の item_name を任意に変えても noodleType / firmness / slotSpan は変わらない", () => {
+  it("child の item_name を任意に変えても noodleType / firmness / portions は変わらない", () => {
     fc.assert(
       fc.property(
         genOrderItem,
@@ -224,7 +221,7 @@ describe("Feature: slot-suggested-start, Property 8: 名前は判定に用いら
   it("同一コードで名前が食い違えば sizeName は null（同名の重複は保つ）", () => {
     const lookup: NoodleLookup = {
       menuItems: [
-        { productCode: 11_001, noodleType: "Thin", sizes: [{ code: 19_001, slotSpan: 1 }] },
+        { productCode: 11_001, noodleType: "Thin", sizes: [{ code: 19_001, portions: 1 }] },
       ],
       firmnessCodes: [],
     };
@@ -253,14 +250,14 @@ describe("Feature: slot-suggested-start, Property 8: 名前は判定に用いら
     expect(
       toNoodleSpec({ ...base, child_items: [...conflicting].reverse() }, lookup)?.sizeName,
     ).toBeNull();
-    // slotSpan の同定は影響を受けない（キー集合は変わらない）。
-    expect(toNoodleSpec({ ...base, child_items: conflicting }, lookup)?.slotSpan).toBe(1);
+    // 玉数の同定は影響を受けない（キー集合は変わらない）。
+    expect(toNoodleSpec({ ...base, child_items: conflicting }, lookup)?.portions).toBe(1);
   });
 
   it("欠落・空文字・型違いの item_name は null へ畳む（Pass_Through）", () => {
     const lookup: NoodleLookup = {
       menuItems: [
-        { productCode: 11_001, noodleType: "Thin", sizes: [{ code: 19_001, slotSpan: 1 }] },
+        { productCode: 11_001, noodleType: "Thin", sizes: [{ code: 19_001, portions: 1 }] },
       ],
       firmnessCodes: [],
     };
@@ -276,7 +273,7 @@ describe("Feature: slot-suggested-start, Property 8: 名前は判定に用いら
       );
       expect(spec?.sizeName).toBeNull();
       // 名前が読めないことは茹でない理由にならない。
-      expect(spec?.slotSpan).toBe(1);
+      expect(spec?.portions).toBe(1);
     }
   });
 });

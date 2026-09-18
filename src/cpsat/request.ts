@@ -1,6 +1,6 @@
 import type { PlanRequest } from "../solver/request";
 import type { OrderItem } from "../domain/order";
-import type { NoodlePreset } from "../domain/store";
+import { slotSpanOf, type NoodlePreset } from "../domain/store";
 import { placeableTargets } from "../engine/schedule";
 import type { ScheduleParams } from "../engine/objective";
 
@@ -66,7 +66,7 @@ export function cpsatTargets(
   // 釜に入らない品目はモデルが置けない。`placeableTargets` は上げ窓の上限（arms + HELPER_ARMS）で
   // 絞るが、釜の本数は見ない——CP-SAT 固有の条件としてここで足す。
   return placeableTargets(pending, now as never, presets, params)
-    .filter((item) => item.slotSpan <= slotCount)
+    .filter((item) => slotSpanOf(item.portions) <= slotCount)
     .slice(0, limit);
 }
 

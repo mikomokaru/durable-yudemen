@@ -152,7 +152,7 @@ describe("core/migrate — v7 → v8 の面", () => {
   // v7 の待ち行列は麺量の語彙を持たず、現に 1 品目 1 スロットで計画されていた。ゆえに欠如を 1 で埋めるのが
   // 当時の実際の挙動に一致する。判定材料は空から始める——v7 以前は取り込み経路が存在せず、材料を持つ端末が
   // 無い。空なら最初の Record が必ず受理され、以降は単調性が効く。
-  it("Property 12: 任意の v7 スナップショットで slotSpan は 1 になり、判定材料は空になる", () => {
+  it("Property 12: 任意の v7 スナップショットで玉数は 1 になり、判定材料は空になる", () => {
     fc.assert(
       fc.property(genV7Snapshot, (v7) => {
         // 生成器が v8 の語彙を混ぜていないことを先に確かめる（混ざれば以降の主張が意味を失う）。
@@ -167,7 +167,7 @@ describe("core/migrate — v7 → v8 の面", () => {
         if (!result.ok) return;
         expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
         expect(result.snapshot.orderItems).toHaveLength(v7.pendingOrders.length);
-        for (const order of result.snapshot.orderItems) expect(order.slotSpan).toBe(SLOT_SPAN_MIN);
+        for (const order of result.snapshot.orderItems) expect(order.portions).toBe(1);
         expect(result.snapshot.lastSequenceByTerminal).toEqual({});
       }),
       { numRuns: 300 },
@@ -193,11 +193,12 @@ describe("core/migrate — v7 → v8 の面", () => {
         expect(
           result.snapshot.orderItems.map(
             ({
-              slotSpan: _span,
+              portions: _span,
               itemName: _item,
               sizeName: _size,
               completedAt: _completed,
               interruptedAt: _interrupted,
+              tableAssignedAt: _assigned,
               ...rest
             }) => rest,
           ),
@@ -308,8 +309,16 @@ describe("Feature: order-lifecycle, Requirement 6.1 / 性質 7.9: v12 → v13 �
         interruptedAt: fc.option(fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }), {
           nil: null,
         }),
+        // 店が卓を決めた事実（v14）。null と時刻の双方を往復させる。
+        tableAssignedAt: fc.option(fc.integer({ min: 1_600_000_000_000, max: 1_800_000_000_000 }), {
+          nil: null,
+        }),
       })
-      .map((facts) => ({ ...order, ...facts })),
+      // v15 の品目は釜数（slotSpan）でなく玉数（portions）を持つ。v12 の整数の釜数はそのまま妥当な玉数でもある。
+      .map(({ ...facts }) => {
+        const { slotSpan, ...rest } = order;
+        return { ...rest, portions: slotSpan, ...facts };
+      }),
   );
 
   it("v12 の pendingOrders は同じ件数・同じ並びで orderItems に読み替えられ、厨房の事実は null になる", () => {
@@ -321,8 +330,15 @@ describe("Feature: order-lifecycle, Requirement 6.1 / 性質 7.9: v12 → v13 �
           expect(result.ok).toBe(true);
           if (!result.ok) return;
           expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
+          // v12 の釜数（slotSpan）は v15 で仮置きの玉数（portions = slotSpan）として読まれる。
           expect(result.snapshot.orderItems).toEqual(
-            pendingOrders.map((order) => ({ ...order, completedAt: null, interruptedAt: null })),
+            pendingOrders.map(({ slotSpan, ...order }) => ({
+              ...order,
+              portions: slotSpan,
+              completedAt: null,
+              interruptedAt: null,
+              tableAssignedAt: null,
+            })),
           );
           expect(result.snapshot).not.toHaveProperty("pendingOrders");
         },
@@ -386,9 +402,12 @@ describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさ
               sizeName: _size,
               completedAt: _completed,
               interruptedAt: _interrupted,
+              tableAssignedAt: _assigned,
               ...rest
             } = order;
-            expect(rest).toEqual(pendingOrders[index]);
+            // v8 の釜数（slotSpan）は v15 で仮置きの玉数（portions = slotSpan）として読まれる。
+            const { slotSpan, ...v8Rest } = pendingOrders[index]!;
+            expect(rest).toEqual({ ...v8Rest, portions: slotSpan });
           }
           expect(result.snapshot.version).toBe(CURRENT_SCHEMA_VERSION);
         },
@@ -417,6 +436,7 @@ describe("Feature: slot-suggested-start, Property 9: 移行は品目を落とさ
           sizeName: null,
           completedAt: null,
           interruptedAt: null,
+          tableAssignedAt: null,
         },
       ],
       lastSequenceByTerminal: {},
@@ -771,16 +791,18 @@ describe("Feature: order-item-truncation, Requirement 4: 上限と鍵の一意�
       firmness: "normal" as const,
       tableId: null,
       arrivalTime,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     };
   }
 
   const v13With = (orderItems: readonly unknown[]) => ({
-    version: 13,
+    // 上限と鍵の面は版に依らない。現行形（玉数）で組む。
+    version: CURRENT_SCHEMA_VERSION,
     timers: [],
     nextSeq: 0,
     orderItems,

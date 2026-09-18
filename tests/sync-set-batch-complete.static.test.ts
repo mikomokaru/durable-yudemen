@@ -89,6 +89,7 @@ const WIRE_MESSAGE_TYPES = new Set([
   "cancel",
   "complete",
   "adjust",
+  "assignTable",
   "snapshot",
   "config",
   "error",

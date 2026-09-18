@@ -59,7 +59,7 @@ function config(unitCount: number, noodleType: string): StoreConfig {
     // POS の対応表 2 枚は既定が空ゆえ、既定のままでは「配信に乗っている」と「空が乗っている」が区別できない。
     // 麺種を noodlePresets と共有させ、どちらの投影由来かを判別できる値を置く。
     firmnessCodes: [{ code: 10010, firmness: "hard" }],
-    menuItems: [{ productCode: 11421, noodleType, sizes: [{ code: 19401, slotSpan: 1 }] }],
+    menuItems: [{ productCode: 11421, noodleType, sizes: [{ code: 19401, portions: 1 }] }],
   };
 }
 

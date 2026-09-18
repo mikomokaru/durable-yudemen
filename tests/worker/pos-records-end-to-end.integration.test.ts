@@ -57,7 +57,7 @@ const storeOverride = {
   ],
   firmnessCodes: [{ code: 10011, firmness: "normal" }],
   menuItems: [
-    { productCode: MENU_CODE, noodleType: NOODLE, sizes: [{ code: SIZE_REGULAR, slotSpan: 1 }] },
+    { productCode: MENU_CODE, noodleType: NOODLE, sizes: [{ code: SIZE_REGULAR, portions: 1 }] },
   ],
 };
 

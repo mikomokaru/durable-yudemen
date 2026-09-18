@@ -44,11 +44,12 @@ describe("上限を超える合流の列は候補の窓の残り容量で切る"
       firmness: "normal",
       tableId: "T1",
       arrivalTime: (NOW + index * SECOND) as EpochMillis,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     }));
     const now = (NOW + 12 * SECOND) as EpochMillis;
     const schedule = baselineSchedule(
@@ -130,11 +131,12 @@ function residualWindow(count: number, tableSyncWeight: number) {
     firmness: "normal",
     tableId: "T1",
     arrivalTime: (NOW + index * SECOND) as EpochMillis,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
   const now = (NOW + 8 * SECOND) as EpochMillis;
   const params = { ...PARAMS, tableSyncWeight };

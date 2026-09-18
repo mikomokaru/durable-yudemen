@@ -35,11 +35,12 @@ function queue(count: number): readonly OrderItem[] {
     firmness: "normal" as const,
     tableId: index % 2 === 0 ? "t-a" : "t-b",
     arrivalTime: (NOW - (count - index) * 30_000) as EpochMillis,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
 }
 

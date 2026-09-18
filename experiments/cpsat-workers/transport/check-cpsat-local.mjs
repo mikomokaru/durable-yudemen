@@ -136,7 +136,7 @@ function planRequest(itemCount) {
     firmness: "normal",
     tableId: index % 2 === 0 ? "T-1" : "T-2",
     arrivalTime: T0 + index * 30_000,
-    slotSpan: 1,
+    portions: 1,
     itemName: "特味噌ネギラーメン",
     sizeName: "中盛",
     completedAt: null,

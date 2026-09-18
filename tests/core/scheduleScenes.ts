@@ -66,7 +66,7 @@ export interface ItemSpec {
   readonly firmness: Firmness;
   readonly tableId: string | null;
   /** 占める釜の数（大盛は 2）。lift-group-planning で割当が読むようになった。 */
-  readonly slotSpan: number;
+  readonly portions: number;
 }
 
 /** 1 注文の素データ。arrivalTime は注文単位（到着は注文単位で届く）。 */
@@ -94,7 +94,7 @@ export function genItemSpec(noodleTypes: readonly string[]): fc.Arbitrary<ItemSp
     firmness: fc.constantFrom<Firmness>("extraHard", "hard", "normal", "soft"),
     tableId: fc.oneof(fc.constantFrom<string>(...TABLE_IDS), fc.constant(null)),
     // 大盛（2 釜）は低い頻度で混ぜる。
-    slotSpan: fc.constantFrom(1, 1, 1, 2),
+    portions: fc.constantFrom(1, 1, 1, 2),
   });
 }
 
@@ -183,11 +183,12 @@ export function toPending(orders: readonly OrderSpec[]): readonly OrderItem[] {
       firmness: item.firmness,
       tableId: item.tableId,
       arrivalTime: order.arrivalTime,
-      slotSpan: item.slotSpan,
+      portions: item.portions,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     })),
   );
 }
@@ -293,11 +294,12 @@ export function shortestFirstPlan(
     firmness: order.firmness,
     tableId: order.tableId,
     arrivalTime: NOW - byBoil.length + index,
-    slotSpan: order.slotSpan,
+    portions: order.portions,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
   return baselineSchedule(
     resequenced,

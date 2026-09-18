@@ -30,11 +30,12 @@ function order(overrides: Partial<OrderItem> & { externalOrderId: string }): Ord
     firmness: "normal",
     tableId: "t-1",
     arrivalTime: T0 - 60 * SECOND,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
     ...overrides,
   };
 }

@@ -27,6 +27,7 @@ Timer は本プロジェクトの中核概念であり、パイロットから�
 
 - **SlotId の複数化（実装済み）** — `TimerFact.slotId` を `slotIds: NonEmptyArray<Slot>`（型で非空強制・`readonly [Slot, ...Slot[]]`）へ変えた。1スロット↔多スロットは表現差ではなく**事実の基数変化**ゆえ、共有の芯 `TimerFact` を変えて両側（engine/client/wire/永続）が同一基数に追従する。未検証入力（`ClientMessage.start`・永続）は `readonly string[]` のままにし、境界で `isNonEmpty`（domain/timer.ts）を通して非空を確立する。永続は v2 へ上げ `migrate` が旧単一 `slotId` を `[slotId]` に写す。担当絞り込みは any-overlap（`slotIds` のいずれかが範囲内）、表示は multi-cell（各スロットセルに現れる）。詳細は yude-men-timer/design.md「スロット複数化（slotIds・スキーマ v2）」。
 - **駆動オーダーの保持** — `seq`（登録順・engine 専用 `Sequenced`）とは**別概念**。「オーダーを client が見るか」をまず決める。client 可視なら共有事実として `TimerFact`（または共有の兄弟概念）へ。engine 内部のみなら `Sequenced` と混同せず別の engine 専用概念として立てる。**経過**：engine 専用の `Ordered.orderItem`（品目参照と卓・ADR-0003）として実装。`lift-group-display` が一度 `TimerFact.orderItem` として共有へ出したが、群の開始の事実は `CookRecommendation.anchor` が運ぶ形（ADR-0008）になり、client に読み手が無いので engine 専用へ戻した（2026-09-05）。
+- **麺の玉数（実装済み・2026-09-18）** — `OrderItem.portions`（domain の共有事実・0.5 刻み）。client が札に出し engine が釜数を導くので共有だが、**`TimerFact` には及ばない**——走行中の品目の玉数は `orderItem` 参照経由で `OrderItem` から引く（参照が解けない Timer は麺種だけで表示する既存の経路）。釜数（`slotSpan`）は `slotSpanOf(portions)` の導出値で、設定・状態・ワイヤのどこにも保持しない（noodle-portions・ADR-0017）。
 - **近接茹で上がりの終了調整** — 調整対象は `endTime`（既に `TimerFact` の共有事実）。engine の純粋変換（`decide` 配下）で `endTime` を調整すれば、調整後の値は既存フィールドのまま client へ伝わる。**ワイヤ／共有の形は変えない**。新しい変換を engine へ足すだけにとどめる。
 
 ## 不変点

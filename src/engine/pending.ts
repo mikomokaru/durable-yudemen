@@ -81,7 +81,7 @@ export function truncateOrderItems(items: readonly OrderItem[]): readonly OrderI
  * （「品目のない到着」は注文の消滅を意味するが、それを表明する経路は removeOrder ただ一つである）。
  *
  * 規則は一つに揃える（判断 8）——**同じ品目の後着は、状態にかかわらず POS 由来の注文属性だけを更新する。**
- *   1. 同じ鍵（externalOrderId + itemIndex）の品目が在れば、`noodleType` / `firmness` / `tableId` / `slotSpan` /
+ *   1. 同じ鍵（externalOrderId + itemIndex）の品目が在れば、`noodleType` / `firmness` / `tableId` / `portions` /
  *      `itemName` / `sizeName` を到着の値で更新し、厨房の事実（`completedAt` / `interruptedAt`）は保つ（AC 2.1 / 2.2）。
  *      生きた Timer には触れない——`OrderItem` は最新の注文情報、`Timer` はその調理を開始した時点の情報である
  *      （判断 7）。POS の後着で、いま茹でている麺の条件は書き換えない。`done` の品目は再送で `unstarted` に戻らない。
@@ -197,16 +197,19 @@ function arrivalsOf(
 }
 
 /**
- * 既存の品目に到着の注文属性だけを写す。鍵・`arrivalTime`（引継ぎ）・厨房の事実は既存のまま（AC 2.1 / 2.2）。
+ * 既存の品目に到着の注文属性だけを写す。鍵・`arrivalTime`（引継ぎ）・厨房と店の事実は既存のまま（AC 2.1 / 2.2）。
  * 列挙するのは POS 由来の属性 6 つで、`OrderItem` に属性が増えたときに「どちらの側の事実か」をここで決める。
+ *
+ * **卓だけは条件付き**（2026-09-17）。店が卓を決めていれば（`tableAssignedAt !== null`）POS の後着は卓を上書きしない
+ * ——店の判断の方が新しく現場に近く、再送で黙って戻されてはならない。決めていなければ従来どおり POS の値に従う。
  */
 function withOrderAttributes(existing: OrderItem, arrived: OrderItem): OrderItem {
   return {
     ...existing,
     noodleType: arrived.noodleType,
     firmness: arrived.firmness,
-    tableId: arrived.tableId,
-    slotSpan: arrived.slotSpan,
+    tableId: existing.tableAssignedAt === null ? arrived.tableId : existing.tableId,
+    portions: arrived.portions,
     itemName: arrived.itemName,
     sizeName: arrived.sizeName,
   };
@@ -262,10 +265,11 @@ function isSameOrderItem(left: OrderItem, right: OrderItem | undefined): boolean
     left.firmness === right.firmness &&
     left.tableId === right.tableId &&
     left.arrivalTime === right.arrivalTime &&
-    left.slotSpan === right.slotSpan &&
+    left.portions === right.portions &&
     left.itemName === right.itemName &&
     left.sizeName === right.sizeName &&
     left.completedAt === right.completedAt &&
-    left.interruptedAt === right.interruptedAt
+    left.interruptedAt === right.interruptedAt &&
+    left.tableAssignedAt === right.tableAssignedAt
   );
 }

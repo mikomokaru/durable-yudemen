@@ -62,11 +62,12 @@ function arrival(index: number, arrivalTime: number): OrderItem {
     firmness: "normal",
     tableId: `t-${index % 20}`,
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 

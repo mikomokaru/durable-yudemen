@@ -127,11 +127,12 @@ function order(
     itemIndex: 0,
     firmness: "normal",
     arrivalTime: T0,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
     ...overrides,
   };
 }
@@ -275,7 +276,7 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
    */
   const A = order("a", { noodleType: "Long", tableId: "t-1", arrivalTime: at(-20) });
   const B = order("b", { noodleType: "Mid", tableId: "t-1", arrivalTime: at(-20) });
-  const C = order("c", { noodleType: "Short", tableId: "t-2", arrivalTime: at(-10), slotSpan: 2 });
+  const C = order("c", { noodleType: "Short", tableId: "t-2", arrivalTime: at(-10), portions: 2 });
 
   interface Variant {
     readonly name: string;
@@ -448,7 +449,7 @@ describe("Feature: lift-group-display — 茹で上がりの 2 場面（design T
 describe("Feature: lift-group-display — 容量分割（6 釜・同卓 4 品・各 2 釜・design Testing Strategy）", () => {
   /** 同卓 t-1 の 1 注文 4 品（Mid 360 秒・各 2 釜）。容量 6 釜ゆえ 3 品が batch 1、残る 1 品が batch 2。 */
   const ITEMS = [0, 1, 2, 3].map((itemIndex) =>
-    order("o", { itemIndex, noodleType: "Mid", tableId: "t-1", arrivalTime: at(-30), slotSpan: 2 }),
+    order("o", { itemIndex, noodleType: "Mid", tableId: "t-1", arrivalTime: at(-30), portions: 2 }),
   );
   const ITEM1 = ITEMS[0]!;
   const ITEM2 = ITEMS[1]!;
@@ -602,7 +603,7 @@ describe("Feature: lift-group-display — keepsAnchor の帰結（design「解�
   const P = [0, 1].map((itemIndex) =>
     order("p", { itemIndex, noodleType: "Short", tableId: "t-a", arrivalTime: at(-100) }),
   );
-  const Q = order("q", { noodleType: "Short", tableId: "t-a", arrivalTime: at(-50), slotSpan: 2 });
+  const Q = order("q", { noodleType: "Short", tableId: "t-a", arrivalTime: at(-50), portions: 2 });
 
   const EXTERNAL: CookSchedule = {
     slices: [

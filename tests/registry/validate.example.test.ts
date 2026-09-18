@@ -27,8 +27,10 @@ import {
   ARMS_MAX,
   TOLERANCE_RATIO_MIN,
   TOLERANCE_RATIO_MAX,
-  SLOT_SPAN_MIN,
-  SLOT_SPAN_MAX,
+  PORTIONS_MIN,
+  PORTIONS_MAX,
+  LIFT_INTERVAL_SECONDS_MAX,
+  LIFT_INTERVAL_SECONDS_MIN,
 } from "../../src/domain/store";
 import { FIRMNESS_ORDER } from "../../src/domain/firmness";
 
@@ -65,6 +67,8 @@ const NUMERIC_RANGES = [
   { field: "unitCount", min: UNIT_COUNT_MIN, max: UNIT_COUNT_MAX },
   { field: "arms", min: ARMS_MIN, max: ARMS_MAX },
   { field: "toleranceRatio", min: TOLERANCE_RATIO_MIN, max: TOLERANCE_RATIO_MAX },
+  // 上げの間隔（2026-09-17 に主張対象へ）。境界は domain の妥当域を共有する。
+  { field: "liftIntervalSeconds", min: LIFT_INTERVAL_SECONDS_MIN, max: LIFT_INTERVAL_SECONDS_MAX },
 ] as const;
 
 describe("validateProvisioningInput — 正常入力の受理", () => {
@@ -348,8 +352,8 @@ const validMenuItem = () => ({
   productCode: 11421,
   noodleType: "Thin",
   sizes: [
-    { code: 19401, slotSpan: SLOT_SPAN_MIN },
-    { code: 19603, slotSpan: SLOT_SPAN_MAX },
+    { code: 19401, portions: PORTIONS_MIN },
+    { code: 19603, portions: PORTIONS_MAX },
   ],
 });
 
@@ -494,31 +498,65 @@ describe("validateProvisioningInput — menuItems", () => {
     );
   });
 
-  it(`slotSpan: 境界内（${SLOT_SPAN_MIN}・${SLOT_SPAN_MAX}）は受理、境界外は out-of-range で拒否する（クランプしない）`, () => {
-    for (const slotSpan of [SLOT_SPAN_MIN, SLOT_SPAN_MAX]) {
-      const raw = { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan }] }] };
+  it(`portions: 境界内（${PORTIONS_MIN}・${PORTIONS_MAX}）と 0.5 刻みは受理、境界外は out-of-range で拒否する（クランプしない）`, () => {
+    for (const portions of [PORTIONS_MIN, 1, 1.5, 2.5, PORTIONS_MAX]) {
+      const raw = { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, portions }] }] };
       expect(validateProvisioningInput({ target: "storeOverride", raw })).toEqual({
         accepted: true,
       });
     }
-    for (const slotSpan of [SLOT_SPAN_MIN - 1, SLOT_SPAN_MAX + 1]) {
-      const raw = { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan }] }] };
+    for (const portions of [PORTIONS_MIN - 0.5, PORTIONS_MAX + 0.5, -1]) {
+      const raw = { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, portions }] }] };
       expectRejection(
         validateProvisioningInput({ target: "storeOverride", raw }),
-        "menuItems[0].sizes[0].slotSpan",
+        "menuItems[0].sizes[0].portions",
         "out-of-range",
       );
     }
   });
 
-  it("slotSpan が非整数なら type-mismatch で拒否する", () => {
+  it("portions が 0.5 刻みでなければ out-of-range で拒否する（1.25 は玉数として在りえない）", () => {
     expectRejection(
       validateProvisioningInput({
         target: "storeOverride",
-        raw: { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan: 1.5 }] }] },
+        raw: { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, portions: 1.25 }] }] },
+      }),
+      "menuItems[0].sizes[0].portions",
+      "out-of-range",
+    );
+  });
+
+  it("portions が欠落なら missing-required、非数なら type-mismatch で拒否する", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401 }] }] },
+      }),
+      "menuItems[0].sizes[0].portions",
+      "missing-required",
+    );
+    for (const portions of ["1", null, Number.NaN]) {
+      expectRejection(
+        validateProvisioningInput({
+          target: "storeOverride",
+          raw: { menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, portions }] }] },
+        }),
+        "menuItems[0].sizes[0].portions",
+        "type-mismatch",
+      );
+    }
+  });
+
+  it("以前の釜数 slotSpan は未知フィールドとして拒否する（釜数は玉数から導く・読み替えない）", () => {
+    expectRejection(
+      validateProvisioningInput({
+        target: "storeOverride",
+        raw: {
+          menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, portions: 1, slotSpan: 1 }] }],
+        },
       }),
       "menuItems[0].sizes[0].slotSpan",
-      "type-mismatch",
+      "unknown-field",
     );
   });
 
@@ -527,7 +565,7 @@ describe("validateProvisioningInput — menuItems", () => {
       validateProvisioningInput({
         target: "storeOverride",
         raw: {
-          menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, slotSpan: 1, label: "大盛" }] }],
+          menuItems: [{ ...validMenuItem(), sizes: [{ code: 19401, portions: 1, label: "大盛" }] }],
         },
       }),
       "menuItems[0].sizes[0].label",
@@ -565,7 +603,7 @@ describe("validateProvisioningInput — 拒否理由の全件集約（短絡し�
           {
             productCode: 11421,
             noodleType: "",
-            sizes: [{ code: 19401, slotSpan: SLOT_SPAN_MAX + 1 }],
+            sizes: [{ code: 19401, portions: PORTIONS_MAX + 0.5 }],
           },
         ],
       },
@@ -576,7 +614,7 @@ describe("validateProvisioningInput — 拒否理由の全件集約（短絡し�
         "firmnessCodes[0].code",
         "firmnessCodes[0].firmness",
         "menuItems[0].noodleType",
-        "menuItems[0].sizes[0].slotSpan",
+        "menuItems[0].sizes[0].portions",
       ]),
     );
     expect(paths).toHaveLength(4);

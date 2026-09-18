@@ -57,7 +57,7 @@ async function provisioned(storeId: string) {
         {
           productCode: MENU_CODE,
           noodleType: PRESET,
-          sizes: [{ code: SIZE_CODE, slotSpan: 1 }],
+          sizes: [{ code: SIZE_CODE, portions: 1 }],
         },
       ],
     },

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import {
   EMPTY_VIEW,
   fetchStoreChoices,
+  isOrderFlowPath,
   isPingBlackholeActive,
   openTimerConnection,
   pingBlackholeDebugEnabled,
@@ -30,6 +31,8 @@ import { useAudioCues } from "./components/useAudioCues";
 import { ConnectionStatus } from "./components/ConnectionStatus";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { Logo } from "./components/Logo";
+import { OrderFlow } from "./OrderFlow";
+import { ScreenSwitch } from "./components/ScreenSwitch";
 import { unitsForCount } from "./assignment";
 import { readLastStore, rememberLastStore } from "./persistence";
 import { DEFAULT_UNIT_COUNT } from "../domain/store";
@@ -45,6 +48,10 @@ export function App() {
   // 店舗パス外（Entry `/`）は接続を開かず、前回使用店の記憶による直行 or 案内へ落とす（要件7.8）。
   if (storeId === null) {
     return <Entry />;
+  }
+  // オーダーの流れ（KANBAN）画面（プロトタイプ）。同じ店舗パスの配下 `/flow/` で、接続は同じ店舗の WS。
+  if (isOrderFlowPath(window.location.pathname)) {
+    return <OrderFlow storeId={storeId} />;
   }
   return <StoreTimer storeId={storeId} />;
 }
@@ -228,6 +235,10 @@ function StoreTimer({ storeId }: { storeId: string }) {
           {storeId}
         </span>
         <div className="flex-1" />
+        {/* 画面の切替。どの画面でも上部バーの中央・同じ並び（位置を固定する）。 */}
+        <div className="absolute left-1/2 -translate-x-1/2">
+          <ScreenSwitch storeId={storeId} current="timer" />
+        </div>
         {connection && <ConnectionStatus connection={connection} />}
         <button
           ref={settingsBtnRef}

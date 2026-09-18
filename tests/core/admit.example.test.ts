@@ -74,11 +74,12 @@ function order(externalOrderId: string, noodleType: string, tableId: string): Or
     firmness: "normal",
     tableId,
     arrivalTime: NOW,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 
@@ -305,7 +306,7 @@ describe("admit — 外部の申告を検証する", () => {
 
 describe("admit — slotSpan は釜番号で数える（レビュー指摘・AC 4.2）", () => {
   /** 2 釜を要する短い麺。空いている釜は 0 番だけなので、正しく数えれば今は置けない。 */
-  const WIDE: OrderItem = { ...SHORT, slotSpan: 2 };
+  const WIDE: OrderItem = { ...SHORT, portions: 2 };
   const PENDING_WIDE: readonly OrderItem[] = [LONG, WIDE];
   const COMMITTED_WIDE = committedSchedule([], PENDING_WIDE, BLOCKED, NOW, PRESETS, PARAMS, null);
 
@@ -524,11 +525,12 @@ describe("admit — 始めたまとまりを崩す計画は feasible ではな�
     firmness: "normal",
     tableId: "t-1",
     arrivalTime: NOW,
-    slotSpan: 2,
+    portions: 2,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   }));
   const COMMITTED_WIDE = committedSchedule([], REST, [FIRST], NOW, WIDE_PRESETS, PARAMS, null);
 
@@ -1053,7 +1055,7 @@ describe("admit — 置ける品目に限って計画対象と比べる（plan-s
   });
 
   it("(c) 単体で上限（arms 2 + 2 = 4）を超える span 5 も同じ——置けない間は集合に無く、arms 3 で置けるようになれば欠落で落ちる", () => {
-    const wide: OrderItem = { ...order("o-wide", "Short", "t-m"), slotSpan: 5 };
+    const wide: OrderItem = { ...order("o-wide", "Short", "t-m"), portions: 7.5 };
     const pendingWide = [LONG, M, wide];
     const gateWide = (
       arrived: CookSchedule,

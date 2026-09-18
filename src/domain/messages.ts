@@ -79,7 +79,16 @@ export type ClientMessage =
     }
   | { readonly type: "cancel"; readonly timerId: string } // 走行中の中断（要件6）
   | { readonly type: "complete"; readonly timerId: string } // 茹で上がりの明示消し込み（boiled → 除去）
-  | { readonly type: "adjust"; readonly timerId: string; readonly firmness: Firmness }; // 走行中の茹で加減変更（endTime 再計算）
+  | { readonly type: "adjust"; readonly timerId: string; readonly firmness: Firmness } // 走行中の茹で加減変更（endTime 再計算）
+  // 店が品目の卓を決める（Orders 画面・2026-09-17）。null は「卓なし」に戻す。品目の状態を問わない——未調理でも調理中でも
+  // 書け、調理中なら参照する走行中 Timer の卓（計画の錨）も書き換わる。店の判断は POS の後着より優先する
+  // （`OrderItem.tableAssignedAt`）。品目の鍵は startOrderItem と同じ平坦な 2 項目で運ぶ。
+  | {
+      readonly type: "assignTable";
+      readonly externalOrderId: string;
+      readonly itemIndex: number;
+      readonly tableId: string | null;
+    };
 
 /** server → client のメッセージ。すべて serverTime を付与する。
  *

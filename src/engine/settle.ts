@@ -235,8 +235,9 @@ function isSameLastSequence(
  * フィールドをすべて突き合わせる必要がある——sync/fire が動かす adjustment / boiledAt に加え、adjust が動かす
  * endTime（アンカー）と firmness も含める。ここが adjustment / boiledAt だけを見ていると、単独 running への
  * 茹で加減変更（adjustment が 0 のまま）が no-op と誤判定され、Persist も Broadcast も出ずに握り潰される。
- * id / slotIds / noodleType / startTime / seq / orderItem は生成後に変わらないため比較不要
- * （集合の id 一致で足りる）。
+ * id / slotIds / noodleType / startTime / seq は生成後に変わらないため比較不要（集合の id 一致で足りる）。
+ * orderItem の卓は店の指定（assignTable・2026-09-17）で変わるので含める——品目側の変化が同じ遷移で必ず在るとはいえ、
+ * Timer の同一性は Timer の全フィールドで閉じて判定する（品目の変化に頼らない）。
  */
 function isSameTimers(prev: readonly Timer[], next: readonly Timer[]): boolean {
   if (prev.length !== next.length) return false;
@@ -248,7 +249,8 @@ function isSameTimers(prev: readonly Timer[], next: readonly Timer[]): boolean {
       p.endTime !== t.endTime ||
       p.firmness !== t.firmness ||
       p.adjustment !== t.adjustment ||
-      p.boiledAt !== t.boiledAt
+      p.boiledAt !== t.boiledAt ||
+      (p.orderItem?.tableId ?? null) !== (t.orderItem?.tableId ?? null)
     ) {
       return false;
     }

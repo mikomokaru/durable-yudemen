@@ -58,7 +58,7 @@ const configMessage = {
     { x: 1, y: 2 },
   ],
   firmnessCodes: [{ code: 10010, firmness: "hard" }],
-  menuItems: [{ productCode: 11421, noodleType: "Thin", sizes: [{ code: 19401, slotSpan: 1 }] }],
+  menuItems: [{ productCode: 11421, noodleType: "Thin", sizes: [{ code: 19401, portions: 1 }] }],
 } satisfies ConfigMessage;
 
 const CONFIG_KEYS = [

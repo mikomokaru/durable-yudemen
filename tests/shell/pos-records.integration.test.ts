@@ -84,14 +84,14 @@ const menuItems: readonly MenuItem[] = [
     productCode: MENU_CODE,
     noodleType: NOODLE,
     sizes: [
-      { code: SIZE_REGULAR, slotSpan: 1 },
-      { code: SIZE_LARGE, slotSpan: 2 },
+      { code: SIZE_REGULAR, portions: 1 },
+      { code: SIZE_LARGE, portions: 2 },
     ] as NonEmptyArray<MenuItem["sizes"][number]>,
   },
   {
     productCode: ORPHAN_MENU_CODE,
     noodleType: ORPHAN_NOODLE,
-    sizes: [{ code: SIZE_REGULAR, slotSpan: 1 }] as NonEmptyArray<MenuItem["sizes"][number]>,
+    sizes: [{ code: SIZE_REGULAR, portions: 1 }] as NonEmptyArray<MenuItem["sizes"][number]>,
   },
 ];
 
@@ -437,8 +437,8 @@ describe("翻訳できた品目のみが写る（Requirements 6.5, 6.16, 6.27, 6
     const orders = persisted?.orderItems ?? [];
     // 位置 0・2（非麺）は欠番として残る。詰め直せば元のペイロードのどこから来たかという事実が失われる。
     expect(orders.map((order) => order.itemIndex)).toEqual([1, 3]);
-    // 麺量が slotSpan へ、硬さの商品コードが firmness へ翻訳される（指定が無い品目は既定へ畳む）。
-    expect(orders.map((order) => order.slotSpan)).toEqual([1, 2]);
+    // 麺量が玉数（portions）へ、硬さの商品コードが firmness へ翻訳される（指定が無い品目は既定へ畳む）。
+    expect(orders.map((order) => order.portions)).toEqual([1, 2]);
     expect(orders.map((order) => order.firmness)).toEqual(["hard", "normal"]);
     expect(orders.map((order) => order.noodleType)).toEqual([NOODLE, NOODLE]);
     expect(orders.map((order) => order.tableId)).toEqual(["12", "12"]);
@@ -667,7 +667,7 @@ describe("Property 16: 後着は置換・0 件は除去または無変更（Requ
     const persisted = await readSnapshot(stub);
     // 全置換であって差分の当て込みではない（残り 2 品目が待ち行列に取り残されない）。
     expect(persisted?.orderItems).toHaveLength(1);
-    expect(persisted?.orderItems.map((order) => order.slotSpan)).toEqual([2]);
+    expect(persisted?.orderItems.map((order) => order.portions)).toEqual([2]);
     expect(persisted?.lastSequenceByTerminal).toEqual({ "1": seq(2) });
   });
 

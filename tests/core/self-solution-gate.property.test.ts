@@ -6,7 +6,7 @@
 // **Validates: Requirements startable-placement 4.5, 4.8; plan-stability 5.10, 6.3; lift-group-planning 9.10**
 //
 // 検査するのは物理的なハード制約——置ける品目に限る `isStale`（一片 ＝ 卓の計画対象）・解放表（`feasibleRelease`：重複なし・
-// 解放時刻より前に始めない・茹で時間の一致・slotSpan）・`keepsAnchor`（錨の主張・窓だけによる延期・押し出し無し）・上げ窓の
+// 解放時刻より前に始めない・茹で時間の一致・portions）・`keepsAnchor`（錨の主張・窓だけによる延期・押し出し無し）・上げ窓の
 // 上限（`withinLiftCap`）。`cannotStart` は保持の条件であって成立の条件ではない（判断 13）——空き釜不足で boiled の釜に「今」
 // 置いて待つ配置（AC 1.4）は合法ゆえ数えない。自前解だから免れる述語は無い（AC 6.3）。1 段目への実行時のフォールバックは
 // 置かない——場面 E（task 3 の 2 段目が `raiseToFloor` の下限で `keepsAnchor` (d) を破った縮約例）は、loop（復元 → 検証 →
@@ -56,9 +56,9 @@ function item(
   noodleType: "Thin" | "Medium" | "Thick",
   firmness: Firmness,
   tableId: string | null,
-  slotSpan = 1,
+  portions = 1,
 ): ItemSpec {
-  return { noodleType, firmness, tableId, slotSpan };
+  return { noodleType, firmness, tableId, portions };
 }
 
 /** 場面 E：24 釜・arms 1・L 49。走行中は卓 t-1 の 2 本（52.001 秒に上がる釜 0・いま上がる釜 1）。 */

@@ -275,6 +275,8 @@ interface NoodleSize {
 
 **横断の整合（`menuItems[].noodleType ∈ noodlePresets`）は検証層で見ない。** 3 層の合成を経た後の組み合わせでしか判定できず、入口では片方だけが投入されうる（Policy がメニューを配り、店舗が `noodlePresets` を上書きする形が正当である）。ゆえに実行時に扱う——対応表に無い麺種の品目は取り込みの段で弾いて数える（AC 6.28）。入口で拒否すれば、正当な段階的投入が不可能になる。
 
+> **改訂（`noodle-portions`・ADR-0017・2026-09-18）:** `NoodleSize.slotSpan` は `NoodleSize.portions`（玉数・0.5 刻み・0.5〜9）に置き換えた。釜数は domain の `slotSpanOf(portions) = ⌈portions / 1.5⌉` で導く導出値で、設定にも `OrderItem` にも持たない。`toNoodleSpec` は `portions` を返し、以下の `slotSpan` の記述は「玉数を読み、釜数は導く」と読み替える。
+
 `slotSpan` の値域は **1 以上 6 以下**とする。上限 6 は 1 ユニットのスロット数（`StoreConfig` の注記より 1 ユニット = 6 スロット）であり、1 品目がユニットを跨いで占有する形は現実の釜の構造に無い。0 や負値は「占有しない麺」という表現不能な状態ゆえ拒否する。
 
 **この 2 枚は `configMessage` で client へ配る。** 現行の方針（`StoreConfig` の全項目を配信）に例外を作らないためである。`src/ingress/` を立てた論拠（client が知る必要のない POS 形を共有契約へ置かない）と緊張するが、両者は層が違う——`ArrivalRecord` は運搬の形であり、こちらは店舗設定の一部である。項目ごとに配信対象を選び直せば「client がどれを知っているか」が項目数だけ分岐し、設定が増えるたびにその表が伸びる。単純さを優先して配る。

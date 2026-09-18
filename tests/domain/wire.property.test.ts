@@ -133,11 +133,12 @@ describe("Feature: slot-suggested-start, Property 7: 商品名の往復", () => 
           firmness: "normal",
           tableId: null,
           arrivalTime: 1,
-          slotSpan: 1,
+          portions: 1,
           itemName: "",
           sizeName: null,
           completedAt: null,
           interruptedAt: null,
+          tableAssignedAt: null,
         },
       ],
     };

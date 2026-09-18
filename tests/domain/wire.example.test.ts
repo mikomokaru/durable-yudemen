@@ -64,6 +64,38 @@ describe("Feature: verified-wire-contract — ClientMessage は形だけを見�
   });
 });
 
+describe("Feature: order-flow — 店が卓を決める（assignTable）", () => {
+  const ASSIGN = {
+    type: "assignTable",
+    externalOrderId: "o-1",
+    itemIndex: 2,
+    tableId: "7",
+  } as const;
+
+  it("鍵と卓が揃えば通り、卓は null（卓なしへ戻す）でも通る", () => {
+    expect(toClientMessage(JSON.stringify(ASSIGN))).toEqual(ASSIGN);
+    expect(toClientMessage(JSON.stringify({ ...ASSIGN, tableId: null }))).toEqual({
+      ...ASSIGN,
+      tableId: null,
+    });
+  });
+
+  it("鍵の欠落・不正、空文字や非文字列の卓は Decode_Failure（形の違い）", () => {
+    for (const broken of [
+      { externalOrderId: undefined },
+      { externalOrderId: "" },
+      { itemIndex: undefined },
+      { itemIndex: -1 },
+      { itemIndex: 1.5 },
+      { tableId: "" },
+      { tableId: 7 },
+      { tableId: undefined },
+    ]) {
+      expect(toClientMessage(JSON.stringify({ ...ASSIGN, ...broken }))).toBeNull();
+    }
+  });
+});
+
 describe("Feature: slot-suggested-start — 品目を指す開始（startOrderItem）", () => {
   const ORDER_ITEM = {
     type: "startOrderItem",
@@ -336,11 +368,12 @@ describe("Feature: order-lifecycle — snapshot の orderItems と TimerFact.ord
     firmness: "normal",
     tableId: "12",
     arrivalTime: 1,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   } as const;
   const TIMER = {
     id: "T",
@@ -370,6 +403,8 @@ describe("Feature: order-lifecycle — snapshot の orderItems と TimerFact.ord
       { ...ITEM, itemIndex: 1, completedAt: 5 },
       { ...ITEM, itemIndex: 2, interruptedAt: 0 },
       { ...ITEM, itemIndex: 3, completedAt: 7, interruptedAt: 3 },
+      // 店が卓を決めた事実（order-flow・2026-09-17）も同じ形で往復する。
+      { ...ITEM, itemIndex: 4, tableAssignedAt: 9 },
     ];
     expect(decode({ ...base, orderItems: items })?.orderItems).toEqual(items);
   });
@@ -388,6 +423,8 @@ describe("Feature: order-lifecycle — snapshot の orderItems と TimerFact.ord
       { interruptedAt: -1 },
       { completedAt: 1.5 },
       { interruptedAt: true },
+      { tableAssignedAt: undefined },
+      { tableAssignedAt: "1" },
     ]) {
       expect(
         decode({ ...base, orderItems: [ITEM, { ...ITEM, itemIndex: 1, ...broken }] }),

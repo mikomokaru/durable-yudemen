@@ -34,11 +34,12 @@ function item(itemIndex: number, noodleType: string, arrivalTime: number): Order
     firmness: "normal",
     tableId: "t-7",
     arrivalTime,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
   };
 }
 
@@ -90,7 +91,7 @@ describe("upsertOrder — 一部開始済みの注文への modification（AC 2.
 
   it("調理中の品目も注文属性（麺種・茹で加減・卓・盛り・名称）だけは更新され、Timer には触れない（AC 2.1 / 7.8）", () => {
     const arrival = nonEmpty([
-      { ...item(0, "thick", MODIFIED_AT), firmness: "hard" as const, tableId: "t-9", slotSpan: 2 },
+      { ...item(0, "thick", MODIFIED_AT), firmness: "hard" as const, tableId: "t-9", portions: 2 },
       { ...item(1, "thick", MODIFIED_AT), itemName: "特盛", sizeName: "大" },
       item(2, "curly", MODIFIED_AT),
     ]);
@@ -101,7 +102,7 @@ describe("upsertOrder — 一部開始済みの注文への modification（AC 2.
       ...item(0, "thick", ARRIVED_AT),
       firmness: "hard",
       tableId: "t-9",
-      slotSpan: 2,
+      portions: 2,
     });
     expect(next[1]).toEqual({ ...item(1, "thick", ARRIVED_AT), itemName: "特盛", sizeName: "大" });
     // Timer は調理を開始した時点の情報のまま（卓も麺種も追随しない）。
@@ -211,7 +212,7 @@ describe("isSameOrderItems — 全フィールドの一致（厨房の事実を�
     expect(isSameOrderItems(base, [{ ...base[0]!, completedAt: 1 }])).toBe(false);
     expect(isSameOrderItems(base, [{ ...base[0]!, interruptedAt: 1 }])).toBe(false);
     expect(isSameOrderItems(base, [{ ...base[0]!, itemName: "x" }])).toBe(false);
-    expect(isSameOrderItems(base, [{ ...base[0]!, slotSpan: 2 }])).toBe(false);
+    expect(isSameOrderItems(base, [{ ...base[0]!, portions: 2 }])).toBe(false);
     expect(isSameOrderItems(base, [])).toBe(false);
   });
 });
@@ -227,11 +228,12 @@ describe("upsertOrder — 上限で忘れる（order-item-truncation Requirement
       firmness: "normal" as const,
       tableId: null,
       arrivalTime: base[index]!.arrivalTime + 10_000_000,
-      slotSpan: 1,
+      portions: 1,
       itemName: null,
       sizeName: null,
       completedAt: null,
       interruptedAt: null,
+      tableAssignedAt: null,
     }));
   }
 

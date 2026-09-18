@@ -40,11 +40,12 @@ function order(overrides: Partial<OrderItem> & { externalOrderId: string }): Ord
     firmness: "normal",
     tableId: "t-1",
     arrivalTime: T0 - 60 * SECOND,
-    slotSpan: 1,
+    portions: 1,
     itemName: null,
     sizeName: null,
     completedAt: null,
     interruptedAt: null,
+    tableAssignedAt: null,
     ...overrides,
   };
 }
@@ -409,7 +410,7 @@ describe("Feature: lift-group-display — 群に入らない推奨・group だ�
   });
 
   it("複数釜の推奨は一部の釜が埋まっていればどの釜にも出ず、boiled の釜も埋まっている", () => {
-    const wide = order({ externalOrderId: "wide", slotSpan: 2 });
+    const wide = order({ externalOrderId: "wide", portions: 2 });
     const plan = recommendation("wide", ["0", "1"], T0, "g1");
     const idle = view({ orderItems: [wide], recommendations: [plan] });
     expect([...suggestionsAt(idle, T0).keys()].sort()).toEqual([0, 1]);

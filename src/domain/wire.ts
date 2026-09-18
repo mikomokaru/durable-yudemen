@@ -12,7 +12,7 @@
 //    拒否（InvalidBoilSeconds / InvalidSlotOrNoodle / TimerNotFound / CapacityExceeded）に委ね、shell が error
 //    として要求元へ返す。ここで弾けば、その応答経路が無音の破棄に変わる。
 //  - ServerMessage（自分が送ったもの）: store.ts の要素検証をそのまま共有するため、それらが課す正規化条件
-//    （余剰フィールドの除去・正の秒数・正の商品コード・slotSpan の域内）も含む。形が違えば自分の不具合であり、
+//    （余剰フィールドの除去・正の秒数・正の商品コード・玉数の域内）も含む。形が違えば自分の不具合であり、
 //    理由を返す相手がいない。
 //
 // 失敗の粒度はメッセージ単位。要素が 1 つ壊れていれば snapshot 全体を捨てる（要素だけ落とせば「畳まない」
@@ -26,6 +26,7 @@ import type { WireOrderItem } from "./order";
 import {
   DEFAULT_LIFT_INTERVAL_SECONDS,
   SLOTS_PER_UNIT,
+  isPortions,
   toFirmnessCode,
   toGridPoint,
   toMenuItem,
@@ -83,6 +84,8 @@ export function toClientMessage(text: string): ClientMessage | null {
       return toTimerIdMessage(parsed, "complete");
     case "adjust":
       return toAdjustMessage(parsed);
+    case "assignTable":
+      return toAssignTableMessage(parsed);
     default:
       return null;
   }
@@ -126,6 +129,22 @@ function toTimerIdMessage(
 ): ClientMessage | null {
   const { timerId } = record;
   return typeof timerId === "string" ? { type, timerId } : null;
+}
+
+/**
+ * assignTable を確立する。鍵は両方が必須（startOrderItem と同じ）。tableId は null か非空文字列——欠落・空文字・非文字列は
+ * 形の違い（Decode_Failure）。判定は toDeclaredName ただ一つに閉じる（取り込み・永続・ワイヤで同じ関門）。
+ */
+function toAssignTableMessage(record: Record<string, unknown>): ClientMessage | null {
+  const { externalOrderId, itemIndex } = record;
+  if (!isNonEmptyString(externalOrderId)) return null;
+  if (!isNonNegativeInteger(itemIndex)) return null;
+  // 卓の欠落は形の違い——この種別は卓を運ぶことが存在理由で、「書かれていない」を「卓なし」に読み替えない
+  // （卓なしは null を明示して運ぶ）。POS の到着が欠落を null へ畳むのとは義務が違う。
+  if (record.tableId === undefined) return null;
+  const tableId = toDeclaredName(record.tableId);
+  if (tableId === null) return null;
+  return { type: "assignTable", externalOrderId, itemIndex, tableId: tableId.name };
 }
 
 /** adjust を確立する。firmness は有限リテラル集合ゆえ述語で所属を見る。 */
@@ -212,7 +231,7 @@ function toOrderItemRef(value: unknown): TimerFact["orderItem"] | undefined {
  */
 function toOrderItemFromWire(value: unknown): WireOrderItem | null {
   if (!isRecord(value)) return null;
-  const { externalOrderId, itemIndex, noodleType, firmness, arrivalTime, slotSpan } = value;
+  const { externalOrderId, itemIndex, noodleType, firmness, arrivalTime, portions } = value;
   if (!isNonEmptyString(externalOrderId)) return null;
   if (!isNonNegativeInteger(itemIndex)) return null;
   if (!isNonEmptyString(noodleType)) return null;
@@ -225,12 +244,16 @@ function toOrderItemFromWire(value: unknown): WireOrderItem | null {
   const sizeName = toDeclaredName(value.sizeName);
   if (sizeName === null) return null;
   if (!isNonNegativeInteger(arrivalTime)) return null;
-  if (!isNonNegativeInteger(slotSpan)) return null;
+  // 玉数は設定・品目・永続と同じ関門（isPortions）を通す。釜数はワイヤに載らない（導出値・noodle-portions 判断 4）。
+  if (!isPortions(portions)) return null;
   // 厨房の事実（order-lifecycle）。null か時刻（非負整数）。欠如は落とす——サーバは常に両方を書く。
   const completedAt = toRecordedAt(value.completedAt);
   if (completedAt === undefined) return null;
   const interruptedAt = toRecordedAt(value.interruptedAt);
   if (interruptedAt === undefined) return null;
+  // 店が卓を決めた事実（2026-09-17）。同じ関門を通る——サーバは常に書く。
+  const tableAssignedAt = toRecordedAt(value.tableAssignedAt);
+  if (tableAssignedAt === undefined) return null;
   // 札は**任意**である（item-display-abbreviation 判断 24）。欠如は「札が無い」で、受け手は全名へ戻る。
   // 空文字は持たないものとして扱う——通せば「札がある」と「無い」を区別できなくなる。**Decode_Failure に
   // しない**のは、札が表示だけの被せ物であり、1 件の不備でその snapshot 全体を落とす価値が無いためである。
@@ -246,15 +269,16 @@ function toOrderItemFromWire(value: unknown): WireOrderItem | null {
     firmness,
     tableId: tableId.name,
     arrivalTime,
-    slotSpan,
+    portions,
     itemName: itemName.name,
     sizeName: sizeName.name,
     completedAt,
     interruptedAt,
+    tableAssignedAt,
   };
 }
 
-/** 厨房が記録した時刻（`completedAt` / `interruptedAt`）を確立する。null はそのまま、非負整数はその値、他は undefined（拒否）。 */
+/** 厨房・店が記録した時刻（`completedAt` / `interruptedAt` / `tableAssignedAt`）を確立する。null はそのまま、非負整数はその値、他は undefined（拒否）。 */
 function toRecordedAt(value: unknown): number | null | undefined {
   if (value === null) return null;
   return isNonNegativeInteger(value) ? value : undefined;

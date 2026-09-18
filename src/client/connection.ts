@@ -761,6 +761,14 @@ export interface TimerConnection {
   complete(timerId: string): void;
   /** 走行中の茹で加減変更を送る（live のみ・サーバが endTime を引き直す）。 */
   adjust(timerId: string, firmness: Firmness): void;
+  /**
+   * 店が品目の卓を決める（Orders 画面・2026-09-17）。null は「卓なし」。live のときだけ送る——品目はサーバだけが確定させる
+   * 事実で、degraded でローカルに書けば再接続で消える嘘になる（startOrderItem と同じ立場）。
+   */
+  assignTable(
+    orderItem: { readonly externalOrderId: string; readonly itemIndex: number },
+    tableId: string | null,
+  ): void;
   /** 接続を閉じ、再接続・ティックを停止する。 */
   close(): void;
 }
@@ -842,6 +850,23 @@ export function storeIdFromPath(pathname: string): string | null {
 export function timerSocketUrl(storeId: string): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}/s/${storeId}/ws`;
+}
+
+/** 店舗パス（釜のタイマー画面）。`/s/{storeId}/`。 */
+export function storePath(storeId: string): string {
+  return `/s/${storeId}/`;
+}
+
+/** オーダーの流れ（KANBAN）画面のパス。`/s/{storeId}/flow/`。`/orders` は POS 取り込みの POST 口なので使わない。 */
+export function orderFlowPath(storeId: string): string {
+  return `/s/${storeId}/flow/`;
+}
+
+const ORDER_FLOW_PATH_PATTERN = /^\/s\/[a-z0-9-]{1,64}\/flow(?:\/|$)/;
+
+/** パスがオーダーの流れ画面か（`/s/{storeId}/flow` または `/s/{storeId}/flow/`）。純粋関数。 */
+export function isOrderFlowPath(pathname: string): boolean {
+  return ORDER_FLOW_PATH_PATTERN.test(pathname);
 }
 
 /**
@@ -1154,6 +1179,15 @@ export function openTimerConnection(options: ConnectionOptions): TimerConnection
       if (target?.origin === "server" && mode(view) === "live") {
         watch.send({ type: "adjust", timerId, firmness });
       }
+    },
+    assignTable: (orderItem, tableId) => {
+      if (mode(view) !== "live") return;
+      watch.send({
+        type: "assignTable",
+        externalOrderId: orderItem.externalOrderId,
+        itemIndex: orderItem.itemIndex,
+        tableId,
+      });
     },
     close: () => {
       clearSyncTimer();
