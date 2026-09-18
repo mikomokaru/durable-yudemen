@@ -80,8 +80,8 @@
   - [x] 11.1 玉数を持つ `pos-menu` の JSON——`config/provisioning-sample/pos-menu-policy.json`（未追跡・2026-09-18 完成）。9/14 投入版を元に CSV の玉数で 39 コード、ユーザーの規則（麺種に「つけ」を含めば 1.5 / 2 / 2.5、含まなければ 1 / 1.5 / 2）で 3 コード。同じコードは全メニューで同じ玉数（検算済み・違反 0）
   - [x] 11.2 deploy 前に JSON をローカルの `validatePolicy` に通す（`slotSpan` / `null` が 1 つでも残れば 400）。同じコードが全メニューで同じ玉数であることを再検算する
   - [ ] 11.3 **Idle_Precondition の検証**：Workers Logs で直近 2 時間（`ORDER_LIFETIME_MS`）の `records-received` と `Persist` が全店で 0 件であることを確かめる。満たさなければ deploy しない（仮置きの玉数が現場に表示される）
-  - [ ] 11.4 アプリ Worker と CP-SAT 計画器 Worker を同じ変更で deploy する。以後 11.5 まで Provisioning_API へ他の投入をしない（design Component 7）
-  - [ ] 11.5 直後に `PUT /admin/policies/pos-menu` を投入し、`converge` の残作業が尽きるのを待つ（全 200 店の投影が作り直される）。deploy から投入までが `ARRIVAL_WINDOW_MS`（2 時間）より十分短いことを記録する
+  - [x] 11.4 アプリ Worker と CP-SAT 計画器 Worker を同じ変更で deploy する。以後 11.5 まで Provisioning_API へ他の投入をしない（design Component 7）
+  - [x] 11.5 直後に `PUT /admin/policies/pos-menu` を投入し、`converge` の残作業が尽きるのを待つ（全 200 店の投影が作り直される）。deploy から投入までが `ARRIVAL_WINDOW_MS`（2 時間）より十分短いことを記録する
   - [ ] 11.6 確認：任意の店舗で受領が `settled` になり品目が `portions` 付きで載る／client の `config` に `sizes[].portions` が載る／Workers Logs で `unprovisioned` 由来の 5xx が止まり、受領件数が投入前の水準に戻る
   - [ ] 11.7 別 spec として立てる：`GET /admin/policies/{policyId}`（未決 4）・Wire_SlotSpan の除去と「全端末更新済み」の確認手段（未決 5）
   - _Requirements: 8.1〜8.5_
@@ -103,3 +103,4 @@
 - 9.2〜9.4：ADR-0017・`pos-order-ingress` design §6 / requirements AC 6.24・`menu-policy-slotspan-20260914.md` §6・`offline-degradation` 要件 13.6・`timer-model.md` に注記。`docs/persisted-schema-rollback.md` に v15 の行。`config/provisioning-sample/README.md` に `firmnessCodes` / `menuItems` / `liftIntervalSeconds` の行。
 - 11.2（2026-09-18 実測）：`validateProvisioningInput({ target: "policyFields", raw: fields })` は `{ accepted: true }`。導出の内訳は 1玉→1釜 52・1.5玉→1釜 55・2玉→2釜 55・2.5玉→2釜 3・0.5玉→1釜 3（全 168 サイズ・同じコードで玉数のぶれ 0）。
 - 実験ハーネス（`experiments/cpsat-workers/transport/*.mjs` 5 本）の品目も `portions: 1` へ揃えた（`cpsat-real-model.example` / `cpsat-transport-app.example` が通る）。
+- 11.4〜11.6（2026-09-18 実測）：PR #45 を main へマージ（`fc5a6b8`）。CI/CD run 35306305714 は Lint / Typecheck / Test・Deploy to Cloudflare とも success。直後 04:21:08Z に `PUT https://timer-dev.yamaokaya.org/admin/policies/pos-menu` → `200 {"accepted":true}`（7.3 秒・送信 JSON の SHA-256 `e10377a8…75620a`）。対象は `chainId: yamaokaya` の 196 店（active 195）。**店舗側の確認（11.6）は未了**——`/s/{storeId}/ws` は Access（`ymoky.cloudflareaccess.com`）で保護され、workers.dev 側も JWT なしでは 1006 で閉じるため、機械からは `config` を読めない。Access でログイン済みのブラウザから 1 店舗の `config` を読んで `sizes[].portions` を確かめる。
