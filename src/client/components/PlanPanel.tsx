@@ -6,11 +6,12 @@ import { formatRemaining } from "../format";
 import { cn } from "../cn";
 import type { NoodleColor } from "./noodleColor";
 import { displayName } from "./queueDisplay";
-import type { PlanCluster } from "./flowLanes";
+import type { PlanCluster, PlanOrder } from "./flowLanes";
 import { SlotGlyph, TableBadge } from "./OrderFlowBoard";
 
 /**
- * 最新の計画。**一度に上げる調理クラスタ**（上がり時刻が等しい品目）を 1 箱にし、上がりの早い順に縦に並べる。箱の見出しは
+ * 最新の計画。**一度に上げる調理クラスタ**（上がり時刻が等しい品目）を 1 箱にし、縦に並べる。並びの鍵は置く画面が決める
+ * （`order`・釜のタイマー画面は投入順・Orders 画面は上がり順）。見出しにその鍵を記す。箱の見出しは
  * 開始までの時間（過ぎていれば `now`）と上がりの時刻。箱の中は卓（提供の単位＝群）で区切り、品目ごとに卓のバッジ・名・
  * 釜の位置の図。操作は持たない——開始は釜の画面の仕事で、ここは「次に何をどの釜で、一緒に何が上がるか」を読む一覧である。
  * 計画は snapshot のたびに置き換わる。
@@ -21,9 +22,12 @@ export function PlanPanel({
   corrected,
   unitCount,
   noodleColor,
+  order,
   className,
 }: {
   readonly clusters: readonly PlanCluster[];
+  /** 並びの鍵。`clusters` は既にこの鍵で並んでいる（orderClusters）。見出しの語だけに使う。 */
+  readonly order: PlanOrder;
   /** 先頭の遅れ（ミリ秒）。正なら目盛りは「いま始めたら」の見込みで、見出しにそう記す。 */
   readonly lagMs: number;
   readonly corrected: number;
@@ -47,6 +51,9 @@ export function PlanPanel({
       <h2 className="m-0 flex flex-none items-baseline justify-between text-xs font-bold tracking-wide text-muted uppercase">
         <span>
           Plan
+          <span className="ml-2 font-normal text-muted/70 normal-case">
+            {order === "start" ? "by start" : "by lift"}
+          </span>
           {lagMs > 0 && (
             <span
               className="ml-2 font-normal text-running normal-case"

@@ -22,6 +22,7 @@ import { displayName } from "./queueDisplay";
 import {
   BOWL_PREP_LEAD_MS,
   flowLanes,
+  orderClusters,
   planClusters,
   rebasePlan,
   ticketNumberOf,
@@ -72,7 +73,8 @@ export function OrderFlowRows({ connection, acked, onAck, onAssignTable }: Order
   const lanes = flowLanes(view, acked, now);
   const corrected = now + view.offset;
   // 先頭の開始が過去なら、その遅れぶんを全クラスタに足して「いま始めたら」の目盛りで出す（表示だけ・中身は変えない）。
-  const plan = rebasePlan(planClusters(view, now), corrected);
+  // 盛りつける人の画面なので上がりの早い順（PlanOrder・釜のタイマー画面は投入順）。
+  const plan = rebasePlan(orderClusters(planClusters(view, now), "serve"), corrected);
   const colorOf = useMemo(
     () => noodleColors(view.noodlePresets.map((preset) => preset.noodleType)),
     [view.noodlePresets],
@@ -126,6 +128,7 @@ export function OrderFlowRows({ connection, acked, onAck, onAssignTable }: Order
           corrected={corrected}
           unitCount={view.unitCount}
           noodleColor={colorOf}
+          order="serve"
           className="w-56 flex-none"
         />
         <Row title="Boiling" count={lanes.boiling.length} className="min-h-0 min-w-0 flex-1">
