@@ -209,17 +209,12 @@ const SIZE_LABEL: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * 玉数の単位。`SIZE_LABEL` と同じ規律で client の日本語はこの初期化子 1 箇所に閉じる（offline-degradation 要件 13.6・
- * noodle-portions 判断 7）。釜へ落とす量は現場の語「玉」でしか読めない。
+ * 玉数の数字（`1.5` / `2` / `0.5`）。整数は小数点なし、半端は 1 桁。単位は付けない——玉数は麺種と一つのチップ
+ * （NoodleChip）で見せ、品名には含めない（noodle-portions 判断 7・改訂 2026-09-18）。玉数は 0.5 刻み（domain の
+ * isPortions）なので `toFixed(1)` が丸め誤差に晒されることはない。
  */
-const PORTIONS_UNIT = "玉";
-
-/**
- * 玉数の札（`1.5玉` / `2玉` / `0.5玉`）。整数は小数点なし、半端は 1 桁。玉数は 0.5 刻み（domain の isPortions）なので
- * `toFixed(1)` が丸め誤差に晒されることはない。
- */
-export function portionsLabel(portions: number): string {
-  return `${Number.isInteger(portions) ? portions : portions.toFixed(1)}${PORTIONS_UNIT}`;
+export function portionsFigure(portions: number): string {
+  return Number.isInteger(portions) ? String(portions) : portions.toFixed(1);
 }
 
 export function displayName(order: WireOrderItem): string {
@@ -227,14 +222,13 @@ export function displayName(order: WireOrderItem): string {
   // **札はサーバが被せたものをそのまま使う。** client は辞書を持たない（判断 20）——引数は品目 1 つだけで、
   // 札が無ければ全名へ戻る。`shortName` は `itemName` に対してだけ付くので、`noodleType` 代替のときは現れない。
   const head = order.shortName ?? declared;
-  // 玉数は釜へ落とす量そのもの（noodle-portions 判断 7）。麺量の語（`中盛`）は POS の語、玉数はその実体で、両方を出す。
-  const portions = ` ${portionsLabel(order.portions)}`;
+  // 玉数は品名に含めない——麺種と一つのチップ（NoodleChip）で見せる（noodle-portions 判断 7）。
   const size = order.sizeName?.normalize("NFKC");
-  if (size === undefined) return `${head}${portions}`;
+  if (size === undefined) return head;
   const label = SIZE_LABEL.get(size);
   // 表に在れば区切り無しで連結する（`普通` は空文字ゆえ何も付かない）。無ければ従来どおり空白区切りで
   // 全名を添える——知らない麺量を機械的に 1 字へ削ると、`特盛`→`特` のように札と紛らわしくなる。
-  return label === undefined ? `${head} ${size}${portions}` : `${head}${label}${portions}`;
+  return label === undefined ? `${head} ${size}` : `${head}${label}`;
 }
 
 /** 推奨が指す品目を待ち行列から引く（品目の鍵で 1 品目を指す・domain の itemKeyOf）。無ければ undefined。 */

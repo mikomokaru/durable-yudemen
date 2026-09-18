@@ -186,17 +186,20 @@ Order_Ingress（`domain/order.ts` の `toArrivedItem`）は `candidate.portions`
 ### Component 5: client
 
 - `SlotBoard.tsx`：`pairSlots(picker.slot, slotSpanOf(order.portions), view)`。`liftGroups.ts` の `pairSlots` の引数は釜数のまま（釜を組む関数は釜数を受ける）。
-- `queueDisplay.ts`：`portionsLabel(portions)` を足し、`displayName` の末尾に空白区切りで添える。`SIZE_LABEL` の隣に `PORTIONS_UNIT = "玉"` を置き、静的検査（`offline-degradation.static.test.ts`）の例外をこの初期化子に限って広げる。
-- `OrderFlowBoard.tsx`：`BowlTile` の `size` の横に `portionsLabel`。注文を持たない Timer は `—`。
+- `queueDisplay.ts`：`portionsFigure(portions)`（`1.5` / `2`・単位なし）。`displayName` は変えない。
+- `NoodleChip.tsx`（新規）：麺種の名と玉数を一つのチップに置く。麺種の色で塗り、文字は統一の暗色（`NoodleBadge` と同じ）。語は `{noodleType} {figure}`。
+- `OrderRail.tsx` / `RadialMenu.tsx`：品名の前に `NoodleChip`。
+- `SlotCard.tsx`：`NoodleBadge` に `chip` を足し、上がり順のチップの隣に置く（暗色のピル・同じ形）。読み上げは `… · {noodleType} {portions}` を末尾に添える。注文を持たない Timer はチップ無し。
+- `OrderFlowBoard.tsx`：`Card` に `chip` を足し品名の前に置く。`BowlTile` はタレの行の前に置き、サイズの語は従来どおり。
 
 ```ts
-/** 玉数の札。整数は小数点なし（`2玉`）、半端は 1 桁（`1.5玉`）。単位はここだけが持つ（静的検査の例外の範囲）。 */
-export function portionsLabel(portions: number): string {
-  return `${Number.isInteger(portions) ? portions : portions.toFixed(1)}${PORTIONS_UNIT}`;
+/** 玉数の数字。整数は小数点なし（`2`）、半端は 1 桁（`1.5`）。単位は付けない（バッジの語・改訂 2026-09-18）。 */
+export function portionsFigure(portions: number): string {
+  return Number.isInteger(portions) ? String(portions) : portions.toFixed(1);
 }
 ```
 
-`toFixed(1)` は 0.5 刻みの値に対して `"1.5"` を返す（`0.5 + 1` 系の丸め誤差は Portions の値域に無い）。
+`toFixed(1)` は 0.5 刻みの値に対して `"1.5"` を返す（丸め誤差は Portions の値域に無い）。当初の「品名の末尾に `1.5玉`」は撤回した——品名が伸び、麺種は色でしか判らなかった（ユーザー指示 2026-09-18）。
 
 ### Component 6: 古い形の投影と受領の門（`src/shell/store-timer-do.ts`）
 

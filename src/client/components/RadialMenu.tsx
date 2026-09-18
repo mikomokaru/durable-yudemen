@@ -23,6 +23,7 @@ import type { NonEmptyArray } from "../../domain/timer";
 import { FIRMNESS_LABEL } from "./firmness";
 import type { NoodleColor } from "./noodleColor";
 import { displayName } from "./queueDisplay";
+import { NoodleChip } from "./NoodleChip";
 
 /** 待ち行列の帯の 1 行。品目の事実と、押した釜から組めた釜の集合。 */
 export interface RadialQueueItem {
@@ -333,8 +334,15 @@ function QueueRow({
             : "cursor-default opacity-40",
         )}
       >
-        {/* 麺種色はインライン style で与える。色の出所は釜カード・花びらと共有する resolver だけである。 */}
+        {/* 麺種と玉数は一つのチップで示す（noodle-portions 判断 7）。麺種色はインライン style で与える。
+            色の出所は釜カード・花びらと共有する resolver だけである。 */}
         <span className="font-bold" style={{ color: colorOf(order.noodleType) }}>
+          <NoodleChip
+            noodleType={order.noodleType}
+            portions={order.portions}
+            tint={colorOf(order.noodleType)}
+            className="mr-1 align-baseline"
+          />{" "}
           {displayName(order)}
         </span>
         <span className="text-muted">

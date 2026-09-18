@@ -23,6 +23,7 @@
 import type { NonEmptyArray } from "../../domain/timer";
 import { displayName, type QueueEntry } from "./queueDisplay";
 import type { NoodleColor } from "./noodleColor";
+import { NoodleChip } from "./NoodleChip";
 import { FIRMNESS_LABEL } from "./firmness";
 import { formatRemaining } from "../format";
 import { cn } from "../cn";
@@ -97,6 +98,13 @@ function OrderRow({
             ↩
           </span>
         )}
+        {/* 麺種と玉数は一つのチップで示す（noodle-portions 判断 7）。品名には含めず、名の前に置く。 */}
+        <NoodleChip
+          noodleType={order.noodleType}
+          portions={order.portions}
+          tint={noodleColor(order.noodleType)}
+          className="mr-1 align-baseline"
+        />{" "}
         {displayName(order)}
       </span>
       {/* 左群（茹で加減 + 卓番）と待ち時間を justify-between で両端へ固定する。左寄せの連結では
